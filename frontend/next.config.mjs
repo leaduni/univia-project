@@ -6,6 +6,10 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  webpack: (config) => {
+    config.ignoreWarnings = [/Invalid source map/];
+    return config;
+  },
  
 }
 

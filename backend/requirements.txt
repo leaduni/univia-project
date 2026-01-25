@@ -1,5 +1,7 @@
 fastapi
-uvicorn
+uvicorn[standard]
 asyncpg
 supabase
 python-dotenv
+pydantic[email]
+python-multipart

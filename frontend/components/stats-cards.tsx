@@ -2,26 +2,31 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BookOpen, TrendingUp, Award } from "lucide-react"
 
-export function StatsCards() {
-  const stats = [
+interface StatsCardsProps {
+  stats: any
+  isLoading: boolean
+}
+
+export function StatsCards({ stats, isLoading }: StatsCardsProps) {
+  const statsConfig = [
     {
       title: "Cursos Activos",
-      value: "6",
-      description: "De 8 total en tu plan",
+      value: stats?.activeCourses ?? "0",
+      description: "En tu ciclo actual",
       icon: BookOpen,
       gradient: "from-blue-500 to-blue-600",
     },
     {
       title: "Progreso Semestral",
-      value: "68%",
-      description: "En el segundo semestre",
+      value: `${stats?.semesterProgress ?? 0}%`,
+      description: "Basado en tus cursos",
       icon: TrendingUp,
       gradient: "from-cyan-500 to-blue-500",
     },
     {
       title: "Habilidades Dominadas",
-      value: "12",
-      description: "De tu plan curricular",
+      value: stats?.masterSkills ?? "0",
+      description: "Logros alcanzados",
       icon: Award,
       gradient: "from-emerald-500 to-cyan-500",
     },
@@ -29,7 +34,7 @@ export function StatsCards() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {stats.map((stat, index) => {
+      {statsConfig.map((stat, index) => {
         const Icon = stat.icon
         return (
           <Card key={index} className="bg-card border-border hover:shadow-lg transition-shadow duration-200">
@@ -42,7 +47,11 @@ export function StatsCards() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-foreground mb-1">{stat.value}</div>
+              {isLoading ? (
+                <div className="h-9 w-20 bg-muted animate-pulse rounded mb-1" />
+              ) : (
+                <div className="text-3xl font-bold text-foreground mb-1">{stat.value}</div>
+              )}
               <p className="text-xs text-muted-foreground">{stat.description}</p>
             </CardContent>
           </Card>

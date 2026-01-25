@@ -20,11 +20,9 @@ interface Exam {
   hasAnswers: boolean
 }
 
-export function ExamBank({ courseId }: { courseId: string }) {
+export function ExamBank({ courseId, exams }: { courseId: string; exams: Exam[] }) {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<string | null>(null)
-
-  const exams = (EXAM_BANK_DATA[courseId as keyof typeof EXAM_BANK_DATA] || EXAM_BANK_DATA["c201"]) as Exam[]
 
   const filteredExams = exams.filter((exam) => {
     const matchesSearch =
@@ -73,11 +71,10 @@ export function ExamBank({ courseId }: { courseId: string }) {
             <button
               key={type}
               onClick={() => setFilterType(filterType === type ? null : type)}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                filterType === type
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${filterType === type
                   ? `${typeConfig[type].bg} ${typeConfig[type].text}`
                   : "bg-secondary/50 text-foreground hover:bg-secondary"
-              }`}
+                }`}
             >
               {typeConfig[type].label}
             </button>

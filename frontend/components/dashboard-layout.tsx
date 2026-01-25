@@ -2,7 +2,8 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Sidebar } from "./sidebar"
 import { Header } from "./header"
 
@@ -12,6 +13,27 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const router = useRouter()
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
+
+  useEffect(() => {
+    const user = localStorage.getItem("user")
+    const token = localStorage.getItem("token")
+
+    if (!user || !token) {
+      router.push("/auth/login")
+    } else {
+      setIsCheckingAuth(false)
+    }
+  }, [router])
+
+  if (isCheckingAuth) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-screen bg-background">

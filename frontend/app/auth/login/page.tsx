@@ -9,11 +9,12 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { apiService } from "@/lib/api-service"
 
 const loginSchema = z.object({
-  codigoUni: z.string().min(6, "Código UNI debe tener al menos 6 caracteres"),
-  email: z.string().email("Email inválido").endsWith("@uni.edu.pe", "Email debe ser institucional"),
-  password: z.string().min(8, "Contraseña debe tener al menos 8 caracteres"),
+  codigoUni: z.string().optional(),
+  email: z.string().email("Email inválido"),
+  password: z.string().min(6, "Contraseña demasiado corta"),
 })
 
 type LoginFormValues = z.infer<typeof loginSchema>
@@ -21,6 +22,8 @@ type LoginFormValues = z.infer<typeof loginSchema>
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -33,12 +36,18 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true)
+    setError("")
     try {
-      // Simulate login
-      console.log("[v0] Login data:", data)
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      const response = await apiService.login({
+        email: data.email,
+        password: data.password
+      })
+      console.log("Login successful:", response)
       // Redirect to dashboard
       window.location.href = "/"
+    } catch (err: any) {
+      console.error("Login error:", err)
+      setError(err.message || "Error al iniciar sesión. Verifica tus credenciales.")
     } finally {
       setIsLoading(false)
     }
@@ -99,6 +108,12 @@ export default function LoginPage() {
             <h2 className="text-3xl font-bold text-foreground mb-2">Bienvenido de vuelta</h2>
             <p className="text-muted-foreground">Inicia sesión en tu cuenta UniVia</p>
           </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-lg mb-6">
+              {error}
+            </div>
+          )}
 
           {/* Login Form */}
           <Form {...form}>

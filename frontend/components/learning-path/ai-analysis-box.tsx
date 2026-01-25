@@ -14,9 +14,7 @@ interface AIInsight {
   action?: string
 }
 
-export function AIAnalysisBox({ courseId }: { courseId: string }) {
-  const insights = (AI_INSIGHTS_DATA[courseId as keyof typeof AI_INSIGHTS_DATA] ||
-    AI_INSIGHTS_DATA["c201"]) as AIInsight[]
+export function AIAnalysisBox({ courseId, insights }: { courseId: string; insights: AIInsight[] }) {
 
   const typeConfig = {
     strength: {

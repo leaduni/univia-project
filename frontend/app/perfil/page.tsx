@@ -14,13 +14,54 @@ import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { User } from "lucide-react";
 
+import { useState, useEffect } from "react";
+import { apiService } from "@/lib/api-service";
+
 export default function PerfilPage() {
-  const user = {
-    name: "Juan Pérez",
-    email: "juan.perez@alumnos.univia.edu",
-    faculty: "Ingeniería de Sistemas e Informática",
-    code: "20230123",
-    avatar: "/placeholder-user.jpg",
+  const [user, setUser] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        setIsLoading(true);
+        const data = await apiService.getProfile();
+        setUser(data);
+      } catch (err) {
+        console.error("Error fetching profile:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-full">
+          <p>Cargando perfil...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!user) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-full">
+          <p>No se pudo cargar el perfil.</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const profile = {
+    name: user.nombre_completo || "Usuario",
+    email: user.email || "",
+    faculty: user.estudiante?.carrera?.nombre || "No asignada",
+    code: user.estudiante?.codigo_estudiante || "S/C",
+    avatar: user.foto_url || "/placeholder-user.jpg",
   };
 
   return (
@@ -28,20 +69,20 @@ export default function PerfilPage() {
       <div className="flex-1 space-y-8 p-4 md:p-8">
         <div className="flex items-center space-x-4">
           <Avatar className="h-20 w-20">
-            <AvatarImage src={user.avatar} alt={user.name} />
+            <AvatarImage src={profile.avatar} alt={profile.name} />
             <AvatarFallback>
               <User className="h-10 w-10" />
             </AvatarFallback>
           </Avatar>
           <div>
             <h1 className="text-3xl font-bold text-foreground">
-              {user.name}
+              {profile.name}
             </h1>
-            <p className="text-muted-foreground">{user.faculty}</p>
+            <p className="text-muted-foreground">{profile.faculty}</p>
           </div>
         </div>
 
-        <StatsCards />
+        <StatsCards stats={user?.estudiante?.estadisticas || {}} isLoading={isLoading} />
 
         <div className="grid gap-8 md:grid-cols-2">
           <Card>
@@ -54,22 +95,23 @@ export default function PerfilPage() {
             <CardContent className="space-y-4">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Nombre</span>
-                <span className="font-medium">{user.name}</span>
+                <span className="font-medium">{profile.name}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">
                   Correo Institucional
                 </span>
-                <span className="font-medium">{user.email}</span>
+                <span className="font-medium">{profile.email}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Facultad</span>
-                <span className="font-medium">{user.faculty}</span>
+                <span className="font-medium">{profile.faculty}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Código UNI</span>
-                <span className="font-medium">{user.code}</span>
+                <span className="font-medium">{profile.code}</span>
               </div>
+
             </CardContent>
           </Card>
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-900/20 dark:to-blue-900/10">

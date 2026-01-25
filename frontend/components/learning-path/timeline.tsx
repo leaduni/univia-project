@@ -21,8 +21,8 @@ interface TimelineStep {
   }[]
 }
 
-export function LearningTimeline({ courseId }: { courseId: string }) {
-  const steps = (TIMELINE_DATA[courseId as keyof typeof TIMELINE_DATA] || TIMELINE_DATA["c201"]) as TimelineStep[]
+export function LearningTimeline({ courseId, timeline }: { courseId: string; timeline: TimelineStep[] }) {
+  const steps = timeline
 
   return (
     <div className="space-y-6">
@@ -38,15 +38,14 @@ export function LearningTimeline({ courseId }: { courseId: string }) {
               {/* Timeline Circle */}
               <div className="absolute left-0 top-2 w-12 h-12 flex items-center justify-center">
                 <div
-                  className={`w-12 h-12 rounded-full flex items-center justify-center border-4 bg-background transition-all ${
-                    step.status === "completed"
+                  className={`w-12 h-12 rounded-full flex items-center justify-center border-4 bg-background transition-all ${step.status === "completed"
                       ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600"
                       : step.status === "current"
                         ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 ring-4 ring-blue-200 dark:ring-blue-800"
                         : step.status === "upcoming"
                           ? "border-gray-300 bg-gray-50 dark:bg-gray-950/30 text-gray-400"
                           : "border-gray-300 bg-gray-100 dark:bg-gray-900 text-gray-400"
-                  }`}
+                    }`}
                 >
                   {step.status === "completed" ? (
                     <CheckCircle2 className="w-6 h-6" />
@@ -60,13 +59,12 @@ export function LearningTimeline({ courseId }: { courseId: string }) {
 
               {/* Card */}
               <Card
-                className={`transition-all ${
-                  step.status === "current"
+                className={`transition-all ${step.status === "current"
                     ? "border-blue-400 bg-blue-50/50 dark:border-blue-700 dark:bg-blue-950/20 ring-1 ring-blue-200 dark:ring-blue-800"
                     : step.status === "locked"
                       ? "opacity-60 cursor-not-allowed"
                       : ""
-                }`}
+                  }`}
               >
                 <CardHeader>
                   <div className="flex items-start justify-between mb-2">
@@ -78,14 +76,12 @@ export function LearningTimeline({ courseId }: { courseId: string }) {
                       variant={
                         step.status === "completed" ? "default" : step.status === "current" ? "secondary" : "outline"
                       }
-                      className={`whitespace-nowrap ${
-                        step.status === "completed" &&
+                      className={`whitespace-nowrap ${step.status === "completed" &&
                         "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
-                      }
-                      ${
-                        step.status === "current" &&
+                        }
+                      ${step.status === "current" &&
                         "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 animate-pulse"
-                      }`}
+                        }`}
                     >
                       {step.status === "completed"
                         ? "Completado"

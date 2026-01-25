@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Search, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,13 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { RecursoCard } from "./recursos/recurso-card"
 import { RecursosEmptyState } from "./recursos/empty-state"
-import { RECURSOS_DATA } from "@/lib/mockData"
+import { apiService } from "@/lib/api-service"
 import type { Recurso } from "@/types/recurso"
 
 export function RecursosBiblioteca() {
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState<"recent" | "downloaded" | "rated">("recent")
   const [showFilters, setShowFilters] = useState(false)
+  const [recursosData, setRecursosData] = useState<Recurso[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   // Filter states
   const [selectedTypes, setSelectedTypes] = useState<string[]>([])
@@ -22,20 +24,30 @@ export function RecursosBiblioteca() {
   const [selectedFacultad, setSelectedFacultad] = useState<string>("")
   const [selectedYears, setSelectedYears] = useState<string[]>([])
 
-  const recursosData: Recurso[] = RECURSOS_DATA
+  useEffect(() => {
+    const fetchRecursos = async () => {
+      try {
+        setIsLoading(true)
+        // We'll filter on the client side for types/ciclos/years for now to keep it responsive,
+        // or we could refetch on every filter change.
+        const data = await apiService.getRecursos({
+          search: searchQuery
+        })
+        setRecursosData(data)
+      } catch (err) {
+        console.error("Error fetching recursos:", err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
 
-  // Filter and sort logic
+    const timeoutId = setTimeout(fetchRecursos, 500) // Debounce search
+    return () => clearTimeout(timeoutId)
+  }, [searchQuery])
+
+  // Filter and sort logic (Client side filtering for secondary filters)
   const filteredRecursos = useMemo(() => {
     let filtered = recursosData
-
-    // Search filter
-    if (searchQuery) {
-      filtered = filtered.filter(
-        (r) =>
-          r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          r.code.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
-    }
 
     // Type filter
     if (selectedTypes.length > 0) {
@@ -44,17 +56,17 @@ export function RecursosBiblioteca() {
 
     // Ciclo filter
     if (selectedCiclos.length > 0) {
-      filtered = filtered.filter((r) => selectedCiclos.includes(r.ciclo.toString()))
+      filtered = filtered.filter((r) => selectedCiclos.includes(r.ciclo?.toString() || ""))
     }
 
     // Facultad filter
-    if (selectedFacultad) {
+    if (selectedFacultad && selectedFacultad !== 'all') {
       filtered = filtered.filter((r) => r.facultad === selectedFacultad)
     }
 
     // Year filter
     if (selectedYears.length > 0) {
-      filtered = filtered.filter((r) => selectedYears.includes(r.year.toString()))
+      filtered = filtered.filter((r) => selectedYears.includes(r.year?.toString() || ""))
     }
 
     // Sort
@@ -68,7 +80,7 @@ export function RecursosBiblioteca() {
     }
 
     return sorted
-  }, [searchQuery, selectedTypes, selectedCiclos, selectedFacultad, selectedYears, sortBy])
+  }, [recursosData, selectedTypes, selectedCiclos, selectedFacultad, selectedYears, sortBy])
 
   const toggleType = (type: string) => {
     setSelectedTypes((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]))

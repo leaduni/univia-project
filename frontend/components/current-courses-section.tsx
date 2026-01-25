@@ -1,37 +1,12 @@
 "use client"
 import { CourseCard } from "./course-card"
 
-export function CurrentCoursesSection() {
-  const courses = [
-    {
-      id: "1",
-      title: "Programación I",
-      professor: "Dr. Carlos López",
-      status: "En progreso" as const,
-      progress: 65,
-      currentTopic: "Estructuras de Control - Bucles y Condiciones",
-      nextClass: "Mañana, 10:00 AM",
-    },
-    {
-      id: "2",
-      title: "Cálculo II",
-      professor: "Dra. María García",
-      status: "Casi completo" as const,
-      progress: 92,
-      currentTopic: "Integrales Múltiples y Aplicaciones",
-      nextClass: "Jueves, 2:30 PM",
-    },
-    {
-      id: "3",
-      title: "Fundamentos de Base de Datos",
-      professor: "Prof. Juan Martínez",
-      status: "En progreso" as const,
-      progress: 48,
-      currentTopic: "Modelado de Entidad-Relación",
-      nextClass: "Miércoles, 4:00 PM",
-    },
-  ]
+interface CurrentCoursesSectionProps {
+  courses: any[]
+  isLoading: boolean
+}
 
+export function CurrentCoursesSection({ courses, isLoading }: CurrentCoursesSectionProps) {
   return (
     <div>
       <div className="mb-4">
@@ -40,9 +15,29 @@ export function CurrentCoursesSection() {
       </div>
 
       <div className="space-y-4">
-        {courses.map((course) => (
-          <CourseCard key={course.id} {...course} />
-        ))}
+        {isLoading ? (
+          // Placeholder loading cards
+          [1, 2, 3].map((i) => (
+            <div key={i} className="h-32 w-full bg-card animate-pulse rounded-xl border border-border" />
+          ))
+        ) : courses && courses.length > 0 ? (
+          courses.map((course) => (
+            <CourseCard
+              key={course.id}
+              id={course.id.toString()}
+              title={course.name}
+              professor="Asignado"
+              status={course.progress >= 90 ? "Casi completo" : "En progreso"}
+              progress={course.progress}
+              currentTopic="Contenido del curso"
+              nextClass="Horario programado"
+            />
+          ))
+        ) : (
+          <div className="p-8 text-center bg-card rounded-xl border border-border">
+            <p className="text-muted-foreground">No tienes cursos activos en este momento.</p>
+          </div>
+        )}
       </div>
     </div>
   )

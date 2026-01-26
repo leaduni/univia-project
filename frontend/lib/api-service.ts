@@ -1,10 +1,29 @@
-/**
- * API Service for UniVia Frontend
- * Handles all communication with the FastAPI backend
- */
+import { supabase } from './supabase';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API_URL = BASE_URL.endsWith('/api') ? BASE_URL : `${BASE_URL}/api`;
+
+/**
+ * Helper to get the current session token
+ */
+async function getAuthToken() {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
+}
+
+/**
+ * Helper for fetch with auth
+ */
+async function fetchWithAuth(url: string, options: RequestInit = {}, customToken?: string) {
+    const token = customToken || await getAuthToken();
+    console.log(`Fetch with Auth: ${url}, Token present: ${!!token}`);
+    const headers = {
+        ...options.headers,
+        'Authorization': token ? `Bearer ${token}` : '',
+    };
+
+    return fetch(url, { ...options, headers });
+}
 
 export const apiService = {
     /**
@@ -12,7 +31,7 @@ export const apiService = {
      */
     async getMalla() {
         try {
-            const response = await fetch(`${API_URL}/malla-curricular`);
+            const response = await fetchWithAuth(`${API_URL}/malla-curricular`);
             if (!response.ok) {
                 throw new Error(`Error fetching malla: ${response.statusText}`);
             }
@@ -28,7 +47,7 @@ export const apiService = {
      */
     async getDashboardStats() {
         try {
-            const response = await fetch(`${API_URL}/dashboard/stats`);
+            const response = await fetchWithAuth(`${API_URL}/dashboard/stats`);
             if (!response.ok) {
                 throw new Error(`Error fetching stats: ${response.statusText}`);
             }
@@ -44,7 +63,7 @@ export const apiService = {
      */
     async getCourse(id: string | number) {
         try {
-            const response = await fetch(`${API_URL}/cursos/${id}`);
+            const response = await fetchWithAuth(`${API_URL}/cursos/${id}`);
             if (!response.ok) {
                 throw new Error(`Error fetching course ${id}: ${response.statusText}`);
             }
@@ -60,7 +79,7 @@ export const apiService = {
      */
     async getLearningPath(courseId: string | number) {
         try {
-            const response = await fetch(`${API_URL}/curso/${courseId}/learning-path`);
+            const response = await fetchWithAuth(`${API_URL}/curso/${courseId}/learning-path`);
             if (!response.ok) {
                 throw new Error(`Error fetching learning path for ${courseId}: ${response.statusText}`);
             }
@@ -82,7 +101,7 @@ export const apiService = {
             if (filters.codigo_curso) params.append('codigo_curso', filters.codigo_curso);
             if (filters.search) params.append('search', filters.search);
 
-            const response = await fetch(`${API_URL}/recursos?${params.toString()}`);
+            const response = await fetchWithAuth(`${API_URL}/recursos?${params.toString()}`);
             if (!response.ok) {
                 throw new Error(`Error fetching recursos: ${response.statusText}`);
             }
@@ -94,54 +113,49 @@ export const apiService = {
     },
 
     /**
-     * Authenticate user
+     * Authenticate user with Supabase
      */
     async login(credentials: { email: string; password: string }) {
         try {
-            const response = await fetch(`${API_URL}/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(credentials)
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: credentials.email,
+                password: credentials.password,
             });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || `Login failed: ${response.statusText}`);
-            }
-            const data = await response.json();
-            // Store user info in localStorage for demo purposes
+
+            if (error) throw error;
+            if (!data.session) throw new Error("No session created after login");
+
+            console.log("Login successful, fetching profile...");
+
+            // Use the token directly from the login response
+            const profile = await this.getProfile(data.session.access_token);
+
+            // Store in localStorage for compatibility with existing components (DashboardLayout, etc.)
             if (typeof window !== 'undefined') {
-                localStorage.setItem('user', JSON.stringify(data.user));
-                localStorage.setItem('token', data.token);
+                localStorage.setItem('user', JSON.stringify(profile));
+                localStorage.setItem('token', data.session.access_token);
             }
-            return data;
-        } catch (error) {
-            console.error("API Error (login):", error);
-            throw error;
+
+            return {
+                user: profile,
+                token: data.session.access_token,
+                supabaseUser: data.user
+            };
+        } catch (error: any) {
+            console.error("Supabase Auth Error (login):", error);
+            throw new Error(error.message || "Login failed");
         }
     },
 
     /**
-     * Fetch current user profile
+     * Fetch current user profile from backend
      */
-    async getProfile() {
+    async getProfile(customToken?: string) {
         try {
-            // First check if we have a user in localStorage
-            if (typeof window !== 'undefined') {
-                const storedUser = localStorage.getItem('user');
-                if (storedUser) {
-                    // Refresh from API to get latest data
-                    const user = JSON.parse(storedUser);
-                    // In a real app, we would use the token here
-                }
-            }
-
-            const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-            const response = await fetch(`${API_URL}/usuarios/me`, {
-                headers: {
-                    'Authorization': token ? `Bearer ${token}` : ''
-                }
-            });
+            const response = await fetchWithAuth(`${API_URL}/usuarios/me`, {}, customToken);
             if (!response.ok) {
+                const errorBody = await response.json().catch(() => ({}));
+                console.error("getProfile error response:", errorBody);
                 throw new Error(`Error fetching profile: ${response.statusText}`);
             }
             return await response.json();
@@ -149,5 +163,37 @@ export const apiService = {
             console.error("API Error (getProfile):", error);
             throw error;
         }
+    },
+
+    /**
+     * Sign up a new user with Supabase
+     */
+    async signup(data: { email: string; password: string; fullName: string; rol?: string }) {
+        try {
+            const { data: authData, error } = await supabase.auth.signUp({
+                email: data.email,
+                password: data.password,
+                options: {
+                    data: {
+                        nombre_completo: data.fullName,
+                        rol: data.rol || 'estudiante'
+                    }
+                }
+            });
+
+            if (error) throw error;
+            return authData;
+        } catch (error: any) {
+            console.error("Supabase Auth Error (signup):", error);
+            throw new Error(error.message || "Signup failed");
+        }
+    },
+
+    /**
+     * Sign out
+     */
+    async logout() {
+        const { error } = await supabase.auth.signOut();
+        if (error) console.error("Error signing out:", error);
     }
 };

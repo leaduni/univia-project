@@ -17,12 +17,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
 
   useEffect(() => {
+    console.log("DashboardLayout: Checking auth...");
     const user = localStorage.getItem("user")
     const token = localStorage.getItem("token")
+    console.log("DashboardLayout: user present?", !!user, "token present?", !!token);
 
     if (!user || !token) {
+      console.log("DashboardLayout: No auth found, redirecting to /auth/login");
       router.push("/auth/login")
     } else {
+      console.log("DashboardLayout: Auth found, stopping check");
       setIsCheckingAuth(false)
     }
   }, [router])

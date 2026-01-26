@@ -11,39 +11,47 @@ async def get_my_profile(
     supabase: Client = Depends(get_supabase)
 ):
     """
-    Get current user profile.
-    Fallback to a test user if no authentication is provided.
+    Get current user profile using the Supabase JWT.
     """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+    
+    print(f"Auth header received: {authorization[:20]}...")
+    token = authorization.split(" ")[1]
+    
     try:
-        # TODO: Implement proper JWT validation
-        # For now, we search for a specific test user or the first one available
+        # Validate the token with Supabase
+        # NOTE: This requires a valid SUPABASE_KEY in the backend
+        print("Validating token with Supabase...")
+        auth_user = supabase.auth.get_user(token)
         
-        # Test User ID (using a likely UUID or seeking the first available)
-        # In a real scenario, this would come from the JWT sub claim
-        user_id = None 
+        if not auth_user.user:
+            print("Token validation failed: User not found in session")
+            raise HTTPException(status_code=401, detail="Invalid token")
+            
+        user_id = auth_user.user.id
+        print(f"Token validated. User ID: {user_id}")
         
-        # Try to find any user to use as "Me" for development
-        users_result = supabase.table("usuarios").select("*, estudiante:estudiantes(*, carrera:carreras(*))").limit(1).execute()
+        # Now fetch the public profile from our table
+        # If using SERVICE_ROLE_KEY, this bypasses RLS
+        # If using ANON_KEY, we might need: supabase.postgrest.auth(token)
+        print(f"Fetching profile for user_id: {user_id}")
+        result = supabase.table("usuarios")\
+            .select("*, estudiante:estudiantes(*, carrera:carreras(*))")\
+            .eq("id", user_id)\
+            .single()\
+            .execute()
         
-        if not users_result.data:
-            # Create a mock response if DB is empty, or raise error
-            return {
-                "id": "00000000-0000-0000-0000-000000000000",
-                "email": "test@univia.edu",
-                "nombre_completo": "Usuario de Prueba",
-                "rol": "estudiante",
-                "estudiante": {
-                    "codigo_estudiante": "2024TEST",
-                    "ciclo_actual": 1,
-                    "carrera": {
-                        "nombre": "Carrera No Asignada",
-                        "facultad": "Facultad No Asignada"
-                    }
-                }
-            }
+        if not result.data:
+            print(f"Profile not found in 'usuarios' table for ID: {user_id}")
+            raise HTTPException(status_code=404, detail="User profile not found")
         
-        user_data = users_result.data[0]
-        return user_data
+        print("Profile fetched successfully")
+        return result.data
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching profile: {str(e)}")
+        print(f"Error in get_my_profile: {type(e).__name__}: {str(e)}")
+        # Check if it's already an HTTPException
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=401, detail=f"Authentication error: {str(e)}")

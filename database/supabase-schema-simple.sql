@@ -107,7 +107,6 @@ CREATE TABLE usuarios (
     nombre_completo VARCHAR(255),
     foto_url TEXT,
     rol VARCHAR(50) DEFAULT 'estudiante', -- 'estudiante', 'profesor', 'admin'
-    password VARCHAR(255), -- Contraseña (para esta versión simple)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -326,6 +325,32 @@ CREATE TRIGGER update_usuarios_updated_at BEFORE UPDATE ON usuarios FOR EACH ROW
 CREATE TRIGGER update_estudiantes_updated_at BEFORE UPDATE ON estudiantes FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_matriculas_updated_at BEFORE UPDATE ON matriculas FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_recursos_updated_at BEFORE UPDATE ON recursos FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Trigger para crear automáticamente un usuario en la tabla pública cuando se registra en Supabase Auth
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.usuarios (id, email, nombre_completo, rol)
+    VALUES (
+        NEW.id,
+        NEW.email,
+        COALESCE(NEW.raw_user_meta_data->>'nombre_completo', NEW.raw_user_meta_data->>'full_name', ''),
+        COALESCE(NEW.raw_user_meta_data->>'rol', 'estudiante')
+    );
+    
+    -- También crear el registro en la tabla estudiantes si el rol es estudiante
+    IF COALESCE(NEW.raw_user_meta_data->>'rol', 'estudiante') = 'estudiante' THEN
+        INSERT INTO public.estudiantes (id, onboarding_completado)
+        VALUES (NEW.id, FALSE);
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- ============================================================================
 -- POLÍTICAS DE SEGURIDAD (RLS - Row Level Security)

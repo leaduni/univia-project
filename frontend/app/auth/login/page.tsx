@@ -148,7 +148,7 @@ export default function LoginPage() {
                     <FormLabel className="text-sm font-medium">Correo Institucional</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="nombre@uni.edu.pe"
+                        placeholder="nombre@uni.pe"
                         type="email"
                         disabled={isLoading}
                         className="h-11 border-input placeholder:text-muted-foreground/50"

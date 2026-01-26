@@ -9,12 +9,13 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { apiService } from "@/lib/api-service"
 
 const signupSchema = z
   .object({
     fullName: z.string().min(3, "Nombre debe tener al menos 3 caracteres"),
     codigoUni: z.string().min(6, "Código UNI debe tener al menos 6 caracteres"),
-    email: z.string().email("Email inválido").endsWith("@uni.edu.pe", "Email debe ser institucional"),
+    email: z.string().email("Email inválido").endsWith("@uni.pe", "Email debe ser institucional"),
     password: z.string().min(8, "Contraseña debe tener al menos 8 caracteres"),
     confirmPassword: z.string(),
   })
@@ -29,6 +30,7 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -51,10 +53,21 @@ export default function SignupPage() {
 
   const onSubmit = async (data: SignupFormValues) => {
     setIsLoading(true)
+    setError("")
     try {
-      console.log("[v0] Signup data:", data)
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      console.log("Starting signup for:", data.email)
+      await apiService.signup({
+        email: data.email,
+        password: data.password,
+        fullName: data.fullName,
+        rol: 'estudiante'
+      })
+
+      // Redirect to onboarding after successful signup
       window.location.href = "/onboarding"
+    } catch (err: any) {
+      console.error("Signup error:", err)
+      setError(err.message || "Error al crear la cuenta. Por favor intenta de nuevo.")
     } finally {
       setIsLoading(false)
     }
@@ -108,10 +121,16 @@ export default function SignupPage() {
           </div>
 
           {/* Form Header */}
-          <div className="mb-8">
+          <div className="mb-6">
             <h2 className="text-3xl font-bold text-foreground mb-2">Crear cuenta</h2>
             <p className="text-muted-foreground">Únete a miles de estudiantes en UniVia</p>
           </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-lg mb-6">
+              {error}
+            </div>
+          )}
 
           {/* Signup Form */}
           <Form {...form}>

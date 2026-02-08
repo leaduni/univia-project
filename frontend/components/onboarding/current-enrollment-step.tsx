@@ -26,6 +26,7 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, curriculum }: Curr
       // Only show courses for the selected semester as requested
       if (cicloData.ciclo !== targetCiclo) return
 
+<<<<<<< HEAD
       const targetCareerId = parseInt(data.career)
 
       cicloData.courses.forEach((course: any) => {
@@ -34,6 +35,9 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, curriculum }: Curr
           return
         }
 
+=======
+      cicloData.courses.forEach((course: any) => {
+>>>>>>> 901f55b (Update back y front)
         const courseIdStr = course.id.toString()
         if (!completed.has(courseIdStr)) {
           available.push(course)
@@ -42,7 +46,11 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, curriculum }: Curr
     })
 
     return available
+<<<<<<< HEAD
   }, [data.completedCourses, data.semester, data.career, curriculum])
+=======
+  }, [data.completedCourses, curriculum])
+>>>>>>> 901f55b (Update back y front)
 
   const handleToggleCourse = (courseId: string) => {
     const newSelected = new Set(selected)

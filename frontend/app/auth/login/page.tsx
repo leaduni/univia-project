@@ -19,7 +19,10 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>
 
+import { useRouter } from "next/navigation"
+
 export default function LoginPage() {
+  const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
@@ -44,7 +47,7 @@ export default function LoginPage() {
       })
       console.log("Login successful:", response)
       // Redirect to dashboard
-      window.location.href = "/"
+      router.push("/")
     } catch (err: any) {
       console.error("Login error:", err)
       setError(err.message || "Error al iniciar sesión. Verifica tus credenciales.")

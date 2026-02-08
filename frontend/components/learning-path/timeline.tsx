@@ -8,12 +8,13 @@ import { Button } from "@/components/ui/button"
 import { CheckCircle2, Lock, BookOpen, Code, FileText } from "lucide-react"
 
 interface TimelineStep {
-  id: string
+  id: string | number
   title: string
   description: string
   duration: string
   status: "completed" | "current" | "upcoming" | "locked"
   topics: string[]
+  icon?: string
   resources?: {
     type: "video" | "document" | "code"
     title: string
@@ -23,6 +24,16 @@ interface TimelineStep {
 
 export function LearningTimeline({ courseId, timeline }: { courseId: string; timeline: TimelineStep[] }) {
   const steps = timeline
+
+  const getStepIcon = (iconName?: string) => {
+    switch (iconName) {
+      case 'monitor': return <BookOpen className="w-6 h-6" />;
+      case 'code': return <Code className="w-6 h-6" />;
+      case 'book': return <BookOpen className="w-6 h-6" />;
+      case 'award': return <FileText className="w-6 h-6" />;
+      default: return <BookOpen className="w-6 h-6" />;
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -39,12 +50,12 @@ export function LearningTimeline({ courseId, timeline }: { courseId: string; tim
               <div className="absolute left-0 top-2 w-12 h-12 flex items-center justify-center">
                 <div
                   className={`w-12 h-12 rounded-full flex items-center justify-center border-4 bg-background transition-all ${step.status === "completed"
-                      ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600"
-                      : step.status === "current"
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 ring-4 ring-blue-200 dark:ring-blue-800"
-                        : step.status === "upcoming"
-                          ? "border-gray-300 bg-gray-50 dark:bg-gray-950/30 text-gray-400"
-                          : "border-gray-300 bg-gray-100 dark:bg-gray-900 text-gray-400"
+                    ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600"
+                    : step.status === "current"
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 ring-4 ring-blue-200 dark:ring-blue-800"
+                      : step.status === "upcoming"
+                        ? "border-gray-300 bg-gray-50 dark:bg-gray-950/30 text-gray-400"
+                        : "border-gray-300 bg-gray-100 dark:bg-gray-900 text-gray-400"
                     }`}
                 >
                   {step.status === "completed" ? (
@@ -52,7 +63,7 @@ export function LearningTimeline({ courseId, timeline }: { courseId: string; tim
                   ) : step.status === "locked" ? (
                     <Lock className="w-6 h-6" />
                   ) : (
-                    step.icon
+                    getStepIcon(step.icon)
                   )}
                 </div>
               </div>
@@ -60,10 +71,10 @@ export function LearningTimeline({ courseId, timeline }: { courseId: string; tim
               {/* Card */}
               <Card
                 className={`transition-all ${step.status === "current"
-                    ? "border-blue-400 bg-blue-50/50 dark:border-blue-700 dark:bg-blue-950/20 ring-1 ring-blue-200 dark:ring-blue-800"
-                    : step.status === "locked"
-                      ? "opacity-60 cursor-not-allowed"
-                      : ""
+                  ? "border-blue-400 bg-blue-50/50 dark:border-blue-700 dark:bg-blue-950/20 ring-1 ring-blue-200 dark:ring-blue-800"
+                  : step.status === "locked"
+                    ? "opacity-60 cursor-not-allowed"
+                    : ""
                   }`}
               >
                 <CardHeader>

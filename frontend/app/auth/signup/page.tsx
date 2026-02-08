@@ -26,7 +26,10 @@ const signupSchema = z
 
 type SignupFormValues = z.infer<typeof signupSchema>
 
+import { useRouter } from "next/navigation"
+
 export default function SignupPage() {
+  const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -64,7 +67,7 @@ export default function SignupPage() {
       })
 
       // Redirect to onboarding after successful signup
-      window.location.href = "/onboarding"
+      router.push("/onboarding")
     } catch (err: any) {
       console.error("Signup error:", err)
       setError(err.message || "Error al crear la cuenta. Por favor intenta de nuevo.")

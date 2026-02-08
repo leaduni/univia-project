@@ -12,12 +12,18 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
+import { useAuth } from "@/components/providers/auth-context"
+import { User, LogOut } from "lucide-react"
+
 interface HeaderProps {
   onMenuClick: () => void
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
   const [searchFocus, setSearchFocus] = useState(false)
+  const { user, signOut } = useAuth()
+
+  const userFullInitial = user?.nombre_completo?.split(" ").map((n: string) => n[0]).join("").slice(0, 2) || "U"
 
   return (
     <header className="bg-card border-b border-border sticky top-0 z-40">
@@ -30,9 +36,8 @@ export function Header({ onMenuClick }: HeaderProps) {
 
           {/* Search Bar */}
           <div
-            className={`relative flex-1 max-w-md hidden md:flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-200 ${
-              searchFocus ? "border-accent bg-secondary" : "border-border"
-            }`}
+            className={`relative flex-1 max-w-md hidden md:flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-200 ${searchFocus ? "border-accent bg-secondary" : "border-border"
+              }`}
           >
             <Search className="w-4 h-4 text-muted-foreground" />
             <input
@@ -54,22 +59,22 @@ export function Header({ onMenuClick }: HeaderProps) {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" className="rounded-full">
                 <Avatar className="w-8 h-8">
-                  <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=student1" />
-                  <AvatarFallback>JD</AvatarFallback>
+                  <AvatarImage src={user?.foto_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id || 'default'}`} />
+                  <AvatarFallback>{userFullInitial}</AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <div className="flex items-center gap-2 p-2">
                 <Avatar className="w-10 h-10">
-                  <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=student1" />
-                  <AvatarFallback>JD</AvatarFallback>
+                  <AvatarImage src={user?.foto_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id || 'default'}`} />
+                  <AvatarFallback>{userFullInitial}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground">Juan Díaz</p>
-                  <p className="text-xs text-muted-foreground truncate">juan@universidad.edu</p>
+                  <p className="text-sm font-medium text-foreground truncate">{user?.nombre_completo || "Usuario"}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user?.email || ""}</p>
                 </div>
               </div>
               <DropdownMenuSeparator />
@@ -82,7 +87,13 @@ export function Header({ onMenuClick }: HeaderProps) {
                 Configuración
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-500">Cerrar Sesión</DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-red-500 cursor-pointer"
+                onClick={() => signOut()}
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Cerrar Sesión
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -90,5 +101,3 @@ export function Header({ onMenuClick }: HeaderProps) {
     </header>
   )
 }
-
-import { User } from "lucide-react"

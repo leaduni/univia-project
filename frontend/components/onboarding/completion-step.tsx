@@ -10,9 +10,10 @@ interface CompletionStepProps {
   data: OnboardingData
   onBack: () => void
   onComplete: () => void
+  isSubmitting?: boolean
 }
 
-export function CompletionStep({ data, onBack, onComplete }: CompletionStepProps) {
+export function CompletionStep({ data, onBack, onComplete, isSubmitting = false }: CompletionStepProps) {
   const [showConfetti, setShowConfetti] = useState(false)
 
   useEffect(() => {
@@ -126,10 +127,11 @@ export function CompletionStep({ data, onBack, onComplete }: CompletionStepProps
         </Button>
         <Button
           onClick={onComplete}
+          disabled={isSubmitting}
           size="lg"
           className="gap-2 px-8 bg-gradient-to-r from-accent to-cyan-400 hover:from-accent/90 hover:to-cyan-400/90"
         >
-          Comenzar mi Ruta <Sparkles className="w-4 h-4" />
+          {isSubmitting ? "Guardando..." : "Comenzar mi Ruta"} <Sparkles className="w-4 h-4" />
         </Button>
       </div>
     </div>

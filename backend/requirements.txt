@@ -1,7 +1,7 @@
-fastapi
-uvicorn[standard]
-asyncpg
-supabase
-python-dotenv
-pydantic[email]
-python-multipart
+fastapi==0.109.0
+uvicorn==0.27.0
+supabase==2.3.7
+python-dotenv==1.0.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+python-multipart==0.0.6

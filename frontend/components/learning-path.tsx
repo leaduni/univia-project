@@ -24,7 +24,12 @@ export function LearningPath({ courseId }: LearningPathProps) {
     const fetchLearningPath = async () => {
       try {
         setIsLoading(true)
-        const result = await apiService.getLearningPath(courseId)
+        // Limpiar el ID si viene con el prefijo 'c' (ej: 'c101' -> '101')
+        const cleanId = courseId.toString().startsWith('c')
+          ? courseId.toString().substring(1)
+          : courseId
+
+        const result = await apiService.getLearningPath(cleanId)
         setData(result)
       } catch (err) {
         setError("Error al cargar la ruta de aprendizaje.")

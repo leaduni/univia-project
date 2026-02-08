@@ -1,5 +1,4 @@
 "use client"
-
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Badge } from "@/components/ui/badge"
@@ -100,7 +99,7 @@ export function CourseDetailsSheet({ course, isOpen, onOpenChange }: CourseDetai
           <div className="space-y-2 pt-4 border-t border-border">
             {course.status !== "locked" && (
               <>
-                <Link href={`/curso/${course.id}`}>
+                <Link href={`/curso/${course.id}`} className="w-full">
                   <Button className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white">
                     Ver Ruta de Aprendizaje
                   </Button>

@@ -43,6 +43,44 @@ export const apiService = {
     },
 
     /**
+     * Update course status
+     */
+    async updateCourseStatus(courseId: number, status: string) {
+        try {
+            const response = await fetchWithAuth(`${API_URL}/malla-curricular/update-status`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ course_id: courseId, status }),
+            });
+            if (!response.ok) {
+                throw new Error(`Error updating course status: ${response.statusText}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error("API Error (updateCourseStatus):", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Fetch dashboard summary (stats + achievements)
+     */
+    async getDashboardSummary() {
+        try {
+            const response = await fetchWithAuth(`${API_URL}/dashboard/summary`);
+            if (!response.ok) {
+                throw new Error(`Error fetching summary: ${response.statusText}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error("API Error (getDashboardSummary):", error);
+            throw error;
+        }
+    },
+
+    /**
      * Fetch dashboard statistics
      */
     async getDashboardStats() {
@@ -54,6 +92,22 @@ export const apiService = {
             return await response.json();
         } catch (error) {
             console.error("API Error (getDashboardStats):", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Fetch user achievements (logros)
+     */
+    async getLogros() {
+        try {
+            const response = await fetchWithAuth(`${API_URL}/dashboard/logros`);
+            if (!response.ok) {
+                throw new Error(`Error fetching logros: ${response.statusText}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error("API Error (getLogros):", error);
             throw error;
         }
     },
@@ -108,6 +162,52 @@ export const apiService = {
             return await response.json();
         } catch (error) {
             console.error("API Error (getRecursos):", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Fetch all available careers and course curriculum for onboarding
+     */
+    async getOnboardingData() {
+        try {
+            const response = await fetchWithAuth(`${API_URL}/onboarding/data`);
+            if (!response.ok) {
+                throw new Error(`Error fetching onboarding data: ${response.statusText}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error("API Error (getOnboardingData):", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Complete onboarding process
+     */
+    async completeOnboarding(data: {
+        carrera_id: number;
+        ciclo_actual: number;
+        cursos_completados: number[];
+        matricula_actual: number[];
+    }) {
+        try {
+            const response = await fetchWithAuth(`${API_URL}/onboarding/complete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            });
+
+            if (!response.ok) {
+                const errorBody = await response.json().catch(() => ({}));
+                throw new Error(errorBody.detail || `Error completing onboarding: ${response.statusText}`);
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error("API Error (completeOnboarding):", error);
             throw error;
         }
     },

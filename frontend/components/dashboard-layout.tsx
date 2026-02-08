@@ -6,6 +6,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Sidebar } from "./sidebar"
 import { Header } from "./header"
+import { useAuth } from "./providers/auth-context"
 
 interface DashboardLayoutProps {
   children?: React.ReactNode
@@ -13,25 +14,31 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const { user, session, isLoading: isAuthLoading } = useAuth()
   const router = useRouter()
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
 
   useEffect(() => {
-    console.log("DashboardLayout: Checking auth...");
-    const user = localStorage.getItem("user")
-    const token = localStorage.getItem("token")
-    console.log("DashboardLayout: user present?", !!user, "token present?", !!token);
+    if (isAuthLoading) return;
 
-    if (!user || !token) {
-      console.log("DashboardLayout: No auth found, redirecting to /auth/login");
+    // In mock mode, we might have a user but no session
+    if (!session && !user) {
+      console.log("DashboardLayout: No session or user found, redirecting to /auth/login");
       router.push("/auth/login")
-    } else {
-      console.log("DashboardLayout: Auth found, stopping check");
-      setIsCheckingAuth(false)
+      return;
     }
-  }, [router])
 
-  if (isCheckingAuth) {
+    // Check if onboarding is completed
+    const onboardingCompletado = user?.onboarding_completado || user?.estudiante?.onboarding_completado;
+
+    console.log("DashboardLayout check:", { user, onboardingCompletado });
+
+    if (user && !onboardingCompletado) {
+      console.log("DashboardLayout: Onboarding not completed, redirecting to /onboarding");
+      router.push("/onboarding")
+    }
+  }, [session, user, isAuthLoading, router])
+
+  if (isAuthLoading || (!session && !user)) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>

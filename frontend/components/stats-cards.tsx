@@ -10,23 +10,23 @@ interface StatsCardsProps {
 export function StatsCards({ stats, isLoading }: StatsCardsProps) {
   const statsConfig = [
     {
-      title: "Cursos Activos",
-      value: stats?.activeCourses ?? "0",
-      description: "En tu ciclo actual",
+      title: "Cursos Completados",
+      value: `${stats?.cursosCompletados ?? 0}/${stats?.totalCursos ?? 0}`,
+      description: "De tu carrera total",
       icon: BookOpen,
       gradient: "from-blue-500 to-blue-600",
     },
     {
-      title: "Progreso Semestral",
-      value: `${stats?.semesterProgress ?? 0}%`,
-      description: "Basado en tus cursos",
+      title: "Progreso Total",
+      value: `${stats?.porcentajeProgreso ?? 0}%`,
+      description: "Avance curricular",
       icon: TrendingUp,
       gradient: "from-cyan-500 to-blue-500",
     },
     {
-      title: "Habilidades Dominadas",
-      value: stats?.masterSkills ?? "0",
-      description: "Logros alcanzados",
+      title: "Promedio Actual",
+      value: stats?.promedioPonderado ?? "0.0",
+      description: "Basado en tus notas",
       icon: Award,
       gradient: "from-emerald-500 to-cyan-500",
     },

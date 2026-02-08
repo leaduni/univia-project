@@ -1,16 +1,27 @@
 "use client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Trophy, Zap, BookOpen, Award } from "lucide-react"
+import { Trophy, Zap, BookOpen, Award, Star, Medal } from "lucide-react"
+import { ACHIEVEMENTS } from "@/lib/mockData"
 
-export function RightSidebar() {
-  const achievements = [
-    { icon: Trophy, label: "Primer Lugar", color: "bg-yellow-500" },
-    { icon: Zap, label: "Racha 7 días", color: "bg-orange-500" },
-    { icon: Award, label: "Excelencia", color: "bg-red-500" },
-    { icon: BookOpen, label: "Lector", color: "bg-blue-500" },
-    { icon: Trophy, label: "Colaborador", color: "bg-cyan-500" },
-  ]
+interface RightSidebarProps {
+  achievements?: any[]
+  isLoading?: boolean
+}
+
+export function RightSidebar({ achievements = [], isLoading = false }: RightSidebarProps) {
+  // Mapping of achievement icons
+  const getIcon = (icon: string) => {
+    switch (icon) {
+      case '🏆': return Trophy;
+      case '⚡': return Zap;
+      case '⭐': return Star;
+      case '🎓': return BookOpen;
+      case '🎖️': return Medal;
+      case '✨': return Award;
+      default: return Award;
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -21,22 +32,38 @@ export function RightSidebar() {
           <CardDescription>Tus insignias académicas</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-3">
-            {achievements.map((achievement, index) => {
-              const Icon = achievement.icon
-              return (
-                <div
-                  key={index}
-                  className="flex flex-col items-center gap-2 p-2 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
-                >
-                  <div className={`p-2 rounded-lg ${achievement.color}`}>
-                    <Icon className="w-4 h-4 text-white" />
+          {isLoading ? (
+            <div className="grid grid-cols-3 gap-3 animate-pulse">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-16 bg-secondary/50 rounded-lg"></div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              {achievements.map((achievement, index) => {
+                const Icon = getIcon(achievement.icon)
+                const isUnlocked = achievement.unlocked
+
+                return (
+                  <div
+                    key={achievement.id || index}
+                    className={`flex flex-col items-center gap-2 p-2 rounded-lg transition-all duration-300 ${isUnlocked
+                        ? "bg-primary/10 hover:bg-primary/20 scale-100 opacity-100"
+                        : "bg-secondary/30 grayscale opacity-40 cursor-not-allowed"
+                      }`}
+                    title={achievement.descripcion}
+                  >
+                    <div className={`p-2 rounded-lg ${isUnlocked ? "bg-primary/20" : "bg-muted"}`}>
+                      <Icon className={`w-4 h-4 ${isUnlocked ? "text-primary" : "text-muted-foreground"}`} />
+                    </div>
+                    <p className="text-[10px] text-center text-foreground font-medium leading-tight">
+                      {achievement.nombre}
+                    </p>
                   </div>
-                  <p className="text-xs text-center text-foreground font-medium leading-tight">{achievement.label}</p>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 

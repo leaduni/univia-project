@@ -1,0 +1,252 @@
+ 
+ 
+ 
+ 
+ 
+                                  
+SÍLABO 
+CURSO: CÁLCULO DIFERENCIAL 
+ 
+ 
+ I .-    INFORMACIÓN GENERAL 
+                                  
+    CÓDIGO  
+ 
+ 
+ 
+: BMA-01 
+ 
+CICLO 
+ 
+ 
+ 
+ 
+: 1 
+     CREDITOS                
+ 
+ 
+: 05 
+       HORAS SEMANALES                
+: Teoría   04 horas   Práctica 02 horas.   
+       PRE-REQUISITO 
+ 
+ 
+: Ninguno 
+ 
+CONDICIÓN 
+ 
+ 
+ 
+: Obligatorio 
+       SISTEMA DE EVALUACION   
+: G  
+DEPARTAMENTO 
+ 
+ 
+: Ciencias Básicas 
+PROFESOR 
+ 
+ 
+ 
+: José Luis Alvarado Rodríguez, 
+           Alejandro Huamán Sánchez 
+           Osmar Bermeo Carrasco 
+           Jesus Cernades Gomes 
+ 
+II.-    SUMILLA DEL CURSO 
+ 
+Calculo diferencial es un curso teórico – practico ubicado en el primer ciclo cuyo 
+propósito es brindar al estudiante los conceptos y operaciones que resultan de una 
+función real de variable real y su aplicación a diferentes aspectos del mundo real. 
+Las principales unidades temáticas son: lógica proposicional. Teoría de conjuntos. 
+Propiedades y operaciones con números reales. Funciones reales de variable real. 
+Operaciones con funciones, límites, continuidad, diferenciabilidad, máximos y 
+mínimos, representación gráfica y aplicaciones de una función real de variable real. 
+ 
+III.-   COMPETENCIAS 
+ 
+Al concluir la asignatura, el estudiante: 
+ 
+2.1 Maneja definiciones y elementos del Cálculo Diferencial en la resolución de 
+problemas  prácticos. 
+ 
+2.2 Discute, analiza y realiza el trazado  de la gráfica de una función  
+ 
+2.3 Plantea y resuelve problemas de exploración óptima  usando el concepto de 
+continuidad y derivada  
+ 
+2.4 Desarrolla su capacidad de análisis, deducción generalización, intuición que 
+permitirán  contribuir en su formación integral, de tal manera que le permita  
+comprender los campos científicos-tecnológicos en la solución de problemas 
+de ingeniería y ramas afines. 
+ 
+ 
+ 
+UNIVERSIDAD NACIONAL DE INGENIERÍA 
+Facultad de Ingeniería Industrial y de Sistemas 
+ 
+ 
+ 
+IV.- CONTENIDO 
+ 
+CAPITULO I  
+ 
+NUMEROS REALES ( 12 horas ) 
+ 
+SEMANA 1  
+Lógica Proposicional. Conectivos Lógicos, Álgebra proposicional, Aplicaciones, 
+Conjuntos. Relaciones con conjuntos 
+SEMANA 2 
+Aplicaciones, Sistema de Números reales. Propiedades y aplicaciones, Desigualdades. 
+Propiedades. 
+SEMANA 3 
+Valor absoluto. Máximo entero. Propiedades y aplicaciones 
+ 
+CAPITULO II 
+ 
+FUNCIONES  
+ 
+SEMANA 4 
+Definición Dominio y Rango de funciones. Funciones especiales: 
+Constante, cuadrática lineal, afín identidad, Funciones valor absoluto, máximo entro, 
+signo escalón unitario.  
+SEMANA 5 
+Aplicaciones, Funciones pares e impares y periódicas, Álgebra de Funciones: adición, 
+sustracción  multiplicación y división  
+Composición de Funciones 
+SEMANA 6 
+Función univalente. Función Suryectiva. Función Inversa propiedades. Inversa de la 
+composición. 
+ 
+CAPITULO III 
+ 
+LIMITES Y CONTINUIDAD ( 14 horas ) 
+ 
+SEMANA 7  
+Definición. Teoremas. Cálculo de límites algebraicos. Límites Laterales. Límites 
+Trigonométricos. Límites infinitos, Teoremas.  
+ 
+SEMANA  8 
+ 
+EXAMEN PARCIAL  
+ 
+SEMANA 9 
+Aplicaciones. Asíntotas. Gráficas mostrando asíntotas, Continuidad en un punto. 
+Continuidad en un intervalo. 
+ 
+SEMANA 10 
+Propiedades, Teorema del Valor Intermedio. Teorema de Bolzano. Funciones acotadas: 
+conjunto acotado, supremo e ínfimo, función acotada. 
+ 
+ 
+ 
+ 
+CAPITULO IV 
+ 
+LA DERIVADA 
+ 
+SEMANA 11 
+Definición. Interpretación, Derivadas Laterales. Derivada de la suma, producto y cociente. 
+Derivada de la función compuesta. Regla de cadena. 
+ 
+SEMANA 12 
+Diferenciabilidad y continuidad. Derivación Implícita. Diferenciales. Derivada de orden 
+superior. 
+ 
+CAPITULO V 
+ 
+APLICACIONES DE LA DERIVADA ( 14 horas ) 
+ 
+SEMANA 13 
+Funciones crecientes y decrecientes. Teorema del Valor Medio. Rolle, Lagrange, Cauchy. 
+Aplicaciones. 
+ 
+SEMANA 14 
+La derivada como razón instantánea de cambio: Aplicaciones. Criterios para hallar valores 
+extremos relativos: criterio de la primera derivada y criterio para la segunda derivada. 
+ 
+SEMANA 15 
+Aplicaciones. Concavidad y punto de inflexión a la gráfica de una función. Aplicaciones 
+para trazar la Gráfica de una función. Cálculo de límites mediante la Regla Hospital. 
+ 
+SEMANA 16 
+ 
+ 
+EXAMEN FINAL  
+ 
+ 
+V.-METODOLOGIA DE ENSEÑANZA-APRENDIZAJE 
+ 
+El curso de Cálculo Diferencial estará sujeto a los siguientes lineamientos 
+metodológicos. 
+ 
+       4.1 El desarrollo de los temas será en el orden en que se plantea este Syllabus. Es 
+decir, cada alumno conocerá de antemano los temas que serán tratados en clase. 
+    
+4.2 El docente expondrá y dará las nociones teórico-práctico de los conceptos sobre 
+los contenidos temáticos que comprende el objetivo del aprendizaje 
+                    
+4.3 Periódicamente se entregará al estudiante una lista de problemas, para luego ser 
+discutidos, donde el docente jugará un papel de guía  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+VI.-EVALUACION. 
+ 
+      Prácticas Calificadas   (04): 
+PP 
+      Examen Parcial 
+ 
+ 
+EP 
+      Examen Final 
+ 
+ 
+EF 
+      Nota Final  
+ 
+ 
+NF 
+ 
+                            
+3
+EF
+EP
+PP
+NF
++
++
+=
+ 
+ 
+Donde 
+      PP = Promedio aritmético de las Prácticas Calificadas (se toma en cuenta las   
+mejores 03 notas) 
+       EP = Nota del Examen Parcial 
+       EF = Nota del Examen Final 
+ 
+      Para rendir el Examen Sustitutorio, es requisito tener PC > 6.1 Y NF > 6.1 (en caso 
+de tener una sola nota de los exámenes es suficiente con PC > 6.1 ). 
+       La nota del  examen  sustitutorio, sustituye necesariamente a la menor nota de los 
+exámenes o a la nota del examen no rendido. 
+ 
+VII.-BIBLIOGRAFIA 
+ 
+6.1. Helfgott, Michael Nuñez, Tomas, Cálculo Diferencial de una variable. Ed. San 
+Marcos. Lima-Perú 
+6.2. Hasser-La Salle-Sullivan, Análisis Matemático I , Curso de Introducción Vol. 
+1. Editorial Trillas. México 
+6.3. Leithold, Louis Ed. Harla, “El Cálculo con Geometría Analítica” Harper – 
+Latinoamericana. México. 
+6.5. Stewart, Cálculo de una variable, Internacional Thomson Editores. 3ra Edición. 
+España  Mc. Graw Hill. 5ta Edición. Colombia. 
+6.6. Larson/Hostetler/Edwards.CALCULO y Geometría Analítica Volumen I 
+      Mc. Graw Hill. 5ta Edición. Colombia. 
+6.7. Sherman K / Barcillos A. Cálculo y Geometría Analítica. Volumen II. Mc. 
+Graw Hill. 5ta Edición. Colombia. 
+6.8.  Mitacc Meza, Máximo / Toro, Luis. Cálculo I. Talleres Gráficos INPOFFOT. 
+6ta Edición Lima – Perú. 

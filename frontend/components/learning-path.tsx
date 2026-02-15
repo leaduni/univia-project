@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { LearningTimeline } from "./learning-path/timeline"
 import { AIAnalysisBox } from "./learning-path/ai-analysis-box"
 import { ExamBank } from "./learning-path/exam-bank"
+import { EvaluacionIA } from "./learning-path/evaluacion-ia"
 import { ChevronLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { apiService } from "@/lib/api-service"
@@ -65,6 +66,12 @@ export function LearningPath({ courseId }: LearningPathProps) {
 
   const { curso, timeline, ai_insights, exam_bank } = data
 
+  // Preparar módulos para la evaluación
+  const modulos = timeline.map((item: any) => ({
+    title: item.title,
+    topics: item.topics || []
+  }))
+
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto">
       {/* Back Navigation */}
@@ -94,8 +101,9 @@ export function LearningPath({ courseId }: LearningPathProps) {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="path">Ruta de Aprendizaje</TabsTrigger>
+          <TabsTrigger value="evaluacion">Evaluación IA</TabsTrigger>
           <TabsTrigger value="analysis">Análisis de IA</TabsTrigger>
           <TabsTrigger value="exams">Banco de Exámenes</TabsTrigger>
         </TabsList>
@@ -103,6 +111,11 @@ export function LearningPath({ courseId }: LearningPathProps) {
         {/* Learning Path Timeline */}
         <TabsContent value="path" className="space-y-6">
           <LearningTimeline courseId={courseId} timeline={timeline} />
+        </TabsContent>
+
+        {/* Evaluación IA */}
+        <TabsContent value="evaluacion" className="space-y-6">
+          <EvaluacionIA courseId={courseId} modulos={modulos} />
         </TabsContent>
 
         {/* AI Analysis */}

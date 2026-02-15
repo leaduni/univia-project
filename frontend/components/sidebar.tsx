@@ -17,8 +17,6 @@ export function Sidebar({ open }: SidebarProps) {
 
   const menuItems = [
     { icon: LayoutDashboard, label: "Dashboard", id: "Dashboard", href: "/" },
-    { icon: BookOpen, label: "Mi Malla", id: "MiMalla", href: "/mi-malla" },
-    { icon: FileText, label: "Recursos", id: "Recursos", href: "/recursos" },
     { icon: User, label: "Perfil", id: "Perfil", href: "/perfil" },
   ]
 

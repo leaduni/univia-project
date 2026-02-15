@@ -1,0 +1,17 @@
+curso_id,title,description,duration,order_index,topics,icon
+1102,Semana 1: Lógica y Conjuntos,Introducción a la lógica proposicional y teoría de conjuntos.,4h,1,"{Lógica Proposicional, Conectivos, Conjuntos}",brain
+1102,Semana 2: Números Reales,Sistema de números reales y desigualdades.,4h,2,"{Números reales, Desigualdades}",hash
+1102,Semana 3: Valor Absoluto,Valor absoluto y máximo entero.,4h,3,"{Valor absoluto, Máximo entero}",maximize
+1102,Semana 4: Funciones,"Dominio, rango y funciones especiales.",4h,4,"{Funciones, Dominio, Rango}",activity
+1102,Semana 5: Operaciones Funciones,Álgebra y composición de funciones.,4h,5,"{Álgebra de funciones, Composición}",plus-circle
+1102,Semana 6: Funciones Inversas,Función inversa y propiedades.,4h,6,"{Función inversa, Univalente}",rotate-ccw
+1102,Semana 7: Límites,Cálculo de límites.,4h,7,"{Límites algebraicos, Límites trigonométricos}",arrow-right
+1102,Semana 8: Examen Parcial,Evaluación parcial.,2h,8,{Examen Parcial},edit-2
+1102,Semana 9: Continuidad,Continuidad y asíntotas.,4h,9,"{Continuidad, Asíntotas}",git-commit
+1102,Semana 10: Teoremas Continuidad,Bolzano y Valor Intermedio.,4h,10,"{Teorema Valor Intermedio, Bolzano}",bookmark
+1102,Semana 11: La Derivada,Definición y reglas de derivación.,4h,11,"{Derivada, Regla de la cadena}",zap
+1102,Semana 12: Diferenciabilidad,Derivación implícita.,4h,12,"{Diferenciabilidad, Derivada implícita}",git-pull-request
+1102,Semana 13: Aplicaciones Derivada,Teorema del Valor Medio y Rolle.,4h,13,"{Valor Medio, Rolle, Lagrange}",trending-up
+1102,Semana 14: Extremos,Máximos y mínimos.,4h,14,"{Máximos, Mínimos, Optimización}",bar-chart
+1102,Semana 15: Concavidad,L'Hopital y gráficas.,4h,15,"{Concavidad, L'Hopital}",curve
+1102,Semana 16: Examen Final,Evaluación final.,2h,16,{Examen Final},award

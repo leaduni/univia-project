@@ -1,0 +1,9 @@
+curso_id,title,description,duration,order_index,topics,icon
+24,Unidad 1: Sistemas Numéricos,Representación de datos y aritmética binaria.,8h,1,"{Binario, IEEE 754, Punto flotante}",cpu
+24,Unidad 2: Lógica Proposicional,Métodos de demostración e inducción.,4h,2,"{Lógica, Cuantificadores, Inducción}",check-square
+24,Unidad 3: Relaciones Binarias,Relaciones de equivalencia y orden.,8h,3,"{Relaciones, Digrafos, Orden parcial, Hasse}",git-merge
+24,Unidad 4: Grafos,Teoría de grafos y trayectorias.,4h,4,"{Grafos, Euler, Matriz adyacencia}",share
+24,Unidad 5: Árboles,Árboles binarios y algoritmos de optimización.,8h,5,"{Árboles, Huffman, Prim, Kruskal}",git-pull-request
+24,Unidad 6: Álgebra de Boole,Circuitos lógicos y mapas de Karnaugh.,8h,6,"{Álgebra Booleana, Compuertas lógicas, Karnaugh}",toggle-left
+24,Unidad 7: Estructuras Algebraicas,"Grupos, semigrupos y codificación.",8h,7,"{Grupos, Semigrupos, Hammin, Paridad}",box
+24,Unidad 8: Teoría de Lenguajes,Autómatas y máquinas de estado finito.,4h,8,"{Lenguajes, Autómatas, Máquinas de estado}",terminal

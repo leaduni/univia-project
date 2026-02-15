@@ -1,0 +1,17 @@
+curso_id,title,description,duration,order_index,topics,icon
+18,Semana 1: Integral Indefinida,"Propiedades, integración por sustitución algebraica.",4h,1,"{Integral indefinida, Sustitución algebraica, Integración por partes}",plus-square
+18,Semana 2: Integración Trigonométrica,Integrales de funciones trigonométricas e inversas.,4h,2,"{Funciones trigonométricas, Sustitución trigonométrica}",triangle
+18,Semana 3: La Integral Definida,Sumas de Riemann y propiedades.,4h,3,"{Sumatoria, Suma de Riemann, Área bajo la curva}",bar-chart
+18,Semana 4: Teoremas Fundamentales,Teorema fundamental del cálculo y valor medio.,4h,4,"{Teorema Fundamental del Cálculo, Teorema del Valor Medio}",book
+18,Semana 5: Funciones Trascendentes,Logaritmo y exponencial.,4h,5,"{Función Logaritmo, Función Exponencial, Derivadas e Integrales}",log-in
+18,Semana 6: Funciones Hiperbólicas,Definición y propiedades.,4h,6,"{Funciones Hiperbólicas, Inversas}",activity
+18,Semana 7: Otras Bases,Exponenciales en otras bases y derivación logarítmica.,4h,7,"{Bases generales, Derivación logarítmica}",code
+18,Semana 8: Examen Parcial,Evaluación parcial.,2h,8,{Examen Parcial},edit-3
+18,Semana 9: Técnicas de Integración I,Potencias trigonométricas y fracciones parciales.,4h,9,"{Potencias trigonométricas, Fracciones parciales}",divide
+18,Semana 10: Técnicas de Integración II,Funciones racionales de senos y cosenos.,4h,10,"{Funciones racionales, Sustitución de Weierstrass}",refresh-cw
+18,Semana 11: Integrales Impropias,Sustituciones de Euler e integrales impropias.,4h,11,"{Sustituciones de Euler, Integrales impropias}",alert-circle
+18,Semana 12: Funciones Gamma y Beta,Aplicaciones y funciones especiales.,4h,12,"{Función Gamma, Función Beta, Áreas}",star
+18,Semana 13: Coordenadas Polares,Áreas y gráficas en polares.,4h,13,"{Coordenadas polares, Áreas en polares, Volumen disco}",compass
+18,Semana 14: Volúmenes,Métodos del anillo y corteza cilíndrica.,4h,14,"{Volúmenes de revolución, Corteza cilíndrica}",layers
+18,Semana 15: Longitud de Arco y Series,Aplicaciones físicas y Series de Taylor.,4h,15,"{Longitud de arco, Trabajo, Presión, Series de Taylor}",trending-up
+18,Semana 16: Examen Final,Evaluación final.,2h,16,{Examen Final},file-text

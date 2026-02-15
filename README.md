@@ -87,11 +87,11 @@ docker compose up --build
 
 ## ✅ Funcionalidades Principales
 
-- **Dashboard Personalizado**: Visualización de progreso y estadísticas del estudiante.
-- **Malla Curricular Dinámica**: Seguimiento visual de cursos aprobados, en curso y pendientes.
-- **Learning Path**: Ruta detallada de aprendizaje para cada curso.
-- **Banco de Exámenes**: Biblioteca de recursos y exámenes históricos.
-- **Onboarding Wizard**: Configuración inicial para nuevos estudiantes.
+- **Registro de Estudiantes (RF-EST)**: Gestión de perfil con validación de correo institucional y unicidad de código.
+- **Rutas de Aprendizaje (RF-APR)**: Visualización de cursos y módulos semanales integrados con el sílabo.
+- **Evaluaciones Dinámicas (RF-APR-03)**: Generación de quizzes y ejercicios de código/IA por módulo.
+- **Reforzamiento con IA (RF-APR-05)**: Retroalimentación inteligente basada en el desempeño del estudiante.
+- **Panel de Control (RF-ALC-02)**: Vista unificada del progreso académico y próximos pasos.
 
 ---
 

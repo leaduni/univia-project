@@ -1,0 +1,4 @@
+curso_id,title,description,duration,order_index,topics,icon
+1303,Unidad 1: Cálculo Diferencial Vectorial,"Derivadas parciales, gradientes y optimización.",16h,1,"{Derivadas parciales, Gradiente, Multiplicadores de Lagrange, Máximos y Mínimos}",layers
+1303,Unidad 2: Integrales Múltiples,"Integrales dobles y triples, cambio de variable.",14h,2,"{Integrales dobles, Integrales triples, Coordenadas cilíndricas, Coordenadas esféricas}",box
+1303,Unidad 3: Cálculo Vectorial Integral,"Integrales de línea y superficie, teoremas integrales.",14h,3,"{Integral de línea, Teorema de Green, Teorema de Stokes, Teorema de Gauss}",globe

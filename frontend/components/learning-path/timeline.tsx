@@ -108,16 +108,18 @@ export function LearningTimeline({ courseId, timeline }: { courseId: string; tim
 
                 <CardContent className="space-y-4">
                   {/* Topics */}
-                  <div>
-                    <h4 className="text-sm font-semibold text-foreground mb-3">Temas a Cubrir</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {step.topics.map((topic) => (
-                        <Badge key={topic} variant="secondary" className="text-xs">
-                          {topic}
-                        </Badge>
-                      ))}
+                  {step.topics && step.topics.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-foreground mb-3">Temas a Cubrir</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {step.topics.map((topic) => (
+                          <Badge key={topic} variant="secondary" className="text-xs">
+                            {topic}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Resources */}
                   {step.resources && (

@@ -1,0 +1,2297 @@
+=== START FILE: BF101-Fisica.pdf ===
+UNIVERSIDAD NACIONAL DE INGENIERÍA
+Facultad de Ingeniería Industrial y de
+Sistemas Departamento de Ciencias Básicas
+SÍLABO
+I.
+INFORMACIÓN GENERAL
+ASIGNATURA
+: FÍSICA I
+Código
+: BFI01
+Pre-requisito
+: Ninguno
+Dpto. Académico
+: Estudios Generales
+Condición
+: Obligatorio
+Ciclo Académico
+: 2019-1
+Créditos
+: 5
+Horas teóricas
+: 4 horas semanales
+Horas prácticas / laboratorio : 2 horas semanales
+Sistema de calificación
+: F
+Profesor del curso
+:  Cañote Fajardo, Percy
+Valdivia Mendoza, Héctor
+Mosquera Molina, Miguel
+II.
+SUMILLA
+La física es una ciencia fundamental dedicada a la comprensión de los fenómenos naturales que ocurren
+en nuestro universo. El curso busca proporcionar a los participantes las herramientas teóricas y prácticas
+que permitan entender los principios básicos de la mecánica la cual es vital para los estudiantes de las
+especialidades
+en
+ciencias,
+arquitectura
+e
+ingeniería
+de
+nuestra
+universidad. El curso es
+teórico-práctico-experimental, desarrollándose los conceptos necesarios para el entendimiento de
+cinemática y dinámica de una partícula y cuerpos rígidos, complementandolo con las definiciones de
+trabajo y energía.
+El curso incluye la realización de prácticas de laboratorio dirigidas por profesores en ambientes de
+laboratorio en las que el estudiante hará el montaje experimental iniciándose y formándose en la
+comprobación en el laboratorio de los conceptos fundamentales aprendidos en la clase.
+En el curso se desarrollan los siguientes contenidos:
+⮚
+Introducción básica de los elementos de derivada e integración.
+⮚
+Vectores, representación y operaciones.
+⮚
+Medición, errores experimentales y cifras significativas.
+⮚
+Cinemática de una partícula, movimiento unidimensional (MRU, MRUV, caída libre) y bidimensional
+(proyectiles, movimiento curvilíneo, MCU y MCUV).
+⮚
+Leyes de Newton, diagrama de cuerpo libre, fuerzas de rozamiento.
+⮚
+Aplicaciones de las leyes de Newton.
+⮚
+Trabajo y energía cinética.
+⮚
+Energía potencial y conservación de energía mecánica.
+⮚
+Impulso y momento lineal, choques.
+⮚
+Calor y temperatura. Termodinámica.
+⮚
+Vibraciones y ondas sonoras.
+⮚
+Fluidos. Principio de Arquímedes.
+1
+III.
+COMPETENCIAS
+1.
+Describe e identifica el equilibrio y los distintos tipos de movimientos de una partícula existentes en
+la naturaleza en base a las Leyes de Newton.
+2.
+Demuestra su capacidad de análisis ejecutando cálculos para obtener soluciones a los diversos
+problemas de mecánica aplicados a la ciencia e ingeniería.
+3.
+Explica y fundamenta los conceptos de trabajo y energía. Esboza modelos que permiten resolver
+problemas de mecánica e ingeniería.
+4.
+Explica, identifica y formula las condiciones para las colisiones elásticas e inelásticas.
+5.
+Explica el significado de temperatura y calor así como de las leyes de la termodinámica.
+6.
+Explica la naturaleza del sonido y la definición de nivel de intensidad para la comprensión de
+contaminación sonora.
+7.
+Desarrolla su capacidad de análisis con responsabilidad y cultura de trabajo en equipo. Mantiene
+comunicación efectiva entre los integrantes y desarrolla habilidades sociales para la solución de
+conflictos.
+IV.
+UNIDADES DE APRENDIZAJE
+CAPÍTULO 1: INTRODUCCIÓN A LA FÍSICA, MEDICIONES, VECTORES/ 5 HORAS
+Introducción a la física. Marco de referencia/ Relación con otras ciencias/ El método científico/ Importancia
+de la física en la ciencia y tecnología/ Magnitudes físicas/ Sistema de unidades. Mediciones. Orden de
+magnitud. Cifras significativas/ Escalares y vectores. Representación geométrica de un vector. Suma de
+vectores. Producto escalar. Producto vectorial. Triple producto. Derivación con respecto a escalar.
+CAPÍTULO 2: CINEMÁTICA / 6 HORAS
+Introducción. Sistemas de referencia. Sistemas coordenados. Definiciones: móvil, movimiento. Vector
+posición. Trayectoria. Espacio recorrido/ vector desplazamiento /Vector velocidad media. Vector velocidad
+instantánea, unidades/ Vector aceleración media, Vector aceleración instantánea, unidades/ Movimiento
+rectilíneo uniforme. Movimiento rectilíneo con aceleración constante: caída libre. Movimiento rectilíneo con
+aceleración variable/ Movimiento curvilíneo en el plano: Movimiento parabólico/ Componentes tangencial
+y normal de la aceleración/ Movimiento circular. Desplazamiento angular. Velocidad angular. Aceleración
+angular, unidades/ Movimiento curvilíneo en el plano: componentes radial y transversal/ Movimiento
+curvilíneo en el espacio/ Movimiento relativo.
+CAPÍTULO 3: ESTÁTICA / 7 HORAS
+Introducción. Interacción y fuerza. Unidades. Representación sistemas de fuerzas en el plano y en el
+espacio. Fuerza resultante. Componentes/ Leyes de Newton/ Sistema de referencia/ Partícula y cuerpo
+rígido/ Diagrama de cuerpo libre (D.C.L.) / Equilibrio de una partícula: Primera condición de equilibrio/
+Momento de una fuerza respecto a un punto. Equilibrio del cuerpo rígido: Segunda condición de equilibrio/
+Equilibrio de un cuerpo rígido sometido a dos fuerzas. Equilibrio de un cuerpo rígido.
+CAPÍTULO 4: DINÁMICA DE UN PUNTO MATERIAL / 7 HORAS
+Introducción. Leyes de Newton/ Fuerzas. Unidades. Masa y peso/ Sistema de referencia inercial y sistema
+acelerado. Fuerza ficticia/ Aplicaciones de las leyes de Newton al movimiento rectilíneo/ Aplicaciones de
+las leyes de Newton al movimiento curvilíneo: componentes tangencial y normal. Componentes radial y
+transversal.
+2
+CAPÍTULO 5: TEOREMAS DE CONSERVACIÓN DE UN PUNTO MATERIAL/ 9 HORAS
+Introducción. Ecuación del Trabajo y energía: trabajo realizado por una fuerza. Energía cinética.
+Unidades/ Energía potencial. Trabajo realizado por el peso. Trabajo realizado por una fuerza gravitacional
+Trabajo realizado por una fuerza elástica/ Sistemas conservativos: fuerzas conservativas. Función
+potencial/ Conservación de la energía mecánica/Potencia. Unidades / Momento lineal o Cantidad de
+movimiento lineal P. Impulso lineal. Conservación de la Cantidad de movimiento lineal/ Choques.
+CAPÍTULO 6: SISTEMA DE PARTÍCULAS / 5 HORAS
+Introducción. Fuerzas internas y fuerzas externas. Centro de masa, Cálculo del centro de masa.
+Movimiento del centro de masa/ Momento lineal. Impulso lineal. Conservación del momento lineal/
+Ecuación del trabajo y la energía. Conservación de la energía.
+CAPÍTULO 7: FLUIDOS / 5 HORAS
+Fluidos. Densidad y presión. Variación de la presión con la profundidad en un líquido. Medida de la
+presión. Principio de Pascal. Principio de Arquímedes. Aplicaciones del Principio de Arquímedes.
+CAPÍTULO 8: VIBRACIONES Y ONDAS SONORAS/ 5 HORAS
+Ley de Hooke. Movimiento armónico simple, ecuaciones.
+Sistema masa resorte. Energía potencial
+elástica y energía cinética. Movimiento de un péndulo. Movimiento ondulatorio. Tipos de onda. Elementos
+de una función de onda. Superposición e interferencia de ondas. Ondas estacionarias. Sonido,
+características. Energía e intensidad de ondas sonoras. Nivel de intensidad.
+CAPÍTULO 9: TEMPERATURA Y CALOR. TERMODINÁMICA/ 7 HORAS
+Temperatura, dilatación térmica. Calor. Capacidad calorífica y calor específico. Cambios de fase.
+Propagación del calor. Leyes de la termodinámica.
+V.
+METODOLOGÍA
+El curso se desarrolla en sesiones de teoría, práctica y laboratorio. En las sesiones de teoría, el docente
+presenta el fenómeno, los conceptos, las leyes y aplicaciones. En las sesiones prácticas el alumno
+resuelve diversos problemas y analiza su solución. En las sesiones de laboratorio el alumno manipula
+equipos y realiza mediciones que le permiten comprobar las leyes de la mecánica, presenta un informe.
+En el transcurso del curso los alumnos por grupos deben presentar y exponer un proyecto integrador que
+contenga los temas desarrollados en el curso. En todas las sesiones se promueve la participación activa
+del alumno.
+VI.
+LABORATORIOS
+Laboratorio 1: Velocidad y Aceleración Instantánea.
+Laboratorio 2: Segunda Ley de Newton
+Laboratorio 3: Trabajo y Energía
+Laboratorio 4: Experimento de Arquímedes.
+Laboratorio 5: Velocidad del sonido
+Laboratorio 6: Medida del Nivel de Intensidad Sonora.
+Laboratorio 7: Dilatación lineal.
+VII. SISTEMA DE EVALUACIÓN
+Sistema de evaluación F:
+EP: Examen Parcial
+(Peso 1)
+3
+EF: Examen Final
+(Peso 2)
+PP: Promedio de Prácticas
+(Peso 1)
+El promedio final (PF) se calcula tal como se muestra a continuación:
+Cantidad de Prácticas o Trabajos Calificados: cuatro (04)
+Cantidad de Prácticas de Laboratorio: ocho (07)
+El PROMEDIO DE PRÁCTICAS (PP) se obtiene de la siguiente manera: Se eliminan, por Reglamento,
+dos (02) prácticas de laboratorio con las notas más bajas y se obtiene el PROMEDIO DE PRÁCTICAS DE
+LABORATORIOS (PPL) de las cinco (05) prácticas de laboratorios restantes. También se elimina la
+práctica calificada con nota más baja y se obtiene el PROMEDIO DE PRÁCTICAS CALIFICADAS (PPC)
+de las tres (03) prácticas calificadas restantes.
+VIII. BIBLIOGRAFÍA
+BEDFORR A. - FOWLER W: Mecánica para ingeniería ESTÁTICA Y DINÁMICA (2 Volúmenes), Editorial
+ADDISON-WESLEY IBEROAMERICANA E.U.A., 1996.
+RAYMOND A. SERWAY: "FÍSICA”, Tomo I - Editorial McGRAW-HILL, Colombia, 1996.
+SEARS Francis: "FUNDAMENTOS DE FÍSICA: Mecánica, Calor y Sonido" Editorial Aguilar, España,
+2008.
+TIPLER Paul A.: "FISICA" Tomo I, Editorial Reverté S.A., España, reimpresión octubre del 2008.
+SERWAY – FAUGHN Física 5ta. Edición Editorial Prentice Hall 2001.
+INTERNET sobre temas relativos.
+4
+
+=== END FILE: BF101-Fisica.pdf ===
+
+=== START FILE: BMA02-Integral.pdf ===
+UNIVERSIDAD NACIONAL DE INGENIERÍA 
+ 
+ 
+      Facultad de Ingeniería Industrial y de Sistemas 
+ 
+Escuela Profesional de Ingeniería de Sistemas 
+      
+SÍLABO 
+ 
+CURSO: CÁLCULO INTEGRAL 
+ 
+I. 
+INFORMACIÓN GENREAL 
+ 
+CÓDIGO 
+ 
+ 
+ 
+: BMA- 02 
+CICLO 
+ 
+ 
+ 
+: II 
+HORAS POR SEMANA 
+ 
+: 06  (Teoría 04. Práctica 02) 
+CREDITOS  
+ 
+   
+ : 05 
+PRE-REQUISITO 
+  
+    
+ : BMA-01 (cálculo Diferencial) 
+CONDICIÓN  
+ 
+ 
+ : Obligatorio 
+SISTEMA  DE  EVALUACION  
+ :  “G”   
+AREA  ACADÉMICA 
+  
+ : CIENCIAS BÁSICAS 
+PROFESOR  
+ 
+    
+ : Carlos Arámbulo Ostos,  Luis Iquise Mamani  
+                                                              Javier Echeandia Cespedes 
+ 
+ 
+II. OBJETIVOS GENERALES  
+        
+           El estudiante deberá ser capaz de manejar con eficiencia conceptos y técnicas de cálculo   integral 
+de funciones reales de una variable real. Así mismo,  conocerá las propiedades de las funciones 
+Exponenciales, logaritmo, Trigonométricas Inversas y de las funciones Hiperbólicas. 
+ 
+III. OBJETIVOS ESPECIFICOS  
+ 
+Al finalizar el curso, el estudiante estará en condiciones de: 
+2.1 Hallar la Integral Indefinida  de combinaciones de funciones elementales mediante las 
+técnicas de sustitución, integración por partes y descomposición en fracciones parciales. 
+2.2 Calcular la Integral Definida   de combinaciones de funciones elementales, así como un valor 
+numérico aproximado de éstas. 
+2.3 Aplicar el concepto de Integral Indefinida al cálculo de trayectorias de curva, a problemas de 
+mezclas y en general a problemas de valor inicial. 
+2.4 Aplicar el concepto de Integral Definida al cálculo de áreas, volúmenes, longitud de arco, 
+áreas de superficies de revolución y la resolución de problemas geométricos y físicos. 
+ 
+IV.  SUMILLA 
+ 
+     La antiderivada y la integral indefinida. Integración  por partes y por sustitución algebraica y   
+trigonométrica. Sumatorias. INTEGRAL DEFINIDA. Áreas. Suma  de Riemann. Propiedades. 
+Teoremas Fundamentales de cálculo. Cambio de variable en integrales definidas. Funciones 
+exponenciales  y logarítmica en distintas bases. Crecimiento exponencial. Funciones Hiperbólicas   
+y sus propiedades. Técnicas de integración: Potencias Trigonométricas Integración por 
+Fracciones parciales. Funciones racionales de senos y cosenos. Binomio   diferencial.   Integrales    
+Impropias. Funciones Beta y Gamma. 
+     Coordenadas polares. Intersección de gráficas en coordenadas polares. 
+     Curvas definidas por ecuaciones Paramétricas. 
+      Polinomios de Taylor y Series de Taylor y de Mc Laurin. 
+     Cálculo de Áreas, Volúmenes de sólidos de Revolución, Longitud de Arco. 
+ 
+V. METODO DE ENZEÑANZA- APRENDISAJE: 
+ 
+     Las clases se dictarán en el aula, con la participación de los alumnos. La enseñanza  se ayudará 
+con separatas y algunas tablas cuyo manejo se explicará con ejercicios propuestos. 
+ 
+VI.    SISTEMA DE EVALUACION: G 
+ 
+ 
+SEM 
+ 
+HRS 
+ 
+TEMAS 
+BIBLIOGRAFIA O 
+TEMAS ASIGNADAS 
+ 
+01 
+ 
+04 
+Integral indefinida. Propiedades. Integración por 
+Sustitución 
+algebraica. 
+Sustitución 
+recíproca. 
+Integración por partes. 
+Hasser-Lasalle-Sullivan 
+Análisis 
+Matemático 
+Volumen I. 
+ 
+02 
+ 
+04 
+Integración inmediata de funciones. Trigonométricas. 
+Sustitución trigonométrica. Integración de funciones 
+que dan por resultado funciones trigonométricas 
+inversas.  
+Hasser-Lasalle- Sullivan 
+Protter  Morrey(Cálculo y 
+Geometría  Analítica  
+ 
+03 
+ 
+04 
+Notación sigma. Propiedades. La integral definida 
+Integral superior  e inferior. Funciones integrables. 
+Áreas e integral definida como límite de una sumatoria 
+Leithold, Louis (Cálculo 
+con Geometría Analítica ) 
+Hasser-Lasalle- Sullivan 
+ 
+04 
+ 
+04 
+Integral 
+definida. 
+Aplicaciones 
+a 
+métodos 
+de 
+integración Teoremas fundamentales del cálculo 
+integral. Teoremas del valor medio  
+Zill-Dennis (Cálculo com 
+Geometria Analitica ) 
+ 
+05 
+ 
+04 
+ Funciones trascendentes Logaritmo, exponencial, sus 
+derivadas e integrales 
+Hasser-Lasalle- Sullivan 
+Armando Venero Baldeón 
+(Análisis Matemático II) 
+ 
+06 
+ 
+04 
+ Funciones Hiperbólicas y hiperbólicas inversas . 
+Aplicaciones  
+Hasser-Lasalle- Sullivan 
+Armando Venero Baldeón  
+ 
+07 
+ 
+04 
+Logaritmos y exponenciales en otra bases. Derivación 
+logarítmica. 
+Hasser-Lasalle- Sullivan 
+Armando Venero Baldeón 
+(Análisis Matemático II) 
+ 
+08 
+ 
+02 
+ 
+EXAMEN PARCIAL 
+ 
+ 
+09 
+ 
+04 
+Integración de potencias trigonométricas Integración 
+por fracciones parciales.  
+Hasser-Lasalle- Sullivan 
+Álvaro Pinzón (Cálculo II) 
+ 
+10 
+ 
+04 
+Método de Hermite-Ostrograski Integración de 
+funciones  racionales de senos y cosenos. Integrales 
+binomias (Chebishev Sustitución  de Euler 
+Demidovich 
+Análisis 
+Matemático.  
+ 
+ 
+11 
+ 
+04 
+Sustituciones de Euler. Integración de funciones 
+irracionales. Integrales impropias.  
+Armando Venero Baldeón 
+Demidovich  
+ 
+12 
+04 
+Funciones gamma y beta. Aplicaciones de integral 
+definida:: áreas en coordenadas cartesianas. 
+Hasser-Lasalle- Sullivan 
+Leithold,. Demidovich 
+13 
+04 
+Coordenadas polares. Gráficas y áreas. en polares 
+Volúmenes de sólidos de revolución: Método del del 
+disco. 
+Leithold, Louis. Pinzón. 
+Hasser-Lasalle- Sullivan 
+ 
+14 
+04 
+Volúmenes. Métodos del anillo y  Corteza cilíndrica 
+Longitud de arco.    
+Zill-Dennis (Cálculo com 
+Geometria Analitica 
+15 
+04 
+Longitud de arco. Trabajo. Presión. Series de Taylor 
+Hasser-Lasalle- Sullivan 
+Proter  Morrey Demidovich  
+ 
+16 
+ 
+02 
+ 
+EXAMEN FINAL 
+ 
+ 
+17 
+ 
+02 
+ 
+EXAMEN SUSTITUTORIO 
+ 
+ 
+ 
+ 
+ 
+VIII. 
+BIBLIOGRAFÍA 
+ 
+1. 
+Anaálisis Matemático Volumen I autor Hasser-Lasalle-Sullivan 
+2. 
+Problemas y ejercicios de Análisis Mateático Volumen I 
+ 
+ 
+ 
+ 
+ 
+
+=== END FILE: BMA02-Integral.pdf ===
+
+=== START FILE: BMA03-Lineal.pdf ===
+SÍLABO
+I.
+INFORMACIÓN GENERAL
+Asignatura
+: Algebra Lineal
+Código
+: BMA03
+Pre-requisito
+: Geometría Analítica
+Dpto. Académico
+: Estudios Generales
+Condición
+: Obligatorio
+Ciclo Académico
+: 2018-2
+Créditos
+: 4
+Horas Teóricas
+: 3 horas semanales
+Horas prácticas
+: 2 horas semanales
+Sistema de Calificación
+: G
+Profesor del curso
+: Lourdes Kala Béjar, Alejandro Huamán Sánchez
+II.
+SUMILLA DEL CURSO
+El curso de Álgebra lineal es un curso de segundo ciclo de naturaleza teórico- práctico. El propósito del curso
+es brindar al estudiante los conceptos
+y principios básicos del Álgebra Lineal y sus aplicaciones en las
+distintas ramas de la Ingeniería y áreas afines, preparándolo para que pueda acceder sin dificultad al
+conocimiento de los temas de su especialidad. El curso comprende temas de gran interés para los cursos de
+especialización como son: Álgebra de Matrices: Determinantes. Sistemas de Ecuaciones Lineales. Geometría
+Analítica del Espacio, Números Complejos, Raíces de Ecuaciones Polinomiales. Espacios Vectoriales,
+Transformaciones Lineales, Valores y Vectores Propios. Formas Cuadráticas.
+III. COMPETENCIAS
+El estudiante:
+1.
+Desarrolla el pensamiento lógico-sistemático permitiendo la formulación de modelos lineales para la
+solución de problemas reales.
+2.
+Aplica la teoría de las matrices
+y los conceptos de la geometría analítica plana en la solución de
+problemas de geometría analítica del espacio.
+3.
+Entiende el concepto de rango de una matriz y aplica en la solución de sistemas de ecuaciones lineales.
+4.
+Desarrolla y asocia mediante un proceso de abstracción la estructura del espacio vectorial y los temas
+afines a las transformaciones lineales.
+5.
+Identifica y asocia las expresiones cuadráticas abordando el tema a partir de la simplificación de la matriz
+simétrica que las representa haciendo uso de los valores y vectores propios de la matriz
+IV. UNIDADES DE APRENDIZAJE
+1.-  ÁLGEBRA MATRICIAL
+Definición de una matriz. Elementos. Filas y Columnas. Orden. Notación. Tipos
+de Matrices: Matriz
+Cuadrada, Nula, Triangular, Diagonal, Identidad. Igualdad de Matrices. Operaciones con Matrices: Suma,
+Multiplicación de una Matriz por
+un escalar, Producto de Matrices. Matriz Idempotente. Matriz
+Involutiva. Matriz Nilpotente. Matriz Transpuesta. Propiedades. Matriz simétrica. Propiedades. Matriz
+antisimétrica. Propiedades.
+2.-  DETERMINANTES
+Definición de determinante para matrices de orden dos y orden tres. Propiedades
+de los determinantes
+para matrices de cualquier orden. Menor y Cofactor de un elemento de una Matriz. Cálculo del
+determinante de una matriz   por cofactores.
+3.- RANGO E INVERSA DE UNA MATRIZ
+Operaciones Elementales con Filas y Columnas de una matriz. Equivalencia de
+Matrices. Matriz
+Escalonada por filas y columnas. Definición de Rango de una Matriz. Propiedades: Obtención del rango
+por
+operaciones elementales. Definición de la matriz Inversa. Existencia y Unicidad. Propiedades.
+Matriz  Adjunta. Propiedades. Obtención de la inversa de una Matriz, por operaciones  elementales.
+4.-  SISTEMAS DE ECUACIONES LINEALES
+Definición de Ecuación Lineal. Sistemas de Ecuaciones Lineales. Solución de
+sistemas de ecuaciones
+lineales por métodos  matriciales. Existencia y unicidad de soluciones. Regla de Cramer.
+5.-  GEOMETRÍA ANALÍTICA DE ESPACIO
+Álgebra Vectorial Tridimensional: Sistemas de Coordenadas tridimensionales. Ternas ordenadas. Adición
+de ternas ordenadas. Multiplicación de ternas ordenadas por escalares. Espacio vectorial Tridimensional
+V3, Vector. Diferencia de vectores, Representación gráfica de un vector. Paralelismo. Propiedades.
+Producto escalar y Norma de un vector. Propiedades. Desigualdad de Schwarz. Vector unitario.
+Ortogonalidad de vectores.
+6.-  PROYECCIÓN ORTOGONAL. COMPONENTE
+Definición
+de
+proyección
+ortogonal
+y componente. Propiedades. Ángulo entre dos vectores.
+Producto vectorial. Propiedades e interpretación geométrica. Área de una región paralelográmica. Triple
+producto escalar, definición y propiedades e interpretación geométrica. Volumen de un paralelepípedo.
+Volumen de un tetraedro.
+7.-  INDEPENDENCIA LINEAL DE VECTORES
+Definición de independencia lineal. Dependencia lineal. Teoremas.
+8.- RECTAS Y PLANOS
+Ecuación vectorial y paramétrica de la Recta. Ecuación Simétrica. Rectas paralelas. Intersección de
+rectas. Distancia mínima entre dos rectas. Rectas ortogonales. Distancia de un punto a una recta. Angulo
+entre Rectas. Ecuación Vectorial y paramétrica del plano. Vector normal a un plano. Ecuación normal del
+plano. Ecuación general del plano. Distancia de un punto a un plano. Intersección de una recta y un
+plano. Intersección de planos.
+9.-  ESPACIOS VECTORIALES
+Espacio Euclidiano n-dimensional. Espacios Vectoriales generales. Sub-espacios. Independencia Lineal.
+Bases y dimensión. Vector de coordenadas. Cambio de Base.
+10.- TRANSFORMACIONES LINEALES
+Definición. Propiedades de las transformaciones Lineales. Núcleo e imagen de las transformaciones
+lineales. Rango y nulidad.Transformaciones lineales de Rn hacia Rm. Operadores Lineales.
+11.- REPRESENTACIÓN  MATRICIAL DE LAS TRANSFORMACIONES LINEALES
+Representación Matricial de una transformación lineal de Rn hacia Rm. Representación Matricial de un
+Operador Lineal.
+12.- VALORES Y VECTORES PROPIOS DE UNA MATRIZ
+Polinomio Característico.
+Valores y Vectores propios de una matriz, propiedades. Vectores propios
+Asociados a Valores Propios Diferentes. Valores y Vectores Propios de una matriz Real Simétrica.
+Semejanza de Matrices. Diagonalización. Diagonalización ortogonal. Matriz Simétrica. Proceso de
+Ortogonalización de Gran Schmidt.
+13.- VALORES Y VECTORES PROPIOS DE UNA TRANSFORMACIÓN LINEAL
+Valores y Vectores Propios de una Transformación Lineal. Diagonalización y Diagonalización ortogonal
+de Transformaciones Lineales.
+14.- FORMAS CUADRÁTICAS
+Definición. Representación matricial de una forma cuadrática. Diagonalización de formas Cuadráticas.
+Aplicación y reconocimiento de secciones cónicas (formas cuadráticas de orden 2) y superficies
+cuadráticas (formas cuadráticas de orden 3).
+V.
+METODOLOGÍA
+Basada en la exposición teórico-práctica del profesor propiciando la participación activa del alumno con
+el objeto de desarrollar habilidades  y actitudes para el entendimiento y aprendizaje del curso.
+Para ello se usarán medios didácticos como el uso de herramientas de software y equipos de
+multimedia.
+VI. SISTEMA DE EVALUACIÓN
+Sistema de Evaluación “G”.
+Práctica Calificada
+: PC (04)
+Promedio de Prácticas
+: PP (se calcula del promedio de las PC eliminando la nota más baja)
+Examen Parcial
+: EP
+Examen Final
+: EF
+Nota Final
+: NF = (EP + EF + PP)/3
+VII. FUENTES DE INFORMACIÓN
+-
+Introducción al Álgebra Lineal ,
+HOWARD ANTON
+-
+Álgebra Lineal
+STANLEY GROSSMAN
+-
+Fundamentos  de Álgebra lineal y Aplicaciones
+FRANCIS G. FLOREY
+-
+Álgebra Lineal ,
+SEYMOUR LIPSCHUTZ
+-
+Matrices
+FRANK AYRES JR
+-
+Análisis Matemático I y II
+HASSER, LA SALLE, SULLIVAN
+
+=== END FILE: BMA03-Lineal.pdf ===
+
+=== START FILE: BQU01-Química 1.pdf ===
+ 
+      ​UNIVERSIDAD NACIONAL DE INGENIERIA 
+     ​Facultad de Ingeniería Industrial y de 
+Sistemas  
+      Departamento de Ciencias Básicas  
+ 
+SÍLABO 
+I.
+INFORMACIÓN GENERAL 
+Curso
+: ​Química I 
+Código
+: BQU01 
+Pre-requisito
+: Ninguno 
+Dpto. Académico
+: Estudios Generales 
+Condición
+: Obligatorio 
+Ciclo Académico
+: 2019-2 
+Créditos
+: 5 
+Horas Teóricas
+: 4 horas semanales 
+Horas Prácticas / Laboratorio : 2 horas semanales 
+Sistema de Evaluación
+: F 
+Profesor de la Asignatura
+:Lic. Daniel Alcántara Malca 
+ Ing. Carlos Chafloque Elias 
+ Lic. Nancy Fukuda Kagami  
+ Ing. Bilma Osorio Marujo 
+II.
+SUMILLA 
+La asignatura QUÍMICA I, está dirigida a los estudiantes que inician sus carreras en arquitectura, ingenierías y
+ 
+ 
+  
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ciencias. La temática de la asignatura, da la oportunidad de comprender conceptos vigentes y de avanzada,
+ 
+ 
+ 
+  
+ 
+  
+ 
+ 
+ 
+ 
+  
+ 
+ 
+cuya aplicación, de la mano con la física, permitirá desenvolverse con suficiencia en sus estudios posteriores.
+ 
+ 
+  
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Requiere que el alumno haya comprendido en su integridad el temario de química del examen de admisión. 
+La asignatura desarrolla los temas de estructura, estados y propiedades de la materia, soluciones, equilibrios
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+  
+ 
+ 
+ 
+tanto químico, iónico y redox, así como de química aplicada. Transversalmente, en los temas que corresponda,
+ 
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+se hace notar los peligros de la contaminación ambiental. 
+III. COMPETENCIAS 
+La asignatura contribuye a formar las siguientes competencias: 
+A. Competencias Transversales o Genéricas 
+1.
+Capacidad de abstracción, análisis y síntesis. 
+2.
+Capacidad de aplicar los conocimientos en la práctica. 
+3.
+Capacidad para organizar y planificar el tiempo. 
+4.
+Capacidad de comunicación oral y escrita. 
+5.
+Habilidades en el uso de las TIC’s. 
+6.
+Habilidades para buscar, procesar y analizar información procedente de fuentes diversas. 
+7.
+Capacidad para identificar, plantear y resolver problemas. 
+8.
+Capacidad de trabajo en equipo. 
+9.
+Compromiso con la preservación del medio ambiente. 
+B. Competencias Específicas de la asignatura 
+1 
+ 
+1.
+Comprender los hechos, conceptos, principios y teorías relacionadas con el contenido de la asignatura,
+ 
+ 
+ 
+ 
+  
+ 
+ 
+  
+ 
+  
+ 
+demostrándolo mediante la resolución de problemas conceptuales y de procesos. 
+2.
+Interpretación y síntesis de la abundante información relacionada a sistemas químicos y relacionándola
+  
+ 
+  
+ 
+ 
+  
+ 
+  
+ 
+con procesos industriales, pero considerando la preservación del medio ambiente. 
+3.
+Expresar sus cálculos numéricos adecuadamente, incluyendo análisis de errores, estimaciones de
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+órdenes de magnitud y correcto uso de unidades de medidas. 
+4.
+Manejar materiales y reactivos químicos, de modo seguro, tomando en cuenta sus propiedades físicas y
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+químicas y el uso específico que se le dará, valorando las especificaciones de seguridad que le
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+corresponde a cada reactivo. 
+ 
+5.
+Organizar de modo sistemático y fiable la información procedente de observaciones y medidas, de
+ 
+ 
+ 
+  
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+propiedades químicas, acontecimientos, cambios, de modo que se obtenga trazabilidad en dicha
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+información. 
+6.
+Interpretar los datos derivados de las observaciones y medidas de los experimentos, en términos de su
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+importancia teórica o práctica. 
+7.
+Explicar, en base a los conocimientos adquiridos, los resultados anómalos en sistemas químicos,
+ 
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+recurriendo, si es necesario, a la discusión en equipos de trabajo. 
+8.
+Predecir la conducta de algunos sistemas químicos sencillos, utilizando el método científico o el
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+razonamiento conceptual. 
+9.
+Analizar, modelizar y realizar cálculos en sistemas químicos. Manipular y transportar materiales. Integrar
+ 
+  
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+ 
+diferentes operaciones y procesos. Conocer materiales y productos. 
+ 
+IV. UNIDADES DE APRENDIZAJE 
+CAPÍTULO 1: ESTEQUIOMETRÍA / 4 HORAS 
+La Ciencia del cambio. Química y Sociedad. Orígenes de la teoría atómica. El átomo de Dalton. Concepto de
+ 
+ 
+ 
+ 
+  
+ 
+ 
+  
+ 
+  
+ 
+ 
+ 
+ 
+ 
+mol. La ecuación química. Reactivo limitante y rendimiento. Estequiometría en la industria. Balance de materia. 
+CAPÍTULO 2: CAMBIOS DE ENERGÍA EN LAS REACCIONES QUÍMICAS / 4 HORAS 
+La energía en las reacciones químicas. Sistemas. Estado y función de estado. Energía, entalpía y Primer
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+ 
+ 
+  
+ 
+Principio de la Termodinámica. Calores de reacción. Ecuaciones termoquímicas (Ley de Hess). Calores de
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+formación. Calor de combustión. 
+CAPÍTULO 3: EL ÁTOMO MECANO-CUÁNTICO Y SISTEMA PERIODICO / 8 HORAS 
+Orígenes de la teoría cuántica. Dualidad onda-partícula. Relación de De Broglie. Principio de incertidumbre de
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Heisenberg. Ecuación de Schrödinger. El átomo de hidrógeno. Números cuánticos. Orbitales atómicos. Átomos
+ 
+ 
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+polielectrónicos. Estructura electrónica de los átomos. Configuración electrónica y tabla periódica. Propiedades
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+ 
+periódicas. 
+CAPÍTULO 4: ENLACE QUÍMICO Y PROPIEDADES DE LAS SUSTANCIAS / 8 HORAS 
+Concepto de enlace químico. Enlace iónico y covalente. Teorías de enlace: Teoría de Lewis (octeto), Teoría de
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+enlace valencia (hibridación), Teoría de orbitales moleculares. Ciclo de Born-Haber. Geometría y Polaridad
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+molecular. Fuerzas intermoleculares. Influencia de las fuerzas intermoleculares en las propiedades: punto de
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ebullición, punto de fusión, densidad, solubilidad. 
+CAPÍTULO 5: GASES, LÍQUIDOS Y SÓLIDOS / 8 HORAS 
+Diagrama de fases. Cambios de estado. Punto crítico. Estado gaseoso: Gases ideales. Gases reales. Estado
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+líquido: Presión de vapor, tensión superficial, humedad relativa. Estado sólido: Tipos de sólidos. Red espacial y
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+red cristalina. Celda elemental. Empaquetamientos comunes. Metales. Teoría del gas electrónico. Teoría de
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+bandas y Orbitales moleculares en metales. 
+CAPÍTULO 6: SOLUCIONES Y PROPIEDADES COLIGATIVAS / 4 HORAS 
+Definición. Solubilidad. Procesos de disolución. Expresiones de la concentración. Soluciones ideales.
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Propiedades coligativas: presión de vapor, puntos de ebullición y congelación, presión osmótica. Electrolitos.
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+ 
+ 
+2 
+ 
+Soluciones con dos componentes líquidos volátiles. Destilación fraccionada. Solubilidad y presión. Ley de
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+ 
+Henry. Líquidos no miscibles. 
+ 
+ 
+ 
+CAPÍTULO 7: CINÉTICA QUÍMICA / 4 HORAS 
+Rapidez de reacción. Leyes diferencial e integral de velocidad. Ley de acción de masas. Orden y molecularidad
+ 
+ 
+ 
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+de reacción. Mecanismos de reacción y leyes de velocidad. Energía de activación. Influencia de la temperatura.
+ 
+ 
+ 
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+Influencia de la naturaleza de los reactivos. Influencia de catalizadores. 
+CAPÍTULO 8: EQUILIBRIO Y ESPONTANEIDAD / 4 HORAS 
+Equilibrio químico. Cociente de reacción (Q). Principio de Le Chatelier. Acción de la temperatura. Energía libre:
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+ 
+el criterio de espontaneidad. Variaciones de energía libre. Energía libre y equilibrio. 
+ 
+CAPÍTULO 9: EQUILIBRIO EN SOLUCIONES ACUOSAS / 4 HORAS 
+Equilibrio iónico. Producto iónico del agua. pH. Soluciones de ácidos y bases (Bronsted-Lowry). Ka y Kb.
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+  
+ 
+Fuerzas de ácidos y bases. Hidrólisis. Soluciones reguladoras. Equilibrios de sales poco solubles. 
+CAPÍTULO 10: EQUILIBRIO REDOX / 4 HORAS 
+Procesos de oxidación-reducción. Número de oxidación. Estequiometría Redox. Energía libre en las reacciones
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+redox. Celdas galvánicas. Potenciales redox. Ecuación de Nernst. Celdas de concentración. Corrosión. Celdas
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+de combustible. Diagramas de Latimer y Frost. Celdas electrolíticas. Leyes de Faraday. Sobretensión. 
+CAPÍTULO 11: MATERIALES IMPORTANTES / 4 HORAS 
+Metales y aleaciones: dureza, maleabilidad, ductilidad. Conductividad térmica y eléctrica. Tipos de aleaciones.
+  
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+ 
+ 
+Aceros. Polímeros: Definición. Clasificación. Estructura y propiedades. Cristalinidad. Caucho. Vulcanización.  
+V.
+METODOLOGÍA 
+La asignatura se desarrolla en sesiones de teoría, prácticas de aula y laboratorio. En las sesiones de teoría el
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+ 
+ 
+ 
+  
+docente presenta el fenómeno, los conceptos, leyes y aplicaciones. El alumno será evaluado continuamente a
+ 
+  
+ 
+ 
+ 
+  
+  
+ 
+ 
+ 
+  
+través de la resolución de aplicaciones. En las sesiones de laboratorio el alumno manipula instrumento y
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+  
+equipos propios del laboratorio de química y presenta un reporte de laboratorio. En todas las sesiones se
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+promueve la participación activa del alumno. 
+VI.
+LABORATORIOS 
+Laboratorio 1:  Seguridad y Materiales de Laboratorio 
+Laboratorio 2:  Estequiometría 
+Laboratorio 3:  Termoquímica 
+Laboratorio 4:  Estructura y propiedades de la materia 
+Laboratorio 5:  Gases 
+Laboratorio 6:  Soluciones 
+Laboratorio 7:  Cinética y Equilibrio Químico 
+Laboratorio 8:  Redox 
+VII. SISTEMA DE EVALUACIÓN 
+Sistema de evaluación F: 
+EP: Examen​ ​Parcial
+(Peso 1) 
+EF:  Examen Final 
+(Peso 2) 
+PP:  Promedio de Prácticas
+(Peso 1) 
+El promedio final (​PF​) se calcula tal como se muestra a continuación: 
+ 
+3 
+ 
+Cantidad de Prácticas o Trabajos Calificados: cuatro (04) 
+Cantidad de Prácticas de Laboratorio: ocho (08) 
+ 
+El PROMEDIO DE PRÁCTICAS (​PP​) se obtiene de la siguiente manera: Se eliminan, por Reglamento, dos (02)
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+prácticas de laboratorio con las notas más bajas y se obtiene el PROMEDIO DE PRÁCTICAS DE
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+LABORATORIOS (​PPL​) de las seis (06) prácticas de laboratorios restantes. También se elimina la práctica
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+calificada con nota más baja y se obtiene el PROMEDIO DE PRÁCTICAS CALIFICADAS (​PPC​) de las tres (03)
+ 
+ 
+ 
+ 
+  
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+prácticas calificadas restantes. 
+ 
+ 
+ 
+VIII. BIBLIOGRAFÍA  
+Raymond Chang, Kenneth A. Goldsby​. Química, 12va. Edición. Editorial: McGraw-Hill / Interamericana de
+ 
+ 
+   
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+México. 2016. 
+R.H. Petrucci; F. G. Herring y otros​, Química General: Principios y aplicaciones modernas, 11va. Edición.
+ 
+     
+   
+ 
+ 
+ 
+  
+ 
+ 
+ 
+ 
+Editorial Pearson. 2017. 
+INTERNET​ sobre temas relativos. 
+4 
+ 
+
+=== END FILE: BQU01-Química 1.pdf ===
+
+=== START FILE: FB101-Analítica.pdf ===
+SÍLABO
+ASIGNATURA: GEOMETRÍA ANALÍTICA
+I. INFORMACIÓN GENERAL
+CÓDIGO
+: FB-101 Geometría Analítica
+CICLO
+: 1
+CREDITOS
+: 3
+HORAS POR SEMANA
+: 04 HRS ( TE 02HRS; HP 02HRS)
+PRERREQUISITOS
+: Ninguno
+CONDICIÓN                           : Obligatorio
+ÁREA ACADÉMICA
+: Ciencias Básicas
+PROFESOR                            : Lourdes Kala Béjar EMAIL: lkala@uni.edu.pe
+Raúl Acosta De La Cruz EMAIL: pacosta@uni.edu.pe
+Riquelmer Vásquez Domínguez EMAIL: riquel2009@hotmail.com
+II.
+SUMILLA DEL CURSO
+El curso de Geometría Analítica es un curso de primer ciclo de naturaleza teórico-Práctico. Se pretende
+familiarizar al estudiante con los principios y conceptos básicos de la Geometría y sus aplicaciones para
+que pueda adquirir destreza y afirmar el dominio de las técnicas matemáticas útiles para la iniciación de
+su carrera. El curso comprende los siguientes temas: Álgebra Vectorial Bidimensional. Producto Escalar y
+Norma.
+Proyección
+Ortogonal.
+Componente.
+Independencia
+lineal
+de
+vectores.
+La
+recta.
+Transformaciones de coordenadas. Circunferencia. Secciones Cónicas (parábola, elipse, hipérbola).
+Ecuación General de Segundo Grado en dos variables. Invariante de una forma cuadrática. Inducción
+matemática.
+III.
+COMPETENCIAS
+El estudiante:
+1.
+Desarrolla el pensamiento lógico-matemático permitiendo la abstracción y la formulación
+matemática de un problema real.
+2.
+Aplica el Álgebra de vectores en la resolución de problemas de Geometría Analítica.
+3.
+Entiende y aplica la teoría de transformaciones de coordenadas para simplificar e identificar curvas
+planas como secciones cónicas en diferentes sistemas de referencia.
+4.
+Interpreta el concepto de cónica y sus propiedades con el uso intensivo de vectores.
+5.
+Construye la gráfica de la ecuación a partir de la información dada.
+IV.
+UNIDADES DE APRENDIZAJE
+1. ALGEBRA VECTORIAL BIDIMENSIONAL
+Sistema de coordenadas Unidimensional y Bidimensional, Sistema Cartesiano. Par ordenado. Igualdad de
+pares ordenados de números reales. Distancia entre dos puntos
+en los sistemas de coordenadas
+Unidimensional y Cartesiano. Producto cartesiano de dos subconjuntos de
+. Adición
+de pares
+ordenados de números reales. Multiplicación de un par ordenado de números reales por un escalar.
+(Número real). Espacio Vectorial Bidimensional
+. Vector. Diferencia de vectores. Representación
+Gráfica  de vectores. Paralelismo de Vectores, propiedades.
+2. PRODUCTO ESCALAR Y NORMA DE UN VECTOR
+Producto escalar de vectores, propiedades fundamentales. Longitud o norma de un vector, propiedades
+fundamentales. Desigualdad de Schwarz. Vector Unitario. Ortogonalidad de vectores. El ortogonal de un
+vector, propiedades.
+3. PROYECCION ORTOGONAL  COMPONENTE
+Combinación lineal de vectores. Proyección ortogonal de un vector sobre otro no nulo, propiedades.
+Componente de un vector en la dirección de otro no nulo, propiedades. Ángulo entre dos vectores.
+Cálculo de un vector en dirección de la bisectriz de un ángulo. Área de regiones triangulares y
+poligonales.
+4. INDEPENDENCIA LINEAL DE VECTORES
+Independencia y dependencia lineal de vectores. Teoremas relativos. Punto de división de un segmento
+en una razón dada. (Positiva y negativa). Punto medio de un segmento.
+5. LA RECTA
+Ecuaciones: Vectorial y Paramétricas de la recta. Paralelismo de rectas. Intersección de rectas. Ecuación
+normal y general de la recta. Rectas ortogonales. Rectas verticales y no verticales. Pendiente de una
+recta no vertical, propiedades. Ángulo de inclinación de una recta. Ángulo entre dos rectas. Distancia de
+un punto a una recta.
+6. TRANSFORMACIÓN DE COORDENADAS
+Traslación de ejes coordenados. Rotación de ejes coordenados. Traslación y rotación.
+7. CIRCUNFERENCIA
+Ecuación vectorial y general de la circunferencia. Recta tangente a una circunferencia. Propiedades.
+8. SECCIONES CÓNICAS: PARÁBOLA
+Definición de sección cónica: excentricidad. Tangente a una curva plana: Condición de tangencia.
+Definición de parábola. Elementos de la parábola. Recta directriz, foco, eje focal, vértice, cuerda focal,
+lado recto, excentricidad. Ecuación vectorial de la parábola; Casos particulares: Ecuación de la parábola
+con eje focal paralelo a los ejes coordenados. Ecuación general de la parábola. Recta tangente a una
+parábola. Propiedades.
+9. ELIPSE
+Definición de elipse. Elementos de la elipse: focos, eje focal, centro, vértices, eje mayor, eje menor,
+cuerdas focales, lado recto, excentricidad y directrices. Ecuación vectorial de la elipse. Casos particulares.
+Ecuación de la elipse con eje mayor paralelo a los ejes coordenados. Ecuación general de la elipse. Recta
+tangente a una elipse. Propiedades.
+10. HIPÉRBOLA
+Definición de Hipérbola. Elementos de la hipérbola: Focos, eje focal, centro, vértices, eje transverso, eje
+conjugado, cuerdas focales, lado recto, excentricidad y directrices. Ecuación vectorial de la hipérbola.
+Asíntotas. Casos particulares: Ecuación de la hipérbola con eje transverso paralelo a los ejes
+coordenados. Ecuación general de la hipérbola. Hipérbola conjugada e hipérbola equilátera. Recta
+tangente a una hipérbola. Propiedades.
+11. ECUACIÓN GENERAL DE SEGUNDO GRADO EN DOS VARIABLES
+Ecuación General de Segundo Grado en dos variables. Reducción de una forma cuadrática a la forma
+diagonal.
+12. INVARIANTE  DE UNA FORMA CUADRÁTICA
+El invariante o indicador de una forma cuadrática, teorema. Reconocimiento de una cónica según su
+excentricidad
+V.
+METODOLOGÍA
+El curso se desarrolla en sesiones de teoría y práctica. En las sesiones de teoría, el docente presenta los
+conceptos, teoremas y aplicaciones. En las sesiones prácticas, se resuelven diversos problemas y se
+analiza su solución. Al final del curso el alumno debe integrar y aplicar los conceptos teóricos en la
+resolución de problemas de ingeniería. En todas las sesiones se promueve la participación activa del
+alumno.
+VI.
+SISTEMA DE EVALUACIÓN
+Sistema de Evaluación   : “G”.
+Práctica Calificada
+: PC (04)
+Promedio de Prácticas : PP (se calcula del promedio de las PC eliminando la nota más baja)
+Examen Parcial
+: EP
+Examen Final
+: EF
+Nota Final
+: NF = (EP + EF + PP)/3
+VII.
+FUENTES DE INFORMACIÓN
+1.
+Hasser,  La Salle Sullivan. Análisis Matemático I.
+2.
+Lehmann, Charles H. Geometría Analítica.
+3.
+Borbolla, Francisco, J.  Problemas de Geometría Analítica.
+4.
+Geometría Analítica Vectorial, Kala Béjar, Lourdes
+
+=== END FILE: FB101-Analítica.pdf ===
+
+=== START FILE: FB301-Discreta.pdf ===
+SÍLABO
+I. INFORMACIÓN GENERAL
+Asignatura
+: Matemática Discreta
+Código
+: FB301
+Pre-requisito
+: Algebra Lineal
+Dpto. Académico
+: Estudios Generales
+Condición
+: Obligatorio
+Ciclo Académico
+: 2018-1
+Créditos
+: 3
+Horas Teóricas
+: 2 horas semanales
+Horas prácticas
+: 2 horas semanales
+Sistema de Calificación
+: G
+Profesor del curso
+:
+II. SUMILLA DEL CURSO
+El curso prepara al estudiante en los fundamentos y en la aplicación de los conceptos,
+métodos y técnicas de la matemática discreta para describir, analizar y modelar sistemas del
+mundo real y mejorar y resolver los problemas existentes. Los conceptos de matemáticas
+discretas se presentan para modelar los sistemas reales usando la lógica proposicional, las
+relaciones binarias, la teoría de grafos, el álgebra de Boole, la teoría de grupos y las máquinas
+de estados finitos y se aplican para mejorar el sistema o resolver problemas.
+III. COMPETENCIAS
+El estudiante:
+1. Explicar y determinar el formato adecuado de los números enteros y reales de acuerdo a
+los datos a almacenar en el computador.
+2. Diseña modelos de sistemas discretos reales usando las relaciones binarias.
+3. Construye modelos de sistemas reales usando la teoría de grafos y árboles
+4. Explica y determina la solución óptima de un problema usando los principios del álgebra
+Booleana
+5. Interpreta los conceptos de la teoría de semigrupos y grupos, y su aplicación en la teoría
+de codificación.
+6. Realiza modelos de los sistemas de estados finitos utilizando la teoría de las máquinas de
+estado finito
+IV. UNIDADES DE APRENDIZAJE
+1.  SISTEMA DE NUMERACIÓN Y CÓDIGOS  /  8 HORAS
+Sistemas de numeración / Conversion entre sistemas de numeración / Operaciones
+aritméticas en binario / Formato de datos enteros: sin signo, signo magnitud, complemento a
+1, complemento a 2, en exceso / Código BCD / formato en punto flotante: precisión sencilla,
+doble precisión / formato normalizado (IEEE 754) / Operaciones con formato punto flotante.
+F02-silabo-FIIS
+1
+2.  LÓGICA PROPOSICIONAL   /   4 HORAS
+Leyes de lógica proposicional / métodos de demostración: directo, indirecto, contra positivo o
+contradicción / Lógica de predicados: definición y operaciones básicas con predicados /
+Cuantificadores: Universal y Existencial / Inducción matemática
+3.  RELACIONES BINARIAS Y DIGRAFOS  /  8 HORAS
+Relaciones binarias: definición de relación, dominio y rango de una relación / propiedades de
+una relación binaria: reflexiva, simétrica, antisimétrica, transitiva / operaciones básicas,
+relación inversa, composición de relaciones / Relaciones y digrafos: definiciones, matriz de
+una relación, trayectorias en relaciones y digrafos / relación de equivalencia, propiedades,
+clases de equivalencia / Conjunto cociente, partición de un conjunto, teorema que relaciona
+clase de equivalencia y relaciones / Relaciones de orden: definición y propiedades, diagrama
+de Hasse, conjunto parcialmente ordenado y totalmente ordenado / Elementos extremos de
+un conjunto parcialmente ordenado: mínimo, máximo, maximal y minimal / Cotas: superior,
+inferior, ínfimo y supremo.
+4. TEORÍA DE GRÁFICAS   /   4 HORAS
+Teoría de gráficas: grafo, multigrafo, grado de un vértice, gráfica conexa, gráfica, regular,
+gráfica completa./ Subgráficas, matriz de adyacencia. / Trayectorias: definiciones, circuitos de
+Euler, teoremas, gráfica con pesos.
+5.  TEORÍA DE ÁRBOLES    /   8 HORAS
+Teoría de árboles: árbol, definición, propiedades / ejemplos. Árboles etiquetados, Árbol con
+raíz, nivel de un árbol con raíz, altura de un árbol con raíz. / Árbol binario, árbol binario
+completo, árbol binario total, código prefijo, codificación de Huffman / Árbol de expansión:
+árbol de expansión mínimo (árbol recubridor), algoritmo de Prim, Algoritmo de kruskal,
+solución de problemas.
+6.  INTRODUCCIÓN AL ÁLGEBRA DE BOOLE  /  8 HORAS
+Álgebra de Boole: definición y propiedades del álgebra de Boole, postulados y teoremas de
+Boole, operaciones lógicas, tabla de verdad, función lógica / Formas normalizadas: término
+mínimo, término máximo, forma normal en suma de productos, forma normal en producto de
+sumas, problemas de conmutación / Puertas lógicas: puertas and, or, inversor, xor, nand, nor,
+exor / realización de circuitos Lógicos / Simplificación de funciones lógicas: Mapa de
+Karnaugh de 2, 3, 4 y 5 variables, circuitos combinatorios, aplicaciones.
+7.
+SEMIGRUPOS, GRUPOS Y CÓDIGO /  8 HORAS
+Estructuras
+matemáticas
+discretas:
+propiedades,
+semigrupo,
+monoide,
+propiedades,
+Isomorfismo, Homomorfismo. / Teoría de grupos: definición de grupo, propiedades,
+teoremas, grupo Abeliano. / Subgrupo, definición, propiedades. / Grupo producto y cociente
+/ Codificación: codificación de información binaria, detección de errores por bit de Paridad,
+distancia mínima, distancia de hamming, teoremas / Grupo de código, generación de grupo
+de código, teoremas.
+8.
+SEMIGRUPOS, GRUPOS Y CÓDIGO /  8 HORAS
+Estructuras
+matemáticas
+discretas:
+propiedades,
+semigrupo,
+monoide,
+propiedades,
+Isomorfismo, Homomorfismo. / Teoría de grupos: definición de grupo, propiedades,
+teoremas, grupo Abeliano. / Subgrupo, definición, propiedades. / Grupo producto y cociente
+/ Codificación: codificación de información binaria, detección de errores por bit de Paridad,
+distancia mínima, distancia de hamming, teoremas / Grupo de código, generación de grupo
+de código, teoremas.
+F01-CV-FIIS
+2
+9.
+INTRODUCCIÓN A LA TEORÍA DE LENGUAJES SEMIGRUPOS, GRUPOS Y CÓDIGO Y
+MÁQUINAS DE ESTADO FINITO/  4 HORAS
+Introducción a la teoría de lenguajes: definición de alfabeto, operaciones con lenguajes,
+concatenación. / Máquinas de estado finito: definición de una máquina de estados, diagrama
+de estados, tabla de estados. / Autómata de estados finitos, definición, ejemplos.
+V. METODOLOGÍA
+El curso se desarrolla en sesiones de teoría, práctica y laboratorio de cómputo. En las sesiones
+de teoría, el docente presenta los conceptos, teoremas y aplicaciones. En las sesiones
+prácticas, se resuelven diversos problemas y se analiza su solución.
+Las clases se desarrollarán teniendo en cuenta:
+. Aspecto metodológico: estimular el método científico (inductivo-deductivo)
+. Procedimientos: Observación, análisis, demostración, interrogación, didáctica, solución de
+problemas.
+. Técnicas: Expositiva, diálogo, y tutoría.
+. Equipos: computadora, proyector multimedia y accesorios, proyector de transparencias.
+. Materiales: Texto base (Colman B., Estructuras discretas para la computación ),
+transparencias, separatas de teoría y de problemas, direcciones electrónicas, pizarra, tizas de
+colores, mota, plumones para transparencias y plumones para pizarra acrílica.
+VI. SISTEMA DE EVALUACIÓN
+Sistema de Evaluación “G”. Cálculo del Promedio Final: PF = ( EP +  EF +  PP) / 3
+EP:     Examen Parcial                        EF:
+Examen Final
+PP:   Promedio de las tres mejores prácticas
+VII. FUENTES DE INFORMACIÓN
+1.
+Lipschutz S., Matemáticas para computación, México. McGraw Hill, 1982
+2.
+Kolman B. Estructuras discretas para la computación, México. Prentice Hall,1997
+3.
+Grimaldi R., Matemáticas discretas y Combinatoria, E.U.A. Adison Wesley,1997
+4.
+Jhonsonbaugh R., Matemáticas discretas, México. Prentice Hall, 1997
+F01-CV-FIIS
+3
+
+=== END FILE: FB301-Discreta.pdf ===
+
+=== START FILE: FB303-Multivariable.pdf ===
+SÍLABO – ABET 2019-1
+CURSO: CALCULO MULTIVARIABLE
+I. INFORMACIÓN GENERAL
+CÓDIGO
+: FB303 CALCULO MULTIVARIABLE
+CICLO
+: 3
+CRÉDITOS
+: 5
+HORAS POR SEMANA
+: PC: 2 HORAS, T: 4 HORAS
+CONDICIÓN
+: OBLIGATORIO
+ÁREA ACADÉMICA
+: CIENCIAS BÁSICAS
+II. SUMILLA DEL CURSO
+Cálculo multivariable es un curso teórico – práctico. Cuyo propósito, es brindar al estudiante
+la posibilidad de ampliar y enfatizar los conceptos y aplicaciones de Cálculo de una variable, a
+varias variables y las connotaciones que trae consigo esta proyección. Está ubicado en el tercer
+ciclo y dentro del área de Ciencias Básicas. Las principales unidades temáticas son: Función
+vectorial de variable real. Función real de varias variables. Límites. Continuidad.
+Diferenciabilidad. Máximo y mínimo relativos y condicionados. Integrales múltiples. Integrales
+dobles y triples. Cambio de variable. Integral de línea de un campo escalar y de un campo
+vectorial. Aplicaciones.
+III. COMPETENCIAS DE LA ASIGNATURA
+Al finalizar la asignatura, el estudiante:
+1. Formula y analiza modelos matemáticos identificando las variables que intervienen y la interdependencia
+que hay entre ellas, mediante el uso de las funciones de varias variables.
+2. Refuerza el conocimiento y operaciones de integrales simples y hace una prospección a las integrales
+múltiples.
+3. Analiza las condiciones de integrabilidad de funciones reales de dos y tres variables. Aplica este concepto
+para evaluar áreas de regiones planas y volúmenes de sólidos, centros de gravedad y centros de masa.
+4. Aplica los resultados de la relación entre integral doble e integral de línea de un campo vectorial, en la
+resolución de diversos problemas del campo de la ingeniería.
+IV. UNIDADES DE APRENDIZAJE
+1.
+CÁLCULO DE VARIAS VARIABLES / 16 HORAS
+Definición. / Ejemplos. / Gráficos, Curvas Paramétricas, Límites y continuidad, Derivadas Parciales. /
+Aplicaciones, Diferenciabilidad. La diferencial total, La Regla de la cadena. / Teorema de la Función implícita. /
+Derivadas direccionales. Gradientes. / Derivada a lo largo de una curva, Plano tangente y Recta Normal,
+Derivada Parcial de Orden Superior, Máximos y Mínimos. / El criterio de las derivadas parciales segundas,
+Máximos y Mínimos. / Condiciones. Método de Multiplicadores de Lagrange..
+2.
+INTEGRALES MÚLTIPLES / 14 HORAS
+F2-Silabo
+Introducción. / Integrales dobles. / Integrales Iteradas. / Aplicaciones, Integrales Triples. / Aplicaciones,
+Jacobiano. / La fórmula de cambio de variables en y tres dimensiones, La integral doble y coordenadas
+polares, Integral triple en coordenadas cilíndrica, Integral triple en coordenadas esféricas.
+3.
+FUNCIONES VECTORIALES DE VARIAS VARIABLES. / 14 HORAS
+Introducción, Integrales de línea de campo vectorial y campo escalar. / El concepto de trabajo como integral
+de línea / Teoremas fundamentales primero y segundo del cálculo para integrales de línea. / Integrales de
+línea e independencia de trayectoria / Teorema de Green en el plano. Teorema de Green para regiones,
+múltiplemente conexas. / Representación paramétrica de una superficie, plano tangente y vector normal. /
+Las integrales de superficie Teorema de Stokes. / Divergencia rotación, de un campo vectorial. / Teorema de la
+divergencia Teorema de Gauss)..
+V. LABORATORIOS Y EXPERIENCIAS PRÁCTICAS
+VI. METODOLOGÍA
+Las clases serán de carácter expositiva ya sea en la pizarra o utilizando medios audiovisuales.
+El método empleado será analítico, deductivo, descriptivo y presentación de ejemplos
+prácticas y el desarrollo de prácticas dirigidas para 1o cual se proporcionará el material
+necesario.
+Las clases son teórico práctico con la exposición en aula del profesor con una metodología
+gráfica y analítica, y la participación activa de los estudiantes y entrega de separatas de
+problemas a los estudiantes de cada unidad temática así como la exposición de los estudiantes
+de los temas que al inicio del curso se les asignará.
+VII. FÓRMULA DE EVALUACIÓN
+Sistema de Evaluación: G
+-  Examen parcial: 1
+-  Promedio de prácticas o trabajos calificados: 1
+-  Examen final: 1
+VIII. BIBLIOGRAFÍA
+1. DEMIDOVICH. 5,000 Problemas de Análisis Matemático.. 8va Ed. Paraninfo, 2000.
+2. LÁZARO, Moisés.. Análisis Matemático III.. Editorial Moshera., 2005.
+3. VENERO, Armando.. Análisis Matemático III.. Editorial Moshera, 2005.
+F2-Silabo
+
+=== END FILE: FB303-Multivariable.pdf ===
+
+=== START FILE: ilide.info-silabo-de-calculo-diferencial-fiis-uni-pr_a1312fd05ec707b1423cc44543971b1d.pdf ===
+ 
+ 
+ 
+ 
+ 
+                                  
+SÍLABO 
+CURSO: CÁLCULO DIFERENCIAL 
+ 
+ 
+ I .-    INFORMACIÓN GENERAL 
+                                  
+    CÓDIGO  
+ 
+ 
+ 
+: BMA-01 
+ 
+CICLO 
+ 
+ 
+ 
+ 
+: 1 
+     CREDITOS                
+ 
+ 
+: 05 
+       HORAS SEMANALES                
+: Teoría   04 horas   Práctica 02 horas.   
+       PRE-REQUISITO 
+ 
+ 
+: Ninguno 
+ 
+CONDICIÓN 
+ 
+ 
+ 
+: Obligatorio 
+       SISTEMA DE EVALUACION   
+: G  
+DEPARTAMENTO 
+ 
+ 
+: Ciencias Básicas 
+PROFESOR 
+ 
+ 
+ 
+: José Luis Alvarado Rodríguez, 
+           Alejandro Huamán Sánchez 
+           Osmar Bermeo Carrasco 
+           Jesus Cernades Gomes 
+ 
+II.-    SUMILLA DEL CURSO 
+ 
+Calculo diferencial es un curso teórico – practico ubicado en el primer ciclo cuyo 
+propósito es brindar al estudiante los conceptos y operaciones que resultan de una 
+función real de variable real y su aplicación a diferentes aspectos del mundo real. 
+Las principales unidades temáticas son: lógica proposicional. Teoría de conjuntos. 
+Propiedades y operaciones con números reales. Funciones reales de variable real. 
+Operaciones con funciones, límites, continuidad, diferenciabilidad, máximos y 
+mínimos, representación gráfica y aplicaciones de una función real de variable real. 
+ 
+III.-   COMPETENCIAS 
+ 
+Al concluir la asignatura, el estudiante: 
+ 
+2.1 Maneja definiciones y elementos del Cálculo Diferencial en la resolución de 
+problemas  prácticos. 
+ 
+2.2 Discute, analiza y realiza el trazado  de la gráfica de una función  
+ 
+2.3 Plantea y resuelve problemas de exploración óptima  usando el concepto de 
+continuidad y derivada  
+ 
+2.4 Desarrolla su capacidad de análisis, deducción generalización, intuición que 
+permitirán  contribuir en su formación integral, de tal manera que le permita  
+comprender los campos científicos-tecnológicos en la solución de problemas 
+de ingeniería y ramas afines. 
+ 
+ 
+ 
+UNIVERSIDAD NACIONAL DE INGENIERÍA 
+Facultad de Ingeniería Industrial y de Sistemas 
+ 
+ 
+ 
+IV.- CONTENIDO 
+ 
+CAPITULO I  
+ 
+NUMEROS REALES ( 12 horas ) 
+ 
+SEMANA 1  
+Lógica Proposicional. Conectivos Lógicos, Álgebra proposicional, Aplicaciones, 
+Conjuntos. Relaciones con conjuntos 
+SEMANA 2 
+Aplicaciones, Sistema de Números reales. Propiedades y aplicaciones, Desigualdades. 
+Propiedades. 
+SEMANA 3 
+Valor absoluto. Máximo entero. Propiedades y aplicaciones 
+ 
+CAPITULO II 
+ 
+FUNCIONES  
+ 
+SEMANA 4 
+Definición Dominio y Rango de funciones. Funciones especiales: 
+Constante, cuadrática lineal, afín identidad, Funciones valor absoluto, máximo entro, 
+signo escalón unitario.  
+SEMANA 5 
+Aplicaciones, Funciones pares e impares y periódicas, Álgebra de Funciones: adición, 
+sustracción  multiplicación y división  
+Composición de Funciones 
+SEMANA 6 
+Función univalente. Función Suryectiva. Función Inversa propiedades. Inversa de la 
+composición. 
+ 
+CAPITULO III 
+ 
+LIMITES Y CONTINUIDAD ( 14 horas ) 
+ 
+SEMANA 7  
+Definición. Teoremas. Cálculo de límites algebraicos. Límites Laterales. Límites 
+Trigonométricos. Límites infinitos, Teoremas.  
+ 
+SEMANA  8 
+ 
+EXAMEN PARCIAL  
+ 
+SEMANA 9 
+Aplicaciones. Asíntotas. Gráficas mostrando asíntotas, Continuidad en un punto. 
+Continuidad en un intervalo. 
+ 
+SEMANA 10 
+Propiedades, Teorema del Valor Intermedio. Teorema de Bolzano. Funciones acotadas: 
+conjunto acotado, supremo e ínfimo, función acotada. 
+ 
+ 
+ 
+ 
+CAPITULO IV 
+ 
+LA DERIVADA 
+ 
+SEMANA 11 
+Definición. Interpretación, Derivadas Laterales. Derivada de la suma, producto y cociente. 
+Derivada de la función compuesta. Regla de cadena. 
+ 
+SEMANA 12 
+Diferenciabilidad y continuidad. Derivación Implícita. Diferenciales. Derivada de orden 
+superior. 
+ 
+CAPITULO V 
+ 
+APLICACIONES DE LA DERIVADA ( 14 horas ) 
+ 
+SEMANA 13 
+Funciones crecientes y decrecientes. Teorema del Valor Medio. Rolle, Lagrange, Cauchy. 
+Aplicaciones. 
+ 
+SEMANA 14 
+La derivada como razón instantánea de cambio: Aplicaciones. Criterios para hallar valores 
+extremos relativos: criterio de la primera derivada y criterio para la segunda derivada. 
+ 
+SEMANA 15 
+Aplicaciones. Concavidad y punto de inflexión a la gráfica de una función. Aplicaciones 
+para trazar la Gráfica de una función. Cálculo de límites mediante la Regla Hospital. 
+ 
+SEMANA 16 
+ 
+ 
+EXAMEN FINAL  
+ 
+ 
+V.-METODOLOGIA DE ENSEÑANZA-APRENDIZAJE 
+ 
+El curso de Cálculo Diferencial estará sujeto a los siguientes lineamientos 
+metodológicos. 
+ 
+       4.1 El desarrollo de los temas será en el orden en que se plantea este Syllabus. Es 
+decir, cada alumno conocerá de antemano los temas que serán tratados en clase. 
+    
+4.2 El docente expondrá y dará las nociones teórico-práctico de los conceptos sobre 
+los contenidos temáticos que comprende el objetivo del aprendizaje 
+                    
+4.3 Periódicamente se entregará al estudiante una lista de problemas, para luego ser 
+discutidos, donde el docente jugará un papel de guía  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+VI.-EVALUACION. 
+ 
+      Prácticas Calificadas   (04): 
+PP 
+      Examen Parcial 
+ 
+ 
+EP 
+      Examen Final 
+ 
+ 
+EF 
+      Nota Final  
+ 
+ 
+NF 
+ 
+                            
+3
+EF
+EP
+PP
+NF
++
++
+=
+ 
+ 
+Donde 
+      PP = Promedio aritmético de las Prácticas Calificadas (se toma en cuenta las   
+mejores 03 notas) 
+       EP = Nota del Examen Parcial 
+       EF = Nota del Examen Final 
+ 
+      Para rendir el Examen Sustitutorio, es requisito tener PC > 6.1 Y NF > 6.1 (en caso 
+de tener una sola nota de los exámenes es suficiente con PC > 6.1 ). 
+       La nota del  examen  sustitutorio, sustituye necesariamente a la menor nota de los 
+exámenes o a la nota del examen no rendido. 
+ 
+VII.-BIBLIOGRAFIA 
+ 
+6.1. Helfgott, Michael Nuñez, Tomas, Cálculo Diferencial de una variable. Ed. San 
+Marcos. Lima-Perú 
+6.2. Hasser-La Salle-Sullivan, Análisis Matemático I , Curso de Introducción Vol. 
+1. Editorial Trillas. México 
+6.3. Leithold, Louis Ed. Harla, “El Cálculo con Geometría Analítica” Harper – 
+Latinoamericana. México. 
+6.5. Stewart, Cálculo de una variable, Internacional Thomson Editores. 3ra Edición. 
+España  Mc. Graw Hill. 5ta Edición. Colombia. 
+6.6. Larson/Hostetler/Edwards.CALCULO y Geometría Analítica Volumen I 
+      Mc. Graw Hill. 5ta Edición. Colombia. 
+6.7. Sherman K / Barcillos A. Cálculo y Geometría Analítica. Volumen II. Mc. 
+Graw Hill. 5ta Edición. Colombia. 
+6.8.  Mitacc Meza, Máximo / Toro, Luis. Cálculo I. Talleres Gráficos INPOFFOT. 
+6ta Edición Lima – Perú. 
+
+=== END FILE: ilide.info-silabo-de-calculo-diferencial-fiis-uni-pr_a1312fd05ec707b1423cc44543971b1d.pdf ===
+
+=== START FILE: SI205-Algorítmia-I2.pdf ===
+UNIVERSIDAD NACIONAL DE INGENIERÍA
+Facultad de Ingeniería Industrial y de Sistemas
+SÍLABO
+I.
+INFORMACIÓN GENERAL
+Curso
+: Algoritmia y Estructura de Datos
+Código
+: SI-205
+Pre-requisito
+: BIC-01
+Dpto. Académico
+: Sistemas y Telemática
+Condición
+: Obligatorio
+Ciclo Académico
+: 2018-2
+Créditos
+: 3
+Horas teóricas
+: 2 horas semanal
+Horas prácticas / Laboratorio : 2 horas semanales
+Sistema de Evaluación
+: F
+II.
+SUMILLA
+La asignatura pertenece al área de sistemas de información y es de naturaleza teórico práctico. Está orientada
+al desarrollo de algoritmos y la aplicación de estructuras de datos para la resolución de problemas, utilizando
+un lenguaje de programación. Se desarrollan las estructuras de control: secuenciales, selectivas y repetitivas.
+Se definen y desarrollan operaciones con estructuras de datos como arreglos, registros, cadenas y sus
+combinaciones. Se desarrollan algoritmos de ordenamiento y búsqueda. Se elaboran subprogramas y
+recursividad. Se define el concepto de puntero y se desarrollan operaciones con estructuras dinámicas como
+listas, pilas, colas y árboles binarios.
+III.
+COMPETENCIAS
+1. Desarrollar el razonamiento lógico para la solución de problemas.
+2. Seleccionar la estructura de datos más adecuada para representar los datos del problema y facilitar la
+lógica de solución.
+3. Integrar diversas estructuras de datos en la solución de un problema.
+4. Desarrollar la capacidad de análisis y diseño para implementar soluciones basadas en algoritmos.
+5. Dominar un lenguaje de programación a nivel intermedio.
+IV.
+UNIDADES DE APRENDIZAJE
+1. PRIMERA UNIDAD: Estructuras control
+Primera Semana:
+●
+Estructura de control secuencial.
+●
+Estructuras de control selectivas: simple, doble y múltiple
+●
+Estructuras de control selectivas anidadas
+Segunda Semana:
+●
+Estructuras de control repetitivas con repeticiones preestablecidas,
+●
+Estructuras de control repetitivas con entrada controlada
+●
+Estructuras de control repetitivas con salida controlada.
+●
+Estructuras de control repetitivas anidadas.
+2. SEGUNDA UNIDAD: Arreglos y Registros
+Tercera semana:
+●
+Arreglos unidimensionales: Creación
+●
+Operaciones de asignación, lectura y escritura.
+1
+Cuarta Semana:
+●
+Algoritmos de ordenamiento
+Quinta semana:
+●
+Algoritmos de búsqueda
+●
+Operaciones de eliminación e inserción.
+Sexta semana:
+●
+Arreglos Multidimensionales: Creación, asignación, lectura y escritura.
+●
+Operaciones con arreglos multidimensionales.
+●
+Inserción y eliminación de filas y columnas
+Séptima semana:
+●
+Registros: Creación, asignación, lectura y escritura.
+●
+Operaciones con registros.
+●
+Arreglo de registros.
+Octava semana: Examen Parcial
+3.
+TERCERA UNIDAD: Cadenas de caracteres
+Novena semana:
+●
+Cadenas: Creación, lectura, escritura.
+●
+Operaciones con cadenas.
+●
+Arreglo de cadenas.
+4.
+CUARTA UNIDAD: Subprogramas y Recursividad
+Décima semana:
+●
+Subprogramas: creación
+●
+Variables globales y locales
+●
+Parámetros por valor o referencia.
+Décima primera semana:
+●
+Definición recursiva.
+●
+Funciones recursivas.
+5.
+QUINTA UNIDAD: Archivos
+Décima segunda semana:
+●
+Archivos de acceso secuencial: Definición, apertura y cierre.
+●
+Operaciones con archivos de acceso secuencial: Lectura y escritura.
+●
+Archivos de acceso aleatorio: Definición, apertura y cierre.
+●
+Operaciones con archivos de acceso aleatorio: Lectura y escritura.
+6.
+SEXTA UNIDAD: Estructuras dinámicas: Puntero, Lista, Pila, Cola y Árbol Binario
+Décima tercera semana:
+●
+Variable puntero: Creación y uso.
+●
+Operaciones con punteros.
+●
+Listas enlazadas: Creación
+●
+Operaciones de inserción y eliminación de nodos.
+Décima cuarta semana:
+●
+Pilas: Creación y uso.
+●
+Operaciones Push y Pop.
+●
+Colas: Creación y uso
+●
+Operaciones con colas: entrada y salida
+2
+Décima quinta semana:
+●
+Árbol binario: Creación y uso.
+●
+Recorridos de un árbol binario.
+Décima sexta semana: Examen Final
+Décima séptima semana: Examen Sustitutorio
+V.
+METODOLOGÍA
+El curso se desarrolla en sesiones de teoría y laboratorio de cómputo. En las sesiones de teoría, el docente
+presenta los conceptos y aplicaciones. En las sesiones de Laboratorio, se desarrolla y prueba todo lo
+aprendido en la teoría. En todas las sesiones se promueve la participación activa del alumno.
+VI.
+LABORATORIOS
+Se desarrollan a lo largo del curso como medio para que el estudiante pruebe lo aprendido en clase. Se utiliza
+el lenguaje C++.
+VII. SISTEMA DE EVALUACIÓN
+1. Sistema de Evaluación “F”:
+EP: Examen Parcial
+(Peso 1)
+EF: Examen Final
+(Peso 2)
+PP: Promedio de Prácticas
+(Peso 1)
+2. Cantidad de Prácticas (04).
+3. Fórmula de Evaluación:
+Promedio Final = (EP + 2EF + PP) / 4
+PP: Promedio de Prácticas. Se obtiene del promedio aritmético de las tres (03) mejores notas de las
+prácticas.
+VIII. BIBLIOGRAFÍA
+BIBLIOGRAFÍA BÁSICA
+1.
+Joyanes A., Luis. (2008). Fundamentos de Programación Algoritmos, estructura de datos y objetos. 4ta Ed.
+Mc. Graw Hill. Madrid.
+2.
+Joyanes A., Luis. (2002). Programación en C++: Algoritmos, Estructura de Datos y Objetos. 1ra. Ed.
+McGraw Hill, Madrid.
+3.
+Stroustrup,
+Bjarne
+(2003).
+El
+Lenguaje
+de
+Programación C++. 3ra. Edición, Addison-Wesley
+Iberoamericana, España.
+4.
+Cairó Osvaldo. y Guardati, Silvia (2006). Estructuras de datos. Mc. Graw Hill. México.
+PÁGINAS DE INTERNET
+1.
+http://es.scribd.com/doc/9837088/Ceballos-Enciclopedia-del-lenguaje-C
+CICLO 2019-2
+3
+
+=== END FILE: SI205-Algorítmia-I2.pdf ===
+

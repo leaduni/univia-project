@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { supabase } from "@/lib/supabase"
+import MarkdownRenderer from "@/components/ui/markdown-renderer"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -328,7 +329,9 @@ export function EvaluacionIA({ courseId, modulos }: { courseId: string; modulos:
                   <span className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 flex items-center justify-center text-sm font-bold">
                     {idx + 1}
                   </span>
-                  <span className="flex-1">{pregunta.pregunta}</span>
+                  <div className="flex-1">
+                    <MarkdownRenderer content={pregunta.pregunta} />
+                  </div>
                 </CardTitle>
                 <CardDescription className="ml-11">
                   {pregunta.tipo === "multiple" && "Selección múltiple (varias respuestas)"}
@@ -353,7 +356,9 @@ export function EvaluacionIA({ courseId, modulos }: { courseId: string; modulos:
                         className="w-4 h-4 text-purple-600"
                       />
                     )}
-                    <label className="flex-1 cursor-pointer">{opcion}</label>
+                    <label className="flex-1 cursor-pointer">
+                      <MarkdownRenderer content={opcion} />
+                    </label>
                   </div>
                 ))}
               </CardContent>
@@ -383,6 +388,13 @@ export function EvaluacionIA({ courseId, modulos }: { courseId: string; modulos:
   if (step === "resultados" && resultado && evaluacion) {
     const porcentaje = resultado.porcentaje
     const aprobado = porcentaje >= 60
+
+    const renderRespuesta = (respuesta: any, opciones: string[]) => {
+      if (Array.isArray(respuesta)) {
+        return respuesta.map(idx => opciones[idx]).join(", ");
+      }
+      return opciones[respuesta];
+    }
 
     return (
       <div className="space-y-6">
@@ -418,7 +430,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId: string; modulos:
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">{resultado.retroalimentacion}</p>
+              <MarkdownRenderer content={resultado.retroalimentacion} />
             </CardContent>
           </Card>
         )}
@@ -433,33 +445,29 @@ export function EvaluacionIA({ courseId, modulos }: { courseId: string; modulos:
                   <span className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${detalle.es_correcta ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-600" : "bg-red-100 dark:bg-red-900 text-red-600"}`}>
                     {detalle.es_correcta ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
                   </span>
-                  <span className="flex-1">{detalle.pregunta}</span>
+                  <div className="flex-1">
+                    <MarkdownRenderer content={detalle.pregunta} />
+                  </div>
                 </CardTitle>
               </CardHeader>
               <CardContent className="ml-11 space-y-3">
                 <div className="space-y-2">
-                  {Array.isArray(detalle.respuesta_estudiante) ? (
-                    <p className="text-sm">
-                      <span className="font-medium">Tu respuesta:</span>{" "}
-                      {detalle.respuesta_estudiante.map((idx: number) => detalle.opciones[idx]).join(", ")}
-                    </p>
-                  ) : (
-                    <p className="text-sm">
-                      <span className="font-medium">Tu respuesta:</span> {detalle.opciones[detalle.respuesta_estudiante]}
-                    </p>
-                  )}
+                  <p className="text-sm">
+                    <span className="font-medium">Tu respuesta:</span>{" "}
+                    <MarkdownRenderer content={renderRespuesta(detalle.respuesta_estudiante, detalle.opciones)} />
+                  </p>
                   {!detalle.es_correcta && (
                     <p className="text-sm text-emerald-600 dark:text-emerald-400">
                       <span className="font-medium">Respuesta correcta:</span>{" "}
-                      {Array.isArray(detalle.respuesta_correcta)
-                        ? detalle.respuesta_correcta.map((idx: number) => detalle.opciones[idx]).join(", ")
-                        : detalle.opciones[detalle.respuesta_correcta]}
+                      <MarkdownRenderer content={renderRespuesta(detalle.respuesta_correcta, detalle.opciones)} />
                     </p>
                   )}
                 </div>
                 <div className="bg-secondary/30 p-3 rounded-lg">
                   <p className="text-sm font-medium mb-1">Explicación:</p>
-                  <p className="text-sm text-muted-foreground">{detalle.explicacion}</p>
+                  <div className="text-sm text-muted-foreground">
+                    <MarkdownRenderer content={detalle.explicacion} />
+                  </div>
                 </div>
               </CardContent>
             </Card>

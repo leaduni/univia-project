@@ -36,24 +36,26 @@ pnpm install
 # Copia el archivo de ejemplo
 cd backend
 copy .env.example .env
-
-# Edita backend/.env y completa con TUS propios valores:
-# - SUPABASE_URL: desde https://supabase.com/dashboard (Settings > API)
-# - SUPABASE_ANON_KEY: desde el mismo lugar
-# - GEMINI_API_KEY: obtén la tuya en https://aistudio.google.com/app/apikey
+```
+Edita `backend/.env` y completa con TUS propios valores. Debería lucir así:
+```
+SUPABASE_URL="tu_url_de_supabase_aqui"
+SUPABASE_ANON_KEY="tu_anon_key_aqui"
+GEMINI_API_KEY="tu_api_key_de_gemini_aqui"
 ```
 
 **Frontend:**
 ```powershell
 cd frontend
-# Crea frontend/.env.local con:
-NEXT_PUBLIC_SUPABASE_URL=tu_url_de_supabase
-NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key
-NEXT_PUBLIC_API_URL=http://localhost:8000
+# Crea frontend/.env.local con el siguiente contenido:
+NEXT_PUBLIC_SUPABASE_URL="tu_url_de_supabase_aqui"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="tu_anon_key_aqui"
+NEXT_PUBLIC_API_URL="http://localhost:8000"
 ```
 
-> ⚠️ **IMPORTANTE:** Nunca compartas tus API keys. Cada desarrollador debe usar las suyas propias.
-
+> ⚠️ **IMPORTANTE:** Nunca compartas tus API keys ni las subas al repositorio. El archivo `.env` está en `.gitignore` por esta razón. Cada desarrollador debe usar sus propias credenciales.
+- `SUPABASE_URL` y `SUPABASE_ANON_KEY`: Las encuentras en tu dashboard de Supabase > Settings > API.
+- `GEMINI_API_KEY`: Obtén la tuya desde [Google AI Studio](https://aistudio.google.com/app/apikey).
 ---
 
 ## 🎯 CÓMO EJECUTAR EL SISTEMA

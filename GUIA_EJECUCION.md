@@ -91,6 +91,14 @@ cd frontend; npm run dev
 
 ---
 
+## 🛠️ REQUISITO DE INFRAESTRUCTURA (Para Evaluaciones de Programación)
+
+Para poder ejecutar y validar los retos de programación, es **indispensable** tener la instancia de Judge0 corriendo localmente a través de Docker.
+
+Para más detalles sobre la arquitectura y el despliegue, consulta la guía: `evaluacion_programacion/GUIDE_JUDGE0.md`.
+
+---
+
 ## 🧪 PROBAR EL SISTEMA
 
 ### 1. Verificar Backend
@@ -129,6 +137,9 @@ Verifica que Gemini API esté funcionando
 ### POST /api/evaluaciones/generar
 Genera una evaluación con IA
 
+**Nota técnica:** El prompt del sistema que se envía a Gemini es dinámico. Si el curso es de programación, el campo `pregunta` devolverá un objeto JSON estructurado (`{contexto, input, output_esperado}`). Para otros cursos, será un `string` simple.
+
+
 **Ejemplo de request:**
 ```json
 {
@@ -143,6 +154,8 @@ Genera una evaluación con IA
 
 ### POST /api/evaluaciones/evaluar
 Evalúa respuestas y genera retroalimentación con IA
+
+**Nota técnica:** Para los retos de programación, este endpoint integra los resultados del motor de ejecución **Judge0**. Compara el `stdout` del código del usuario con el `output_esperado` para validar la corrección técnica de la respuesta.
 
 ---
 
@@ -210,9 +223,10 @@ taskkill /PID <número> /F
 1. ✅ Backend funcionando
 2. ✅ Frontend funcionando
 3. ✅ Sistema de evaluaciones con IA implementado
-4. 📝 Crear interfaz de evaluaciones en frontend
+4. ✅ Crear interfaz de evaluaciones en frontend
 5. 📝 Implementar banco de exámenes
-6. 📝 Panel de código ejecutable para programación
+6. ✅ Panel de código ejecutable para programación
+7. 📝 Refinamiento de prompts y casos de prueba complejos (Deuda técnica)
 
 ---
 

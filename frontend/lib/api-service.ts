@@ -270,6 +270,10 @@ export const apiService = {
      * Sign up a new user with Supabase
      */
     async signup(data: { email: string; password: string; fullName: string; rol?: string }) {
+        
+        console.log("Chequeo de URL: '" + process.env.NEXT_PUBLIC_SUPABASE_URL + "'");
+        console.log("Longitud de la Key:", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length);
+        
         try {
             const { data: authData, error } = await supabase.auth.signUp({
                 email: data.email,

@@ -15,7 +15,8 @@ import {
   Settings,
   RotateCcw,
   TrendingUp,
-  Clock
+  Clock,
+  Loader2
 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { supabase } from "@/lib/supabase"
@@ -24,12 +25,21 @@ import MarkdownRenderer from "@/components/ui/markdown-renderer"
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
 interface Pregunta {
-  id: number
-  pregunta: string
-  tipo: "multiple" | "unica" | "verdadero_falso"
-  opciones: string[]
-  respuesta_correcta: number | number[]
-  explicacion: string
+  id: number;
+  pregunta: string | {
+    contexto: string;
+    input: string;
+    output_esperado: string;
+  };
+  tipo: "multiple" | "unica" | "verdadero_falso" | "codigo";
+  opciones: string[];
+  respuesta_correcta: number | number[] | string;
+  explicacion: string;
+  codigo_base?: string;
+  caso_de_ejemplo?: {
+    input: string;
+    output: string;
+  };
 }
 
 interface Evaluacion {
@@ -45,7 +55,13 @@ interface ModuloInfo {
   topics: string[]
 }
 
-export function EvaluacionIA({ courseId, modulos }: { courseId: string; modulos: ModuloInfo[] }) {
+interface ExecutionResult {
+  output?: string;
+  error?: string;
+  isLoading: boolean;
+}
+
+export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: ModuloInfo[] }) {
   const [step, setStep] = useState<"config" | "loading" | "evaluacion" | "resultados">("config")
   const [selectedModulo, setSelectedModulo] = useState<ModuloInfo | null>(null)
   const [numPreguntas, setNumPreguntas] = useState(5)
@@ -55,6 +71,79 @@ export function EvaluacionIA({ courseId, modulos }: { courseId: string; modulos:
   const [resultado, setResultado] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [executionResults, setExecutionResults] = useState<Record<number, ExecutionResult>>({});
+
+  const handleEjecutarCodigo = async (preguntaId: number, sourceCode: string) => {
+    setExecutionResults(prev => ({ ...prev, [preguntaId]: { isLoading: true, output: undefined, error: undefined } }));
+
+    try {
+        const response = await fetch("http://127.0.0.1:2358/submissions?base64_encoded=false&wait=true", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                source_code: sourceCode,
+                language_id: 71, // Python 3
+                stdin: ""
+            }),
+        });
+
+        // Handle non-2xx responses first
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => "No se pudo leer el cuerpo del error.");
+            throw new Error(`El servidor de ejecución respondió con un error ${response.status}. ${errorText}`);
+        }
+
+        // Handle successful responses
+        let data;
+        try {
+            data = await response.json();
+            console.log('Respuesta de Judge0:', data);
+        } catch (jsonError) {
+             throw new Error("Error: La respuesta del servidor de ejecución no es un JSON válido.");
+        }
+        
+        let resultOutput: string | undefined;
+        let resultError: string | undefined;
+
+        // Priority: An "Accepted" status means success.
+        if (data.status?.description === 'Accepted') {
+            resultOutput = data.stdout ?? ""; // Display stdout, defaulting to an empty string if null.
+        } else if (data.compile_output) {
+            // Compilation error is a specific type of error.
+            resultError = data.compile_output;
+        } else if (data.stderr) {
+            // Runtime error is another specific error.
+            resultError = data.stderr;
+        } else if (data.status?.description) {
+            // Any other status description is treated as an error.
+            resultError = data.status.description;
+        } else {
+            // Fallback for an unexpected response format.
+            resultError = "Respuesta desconocida del motor de ejecución.";
+        }
+
+        // Update the UI to show the immediate result
+        setExecutionResults(prev => ({
+            ...prev,
+            [preguntaId]: { output: resultOutput, error: resultError, isLoading: false }
+        }));
+
+    } catch (err: any) {
+        console.error('Error en handleEjecutarCodigo:', err);
+        // Distinguish between network errors and other errors
+        const isNetworkError = err.message.toLowerCase().includes('failed to fetch');
+        const errorMessage = isNetworkError
+            ? "Error de Red: No se pudo conectar al motor de ejecución local (Judge0). Revisa que esté activo en Docker y que no haya un firewall bloqueando la conexión."
+            : err.message;
+
+        setExecutionResults(prev => ({
+            ...prev,
+            [preguntaId]: { error: errorMessage, isLoading: false }
+        }));
+    }
+  };
 
   const generarEvaluacion = async () => {
     if (!selectedModulo) return
@@ -85,14 +174,20 @@ export function EvaluacionIA({ courseId, modulos }: { courseId: string; modulos:
       })
 
       if (!response.ok) {
-        throw new Error("Error al generar la evaluación")
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Error al generar la evaluación")
       }
 
-      const data = await response.json()
+      // Robust parsing
+      const rawResponse = await response.text();
+      // Remove control characters but keep \n and \t
+      const cleanResponse = rawResponse.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, "");
+      const data = JSON.parse(cleanResponse);
+      
       setEvaluacion(data)
       setStep("evaluacion")
     } catch (err: any) {
-      setError(err.message)
+      setError(`Error al procesar la evaluación: ${err.message}. Asegúrate de que la respuesta de la IA sea un JSON válido.`)
       setStep("config")
     } finally {
       setIsLoading(false)
@@ -106,10 +201,23 @@ export function EvaluacionIA({ courseId, modulos }: { courseId: string; modulos:
       setIsLoading(true)
       setError(null)
 
-      const respuestasArray = Object.entries(respuestas).map(([preguntaId, respuesta]) => ({
-        pregunta_id: parseInt(preguntaId),
-        respuesta: respuesta
-      }))
+      const respuestasArray = evaluacion.preguntas.map((pregunta) => {
+        const preguntaId = pregunta.id;
+        let respuestaParaEnviar: any;
+
+        if (pregunta.tipo === 'codigo') {
+            // For code questions, send the stdout from the execution result.
+            respuestaParaEnviar = executionResults[preguntaId]?.output ?? '';
+        } else {
+            // For other questions, send the value from the 'respuestas' state.
+            respuestaParaEnviar = respuestas[preguntaId];
+        }
+
+        return {
+            pregunta_id: preguntaId,
+            respuesta: respuestaParaEnviar,
+        };
+      });
 
       // Get auth token
       const { data: { session } } = await supabase.auth.getSession()
@@ -131,7 +239,8 @@ export function EvaluacionIA({ courseId, modulos }: { courseId: string; modulos:
       })
 
       if (!response.ok) {
-        throw new Error("Error al evaluar las respuestas")
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Error al evaluar las respuestas")
       }
 
       const data = await response.json()
@@ -151,6 +260,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId: string; modulos:
     setResultado(null)
     setEvaluacion(null)
     setError(null)
+    setExecutionResults({})
   }
 
   const handleRespuesta = (preguntaId: number, valor: any, esMultiple: boolean) => {
@@ -285,7 +395,17 @@ export function EvaluacionIA({ courseId, modulos }: { courseId: string; modulos:
 
   // Paso 3: Evaluación
   if (step === "evaluacion" && evaluacion) {
-    const todasRespondidas = evaluacion.preguntas.every((p) => respuestas[p.id] !== undefined)
+    const todasRespondidas = evaluacion.preguntas.every((p) => {
+      if (p.tipo === 'codigo') {
+        const hasCode = respuestas[p.id] !== undefined && (respuestas[p.id] as string).trim() !== '';
+        const hasSuccessfulResult = executionResults[p.id] && executionResults[p.id].output !== undefined && !executionResults[p.id].error;
+        return hasCode && hasSuccessfulResult;
+      }
+      if (p.tipo === 'multiple') {
+        return respuestas[p.id] !== undefined && (respuestas[p.id] as number[]).length > 0;
+      }
+      return respuestas[p.id] !== undefined;
+    });
 
     return (
       <div className="space-y-6">
@@ -322,48 +442,130 @@ export function EvaluacionIA({ courseId, modulos }: { courseId: string; modulos:
         )}
 
         <div className="space-y-4">
-          {evaluacion.preguntas.map((pregunta, idx) => (
-            <Card key={pregunta.id}>
-              <CardHeader>
-                <CardTitle className="text-base flex items-start gap-3">
-                  <span className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 flex items-center justify-center text-sm font-bold">
-                    {idx + 1}
-                  </span>
-                  <div className="flex-1">
-                    <MarkdownRenderer content={pregunta.pregunta} />
-                  </div>
-                </CardTitle>
-                <CardDescription className="ml-11">
-                  {pregunta.tipo === "multiple" && "Selección múltiple (varias respuestas)"}
-                  {pregunta.tipo === "unica" && "Selección única"}
-                  {pregunta.tipo === "verdadero_falso" && "Verdadero o Falso"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="ml-11 space-y-2">
-                {pregunta.opciones.map((opcion, opcionIdx) => (
-                  <div key={opcionIdx} className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/50 transition-colors">
-                    {pregunta.tipo === "multiple" ? (
-                      <Checkbox
-                        checked={((respuestas[pregunta.id] || []) as number[]).includes(opcionIdx)}
-                        onCheckedChange={() => handleRespuesta(pregunta.id, opcionIdx, true)}
-                      />
-                    ) : (
-                      <input
-                        type="radio"
-                        name={`pregunta-${pregunta.id}`}
-                        checked={respuestas[pregunta.id] === opcionIdx}
-                        onChange={() => handleRespuesta(pregunta.id, opcionIdx, false)}
-                        className="w-4 h-4 text-purple-600"
-                      />
-                    )}
-                    <label className="flex-1 cursor-pointer">
-                      <MarkdownRenderer content={opcion} />
-                    </label>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          ))}
+          {evaluacion.preguntas.map((pregunta, idx) => {
+            const executionResult = executionResults[pregunta.id];
+            return (
+              <Card key={pregunta.id}>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-start gap-3">
+                    <span className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 flex items-center justify-center text-sm font-bold">
+                      {idx + 1}
+                    </span>
+                    <div className="flex-1">
+                      {pregunta.tipo === 'codigo' && typeof pregunta.pregunta === 'object'
+                        ? <MarkdownRenderer content={(pregunta.pregunta as any).contexto} />
+                        : <MarkdownRenderer content={pregunta.pregunta as string} />}
+                    </div>
+                  </CardTitle>
+                  {pregunta.tipo !== 'codigo' && (
+                    <CardDescription className="ml-11">
+                      {pregunta.tipo === "multiple" && "Selección múltiple (varias respuestas)"}
+                      {pregunta.tipo === "unica" && "Selección única"}
+                      {pregunta.tipo === "verdadero_falso" && "Verdadero o Falso"}
+                    </CardDescription>
+                  )}
+                </CardHeader>
+                <CardContent className="ml-11 space-y-4">
+                  {pregunta.tipo === 'codigo' ? (
+                    (() => {
+                      const isStructured = typeof pregunta.pregunta === 'object' && pregunta.pregunta !== null;
+                      const structuredPregunta = isStructured ? (pregunta.pregunta as any) : null;
+                      const casoDeEjemplo = (pregunta as any).caso_de_ejemplo;
+
+                      return (
+                        <div className="space-y-4">
+                          {isStructured && (
+                            <div className="space-y-3 p-4 bg-secondary/50 rounded-lg border">
+                              <div>
+                                <Label className="text-sm font-semibold">Input</Label>
+                                <p className="text-sm text-muted-foreground">{structuredPregunta.input}</p>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-semibold">Output Esperado</Label>
+                                <p className="text-sm text-muted-foreground">{structuredPregunta.output_esperado}</p>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {casoDeEjemplo && (
+                              <div className="space-y-3">
+                                  <Label className="text-sm font-semibold">Caso de Ejemplo</Label>
+                                  <div className="p-3 font-mono text-xs bg-gray-900 rounded-md">
+                                      <p className="text-gray-400">// Input</p>
+                                      <code className="text-cyan-300">{casoDeEjemplo.input}</code>
+                                      <p className="mt-2 text-gray-400">// Output Esperado</p>
+                                      <code className="text-green-300">{casoDeEjemplo.output}</code>
+                                  </div>
+                              </div>
+                          )}
+
+                          <div>
+                            <Label htmlFor={`code-${pregunta.id}`}>Tu Solución</Label>
+                            <textarea
+                              id={`code-${pregunta.id}`}
+                              value={respuestas[pregunta.id] ?? pregunta.codigo_base ?? ''}
+                              onChange={(e) => handleRespuesta(pregunta.id, e.target.value, false)}
+                              placeholder="Escribe tu código aquí..."
+                              className="w-full h-48 p-4 mt-1 font-mono text-sm bg-gray-900 text-gray-100 border border-gray-700 rounded-md focus:ring-2 focus:ring-purple-500"
+                              style={{ background: '#1e1e1e', color: '#d4d4d4', resize: 'vertical' }}
+                            />
+                          </div>
+                          <div className="flex flex-col items-start gap-2">
+                            <Button
+                              onClick={() => handleEjecutarCodigo(pregunta.id, respuestas[pregunta.id] ?? '')}
+                              disabled={executionResult?.isLoading}
+                              variant="outline"
+                              size="sm"
+                              className="gap-2"
+                            >
+                              {executionResult?.isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+                              {executionResult?.isLoading ? "Ejecutando..." : "Ejecutar Código"}
+                            </Button>
+                            {executionResult && (
+                              <div className="w-full p-3 mt-2 bg-gray-800 rounded-md text-sm">
+                                <p className="font-semibold text-gray-300">Resultado de ejecución:</p>
+                                <pre className="mt-1 font-mono text-xs whitespace-pre-wrap">
+                                  {executionResult.error ? (
+                                    <code className="text-red-400">{executionResult.error}</code>
+                                  ) : (
+                                    <code className="text-green-300">{executionResult.output}</code>
+                                  )}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })()
+                  ) : (
+                    pregunta.opciones && pregunta.opciones.map((opcion, opcionIdx) => (
+                      <div key={opcionIdx} className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/50 transition-colors">
+                        {pregunta.tipo === "multiple" ? (
+                          <Checkbox
+                            checked={((respuestas[pregunta.id] || []) as number[]).includes(opcionIdx)}
+                            onCheckedChange={() => handleRespuesta(pregunta.id, opcionIdx, true)}
+                            id={`check-${pregunta.id}-${opcionIdx}`}
+                          />
+                        ) : (
+                          <input
+                            type="radio"
+                            name={`pregunta-${pregunta.id}`}
+                            checked={respuestas[pregunta.id] === opcionIdx}
+                            onChange={() => handleRespuesta(pregunta.id, opcionIdx, false)}
+                            className="w-4 h-4 text-purple-600"
+                            id={`radio-${pregunta.id}-${opcionIdx}`}
+                          />
+                        )}
+                        <label htmlFor={pregunta.tipo === 'multiple' ? `check-${pregunta.id}-${opcionIdx}` : `radio-${pregunta.id}-${opcionIdx}`} className="flex-1 cursor-pointer">
+                          <MarkdownRenderer content={opcion} />
+                        </label>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
 
         <div className="flex gap-3 sticky bottom-4 bg-background/95 backdrop-blur-sm p-4 rounded-lg border shadow-lg">
@@ -389,12 +591,32 @@ export function EvaluacionIA({ courseId, modulos }: { courseId: string; modulos:
     const porcentaje = resultado.porcentaje
     const aprobado = porcentaje >= 60
 
-    const renderRespuesta = (respuesta: any, opciones: string[]) => {
-      if (Array.isArray(respuesta)) {
-        return respuesta.map(idx => opciones[idx]).join(", ");
+    const renderRespuestaEstudiante = (detalle: any) => {
+      if (detalle.pregunta_tipo === 'codigo') {
+        return <pre className="p-2 bg-gray-100 dark:bg-gray-800 rounded text-sm whitespace-pre-wrap"><code>{detalle.respuesta_estudiante}</code></pre>;
       }
-      return opciones[respuesta];
-    }
+      if (Array.isArray(detalle.respuesta_estudiante)) {
+        return detalle.respuesta_estudiante.map((idx: number) => detalle.opciones[idx]).join(", ");
+      }
+      if (detalle.opciones && detalle.opciones[detalle.respuesta_estudiante]) {
+        return detalle.opciones[detalle.respuesta_estudiante];
+      }
+      return detalle.respuesta_estudiante;
+    };
+
+    // Helper para mostrar la respuesta correcta
+    const renderRespuestaCorrecta = (detalle: any) => {
+      if (detalle.pregunta_tipo === 'codigo') {
+        return <pre className="p-2 bg-emerald-100/50 dark:bg-emerald-900/50 rounded text-sm whitespace-pre-wrap"><code>{detalle.respuesta_correcta}</code></pre>;
+      }
+      if (Array.isArray(detalle.respuesta_correcta)) {
+        return detalle.respuesta_correcta.map((idx: number) => detalle.opciones[idx]).join(", ");
+      }
+      if (detalle.opciones && detalle.opciones[detalle.respuesta_correcta]) {
+        return detalle.opciones[detalle.respuesta_correcta];
+      }
+      return detalle.respuesta_correcta;
+    };
 
     return (
       <div className="space-y-6">
@@ -446,29 +668,39 @@ export function EvaluacionIA({ courseId, modulos }: { courseId: string; modulos:
                     {detalle.es_correcta ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
                   </span>
                   <div className="flex-1">
-                    <MarkdownRenderer content={detalle.pregunta} />
+                    {typeof detalle.pregunta === 'object' && detalle.pregunta !== null
+                      ? <MarkdownRenderer content={(detalle.pregunta as any).contexto} />
+                      : <MarkdownRenderer content={detalle.pregunta} />}
                   </div>
                 </CardTitle>
+                {typeof detalle.pregunta === 'object' && detalle.pregunta !== null && (
+                  <CardDescription className="ml-11 mt-2 space-y-1 text-xs">
+                      <div><strong>Input:</strong> {(detalle.pregunta as any).input}</div>
+                      <div><strong>Output Esperado:</strong> {(detalle.pregunta as any).output_esperado}</div>
+                  </CardDescription>
+                )}
               </CardHeader>
               <CardContent className="ml-11 space-y-3">
                 <div className="space-y-2">
-                  <p className="text-sm">
-                    <span className="font-medium">Tu respuesta:</span>{" "}
-                    <MarkdownRenderer content={renderRespuesta(detalle.respuesta_estudiante, detalle.opciones)} />
-                  </p>
+                   <p className="text-sm">
+                      <span className="font-medium">Tu respuesta:</span>{" "}
+                      {renderRespuestaEstudiante(detalle)}
+                    </p>
                   {!detalle.es_correcta && (
                     <p className="text-sm text-emerald-600 dark:text-emerald-400">
                       <span className="font-medium">Respuesta correcta:</span>{" "}
-                      <MarkdownRenderer content={renderRespuesta(detalle.respuesta_correcta, detalle.opciones)} />
+                      {renderRespuestaCorrecta(detalle)}
                     </p>
                   )}
                 </div>
-                <div className="bg-secondary/30 p-3 rounded-lg">
-                  <p className="text-sm font-medium mb-1">Explicación:</p>
-                  <div className="text-sm text-muted-foreground">
-                    <MarkdownRenderer content={detalle.explicacion} />
+                {detalle.explicacion && (
+                  <div className="bg-secondary/30 p-3 rounded-lg">
+                    <p className="text-sm font-medium mb-1">Explicación:</p>
+                    <div className="text-sm text-muted-foreground">
+                      <MarkdownRenderer content={detalle.explicacion} />
+                    </div>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           ))}

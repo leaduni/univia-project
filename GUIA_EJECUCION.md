@@ -29,21 +29,30 @@ npm install
 pnpm install
 ```
 
-### 3. Verificar Archivos .env
+### 3. Configurar Variables de Entorno
 
-**Backend (.env)**
-```
-SUPABASE_URL=https://pggpscrbpcasbgjhjigw.supabase.co
-SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-GEMINI_API_KEY=AIzaSyD_u7EC3rXIyS0qAdfHyScAu-f8yKaTN6A
+**Backend:**
+```powershell
+# Copia el archivo de ejemplo
+cd backend
+copy .env.example .env
+
+# Edita backend/.env y completa con TUS propios valores:
+# - SUPABASE_URL: desde https://supabase.com/dashboard (Settings > API)
+# - SUPABASE_ANON_KEY: desde el mismo lugar
+# - GEMINI_API_KEY: obtén la tuya en https://aistudio.google.com/app/apikey
 ```
 
-**Frontend (.env.local)**
-```
-NEXT_PUBLIC_SUPABASE_URL=https://pggpscrbpcasbgjhjigw.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+**Frontend:**
+```powershell
+cd frontend
+# Crea frontend/.env.local con:
+NEXT_PUBLIC_SUPABASE_URL=tu_url_de_supabase
+NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
+
+> ⚠️ **IMPORTANTE:** Nunca compartas tus API keys. Cada desarrollador debe usar las suyas propias.
 
 ---
 

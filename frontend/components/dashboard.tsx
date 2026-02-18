@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react"
 import { StatsCards } from "./stats-cards"
 import { CurrentCoursesSection } from "./current-courses-section"
+import { MallaCurricular } from "./malla-curricular"
 import { RightSidebar } from "./right-sidebar"
 import { AIRecommendation } from "./ai-recommendation"
 import { useAuth } from "./providers/auth-context"
@@ -12,6 +13,7 @@ export function Dashboard() {
   const [stats, setStats] = useState<any>(null)
   const [logros, setLogros] = useState<any[]>([])
   const [currentCourses, setCurrentCourses] = useState<any[]>([])
+  const [mallaData, setMallaData] = useState<any>({})
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -26,6 +28,7 @@ export function Dashboard() {
 
         setStats(summary.stats)
         setLogros(summary.logros)
+        setMallaData(malla)
 
         // Extraer cursos actuales de la malla
         const activeCourses: any[] = []
@@ -72,6 +75,11 @@ export function Dashboard() {
 
         {/* Current Courses Section */}
         <CurrentCoursesSection courses={currentCourses} isLoading={isLoading} />
+
+        {/* Malla Curricular */}
+        <div className="mt-8">
+          <MallaCurricular malla={(Object.values(mallaData) as any[]).sort((a: any, b: any) => parseInt(a.ciclo.split(" ")[1]) - parseInt(b.ciclo.split(" ")[1]))} isLoading={isLoading} />
+        </div>
 
         {/* AI Recommendation Banner */}
         <AIRecommendation />

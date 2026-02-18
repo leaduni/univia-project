@@ -1,0 +1,15 @@
+curso_id,title,description,duration,order_index,topics,icon
+17,Unidad 1: Álgebra Matricial,Definiciones y operaciones con matrices.,3h,1,"{Matrices, Tipos de matrices, Operaciones, Transpuesta}",grid
+17,Unidad 2: Determinantes,Cálculo y propiedades de determinantes.,3h,2,"{Determinantes, Cofactores, Propiedades}",maximize
+17,Unidad 3: Rango e Inversa,Operaciones elementales y cálculo de inversa.,3h,3,"{Rango, Matriz Inversa, Operaciones elementales}",minimize-2
+17,Unidad 4: Sistemas de Ecuaciones,Solución de sistemas lineales.,3h,4,"{Sistemas lineales, Regla de Cramer, Métodos matriciales}",list
+17,Unidad 5: Geometría en el Espacio,Vectores en R3.,3h,5,"{Vectores en R3, Producto escalar, Norma}",box
+17,Unidad 6: Producto Vectorial,Proyección y producto vectorial.,3h,6,"{Proyección ortogonal, Producto vectorial, Triple producto}",crosshair
+17,Unidad 7: Independencia Lineal,Conceptos de dependencia e independencia.,3h,7,"{Independencia lineal, Dependencia lineal}",git-branch
+17,Unidad 8: Rectas y Planos,Ecuaciones de rectas y planos en el espacio.,3h,8,"{Rectas en R3, Planos, Intersecciones}",map
+17,Unidad 9: Espacios Vectoriales,Definición y propiedades generales.,3h,9,"{Espacios vectoriales, Subespacios, Base, Dimensión}",layout
+17,Unidad 10: Transformaciones Lineales,"Definición, núcleo e imagen.",3h,10,"{Transformaciones lineales, Núcleo, Imagen}",repeat
+17,Unidad 11: Rep. Matricial,Matriz asociada a una transformación.,3h,11,"{Representación matricial, Operadores lineales}",monitor
+17,Unidad 12: Valores Propios,Autovalores y autovectores.,3h,12,"{Valores propios, Vectores propios, Diagonalización}",target
+17,Unidad 13: Diag. Transformaciones,Diagonalización de operadores.,3h,13,"{Diagonalización de transformaciones, Ortogonalización}",sliders
+17,Unidad 14: Formas Cuadráticas,Aplicación a cónicas y superficies.,3h,14,"{Formas cuadráticas, Cónicas, Superficies}",circle

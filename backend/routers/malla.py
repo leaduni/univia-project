@@ -15,11 +15,22 @@ async def get_malla(user_data = Depends(get_current_user)):
     if not cursos_resp.data:
         return []
 
+    # 1.5. Obtener prerrequisitos
+    prereq_resp = supabase.table("curso_prerrequisitos").select("*").execute()
+    prereq_map = {}
+    for p in prereq_resp.data:
+        cid = p["curso_id"]
+        pid = p["prerrequisito_id"]
+        if cid not in prereq_map:
+            prereq_map[cid] = []
+        prereq_map[cid].append(pid)
+
     # 2. Obtener progreso del usuario actual
     progreso_resp = supabase.table("progreso_cursos").select("curso_id, status").eq("perfil_id", user.id).execute()
     
     # Mapear progreso por ID de curso para búsqueda rápida
     progreso_map = {p["curso_id"]: p["status"] for p in progreso_resp.data}
+    completed_courses = {p["curso_id"] for p in progreso_resp.data if p["status"] == "completed"}
 
     # Organizar por ciclo como espera el frontend
     malla = {}
@@ -34,6 +45,14 @@ async def get_malla(user_data = Depends(get_current_user)):
         
         # Determinar status: base en progreso_cursos o 'available' por defecto
         status = progreso_map.get(curso["id"], "available")
+        
+        # Validar prerrequisitos si el curso está disponible (no completado/en progreso)
+        if status == "available":
+            prereqs = prereq_map.get(curso["id"], [])
+            for pid in prereqs:
+                if pid not in completed_courses:
+                    status = "locked"
+                    break
         
         malla[ciclo_key]["courses"].append({
             "id": curso["id"],

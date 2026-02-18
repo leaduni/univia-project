@@ -6,18 +6,19 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { 
-  Brain, 
-  Sparkles, 
-  CheckCircle2, 
-  XCircle, 
-  PlayCircle, 
+import {
+  Brain,
+  Sparkles,
+  CheckCircle2,
+  XCircle,
+  PlayCircle,
   Settings,
   RotateCcw,
   TrendingUp,
   Clock
 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
+import { supabase } from "@/lib/supabase"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -62,10 +63,15 @@ export function EvaluacionIA({ courseId, modulos }: { courseId: string; modulos:
       setError(null)
       setStep("loading")
 
+      // Get auth token
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
       const response = await fetch(`${API_URL}/api/evaluaciones/generar`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : "",
         },
         body: JSON.stringify({
           curso_id: parseInt(courseId),
@@ -104,10 +110,15 @@ export function EvaluacionIA({ courseId, modulos }: { courseId: string; modulos:
         respuesta: respuesta
       }))
 
+      // Get auth token
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
       const response = await fetch(`${API_URL}/api/evaluaciones/evaluar`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : "",
         },
         body: JSON.stringify({
           evaluacion: evaluacion,
@@ -190,11 +201,10 @@ export function EvaluacionIA({ courseId, modulos }: { courseId: string; modulos:
                   <button
                     key={idx}
                     onClick={() => setSelectedModulo(modulo)}
-                    className={`p-4 rounded-lg border-2 text-left transition-all ${
-                      selectedModulo?.title === modulo.title
+                    className={`p-4 rounded-lg border-2 text-left transition-all ${selectedModulo?.title === modulo.title
                         ? "border-purple-500 bg-purple-50 dark:bg-purple-950"
                         : "border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700"
-                    }`}
+                      }`}
                   >
                     <h4 className="font-semibold text-sm mb-2">{modulo.title}</h4>
                     <div className="flex flex-wrap gap-1">

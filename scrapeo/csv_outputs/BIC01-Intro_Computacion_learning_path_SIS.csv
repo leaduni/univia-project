@@ -1,0 +1,17 @@
+curso_id,title,description,duration,order_index,topics,icon
+14,Semana 1: Introducción,"Definiciones básicas, lenguajes y algoritmos.",3h,1,"{Algoritmos, Lenguajes, C++}",terminal
+14,Semana 2: Operadores,"Operadores aritméticos, relacionales y lógicos.",3h,2,"{Operadores, Variables}",code
+14,Semana 3: Proc. Secuenciales,Tipos de datos y estructuras secuenciales.,3h,3,"{Tipos de datos, Secuencia}",arrow-right
+14,Semana 4: Est. Selectivas,Sentencias if-else y switch.,3h,4,"{If-Else, Switch}",git-branch
+14,Semana 5: Estructura For,Bucles con número de repeticiones definido.,3h,5,{Bucle For},repeat
+14,Semana 6: Estructura While,Bucles con entrada controlada.,3h,6,{Bucle While},rotate-cw
+14,Semana 7: Estructura Do While,Bucles con salida controlada.,3h,7,{Do While},refresh-ccw
+14,Semana 8: Examen Parcial,Evaluación parcial.,2h,8,{Examen Parcial},edit-3
+14,Semana 9: Vectores,Arreglos unidimensionales.,3h,9,"{Vectores, Arreglos}",list
+14,Semana 10: Matrices,Arreglos bidimensionales.,3h,10,"{Matrices, Arreglos 2D}",grid
+14,Semana 11: Cadenas,Manipulación de textos y strings.,3h,11,"{Strings, Cadenas}",type
+14,Semana 12: Funciones,Funciones definidas por el usuario.,3h,12,"{Funciones, Ámbito}",box
+14,Semana 13: Punteros,Introducción a punteros.,3h,13,"{Punteros, Memoria}",cpu
+14,Semana 14: Parámetros,Paso por valor y por referencia.,3h,14,"{Paso por valor, Paso por referencia}",sliders
+14,Semana 15: Recursividad,Funciones recursivas.,3h,15,"{Recursividad, Backtracking}",corner-down-left
+14,Semana 16: Examen Final,Evaluación final.,2h,16,{Examen Final},file-text

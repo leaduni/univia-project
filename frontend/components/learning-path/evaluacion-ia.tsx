@@ -595,13 +595,13 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
       if (detalle.pregunta_tipo === 'codigo') {
         return <pre className="p-2 bg-gray-100 dark:bg-gray-800 rounded text-sm whitespace-pre-wrap"><code>{detalle.respuesta_estudiante}</code></pre>;
       }
-      if (Array.isArray(detalle.respuesta_estudiante)) {
-        return detalle.respuesta_estudiante.map((idx: number) => detalle.opciones[idx]).join(", ");
-      }
-      if (detalle.opciones && detalle.opciones[detalle.respuesta_estudiante]) {
-        return detalle.opciones[detalle.respuesta_estudiante];
-      }
-      return detalle.respuesta_estudiante;
+      const content = Array.isArray(detalle.respuesta_estudiante)
+        ? detalle.respuesta_estudiante.map((idx: number) => detalle.opciones[idx]).join(", ")
+        : (detalle.opciones && detalle.opciones[detalle.respuesta_estudiante])
+        ? detalle.opciones[detalle.respuesta_estudiante]
+        : detalle.respuesta_estudiante;
+      
+      return <MarkdownRenderer content={content} />;
     };
 
     // Helper para mostrar la respuesta correcta
@@ -609,13 +609,13 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
       if (detalle.pregunta_tipo === 'codigo') {
         return <pre className="p-2 bg-emerald-100/50 dark:bg-emerald-900/50 rounded text-sm whitespace-pre-wrap"><code>{detalle.respuesta_correcta}</code></pre>;
       }
-      if (Array.isArray(detalle.respuesta_correcta)) {
-        return detalle.respuesta_correcta.map((idx: number) => detalle.opciones[idx]).join(", ");
-      }
-      if (detalle.opciones && detalle.opciones[detalle.respuesta_correcta]) {
-        return detalle.opciones[detalle.respuesta_correcta];
-      }
-      return detalle.respuesta_correcta;
+       const content = Array.isArray(detalle.respuesta_correcta)
+        ? detalle.respuesta_correcta.map((idx: number) => detalle.opciones[idx]).join(", ")
+        : (detalle.opciones && detalle.opciones[detalle.respuesta_correcta])
+        ? detalle.opciones[detalle.respuesta_correcta]
+        : detalle.respuesta_correcta;
+
+      return <MarkdownRenderer content={content} />;
     };
 
     return (
@@ -682,15 +682,15 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
               </CardHeader>
               <CardContent className="ml-11 space-y-3">
                 <div className="space-y-2">
-                   <p className="text-sm">
-                      <span className="font-medium">Tu respuesta:</span>{" "}
-                      {renderRespuestaEstudiante(detalle)}
-                    </p>
+                  <div className="text-sm">
+                    <span className="font-medium">Tu respuesta:</span>{" "}
+                    {renderRespuestaEstudiante(detalle)}
+                  </div>
                   {!detalle.es_correcta && (
-                    <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                    <div className="text-sm text-emerald-600 dark:text-emerald-400">
                       <span className="font-medium">Respuesta correcta:</span>{" "}
                       {renderRespuestaCorrecta(detalle)}
-                    </p>
+                    </div>
                   )}
                 </div>
                 {detalle.explicacion && (

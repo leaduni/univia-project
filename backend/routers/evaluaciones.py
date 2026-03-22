@@ -115,6 +115,7 @@ IMPORTANTE: Responde ÚNICAMENTE con un JSON válido en este formato exacto:
 }
 
 REGLAS:
+- Para fórmulas matemáticas, usa $...$ para las de en línea y $$...$$ para las de bloque. NO uses `(...)` para las fórmulas.
 - Para tipo "unica": respuesta_correcta es un número (índice de la opción correcta, empezando en 0)
 - Para tipo "multiple": respuesta_correcta es una lista de números [0, 2] (múltiples opciones correctas)
 - Para tipo "verdadero_falso": opciones debe ser ["Verdadero", "Falso"]
@@ -167,6 +168,7 @@ NO generes preguntas teóricas. Solo retos de código con especificaciones técn
 
 REGLAS ESTRICTAS PARA LA GENERACIÓN DEL JSON:
 - La respuesta DEBE ser un objeto JSON válido y nada más.
+- Para fórmulas matemáticas en explicaciones, usa $...$ para las de en línea y $$...$$ para las de bloque. NO uses `(...)` para las fórmulas.
 - El campo "pregunta" DEBE ser un objeto con las llaves "contexto", "input", y "output_esperado".
 - DEBE existir un campo "caso_de_ejemplo" que sea un objeto con "input" y "output". El "input" del caso de ejemplo debe ser el código ejecutable que el estudiante usará para probar.
 - "tipo" DEBE ser siempre "codigo".
@@ -358,6 +360,7 @@ Proporciona:
 4. Recursos sugeridos (temas específicos para repasar)
 
 Sé conciso, positivo y específico. Máximo 200 palabras.
+Para cualquier fórmula matemática, usa la sintaxis de LaTeX: $...$ para fórmulas en línea y $$...$$ para bloques. No uses `(...)`.
 """
     
     try:

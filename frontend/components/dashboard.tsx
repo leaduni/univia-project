@@ -13,10 +13,7 @@ export function Dashboard() {
   const [stats, setStats] = useState<any>(null)
   const [logros, setLogros] = useState<any[]>([])
   const [currentCourses, setCurrentCourses] = useState<any[]>([])
-<<<<<<< HEAD
   const [mallaData, setMallaData] = useState<any>({})
-=======
->>>>>>> 901f55b (Update back y front)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {

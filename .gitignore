@@ -1,0 +1,40 @@
+# Environment variables (NUNCA subir al repo)
+.env
+*.env
+backend/.env
+backend/env
+frontend/.env
+frontend/.env.local
+frontend/.env.production.local
+frontend/.env.development.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+backend/env/
+venv/
+ENV/
+
+# Node
+node_modules/
+.next/
+out/
+build/
+*.log
+
+# OS
+desktop.ini
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

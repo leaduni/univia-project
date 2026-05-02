@@ -7,7 +7,7 @@ x-logging:
 
 services:
   server:
-    image: judge0/judge0:1.13.1
+    image: mrkushalsm/judge0:cgv2
     volumes:
       - ./judge0.conf:/judge0.conf:ro
     ports:
@@ -21,7 +21,7 @@ services:
           memory: 512M
 
   workers:
-    image: judge0/judge0:1.13.1
+    image: mrkushalsm/judge0:cgv2
     command: ["./scripts/workers"]
     volumes:
       - ./judge0.conf:/judge0.conf:ro

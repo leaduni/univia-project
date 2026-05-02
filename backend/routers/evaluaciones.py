@@ -74,7 +74,46 @@ class ResultadoEvaluacion(BaseModel):
 # Lista de IDs de cursos de programación
 CURSOS_PROGRAMACION_IDS = [14, 23, 30, 36, 43, 47, 49]
 
-def generar_prompt_teorico(config: ConfiguracionEvaluacion) -> str:
+def recuperar_contexto_semantico(tema_consulta: str, curso_id: int) -> List[str]:
+    """Convierte el tema en vector y busca en Supabase los fragmentos más relevantes."""
+    if not client:
+        return []
+        
+    try:
+        from database import get_supabase
+        supabase = get_supabase()
+        
+        # 1. Convertir la consulta en un vector usando Gemini
+        response = client.models.embed_content(
+            model='gemini-embedding-2',
+            contents=tema_consulta,
+            config=types.EmbedContentConfig(output_dimensionality=1536)
+        )
+        query_vector = response.embeddings[0].values
+        
+        # 2. Llamar al RPC en Supabase
+        rpc_response = supabase.rpc(
+            "search_resource_chunks",
+            {
+                "query_embedding": query_vector,
+                "match_threshold": 0.1, # Umbral más permisivo
+                "match_count": 5,       # Extraer 5 fragmentos
+                "filter_curso_id": None # Ignorar curso_id por ahora (MVP)
+            }
+        ).execute()
+        
+        data = rpc_response.data
+        if not data:
+            return []
+            
+        # Extraer solo el contenido
+        return [item["contenido"] for item in data]
+        
+    except Exception as e:
+        print(f"Error al recuperar contexto: {e}")
+        return []
+
+def generar_prompt_teorico(config: ConfiguracionEvaluacion, contexto_recuperado: List[str] = None) -> str:
     """Genera el prompt para un curso teórico."""
     
     tipos_pregunta = {
@@ -117,9 +156,21 @@ REGLAS DE EVALUACIÓN:
 - Para tipo "multiple": respuesta_correcta es una lista de índices [0, 2].
 - Para tipo "verdadero_falso": opciones debe ser ["Verdadero", "Falso"].
 """
+    
+    if contexto_recuperado and len(contexto_recuperado) > 0:
+        contexto_str = "\n\n---\n".join(contexto_recuperado)
+        prompt += f"""
+Contexto (Ejemplos de evaluaciones pasadas o material real):
+A continuación tienes material de referencia para que el estilo, nivel de dificultad y formato de tus preguntas se parezca a las evaluaciones reales del curso:
+---
+{contexto_str}
+---
+Utiliza este contexto como inspiración para formular tus nuevas preguntas de manera similar. No copies exactamente, pero imita su complejidad.
+"""
+
     return prompt
 
-def generar_prompt_programacion(config: ConfiguracionEvaluacion) -> str:
+def generar_prompt_programacion(config: ConfiguracionEvaluacion, contexto_recuperado: List[str] = None) -> str:
     """Genera el prompt para un curso de programación."""
     
     prompt = f"""Eres un Arquitecto de Software diseñando retos técnicos para evaluar candidatos. Tu tono es directo, técnico y sin ambigüedades.
@@ -132,6 +183,17 @@ Genera {config.num_preguntas} retos de programación de nivel 'Senior Universita
     if config.observaciones:
         prompt += f"\nRequerimientos adicionales del cliente (lenguaje, etc.):\n{config.observaciones}\n"
     
+    if contexto_recuperado and len(contexto_recuperado) > 0:
+        contexto_str = "\n\n---\n".join(contexto_recuperado)
+        prompt += f"""
+Contexto (Ejemplos de problemas o material de referencia):
+A continuación tienes material de referencia para que el estilo, nivel de dificultad y tipo de reto se parezca al material del curso:
+---
+{contexto_str}
+---
+Utiliza este contexto como inspiración para formular el reto de código. No copies exactamente, pero mantén la misma temática y nivel.
+"""
+
     prompt += """
 IMPORTANTE: La respuesta debe ser un objeto JSON válido.
 NO generes preguntas teóricas. Solo retos de código con especificaciones técnicas rigurosas.
@@ -196,10 +258,19 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion):
         raise HTTPException(status_code=500, detail="API Key de Gemini no configurada")
     
     try:
+        # 1. Recuperar contexto semántico (RAG)
+        tema_completo = f"{config.modulo}: {', '.join(config.temas)}"
+        contexto = recuperar_contexto_semantico(tema_completo, config.curso_id)
+        
+        # --- LOG PARA VERIFICAR EL RAG EN LA TERMINAL ---
+        print("\n" + "="*50)
+        print(f"🔍 RAG: Se recuperaron {len(contexto)} fragmentos del PDF.")
+        print("="*50 + "\n")
+
         # Decidir qué prompt usar según el tipo de curso
         if config.curso_id in CURSOS_PROGRAMACION_IDS:
             print(f"DEBUG: Activando flujo de PROGRAMACIÓN para curso {config.curso_id}")
-            prompt = generar_prompt_programacion(config)
+            prompt = generar_prompt_programacion(config, contexto)
             evaluacion_schema = types.Schema(
                 type=types.Type.OBJECT,
                 properties={
@@ -235,7 +306,7 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion):
                 required=["preguntas"]
             )
         else:
-            prompt = generar_prompt_teorico(config)
+            prompt = generar_prompt_teorico(config, contexto)
             evaluacion_schema = types.Schema(
                 type=types.Type.OBJECT,
                 properties={

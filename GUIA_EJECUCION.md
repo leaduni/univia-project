@@ -29,7 +29,7 @@ npm install
 pnpm install
 ```
 
-### 3. Configurar Variables de Entorno
+### 3. Verificar Archivos .env
 
 **Backend:**
 ```powershell

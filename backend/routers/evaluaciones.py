@@ -25,11 +25,6 @@ class ConfiguracionEvaluacion(BaseModel):
     observaciones: Optional[str] = None  # Metodología del profesor, lenguaje, etc.
     tipo_evaluacion: str = "mixta"  # "multiple", "unica", "verdadero_falso", "mixta"
 
-class DetallePreguntaCodigo(BaseModel):
-    contexto: str
-    input: str
-    output_esperado: str
-
 class CasoDeEjemplo(BaseModel):
     input: str
     output: str
@@ -37,7 +32,10 @@ class CasoDeEjemplo(BaseModel):
 class Pregunta(BaseModel):
     """Modelo de una pregunta de evaluación"""
     id: int
-    pregunta: Union[str, DetallePreguntaCodigo]
+    pregunta: Optional[str] = None
+    contexto_markdown: Optional[str] = None
+    input_markdown: Optional[str] = None
+    output_markdown: Optional[str] = None
     tipo: str  # "multiple", "unica", "verdadero_falso", "codigo"
     opciones: Optional[List[str]] = None
     respuesta_correcta: Any  # Puede ser int, List[int] o str para código
@@ -86,45 +84,39 @@ def generar_prompt_teorico(config: ConfiguracionEvaluacion) -> str:
         "mixta": "combinación de selección múltiple, única respuesta y verdadero/falso"
     }
     
-    prompt = f"""Eres un profesor experto en {config.modulo}. 
-
-Genera {config.num_preguntas} preguntas de evaluación sobre los siguientes temas:
+    prompt = rf"""Eres un profesor experto en {config.modulo}.
+Genera {config.num_preguntas} preguntas de evaluación de nivel universitario sobre los siguientes temas:
 {', '.join(config.temas)}
 
 Tipo de preguntas: {tipos_pregunta.get(config.tipo_evaluacion, 'mixta')}
 
-"""
-    
-    if config.observaciones:
-        prompt += f"\nConsideraciones especiales del profesor:\n{config.observaciones}\n"
-    
-    prompt += """
-IMPORTANTE: Responde ÚNICAMENTE con un JSON válido en este formato exacto:
+IMPORTANTE: Responde ÚNICAMENTE con un JSON que cumpla el esquema solicitado.
 
-{
+ESTRUCTURA DEL JSON:
+{{
   "preguntas": [
-    {
+    {{
       "id": 1,
       "pregunta": "texto de la pregunta",
       "tipo": "unica|multiple|verdadero_falso",
       "opciones": ["opción 1", "opción 2", "opción 3", "opción 4"],
       "respuesta_correcta": 0,
       "explicacion": "explicación detallada de por qué esta es la respuesta correcta"
-    }
+    }}
   ]
-}
+}}
 
-REGLAS:
-- Para fórmulas matemáticas, usa $...$ para las de en línea y $$...$$ para las de bloque. NO uses `(...)` para las fórmulas.
-- Para tipo "unica": respuesta_correcta es un número (índice de la opción correcta, empezando en 0)
-- Para tipo "multiple": respuesta_correcta es una lista de números [0, 2] (múltiples opciones correctas)
-- Para tipo "verdadero_falso": opciones debe ser ["Verdadero", "Falso"]
-- Todas las preguntas deben tener explicaciones pedagógicas y detalladas
-- Las preguntas deben ser de nivel universitario
-- NO incluyas texto adicional fuera del JSON
-- Asegúrate de que el JSON sea válido (comillas dobles, sin comas finales)
+REGLAS CRÍTICAS DE FORMATO:
+1. Para fórmulas en la misma línea (inline), usa un solo símbolo de dólar: $f(x) = x^2$.
+2. Para fórmulas en bloque (centradas), usa doble símbolo de dólar: $$ \int_a^b x \, dx $$.
+3. Escribe sintaxis de LaTeX estándar limpia. NO dupliques ni tripliques las barras invertidas.
+4. En la explicación, usa saltos de línea normales (Enter) para separar párrafos. NO escribas "\n" de forma literal.
+
+REGLAS DE EVALUACIÓN:
+- Para tipo "unica": respuesta_correcta es el índice de la opción correcta (empezando en 0).
+- Para tipo "multiple": respuesta_correcta es una lista de índices [0, 2].
+- Para tipo "verdadero_falso": opciones debe ser ["Verdadero", "Falso"].
 """
-    
     return prompt
 
 def generar_prompt_programacion(config: ConfiguracionEvaluacion) -> str:
@@ -148,11 +140,9 @@ NO generes preguntas teóricas. Solo retos de código con especificaciones técn
   "preguntas": [
     {
       "id": 1,
-      "pregunta": {
-          "contexto": "Breve descripción del problema de negocio o técnico a resolver. Ej: 'En un sistema de procesamiento de datos, necesitamos validar que los números de serie siguen un formato específico.'",
-          "input": "Descripción de los datos de entrada del programa. Ej: 'La función recibirá un único string.'",
-          "output_esperado": "Descripción exacta de lo que el programa debe imprimir o retornar. Ej: 'Debe retornar `True` si el string es válido, `False` en caso contrario.'"
-      },
+      "contexto_markdown": "Breve descripción del problema de negocio o técnico a resolver. Ej: 'En un sistema de procesamiento de datos, necesitamos validar que los números de serie siguen un formato específico.'",
+      "input_markdown": "Descripción de los datos de entrada del programa. Ej: 'La función recibirá un único string.'",
+      "output_markdown": "Descripción exacta de lo que el programa debe imprimir o retornar. Ej: 'Debe retornar `True` si el string es válido, `False` en caso contrario.'",
       "tipo": "codigo",
       "opciones": [],
       "caso_de_ejemplo": {
@@ -169,7 +159,7 @@ NO generes preguntas teóricas. Solo retos de código con especificaciones técn
 REGLAS ESTRICTAS PARA LA GENERACIÓN DEL JSON:
 - La respuesta DEBE ser un objeto JSON válido y nada más.
 - Para fórmulas matemáticas en explicaciones, usa $...$ para las de en línea y $$...$$ para las de bloque. NO uses `(...)` para las fórmulas.
-- El campo "pregunta" DEBE ser un objeto con las llaves "contexto", "input", y "output_esperado".
+- DEBES proveer "contexto_markdown", "input_markdown" y "output_markdown" como campos de primer nivel (NO anidados).
 - DEBE existir un campo "caso_de_ejemplo" que sea un objeto con "input" y "output". El "input" del caso de ejemplo debe ser el código ejecutable que el estudiante usará para probar.
 - "tipo" DEBE ser siempre "codigo".
 - "opciones" DEBE ser siempre una lista vacía [].
@@ -183,16 +173,17 @@ REGLAS ESTRICTAS PARA LA GENERACIÓN DEL JSON:
 
 def limpiar_json_response(text: str) -> str:
     """Limpia la respuesta de Gemini para extraer solo el JSON"""
+    json_text = text
     # Buscar JSON entre ```json y ``` o entre { y }
-    json_match = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
+    json_match = re.search(r'```(?:json)?\s*(.*?)\s*```', text, re.DOTALL)
     if json_match:
-        return json_match.group(1)
-    
-    json_match = re.search(r'({[\s\S]*})', text)
-    if json_match:
-        return json_match.group(1)
-    
-    return text
+        json_text = json_match.group(1)
+    else:
+        json_match = re.search(r'({[\s\S]*})', text)
+        if json_match:
+            json_text = json_match.group(1)
+            
+    return json_text
 
 @router.post("/evaluaciones/generar", response_model=Evaluacion)
 async def generar_evaluacion(config: ConfiguracionEvaluacion):
@@ -209,13 +200,76 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion):
         if config.curso_id in CURSOS_PROGRAMACION_IDS:
             print(f"DEBUG: Activando flujo de PROGRAMACIÓN para curso {config.curso_id}")
             prompt = generar_prompt_programacion(config)
+            evaluacion_schema = types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "preguntas": types.Schema(
+                        type=types.Type.ARRAY,
+                        items=types.Schema(
+                            type=types.Type.OBJECT,
+                            properties={
+                                "id": types.Schema(type=types.Type.INTEGER),
+                                "contexto_markdown": types.Schema(type=types.Type.STRING),
+                                "input_markdown": types.Schema(type=types.Type.STRING),
+                                "output_markdown": types.Schema(type=types.Type.STRING),
+                                "tipo": types.Schema(type=types.Type.STRING),
+                                "opciones": types.Schema(
+                                    type=types.Type.ARRAY,
+                                    items=types.Schema(type=types.Type.STRING)
+                                ),
+                                "respuesta_correcta": types.Schema(type=types.Type.STRING),
+                                "explicacion": types.Schema(type=types.Type.STRING),
+                                "codigo_base": types.Schema(type=types.Type.STRING),
+                                "caso_de_ejemplo": types.Schema(
+                                    type=types.Type.OBJECT,
+                                    properties={
+                                        "input": types.Schema(type=types.Type.STRING),
+                                        "output": types.Schema(type=types.Type.STRING)
+                                    }
+                                )
+                            },
+                            required=["id", "contexto_markdown", "input_markdown", "output_markdown", "tipo", "opciones", "respuesta_correcta", "explicacion", "codigo_base", "caso_de_ejemplo"]
+                        )
+                    )
+                },
+                required=["preguntas"]
+            )
         else:
             prompt = generar_prompt_teorico(config)
-        
+            evaluacion_schema = types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "preguntas": types.Schema(
+                        type=types.Type.ARRAY,
+                        items=types.Schema(
+                            type=types.Type.OBJECT,
+                            properties={
+                                "id": types.Schema(type=types.Type.INTEGER),
+                                "pregunta": types.Schema(type=types.Type.STRING),
+                                "tipo": types.Schema(type=types.Type.STRING),
+                                "opciones": types.Schema(
+                                    type=types.Type.ARRAY,
+                                    items=types.Schema(type=types.Type.STRING)
+                                ),
+                                "respuesta_correcta": types.Schema(type=types.Type.INTEGER),
+                                "explicacion": types.Schema(type=types.Type.STRING)
+                            },
+                            required=["id", "pregunta", "tipo", "opciones", "respuesta_correcta", "explicacion"]
+                        )
+                    )
+                },
+                required=["preguntas"]
+            )
+
         # Generar contenido con Gemini
+        gemini_config = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=evaluacion_schema
+        )
         response = client.models.generate_content(
             model='models/gemini-2.5-flash',
-            contents=prompt
+            contents=prompt,
+            config=gemini_config
         )
         
         # Limpiar y parsear la respuesta
@@ -225,6 +279,15 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion):
         # Validar que tenemos preguntas
         if "preguntas" not in data or not data["preguntas"]:
             raise ValueError("No se generaron preguntas válidas")
+            
+        for p in data["preguntas"]:
+            if p.get("tipo") == "codigo":
+                if not isinstance(p.get("contexto_markdown"), str):
+                    raise ValueError(f"Falta contexto_markdown en la pregunta {p.get('id')}")
+                if not isinstance(p.get("input_markdown"), str):
+                    raise ValueError(f"Falta input_markdown en la pregunta {p.get('id')}")
+                if not isinstance(p.get("output_markdown"), str):
+                    raise ValueError(f"Falta output_markdown en la pregunta {p.get('id')}")
         
         # Construir la evaluación
         preguntas = [Pregunta(**p) for p in data["preguntas"]]
@@ -298,7 +361,7 @@ async def evaluar_respuestas(
         
         detalles.append({
             "pregunta_id": respuesta.pregunta_id,
-            "pregunta": pregunta.pregunta,
+            "pregunta": pregunta.pregunta if pregunta.pregunta else pregunta.contexto_markdown,
             "pregunta_tipo": pregunta.tipo,
             "respuesta_estudiante": respuesta.respuesta,
             "respuesta_correcta": pregunta.respuesta_correcta,

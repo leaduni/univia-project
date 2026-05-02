@@ -26,11 +26,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
 interface Pregunta {
   id: number;
-  pregunta: string | {
-    contexto: string;
-    input: string;
-    output_esperado: string;
-  };
+  pregunta: string;
   tipo: "multiple" | "unica" | "verdadero_falso" | "codigo";
   opciones: string[];
   respuesta_correcta: number | number[] | string;
@@ -40,6 +36,9 @@ interface Pregunta {
     input: string;
     output: string;
   };
+  contexto_markdown?: string;
+  input_markdown?: string;
+  output_markdown?: string;
 }
 
 interface Evaluacion {
@@ -445,17 +444,17 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
           {evaluacion.preguntas.map((pregunta, idx) => {
             const executionResult = executionResults[pregunta.id];
             return (
-              <Card key={pregunta.id}>
-                <CardHeader>
+              <Card key={pregunta.id} className={pregunta.tipo === 'codigo' ? "overflow-hidden" : ""}>
+                <CardHeader className={pregunta.tipo === 'codigo' ? "pb-2" : ""}>
                   <CardTitle className="text-base flex items-start gap-3">
                     <span className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 flex items-center justify-center text-sm font-bold">
                       {idx + 1}
                     </span>
-                    <div className="flex-1">
-                      {pregunta.tipo === 'codigo' && typeof pregunta.pregunta === 'object'
-                        ? <MarkdownRenderer content={(pregunta.pregunta as any).contexto} />
-                        : <MarkdownRenderer content={pregunta.pregunta as string} />}
-                    </div>
+                    {pregunta.tipo !== 'codigo' && (
+                      <div className="flex-1">
+                        <MarkdownRenderer content={pregunta.pregunta} />
+                      </div>
+                    )}
                   </CardTitle>
                   {pregunta.tipo !== 'codigo' && (
                     <CardDescription className="ml-11">
@@ -465,74 +464,110 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
                     </CardDescription>
                   )}
                 </CardHeader>
-                <CardContent className="ml-11 space-y-4">
+                <CardContent className={pregunta.tipo === 'codigo' ? "p-0" : "ml-11 space-y-4"}>
                   {pregunta.tipo === 'codigo' ? (
                     (() => {
-                      const isStructured = typeof pregunta.pregunta === 'object' && pregunta.pregunta !== null;
-                      const structuredPregunta = isStructured ? (pregunta.pregunta as any) : null;
-                      const casoDeEjemplo = (pregunta as any).caso_de_ejemplo;
+                      const casoDeEjemplo = pregunta.caso_de_ejemplo;
 
                       return (
-                        <div className="space-y-4">
-                          {isStructured && (
-                            <div className="space-y-3 p-4 bg-secondary/50 rounded-lg border">
-                              <div>
-                                <Label className="text-sm font-semibold">Input</Label>
-                                <p className="text-sm text-muted-foreground">{structuredPregunta.input}</p>
-                              </div>
-                              <div>
-                                <Label className="text-sm font-semibold">Output Esperado</Label>
-                                <p className="text-sm text-muted-foreground">{structuredPregunta.output_esperado}</p>
-                              </div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-4">
+                          {/* Columna Izquierda: Enunciado y Formatos */}
+                          <div className="flex flex-col">
+                            <div className="mb-2">
+                              <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 text-xs font-semibold px-2.5 py-0.5 rounded">💻 Reto de Código</span>
                             </div>
-                          )}
-                          
-                          {casoDeEjemplo && (
-                              <div className="space-y-3">
-                                  <Label className="text-sm font-semibold">Caso de Ejemplo</Label>
-                                  <div className="p-3 font-mono text-xs bg-gray-900 rounded-md">
-                                      <p className="text-gray-400">// Input</p>
-                                      <code className="text-cyan-300">{casoDeEjemplo.input}</code>
-                                      <p className="mt-2 text-gray-400">// Output Esperado</p>
-                                      <code className="text-green-300">{casoDeEjemplo.output}</code>
+                            <div className="max-h-[500px] overflow-y-auto bg-white dark:bg-slate-950 rounded-lg border border-slate-100 dark:border-slate-800">
+                              <div className="p-5 space-y-6">
+                                {(pregunta.contexto_markdown || pregunta.pregunta) && (
+                                  <div className="prose dark:prose-invert max-w-none text-sm">
+                                    <MarkdownRenderer content={pregunta.contexto_markdown || pregunta.pregunta} />
                                   </div>
-                              </div>
-                          )}
+                                )}
 
-                          <div>
-                            <Label htmlFor={`code-${pregunta.id}`}>Tu Solución</Label>
-                            <textarea
-                              id={`code-${pregunta.id}`}
-                              value={respuestas[pregunta.id] ?? pregunta.codigo_base ?? ''}
-                              onChange={(e) => handleRespuesta(pregunta.id, e.target.value, false)}
-                              placeholder="Escribe tu código aquí..."
-                              className="w-full h-48 p-4 mt-1 font-mono text-sm bg-gray-900 text-gray-100 border border-gray-700 rounded-md focus:ring-2 focus:ring-purple-500"
-                              style={{ background: '#1e1e1e', color: '#d4d4d4', resize: 'vertical' }}
-                            />
-                          </div>
-                          <div className="flex flex-col items-start gap-2">
-                            <Button
-                              onClick={() => handleEjecutarCodigo(pregunta.id, respuestas[pregunta.id] ?? '')}
-                              disabled={executionResult?.isLoading}
-                              variant="outline"
-                              size="sm"
-                              className="gap-2"
-                            >
-                              {executionResult?.isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
-                              {executionResult?.isLoading ? "Ejecutando..." : "Ejecutar Código"}
-                            </Button>
-                            {executionResult && (
-                              <div className="w-full p-3 mt-2 bg-gray-800 rounded-md text-sm">
-                                <p className="font-semibold text-gray-300">Resultado de ejecución:</p>
-                                <pre className="mt-1 font-mono text-xs whitespace-pre-wrap">
-                                  {executionResult.error ? (
-                                    <code className="text-red-400">{executionResult.error}</code>
-                                  ) : (
-                                    <code className="text-green-300">{executionResult.output}</code>
+                              {(pregunta.input_markdown || pregunta.output_markdown || casoDeEjemplo) && (
+                                <hr className="border-slate-200 dark:border-slate-800" />
+                              )}
+
+                              {(pregunta.input_markdown || pregunta.output_markdown) && (
+                                <div className="space-y-4">
+                                  {pregunta.input_markdown && (
+                                    <div className="space-y-2">
+                                      <Label className="text-sm font-semibold text-purple-600 dark:text-purple-400">Formato de Entrada</Label>
+                                      <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-md prose dark:prose-invert max-w-none text-sm">
+                                        <MarkdownRenderer content={pregunta.input_markdown} />
+                                      </div>
+                                    </div>
                                   )}
-                                </pre>
-                              </div>
-                            )}
+                                  {pregunta.output_markdown && (
+                                    <div className="space-y-2">
+                                      <Label className="text-sm font-semibold text-purple-600 dark:text-purple-400">Formato de Salida</Label>
+                                      <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-md prose dark:prose-invert max-w-none text-sm">
+                                        <MarkdownRenderer content={pregunta.output_markdown} />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {casoDeEjemplo && (
+                                <div className="space-y-2">
+                                  <Label className="text-sm font-semibold text-purple-600 dark:text-purple-400">Caso de Ejemplo</Label>
+                                  <div className="p-4 font-mono text-sm bg-slate-900 text-slate-300 rounded-md border border-slate-800">
+                                    <div className="mb-4">
+                                      <p className="text-slate-400 text-xs uppercase tracking-wider mb-2 font-semibold">Entrada de Prueba</p>
+                                      <div className="p-3 bg-black/50 rounded border border-slate-800/50 overflow-x-auto">
+                                        <code className="text-cyan-400 whitespace-pre">{casoDeEjemplo.input}</code>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <p className="text-slate-400 text-xs uppercase tracking-wider mb-2 font-semibold">Salida Esperada</p>
+                                      <div className="p-3 bg-black/50 rounded border border-slate-800/50 overflow-x-auto">
+                                        <code className="text-green-400 whitespace-pre">{casoDeEjemplo.output}</code>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                          {/* Columna Derecha: Editor y Consola */}
+                          <div className="flex flex-col space-y-4">
+                            <div className="flex-1 flex flex-col">
+                              <Label htmlFor={`code-${pregunta.id}`} className="mb-2 text-sm font-semibold">Tu Solución</Label>
+                              <textarea
+                                id={`code-${pregunta.id}`}
+                                value={respuestas[pregunta.id] ?? pregunta.codigo_base ?? ''}
+                                onChange={(e) => handleRespuesta(pregunta.id, e.target.value, false)}
+                                placeholder="Escribe tu código aquí..."
+                                className="w-full flex-1 min-h-[300px] p-4 font-mono text-sm bg-[#1e1e1e] text-[#d4d4d4] border border-slate-800 rounded-md focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all"
+                                style={{ resize: 'vertical' }}
+                              />
+                            </div>
+                            <div className="flex flex-col items-start gap-3">
+                              <Button
+                                onClick={() => handleEjecutarCodigo(pregunta.id, respuestas[pregunta.id] ?? '')}
+                                disabled={executionResult?.isLoading}
+                                className="w-full sm:w-auto gap-2 bg-purple-600 hover:bg-purple-700 text-white"
+                              >
+                                {executionResult?.isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+                                {executionResult?.isLoading ? "Ejecutando..." : "Ejecutar Código"}
+                              </Button>
+                              
+                              {executionResult && (
+                                <div className="w-full p-4 bg-slate-950 border border-slate-800 rounded-md shadow-inner">
+                                  <p className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Consola de Salida</p>
+                                  <pre className="font-mono text-sm whitespace-pre-wrap overflow-x-auto">
+                                    {executionResult.error ? (
+                                      <code className="text-red-400">{executionResult.error}</code>
+                                    ) : (
+                                      <code className="text-green-400">{executionResult.output}</code>
+                                    )}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       )
@@ -668,15 +703,13 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
                     {detalle.es_correcta ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
                   </span>
                   <div className="flex-1">
-                    {typeof detalle.pregunta === 'object' && detalle.pregunta !== null
-                      ? <MarkdownRenderer content={(detalle.pregunta as any).contexto} />
-                      : <MarkdownRenderer content={detalle.pregunta} />}
+                    <MarkdownRenderer content={detalle.contexto_markdown || detalle.pregunta} />
                   </div>
                 </CardTitle>
-                {typeof detalle.pregunta === 'object' && detalle.pregunta !== null && (
+                {(detalle.input_markdown || detalle.output_markdown) && (
                   <CardDescription className="ml-11 mt-2 space-y-1 text-xs">
-                      <div><strong>Input:</strong> {(detalle.pregunta as any).input}</div>
-                      <div><strong>Output Esperado:</strong> {(detalle.pregunta as any).output_esperado}</div>
+                      {detalle.input_markdown && <div><strong>Input:</strong> {detalle.input_markdown}</div>}
+                      {detalle.output_markdown && <div><strong>Output Esperado:</strong> {detalle.output_markdown}</div>}
                   </CardDescription>
                 )}
               </CardHeader>

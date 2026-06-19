@@ -6,8 +6,25 @@ from google.genai import types
 import os
 import json
 import re
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from rag.retriever import SyllabusRetriever
 
 router = APIRouter()
+
+_retriever: Optional[SyllabusRetriever] = None
+
+def get_retriever() -> Optional[SyllabusRetriever]:
+    """Inicializa el retriever de RAG de forma diferida (lazy) y reutilizable."""
+    global _retriever
+    if _retriever is None:
+        try:
+            _retriever = SyllabusRetriever()
+        except Exception as e:
+            print(f"Error al inicializar SyllabusRetriever: {e}")
+            return None
+    return _retriever
 
 # Configurar Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -74,41 +91,46 @@ class ResultadoEvaluacion(BaseModel):
 # Lista de IDs de cursos de programación
 CURSOS_PROGRAMACION_IDS = [14, 23, 30, 36, 43, 47, 49]
 
-def recuperar_contexto_semantico(tema_consulta: str, curso_id: int) -> List[str]:
-    """Convierte el tema en vector y busca en Supabase los fragmentos más relevantes."""
-    if not client:
-        return []
-        
+def obtener_nombre_curso(curso_id: int) -> Optional[str]:
+    """Resuelve el nombre del curso a partir de su ID consultando la tabla 'cursos'.
+
+    Se usa para recuperar contexto por NOMBRE de curso: como cada curso existe
+    varias veces (una fila por carrera), el material ingestado bajo un único
+    curso_id debe poder recuperarse para todas las variantes con el mismo nombre.
+    """
     try:
         from database import get_supabase
         supabase = get_supabase()
-        
-        # 1. Convertir la consulta en un vector usando Gemini
-        response = client.models.embed_content(
-            model='gemini-embedding-2',
-            contents=tema_consulta,
-            config=types.EmbedContentConfig(output_dimensionality=1536)
+        respuesta = supabase.table("cursos").select("name").eq("id", curso_id).limit(1).execute()
+        if respuesta.data:
+            return respuesta.data[0]["name"]
+    except Exception as e:
+        print(f"Error al obtener el nombre del curso {curso_id}: {e}")
+    return None
+
+def recuperar_contexto_semantico(tema_consulta: str, curso_id: int) -> List[str]:
+    """Usa el SyllabusRetriever del módulo RAG para buscar los fragmentos más relevantes del curso.
+
+    Recupera el contexto filtrando por NOMBRE de curso (no por curso_id), de modo que
+    un mismo compendio/examen sirva a todas las variantes del curso por carrera.
+    """
+    retriever = get_retriever()
+    if not retriever:
+        return []
+
+    curso_nombre = obtener_nombre_curso(curso_id)
+    if not curso_nombre:
+        print(f"No se pudo resolver el nombre del curso {curso_id}; se omite el filtro por nombre.")
+
+    try:
+        resultados = retriever.buscar_contexto_por_nombre(
+            tema_consulta,
+            curso_nombre=curso_nombre,
+            limit=8,                # Más candidatos: los compendios mezclan temas en una misma PC
+            umbral_similitud=0.1,   # Umbral más permisivo
         )
-        query_vector = response.embeddings[0].values
-        
-        # 2. Llamar al RPC en Supabase
-        rpc_response = supabase.rpc(
-            "search_resource_chunks",
-            {
-                "query_embedding": query_vector,
-                "match_threshold": 0.1, # Umbral más permisivo
-                "match_count": 5,       # Extraer 5 fragmentos
-                "filter_curso_id": None # Ignorar curso_id por ahora (MVP)
-            }
-        ).execute()
-        
-        data = rpc_response.data
-        if not data:
-            return []
-            
-        # Extraer solo el contenido
-        return [item["contenido"] for item in data]
-        
+        return [item["contenido"] for item in resultados]
+
     except Exception as e:
         print(f"Error al recuperar contexto: {e}")
         return []
@@ -123,11 +145,17 @@ def generar_prompt_teorico(config: ConfiguracionEvaluacion, contexto_recuperado:
         "mixta": "combinación de selección múltiple, única respuesta y verdadero/falso"
     }
     
-    prompt = rf"""Eres un profesor experto en {config.modulo}.
-Genera {config.num_preguntas} preguntas de evaluación de nivel universitario sobre los siguientes temas:
+    prompt = rf"""Eres un profesor del Departamento de Ciencias Básicas de la Universidad Nacional de Ingeniería (UNI), diseñando una Práctica Calificada real.
+Genera {config.num_preguntas} preguntas de evaluación sobre los siguientes temas:
 {', '.join(config.temas)}
 
 Tipo de preguntas: {tipos_pregunta.get(config.tipo_evaluacion, 'mixta')}
+
+NIVEL DE EXIGENCIA (NO NEGOCIABLE):
+- El nivel debe ser idéntico al de un examen de la UNI: problemas que combinan VARIOS conceptos a la vez (ej. razón de división + producto escalar + ecuación de recta en un mismo enunciado), no preguntas de definición ni de aplicación directa de una fórmula.
+- Usa datos numéricos concretos (coordenadas, vectores, razones) que obliguen a resolver un sistema o despejar varias incógnitas, igual que en el contexto de referencia.
+- PROHIBIDO generar preguntas triviales del tipo "¿cuál es la pendiente de la recta y=2x+3?" o "defina qué es una recta". Si una pregunta se puede responder sin plantear ecuaciones o sin combinar al menos dos propiedades/conceptos, es DEMASIADO FÁCIL y debes descartarla y generar otra más exigente.
+- Las preguntas de selección única/múltiple deben tener distractores que sean errores de cálculo plausibles (no opciones absurdas obvias).
 
 IMPORTANTE: Responde ÚNICAMENTE con un JSON que cumpla el esquema solicitado.
 
@@ -160,12 +188,14 @@ REGLAS DE EVALUACIÓN:
     if contexto_recuperado and len(contexto_recuperado) > 0:
         contexto_str = "\n\n---\n".join(contexto_recuperado)
         prompt += f"""
-Contexto (Ejemplos de evaluaciones pasadas o material real):
-A continuación tienes material de referencia para que el estilo, nivel de dificultad y formato de tus preguntas se parezca a las evaluaciones reales del curso:
+EJERCICIOS REALES DE PRÁCTICAS CALIFICADAS DE LA UNI (referencia OBLIGATORIA de nivel):
 ---
 {contexto_str}
 ---
-Utiliza este contexto como inspiración para formular tus nuevas preguntas de manera similar. No copies exactamente, pero imita su complejidad.
+INSTRUCCIÓN DE ANCLAJE (OBLIGATORIA): los ejercicios de arriba son el ÚNICO estándar de dificultad aceptable.
+Cada pregunta que generes debe requerir una cantidad de pasos de razonamiento y manipulación algebraica/vectorial COMPARABLE a la de estos ejercicios (varios datos encadenados, varias incógnitas, varias propiedades combinadas).
+No generes preguntas más simples que el ejemplo más sencillo del contexto. Si dudas si una pregunta es "demasiado fácil" comparada con el contexto, hazla más difícil, no más fácil.
+Puedes inspirarte directamente en la estructura de estos ejercicios (mismo tipo de datos: razones de división, coordenadas, productos escalares, vectores dirección, etc.) pero cambia los valores numéricos y la situación geométrica para que no sea una copia literal.
 """
 
     return prompt
@@ -264,7 +294,7 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion):
         
         # --- LOG PARA VERIFICAR EL RAG EN LA TERMINAL ---
         print("\n" + "="*50)
-        print(f"🔍 RAG: Se recuperaron {len(contexto)} fragmentos del PDF.")
+        print(f"RAG: Se recuperaron {len(contexto)} fragmentos del PDF.")
         print("="*50 + "\n")
 
         # Decidir qué prompt usar según el tipo de curso

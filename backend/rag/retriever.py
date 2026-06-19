@@ -39,14 +39,14 @@ class SyllabusRetriever:
             print(f"Error al vectorizar la pregunta: {e}")
             return []
     
-    def buscar_contexto(self, pregunta: str, limit: int = 5, umbral_similitud: float = 0.5) -> list:
+    def buscar_contexto(self, pregunta: str, limit: int = 5, umbral_similitud: float = 0.5, curso_id: int = None) -> list:
         pregunta_vectorizada = self.vectorizar_pregunta(pregunta)
 
         if not pregunta_vectorizada:
             return []
-        
+
         print(f"Buscando en supabase los {limit} fragmentos más relevantes ...")
-    
+
         try:
             respuesta = self.supabase.rpc(
                 "search_resource_chunks",
@@ -54,6 +54,7 @@ class SyllabusRetriever:
                     "query_embedding": pregunta_vectorizada,
                     "match_threshold": umbral_similitud,
                     "match_count": limit,
+                    "filter_curso_id": curso_id,
                 }
             ).execute()
 
@@ -67,6 +68,44 @@ class SyllabusRetriever:
 
         except Exception as e:
             print(f"Error en la base de datos al buscar contexto: {e}")
+            return []
+
+    def buscar_contexto_por_nombre(self, pregunta: str, curso_nombre: str = None, limit: int = 5, umbral_similitud: float = 0.5) -> list:
+        """Busca fragmentos relevantes filtrando por el NOMBRE del curso.
+
+        A diferencia de buscar_contexto (que filtra por curso_id), esto permite que
+        un mismo material ingestado bajo un único curso_id sea recuperado para todas
+        las versiones del curso que compartan el mismo nombre (ej. las variantes por
+        carrera _SIS / _SOFT / _IND de "Geometría Analítica").
+        """
+        pregunta_vectorizada = self.vectorizar_pregunta(pregunta)
+
+        if not pregunta_vectorizada:
+            return []
+
+        print(f"Buscando en supabase los {limit} fragmentos más relevantes para el curso '{curso_nombre}' ...")
+
+        try:
+            respuesta = self.supabase.rpc(
+                "search_resource_chunks_by_nombre",
+                {
+                    "query_embedding": pregunta_vectorizada,
+                    "match_threshold": umbral_similitud,
+                    "match_count": limit,
+                    "filter_curso_nombre": curso_nombre,
+                }
+            ).execute()
+
+            resultados = respuesta.data
+
+            if not resultados:
+                print("No se encontró información suficientemente relevante. ")
+
+            print(f"Se encontraron {len(resultados)} fragmentos de contexto.")
+            return resultados
+
+        except Exception as e:
+            print(f"Error en la base de datos al buscar contexto por nombre: {e}")
             return []
 
 if __name__ == "__main__":

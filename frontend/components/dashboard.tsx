@@ -26,7 +26,6 @@ export function Dashboard() {
           apiService.getMalla()
         ]);
 
-        setStats(summary.stats)
         setLogros(summary.logros)
         setMallaData(malla)
 

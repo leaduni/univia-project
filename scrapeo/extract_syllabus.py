@@ -3,7 +3,6 @@ import os
 
 pdf_path = "D:/Familia/Escritorio/Work/Univia/univia-project/scrapeo/BIC01-Intro Computación-I2.pdf"
 
-
 if not os.path.exists(pdf_path):
     print(f"Error: El archivo {pdf_path} no existe.")
 else:

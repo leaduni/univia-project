@@ -33,7 +33,6 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, curriculum }: Curr
         if (course.carrera_id && !isNaN(targetCareerId) && course.carrera_id !== targetCareerId) {
           return
         }
-
         const courseIdStr = course.id.toString()
         if (!completed.has(courseIdStr)) {
           available.push(course)

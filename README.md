@@ -92,6 +92,11 @@ docker compose up --build
 - **Evaluaciones Dinámicas (RF-APR-03)**: Generación de quizzes y ejercicios de código/IA por módulo.
 - **Reforzamiento con IA (RF-APR-05)**: Retroalimentación inteligente basada en el desempeño del estudiante.
 - **Panel de Control (RF-ALC-02)**: Vista unificada del progreso académico y próximos pasos.
+- **Dashboard Personalizado**: Visualización de progreso y estadísticas del estudiante.
+- **Malla Curricular Dinámica**: Seguimiento visual de cursos aprobados, en curso y pendientes.
+- **Learning Path**: Ruta detallada de aprendizaje para cada curso.
+- **Banco de Exámenes**: Biblioteca de recursos y exámenes históricos.
+- **Onboarding Wizard**: Configuración inicial para nuevos estudiantes.
 
 ---
 

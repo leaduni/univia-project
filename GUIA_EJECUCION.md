@@ -31,20 +31,31 @@ pnpm install
 
 ### 3. Verificar Archivos .env
 
-**Backend (.env)**
+**Backend:**
+```powershell
+# Copia el archivo de ejemplo
+cd backend
+copy .env.example .env
 ```
-SUPABASE_URL=https://pggpscrbpcasbgjhjigw.supabase.co
-SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-GEMINI_API_KEY=AIzaSyD_u7EC3rXIyS0qAdfHyScAu-f8yKaTN6A
+Edita `backend/.env` y completa con TUS propios valores. Debería lucir así:
+```
+SUPABASE_URL="tu_url_de_supabase_aqui"
+SUPABASE_ANON_KEY="tu_anon_key_aqui"
+GEMINI_API_KEY="tu_api_key_de_gemini_aqui"
 ```
 
-**Frontend (.env.local)**
-```
-NEXT_PUBLIC_SUPABASE_URL=https://pggpscrbpcasbgjhjigw.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-NEXT_PUBLIC_API_URL=http://localhost:8000
+**Frontend:**
+```powershell
+cd frontend
+# Crea frontend/.env.local con el siguiente contenido:
+NEXT_PUBLIC_SUPABASE_URL="tu_url_de_supabase_aqui"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="tu_anon_key_aqui"
+NEXT_PUBLIC_API_URL="http://localhost:8000"
 ```
 
+> ⚠️ **IMPORTANTE:** Nunca compartas tus API keys ni las subas al repositorio. El archivo `.env` está en `.gitignore` por esta razón. Cada desarrollador debe usar sus propias credenciales.
+- `SUPABASE_URL` y `SUPABASE_ANON_KEY`: Las encuentras en tu dashboard de Supabase > Settings > API.
+- `GEMINI_API_KEY`: Obtén la tuya desde [Google AI Studio](https://aistudio.google.com/app/apikey).
 ---
 
 ## 🎯 CÓMO EJECUTAR EL SISTEMA
@@ -91,6 +102,14 @@ cd frontend; npm run dev
 
 ---
 
+## 🛠️ REQUISITO DE INFRAESTRUCTURA (Para Evaluaciones de Programación)
+
+Para poder ejecutar y validar los retos de programación, es **indispensable** tener la instancia de Judge0 corriendo localmente a través de Docker.
+
+Para más detalles sobre la arquitectura y el despliegue, consulta la guía: `evaluacion_programacion/GUIDE_JUDGE0.md`.
+
+---
+
 ## 🧪 PROBAR EL SISTEMA
 
 ### 1. Verificar Backend
@@ -129,6 +148,9 @@ Verifica que Gemini API esté funcionando
 ### POST /api/evaluaciones/generar
 Genera una evaluación con IA
 
+**Nota técnica:** El prompt del sistema que se envía a Gemini es dinámico. Si el curso es de programación, el campo `pregunta` devolverá un objeto JSON estructurado (`{contexto, input, output_esperado}`). Para otros cursos, será un `string` simple.
+
+
 **Ejemplo de request:**
 ```json
 {
@@ -143,6 +165,8 @@ Genera una evaluación con IA
 
 ### POST /api/evaluaciones/evaluar
 Evalúa respuestas y genera retroalimentación con IA
+
+**Nota técnica:** Para los retos de programación, este endpoint integra los resultados del motor de ejecución **Judge0**. Compara el `stdout` del código del usuario con el `output_esperado` para validar la corrección técnica de la respuesta.
 
 ---
 
@@ -210,9 +234,10 @@ taskkill /PID <número> /F
 1. ✅ Backend funcionando
 2. ✅ Frontend funcionando
 3. ✅ Sistema de evaluaciones con IA implementado
-4. 📝 Crear interfaz de evaluaciones en frontend
+4. ✅ Crear interfaz de evaluaciones en frontend
 5. 📝 Implementar banco de exámenes
-6. 📝 Panel de código ejecutable para programación
+6. ✅ Panel de código ejecutable para programación
+7. 📝 Refinamiento de prompts y casos de prueba complejos (Deuda técnica)
 
 ---
 

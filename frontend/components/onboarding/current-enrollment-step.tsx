@@ -64,7 +64,7 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, curriculum }: Curr
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
-        <h2 className="text-3xl font-bold text-foreground">Inscripción Actual</h2>
+        <h2 className="text-3xl font-extrabold text-foreground font-poppins">Inscripción Actual</h2>
         <p className="text-muted-foreground max-w-2xl mx-auto">
           Selecciona los cursos que cursarás este semestre. Estos aparecerán en tu Dashboard.
         </p>
@@ -82,8 +82,8 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, curriculum }: Curr
                 key={course.id}
                 onClick={() => handleToggleCourse(courseIdStr)}
                 className={`p-4 rounded-xl border-2 transition-all text-left group relative overflow-hidden backdrop-blur-sm ${isSelected
-                  ? "border-accent bg-gradient-to-br from-accent/15 to-accent/5 shadow-lg shadow-accent/20"
-                  : "border-border bg-card/60 hover:border-accent/50 hover:shadow-md"
+                  ? "border-[#a6249d] bg-gradient-to-br from-[#a6249d]/15 to-[#a6249d]/5 shadow-lg shadow-[#a6249d]/10"
+                  : "border-border bg-card/60 hover:border-[#a6249d]/50 hover:shadow-md"
                   }`}
               >
                 {/* Glassmorphism Background */}
@@ -92,16 +92,16 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, curriculum }: Curr
                 <div className="relative space-y-2 flex items-start gap-3">
                   <div className="flex-shrink-0 pt-1">
                     {isSelected ? (
-                      <CheckCircle2 className="w-5 h-5 text-accent" />
+                      <CheckCircle2 className="w-5 h-5 text-[#a6249d]" />
                     ) : (
-                      <div className="w-5 h-5 rounded-full border-2 border-border group-hover:border-accent/50 transition-colors" />
+                      <div className="w-5 h-5 rounded-full border-2 border-border group-hover:border-[#a6249d]/50 transition-colors" />
                     )}
                   </div>
 
                   <div className="flex-1">
                     <p className="text-xs text-muted-foreground font-medium">{course.code}</p>
                     <p
-                      className={`font-semibold transition-colors text-sm ${isSelected ? "text-accent" : "text-foreground group-hover:text-accent"
+                      className={`font-semibold transition-colors text-sm font-poppins ${isSelected ? "text-[#a6249d]" : "text-foreground group-hover:text-[#a6249d]"
                         }`}
                     >
                       {course.name}
@@ -117,11 +117,11 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, curriculum }: Curr
 
       {/* Enrollment Info */}
       <Card
-        className={`max-w-3xl mx-auto p-4 transition-colors ${isValidEnrollment ? "bg-accent/10 border-accent/20" : "bg-yellow-500/10 border-yellow-500/20"
+        className={`max-w-3xl mx-auto p-4 transition-colors ${isValidEnrollment ? "bg-[#a6249d]/10 border-[#a6249d]/20" : "bg-yellow-500/10 border-yellow-500/20"
           }`}
       >
         <p className="text-sm text-foreground font-medium">
-          Cursos seleccionados: <span className="text-accent font-bold">{selected.size}</span>
+          Cursos seleccionados: <span className="text-[#a6249d] font-bold">{selected.size}</span>
           {!isValidEnrollment && (
             <span className="text-yellow-600 block mt-1">Debes seleccionar al menos 1 curso para continuar</span>
           )}
@@ -130,10 +130,15 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, curriculum }: Curr
 
       {/* Navigation Buttons */}
       <div className="flex justify-between items-center pt-4 max-w-3xl mx-auto w-full">
-        <Button onClick={onBack} variant="outline" size="lg" className="gap-2 bg-transparent">
+        <Button onClick={onBack} variant="outline" size="lg" className="gap-2 bg-transparent border-[#a6249d] text-[#a6249d] hover:bg-[#a6249d]/5 font-bold font-poppins">
           <ChevronLeft className="w-4 h-4" /> Atrás
         </Button>
-        <Button onClick={handleContinue} disabled={!isValidEnrollment} size="lg" className="gap-2 px-8">
+        <Button 
+          onClick={handleContinue} 
+          disabled={!isValidEnrollment} 
+          size="lg" 
+          className="gap-2 px-8 bg-primary hover:bg-[#bf2a51] text-white font-bold font-poppins shadow-sm"
+        >
           Continuar <ChevronRight className="w-4 h-4" />
         </Button>
       </div>

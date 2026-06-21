@@ -103,12 +103,12 @@ export function OnboardingWizard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/10 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-[#d7cef7]/10 flex flex-col">
       {/* Header with Logo */}
       <div className="bg-card/50 backdrop-blur-sm border-b border-border/50">
         <div className="max-w-4xl mx-auto px-4 py-6 md:py-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground text-balance">
-            Bienvenido a <span className="text-accent">UniVia</span>
+          <h1 className="text-3xl md:text-4xl font-extrabold text-foreground text-balance font-poppins">
+            Bienvenido a <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#d93340] via-[#a6249d] to-[#7957f1]">UniVia</span>
           </h1>
           <p className="text-muted-foreground mt-2">Configura tu perfil académico para comenzar</p>
         </div>

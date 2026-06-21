@@ -1,15 +1,42 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { Poppins, Montserrat, Anton, Open_Sans, EB_Garamond } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 
-const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
+const poppins = Poppins({ 
+  subsets: ["latin"], 
+  weight: ["400", "500", "600", "700", "800"], 
+  variable: "--font-poppins" 
+})
+
+const montserrat = Montserrat({ 
+  subsets: ["latin"], 
+  weight: ["400", "500", "600", "700"], 
+  variable: "--font-montserrat" 
+})
+
+const anton = Anton({ 
+  subsets: ["latin"], 
+  weight: ["400"], 
+  variable: "--font-anton" 
+})
+
+const openSans = Open_Sans({ 
+  subsets: ["latin"], 
+  weight: ["400", "500", "600"], 
+  variable: "--font-opensans" 
+})
+
+const ebGaramond = EB_Garamond({ 
+  subsets: ["latin"], 
+  weight: ["400", "700"], 
+  variable: "--font-garamond" 
+})
 
 export const metadata: Metadata = {
-  title: "UniVia - Academic Orientation Dashboard",
-  description: "Personalized learning paths based on university curriculum",
+  title: "UniVia — Plataforma de Orientación Académica | LEAD UNI",
+  description: "Rutas de aprendizaje personalizadas para potenciar tu éxito académico e integración profesional con LEAD UNI",
   generator: "v0.app",
   icons: {
     icon: [
@@ -39,7 +66,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`font-sans antialiased text-foreground bg-background`}>
+      <body className={`${poppins.variable} ${montserrat.variable} ${anton.variable} ${openSans.variable} ${ebGaramond.variable} font-sans antialiased text-foreground bg-background`}>
         <AuthProvider>
           {children}
         </AuthProvider>
@@ -48,3 +75,4 @@ export default function RootLayout({
     </html>
   )
 }
+

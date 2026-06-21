@@ -312,8 +312,8 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
                     key={idx}
                     onClick={() => setSelectedModulo(modulo)}
                     className={`p-4 rounded-lg border-2 text-left transition-all ${selectedModulo?.title === modulo.title
-                        ? "border-purple-500 bg-purple-50 dark:bg-purple-950"
-                        : "border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700"
+                        ? "border-[#a6249d] bg-[#a6249d]/5 shadow-lg shadow-[#a6249d]/10"
+                        : "border-white/5 bg-[#02072c]/40 hover:border-[#a6249d]/50 hover:bg-[#02072c]/60"
                       }`}
                   >
                     <h4 className="font-semibold text-sm mb-2">{modulo.title}</h4>
@@ -367,7 +367,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
             <Button
               onClick={generarEvaluacion}
               disabled={!selectedModulo || isLoading}
-              className="w-full gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+              className="w-full gap-2 bg-primary hover:bg-[#bf2a51] text-white font-bold font-poppins shadow-sm"
             >
               <Sparkles className="w-4 h-4" />
               Generar Evaluación con IA
@@ -408,7 +408,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
 
     return (
       <div className="space-y-6">
-        <Card className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950 dark:to-blue-950 border-purple-200 dark:border-purple-800">
+        <Card className="bg-[#02072c]/85 border-white/5 shadow-lg">
           <CardContent className="pt-6">
             <div className="flex items-start justify-between">
               <div>
@@ -474,9 +474,9 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
                           {/* Columna Izquierda: Enunciado y Formatos */}
                           <div className="flex flex-col">
                             <div className="mb-2">
-                              <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 text-xs font-semibold px-2.5 py-0.5 rounded">💻 Reto de Código</span>
+                              <span className="inline-flex items-center gap-1 bg-[#7957f1]/10 text-white border border-[#7957f1]/20 text-xs font-semibold px-2.5 py-0.5 rounded">💻 Reto de Código</span>
                             </div>
-                            <div className="max-h-[500px] overflow-y-auto bg-white dark:bg-slate-950 rounded-lg border border-slate-100 dark:border-slate-800">
+                            <div className="max-h-[500px] overflow-y-auto bg-[#02072c]/40 backdrop-blur-sm rounded-lg border border-white/5">
                               <div className="p-5 space-y-6">
                                 {(pregunta.contexto_markdown || pregunta.pregunta) && (
                                   <div className="prose dark:prose-invert max-w-none text-sm">
@@ -611,7 +611,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
           <Button
             onClick={enviarEvaluacion}
             disabled={!todasRespondidas || isLoading}
-            className="flex-1 gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+            className="flex-1 gap-2 bg-primary hover:bg-[#bf2a51] text-white font-bold font-poppins shadow-sm"
           >
             <PlayCircle className="w-4 h-4" />
             {isLoading ? "Evaluando..." : "Enviar Evaluación"}
@@ -656,13 +656,13 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
     return (
       <div className="space-y-6">
         {/* Resultado General */}
-        <Card className={`${aprobado ? "bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950 dark:to-green-950" : "bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950 dark:to-orange-950"}`}>
+        <Card className={`${aprobado ? "bg-emerald-950/20 border-emerald-500/20 text-emerald-400" : "bg-red-950/20 border-red-500/20 text-red-400"}`}>
           <CardContent className="pt-6">
             <div className="text-center space-y-4">
               {aprobado ? (
-                <CheckCircle2 className="w-16 h-16 text-emerald-600 mx-auto" />
+                <CheckCircle2 className="w-16 h-16 text-emerald-400 mx-auto" />
               ) : (
-                <TrendingUp className="w-16 h-16 text-orange-600 mx-auto" />
+                <TrendingUp className="w-16 h-16 text-red-400 mx-auto" />
               )}
               <div>
                 <h3 className="text-3xl font-bold mb-2">{porcentaje.toFixed(1)}%</h3>

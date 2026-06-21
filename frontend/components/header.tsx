@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Search, Menu, Bell, Settings } from "lucide-react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -26,24 +27,27 @@ export function Header({ onMenuClick }: HeaderProps) {
   const userFullInitial = user?.nombre_completo?.split(" ").map((n: string) => n[0]).join("").slice(0, 2) || "U"
 
   return (
-    <header className="bg-card border-b border-border sticky top-0 z-40">
+    <header className="bg-[#02072c]/80 backdrop-blur-md border-b border-white/5 sticky top-0 z-40 text-white shadow-sm">
       <div className="flex items-center justify-between px-6 py-4 gap-4">
         {/* Left: Menu & Search */}
         <div className="flex items-center gap-4 flex-1">
-          <Button variant="ghost" size="icon" onClick={onMenuClick} className="md:hidden">
+          <Button variant="ghost" size="icon" onClick={onMenuClick} className="md:hidden text-white hover:bg-white/10">
             <Menu className="w-5 h-5" />
           </Button>
 
+
+
           {/* Search Bar */}
           <div
-            className={`relative flex-1 max-w-md hidden md:flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-200 ${searchFocus ? "border-accent bg-secondary" : "border-border"
-              }`}
+            className={`relative flex-1 max-w-md hidden md:flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-200 ${
+              searchFocus ? "border-[#a6249d] bg-white/20" : "border-white/20 bg-white/10"
+            }`}
           >
-            <Search className="w-4 h-4 text-muted-foreground" />
+            <Search className="w-4 h-4 text-white/70" />
             <input
               type="text"
               placeholder="Buscar cursos, recursos..."
-              className="flex-1 bg-transparent text-sm outline-none text-foreground placeholder:text-muted-foreground"
+              className="flex-1 bg-transparent text-sm outline-none text-white placeholder:text-white/60"
               onFocus={() => setSearchFocus(true)}
               onBlur={() => setSearchFocus(false)}
             />
@@ -52,9 +56,9 @@ export function Header({ onMenuClick }: HeaderProps) {
 
         {/* Right: Actions & Profile */}
         <div className="flex items-center gap-2 md:gap-4">
-          <Button variant="ghost" size="icon" className="relative">
+          <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10">
             <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+            <span className="absolute top-1 right-1 w-2 h-2 bg-[#d93340] rounded-full border border-white" />
           </Button>
 
           <DropdownMenu>
@@ -78,9 +82,11 @@ export function Header({ onMenuClick }: HeaderProps) {
                 </div>
               </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <User className="w-4 h-4 mr-2" />
-                Mi Perfil
+              <DropdownMenuItem asChild>
+                <Link href="/perfil" className="flex items-center w-full cursor-pointer">
+                  <User className="w-4 h-4 mr-2" />
+                  Mi Perfil
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <Settings className="w-4 h-4 mr-2" />

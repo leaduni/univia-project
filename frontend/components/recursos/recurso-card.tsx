@@ -12,21 +12,21 @@ interface RecursoCardProps {
 
 export function RecursoCard({ recurso }: RecursoCardProps) {
   const typeColors = {
-    Examen: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-    Práctica: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-    Libro: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
-    Apunte: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
+    Examen: "bg-[#d93340]/10 text-[#d93340] border-[#d93340]/20",
+    Práctica: "bg-[#7957f1]/10 text-[#7957f1] border-[#7957f1]/20",
+    Libro: "bg-[#d7cef7]/10 text-[#d7cef7] border-[#d7cef7]/20",
+    Apunte: "bg-[#a6249d]/10 text-[#a6249d] border-[#a6249d]/20",
   }
 
   return (
-    <Card className="bg-card border-border hover:shadow-lg transition-all duration-200 overflow-hidden flex flex-col">
+    <Card className="bg-card border-border hover:shadow-lg transition-all duration-200 overflow-hidden flex flex-col font-sans">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-base line-clamp-2 text-foreground">{recurso.title}</CardTitle>
+            <CardTitle className="text-base line-clamp-2 text-foreground font-poppins font-semibold">{recurso.title}</CardTitle>
             <CardDescription className="text-xs mt-1">{recurso.code}</CardDescription>
           </div>
-          <Badge className={typeColors[recurso.type as keyof typeof typeColors]} variant="secondary">
+          <Badge className={typeColors[recurso.type as keyof typeof typeColors]} variant="outline">
             {recurso.type}
           </Badge>
         </div>
@@ -44,7 +44,7 @@ export function RecursoCard({ recurso }: RecursoCardProps) {
 
         {/* Ciclo Badge */}
         <div>
-          <Badge variant="outline" className="bg-secondary">
+          <Badge variant="outline" className="bg-secondary text-secondary-foreground font-poppins border-border">
             Ciclo {recurso.ciclo}
           </Badge>
         </div>
@@ -58,7 +58,7 @@ export function RecursoCard({ recurso }: RecursoCardProps) {
             <Button
               size="sm"
               variant="outline"
-              className="gap-1 h-8 text-xs bg-transparent"
+              className="gap-1 h-8 text-xs bg-transparent border-[#a6249d] text-[#a6249d] hover:bg-[#a6249d]/5 font-bold font-poppins"
               disabled={!recurso.preview}
             >
               <Eye className="w-3 h-3" />
@@ -66,14 +66,14 @@ export function RecursoCard({ recurso }: RecursoCardProps) {
             </Button>
             <Button
               size="sm"
-              className="gap-1 h-8 text-xs bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white border-0"
+              className="gap-1 h-8 text-xs bg-primary hover:bg-[#bf2a51] text-white font-bold font-poppins border-0 shadow-sm"
             >
               <Download className="w-3 h-3" />
               Descargar
             </Button>
           </div>
           {recurso.hasSolucionario && (
-            <Button size="sm" variant="secondary" className="w-full gap-1 h-8 text-xs">
+            <Button size="sm" variant="secondary" className="w-full gap-1 h-8 text-xs font-poppins font-semibold">
               <FileCheck className="w-3 h-3" />
               Ver Solucionario
             </Button>

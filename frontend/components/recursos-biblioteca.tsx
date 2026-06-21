@@ -95,12 +95,12 @@ export function RecursosBiblioteca() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-transparent font-sans">
       {/* Search Header */}
-      <div className="bg-card border-b border-border sticky top-0 z-30">
+      <div className="bg-[#02072c]/80 backdrop-blur-md border-b border-white/5 sticky top-0 z-30">
         <div className="p-4 md:p-8 max-w-7xl mx-auto">
           <div className="mb-4">
-            <h1 className="text-3xl font-bold text-foreground mb-2">Biblioteca Central de Recursos</h1>
+            <h1 className="text-3xl font-extrabold text-foreground mb-2 font-poppins">Biblioteca Central de Recursos</h1>
             <p className="text-muted-foreground">Repositorio global de materiales académicos de la universidad</p>
           </div>
 
@@ -110,12 +110,12 @@ export function RecursosBiblioteca() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar por curso, código o tema..."
-                className="pl-10"
+                className="pl-10 bg-[#02072c]/60 border-white/10 text-white placeholder:text-muted-foreground/40 focus:border-violet focus:ring-1 focus:ring-violet"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Button variant="outline" size="icon" onClick={() => setShowFilters(!showFilters)} className="md:hidden">
+            <Button variant="outline" size="icon" onClick={() => setShowFilters(!showFilters)} className="md:hidden border-white/10 hover:bg-[#121b58] text-white">
               <Filter className="w-4 h-4" />
             </Button>
           </div>
@@ -123,10 +123,10 @@ export function RecursosBiblioteca() {
           {/* Sort Dropdown */}
           <div className="flex justify-end">
             <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
-              <SelectTrigger className="w-full md:w-48">
+              <SelectTrigger className="w-full md:w-48 bg-[#02072c]/60 border-white/10 text-white focus:border-violet focus:ring-1 focus:ring-violet">
                 <SelectValue placeholder="Ordenar por..." />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-[#02072c] border-white/10 text-white">
                 <SelectItem value="recent">Más Reciente</SelectItem>
                 <SelectItem value="downloaded">Más Descargado</SelectItem>
                 <SelectItem value="rated">Mejor Calificado</SelectItem>
@@ -140,7 +140,7 @@ export function RecursosBiblioteca() {
       <div className="flex">
         {/* Filter Sidebar - Desktop */}
         <div
-          className={`hidden md:flex md:w-64 lg:w-72 border-r border-border p-6 bg-secondary/30 sticky top-24 h-[calc(100vh-120px)] overflow-y-auto flex-col gap-6`}
+          className={`hidden md:flex md:w-64 lg:w-72 border-r border-white/5 p-6 bg-[#02072c]/40 backdrop-blur-sm sticky top-[73px] h-[calc(100vh-73px)] overflow-y-auto flex-col gap-6`}
         >
           <FilterSidebar
             selectedTypes={selectedTypes}
@@ -225,7 +225,7 @@ function FilterSidebar({
     <div className="space-y-6">
       {/* Tipo de Documento */}
       <div>
-        <h3 className="font-semibold text-foreground mb-3">Tipo de Documento</h3>
+        <h3 className="font-semibold text-foreground mb-3 font-poppins">Tipo de Documento</h3>
         <div className="space-y-2">
           {documentTypes.map((type) => (
             <div key={type} className="flex items-center gap-2">
@@ -244,7 +244,7 @@ function FilterSidebar({
 
       {/* Ciclo */}
       <div>
-        <h3 className="font-semibold text-foreground mb-3">Ciclo</h3>
+        <h3 className="font-semibold text-foreground mb-3 font-poppins">Ciclo</h3>
         <div className="space-y-2">
           {ciclos.map((ciclo) => (
             <div key={ciclo} className="flex items-center gap-2">
@@ -263,7 +263,7 @@ function FilterSidebar({
 
       {/* Facultad */}
       <div>
-        <h3 className="font-semibold text-foreground mb-3">Facultad</h3>
+        <h3 className="font-semibold text-foreground mb-3 font-poppins">Facultad</h3>
         <Select value={selectedFacultad} onValueChange={onSelectFacultad}>
           <SelectTrigger>
             <SelectValue placeholder="Seleccionar facultad" />
@@ -281,7 +281,7 @@ function FilterSidebar({
 
       {/* Año */}
       <div>
-        <h3 className="font-semibold text-foreground mb-3">Año</h3>
+        <h3 className="font-semibold text-foreground mb-3 font-poppins">Año</h3>
         <div className="space-y-2">
           {years.map((year) => (
             <div key={year} className="flex items-center gap-2">

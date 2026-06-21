@@ -10,7 +10,7 @@ const nextConfig = {
     config.ignoreWarnings = [/Invalid source map/];
     return config;
   },
- 
+  turbopack: {},
 }
 
 export default nextConfig

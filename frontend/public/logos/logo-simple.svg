@@ -1,0 +1,11 @@
+<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="leadGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d93340" />
+      <stop offset="50%" stop-color="#a6249d" />
+      <stop offset="100%" stop-color="#7957f1" />
+    </linearGradient>
+  </defs>
+  <path d="M25 50 C25 32, 42 22, 53 33 C63 43, 67 57, 77 50 C87 43, 83 27, 72 27 C58 27, 50 48, 42 62 C32 77, 17 72, 20 55 C22 38, 38 18, 60 18 C82 18, 90 38, 80 60 C70 82, 50 82, 38 72 C30 66, 25 58, 25 50 Z" 
+        stroke="url(#leadGrad)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

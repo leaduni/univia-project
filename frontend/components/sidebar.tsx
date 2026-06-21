@@ -17,6 +17,7 @@ export function Sidebar({ open }: SidebarProps) {
 
   const menuItems = [
     { icon: LayoutDashboard, label: "Dashboard", id: "Dashboard", href: "/" },
+    { icon: BookOpen, label: "Recursos", id: "Recursos", href: "/recursos" },
     { icon: User, label: "Perfil", id: "Perfil", href: "/perfil" },
   ]
 
@@ -35,10 +36,10 @@ export function Sidebar({ open }: SidebarProps) {
       {/* Logo Section */}
       <div className="p-6 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-            <span className="text-white font-bold text-lg">U</span>
+          <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
+            <img src="/logos/logo-simple.svg" alt="LEAD UNI Logo" className="w-10 h-10 object-contain" />
           </div>
-          {open && <span className="font-bold text-lg">UniVia</span>}
+          {open && <span className="font-poppins font-extrabold text-lg tracking-wide text-white">UniVia</span>}
         </div>
       </div>
 

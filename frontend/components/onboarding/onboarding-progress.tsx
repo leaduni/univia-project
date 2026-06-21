@@ -14,7 +14,9 @@ export function OnboardingProgress({ currentStep, steps }: OnboardingProgressPro
           <div
             key={index}
             className={`flex-1 h-2 rounded-full transition-all duration-300 ${
-              index <= currentStep ? "bg-accent" : "bg-border"
+              index <= currentStep 
+                ? "bg-gradient-to-r from-[#d93340] via-[#a6249d] to-[#7957f1] shadow-sm" 
+                : "bg-[#d7cef7]/50 dark:bg-border"
             }`}
           />
         ))}
@@ -25,8 +27,8 @@ export function OnboardingProgress({ currentStep, steps }: OnboardingProgressPro
         {steps.map((step, index) => (
           <div
             key={index}
-            className={`text-xs font-medium transition-colors ${
-              index <= currentStep ? "text-accent" : "text-muted-foreground"
+            className={`text-xs font-poppins font-medium transition-colors ${
+              index <= currentStep ? "text-[#a6249d] dark:text-[#d7cef7] font-semibold" : "text-muted-foreground"
             }`}
           >
             <div className="hidden md:block">{step}</div>

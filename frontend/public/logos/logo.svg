@@ -1,0 +1,15 @@
+<svg width="300" height="60" viewBox="0 0 300 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d93340" />
+      <stop offset="50%" stop-color="#a6249d" />
+      <stop offset="100%" stop-color="#7957f1" />
+    </linearGradient>
+  </defs>
+  <g style="transform: translate(5px, 5px)">
+    <path d="M12 25 C12 16, 21 11, 26.5 16.5 C31.5 21.5, 33.5 28.5, 38.5 25 C43.5 21.5, 41.5 13.5, 36 13.5 C29 13.5, 25 24, 21 31 C16 38.5, 8.5 36, 10 27.5 C11 19, 19 9, 30 9 C41 9, 45 19, 40 30 C35 41, 25 41, 19 36 C15 33, 12 29, 12 25 Z" 
+          stroke="url(#logoGrad)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+  <text x="65" y="32" fill="#030c40" font-family="'Poppins', 'Montserrat', sans-serif" font-weight="800" font-size="24" letter-spacing="1">LEAD UNI</text>
+  <text x="65" y="48" fill="#a6249d" font-family="'Open Sans', 'Montserrat', sans-serif" font-weight="600" font-size="8.5" letter-spacing="1.2">LEARN. EXPLORE. ASPIRE. DISCOVER.</text>
+</svg>

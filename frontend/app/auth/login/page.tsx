@@ -59,18 +59,21 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* Left Side - Visual/Logo */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500 flex-col items-center justify-center p-8 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-[#02072c] border-r border-white/5 flex-col items-center justify-center p-8 relative overflow-hidden">
+        {/* Subtle grid pattern overlay */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:36px_36px]" />
+        
         {/* Decorative Elements */}
-        <div className="absolute top-20 right-20 w-72 h-72 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-10 left-10 w-96 h-96 bg-cyan-400/10 rounded-full blur-3xl" />
+        <div className="absolute top-20 right-20 w-72 h-72 bg-red-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-10 left-10 w-96 h-96 bg-magenta-500/10 rounded-full blur-3xl" />
 
         {/* Logo & Brand */}
         <div className="relative z-10 text-center">
-          <div className="w-24 h-24 rounded-2xl bg-white/20 backdrop-blur-lg flex items-center justify-center mb-8 mx-auto border border-white/30">
-            <span className="text-white font-bold text-5xl">U</span>
+          <div className="inline-block mx-auto mb-8">
+            <img src="/logos/logo-white.svg" alt="LEAD UNI Logo" className="h-16 object-contain rounded-lg" />
           </div>
-          <h1 className="text-5xl font-bold text-white mb-4">UniVia</h1>
-          <p className="text-xl text-white/80 max-w-md mx-auto leading-relaxed">
+          <h1 className="text-5xl font-extrabold text-white mb-4 font-poppins tracking-tight">UniVia</h1>
+          <p className="text-xl text-lilac/80 max-w-md mx-auto leading-relaxed font-poppins">
             Tu compañera de ruta académica personalizada
           </p>
 
@@ -81,12 +84,12 @@ export default function LoginPage() {
               { icon: "📚", title: "Recursos Completos", desc: "Acceso a miles de materiales educativos" },
               { icon: "🤖", title: "Análisis con IA", desc: "Recomendaciones inteligentes de estudio" },
             ].map((feature, i) => (
-              <div key={i} className="text-left">
-                <div className="flex items-start gap-3">
+              <div key={i} className="text-left bg-[#030c40]/40 backdrop-blur-sm border border-white/5 p-4 rounded-xl max-w-sm mx-auto transition-all duration-300 hover:border-white/10 hover:bg-[#030c40]/60">
+                <div className="flex items-start gap-4">
                   <span className="text-3xl">{feature.icon}</span>
                   <div>
                     <p className="text-white font-semibold">{feature.title}</p>
-                    <p className="text-white/60 text-sm">{feature.desc}</p>
+                    <p className="text-muted-foreground text-sm">{feature.desc}</p>
                   </div>
                 </div>
               </div>
@@ -96,24 +99,27 @@ export default function LoginPage() {
       </div>
 
       {/* Right Side - Login Form */}
-      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-6 md:p-8 bg-white">
-        <div className="w-full max-w-md">
+      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-6 md:p-8 bg-background relative overflow-hidden">
+        {/* Subtle grid pattern overlay */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:36px_36px]" />
+        
+        <div className="w-full max-w-md relative z-10">
           {/* Mobile Logo */}
-          <div className="lg:hidden mb-8">
-            <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mx-auto mb-4">
-              <span className="text-white font-bold text-2xl">U</span>
+          <div className="lg:hidden mb-8 text-center">
+            <div className="inline-block mx-auto mb-4">
+              <img src="/logos/logo-white.svg" alt="LEAD UNI Logo" className="h-10 object-contain rounded" />
             </div>
-            <h1 className="text-2xl font-bold text-center text-foreground">UniVia</h1>
+            <h1 className="text-2xl font-extrabold text-center text-white font-poppins">UniVia</h1>
           </div>
 
           {/* Form Header */}
           <div className="mb-8">
-            <h2 className="text-3xl font-bold text-foreground mb-2">Bienvenido de vuelta</h2>
+            <h2 className="text-3xl font-bold text-white mb-2">Bienvenido de vuelta</h2>
             <p className="text-muted-foreground">Inicia sesión en tu cuenta UniVia</p>
           </div>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-lg mb-6">
+            <div className="bg-red-950/50 border border-red-500/30 text-red-400 text-sm p-3 rounded-lg mb-6">
               {error}
             </div>
           )}
@@ -127,17 +133,17 @@ export default function LoginPage() {
                 name="codigoUni"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium">Código UNI</FormLabel>
+                    <FormLabel className="text-sm font-medium text-white">Código UNI</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="202410001"
                         type="text"
                         disabled={isLoading}
-                        className="h-11 border-input placeholder:text-muted-foreground/50"
+                        className="h-11 bg-[#02072c]/60 border-white/10 text-white placeholder:text-muted-foreground/40 focus:border-violet focus:ring-1 focus:ring-violet"
                         {...field}
                       />
                     </FormControl>
-                    <FormMessage className="text-xs" />
+                    <FormMessage className="text-xs text-red-400" />
                   </FormItem>
                 )}
               />
@@ -148,17 +154,17 @@ export default function LoginPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium">Correo Institucional</FormLabel>
+                    <FormLabel className="text-sm font-medium text-white">Correo Institucional</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="nombre@uni.pe"
                         type="email"
                         disabled={isLoading}
-                        className="h-11 border-input placeholder:text-muted-foreground/50"
+                        className="h-11 bg-[#02072c]/60 border-white/10 text-white placeholder:text-muted-foreground/40 focus:border-violet focus:ring-1 focus:ring-violet"
                         {...field}
                       />
                     </FormControl>
-                    <FormMessage className="text-xs" />
+                    <FormMessage className="text-xs text-red-400" />
                   </FormItem>
                 )}
               />
@@ -169,26 +175,26 @@ export default function LoginPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium">Contraseña</FormLabel>
+                    <FormLabel className="text-sm font-medium text-white">Contraseña</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <Input
                           placeholder="••••••••"
                           type={showPassword ? "text" : "password"}
                           disabled={isLoading}
-                          className="h-11 border-input pr-10"
+                          className="h-11 bg-[#02072c]/60 border-white/10 text-white placeholder:text-muted-foreground/40 pr-10 focus:border-violet focus:ring-1 focus:ring-violet"
                           {...field}
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white transition-colors"
                         >
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
                     </FormControl>
-                    <FormMessage className="text-xs" />
+                    <FormMessage className="text-xs text-red-400" />
                   </FormItem>
                 )}
               />
@@ -196,10 +202,10 @@ export default function LoginPage() {
               {/* Remember & Forgot Password */}
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" className="w-4 h-4 rounded border border-input" />
+                  <input type="checkbox" className="w-4 h-4 rounded border border-white/10 bg-[#02072c]/60 accent-primary" />
                   <span className="text-sm text-muted-foreground">Recuérdame</span>
                 </label>
-                <Link href="/auth/forgot-password" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                <Link href="/auth/forgot-password" className="text-sm text-violet hover:text-lilac font-medium transition-colors">
                   ¿Olvidaste tu contraseña?
                 </Link>
               </div>
@@ -208,7 +214,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-11 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-semibold rounded-lg transition-all duration-200"
+                className="w-full h-11 bg-primary hover:bg-[#bf2a51] text-white font-bold rounded-lg transition-all duration-200 font-poppins tracking-wide shadow-sm"
               >
                 {isLoading ? "Iniciando sesión..." : "Iniciar Sesión"}
               </Button>
@@ -218,10 +224,10 @@ export default function LoginPage() {
           {/* Divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border" />
+              <div className="w-full border-t border-white/10" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="px-2 bg-white text-muted-foreground">O continúa con</span>
+              <span className="px-2 bg-background text-muted-foreground">O continúa con</span>
             </div>
           </div>
 
@@ -230,7 +236,7 @@ export default function LoginPage() {
             <Button
               type="button"
               variant="outline"
-              className="h-10 border-input hover:bg-secondary bg-transparent"
+              className="h-10 border-white/10 hover:bg-[#121b58] text-white bg-[#02072c]/40 hover:text-white"
               disabled={isLoading}
             >
               Google
@@ -238,7 +244,7 @@ export default function LoginPage() {
             <Button
               type="button"
               variant="outline"
-              className="h-10 border-input hover:bg-secondary bg-transparent"
+              className="h-10 border-white/10 hover:bg-[#121b58] text-white bg-[#02072c]/40 hover:text-white"
               disabled={isLoading}
             >
               Microsoft
@@ -248,7 +254,7 @@ export default function LoginPage() {
           {/* Sign Up Link */}
           <p className="text-center text-sm text-muted-foreground mt-6">
             ¿No tienes cuenta?{" "}
-            <Link href="/auth/signup" className="text-blue-600 hover:text-blue-700 font-semibold">
+            <Link href="/auth/signup" className="text-violet hover:text-lilac font-bold transition-colors">
               Regístrate aquí
             </Link>
           </p>

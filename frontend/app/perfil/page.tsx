@@ -75,7 +75,7 @@ export default function PerfilPage() {
             </AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-3xl font-bold text-foreground">
+            <h1 className="text-3xl font-extrabold text-foreground font-poppins">
               {profile.name}
             </h1>
             <p className="text-muted-foreground">{profile.faculty}</p>
@@ -87,7 +87,7 @@ export default function PerfilPage() {
         <div className="grid gap-8 md:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>Información Personal</CardTitle>
+              <CardTitle className="font-poppins">Información Personal</CardTitle>
               <CardDescription>
                 Tus datos personales y de contacto.
               </CardDescription>
@@ -114,9 +114,9 @@ export default function PerfilPage() {
 
             </CardContent>
           </Card>
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-900/20 dark:to-blue-900/10">
+          <Card className="bg-gradient-to-br from-[#d7cef7]/30 to-[#d7cef7]/10 dark:from-[#7957f1]/10 dark:to-[#030c40]/20 border-[#d7cef7]/50 shadow-sm">
             <CardHeader>
-              <CardTitle>Gestión Académica</CardTitle>
+              <CardTitle className="font-poppins">Gestión Académica</CardTitle>
               <CardDescription>
                 Mantén tu información académica siempre al día.
               </CardDescription>
@@ -126,8 +126,10 @@ export default function PerfilPage() {
                 ¿Cambiaste de ciclo o aprobaste nuevos cursos? Actualiza tu
                 malla aquí para recalcular tu ruta de aprendizaje.
               </p>
-              <Link href="/onboarding" passHref>
-                <Button>Actualizar Situación Académica</Button>
+              <Link href="/onboarding" passHref legacyBehavior>
+                <Button className="bg-red-600 hover:bg-red-700 text-white font-bold font-poppins shadow-sm">
+                  Actualizar Situación Académica
+                </Button>
               </Link>
             </CardContent>
           </Card>

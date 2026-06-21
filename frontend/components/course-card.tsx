@@ -9,7 +9,7 @@ interface CourseCardProps {
   id: string
   title: string
   professor?: string
-  status: "En progreso" | "Completado" | "Disponible" | "Bloqueado" | "available" | "in_progress" | "completed" | "locked"
+  status: "En progreso" | "Completado" | "Disponible" | "Bloqueado" | "available" | "in_progress" | "completed" | "locked" | "Casi completo"
   progress: number
   currentTopic?: string
   nextClass?: string

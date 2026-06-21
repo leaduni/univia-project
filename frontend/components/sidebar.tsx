@@ -3,6 +3,7 @@ import { LayoutDashboard, BookOpen, FileText, User } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { Logo } from "./logo"
 
 interface SidebarProps {
   open: boolean
@@ -33,13 +34,8 @@ export function Sidebar({ open }: SidebarProps) {
       )}
     >
       {/* Logo Section */}
-      <div className="p-6 border-b border-sidebar-border">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-            <span className="text-white font-bold text-lg">U</span>
-          </div>
-          {open && <span className="font-bold text-lg">UniVia</span>}
-        </div>
+      <div className="p-4">
+        <Logo />
       </div>
 
       {/* Navigation Menu */}
@@ -59,7 +55,7 @@ export function Sidebar({ open }: SidebarProps) {
               )}
             >
               <Icon className="w-5 h-5 flex-shrink-0" />
-              {open && <span className="text-sm font-medium">{item.label}</span>}
+              {open && <span className="brand-wordmark text-xs">{item.label}</span>}
             </Link>
           )
         })}

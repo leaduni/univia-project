@@ -11,22 +11,11 @@ export const metadata: Metadata = {
   title: "UniVia - Academic Orientation Dashboard",
   description: "Personalized learning paths based on university curriculum",
   generator: "v0.app",
+
   icons: {
-    icon: [
-      {
-        url: "/icon-light-32x32.png",
-        media: "(prefers-color-scheme: light)",
-      },
-      {
-        url: "/icon-dark-32x32.png",
-        media: "(prefers-color-scheme: dark)",
-      },
-      {
-        url: "/icon.svg",
-        type: "image/svg+xml",
-      },
-    ],
-    apple: "/apple-icon.png",
+    icon: "/Logo_LEAD_UNI.png",
+    shortcut: "/Logo_LEAD_UNI.png",
+    apple: "/Logo_LEAD_UNI.png",
   },
 }
 

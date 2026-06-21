@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Sidebar } from "./sidebar"
 import { Header } from "./header"
@@ -14,49 +14,55 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [isRedirecting, setIsRedirecting] = useState(false)
   const { user, session, isLoading: isAuthLoading } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    if (isAuthLoading) return;
+    if (isAuthLoading) return
 
-    // In mock mode, we might have a user but no session
+    // Sin sesión ni usuario -> al login.
     if (!session && !user) {
-      console.log("DashboardLayout: No session or user found, redirecting to /auth/login");
+      setIsRedirecting(true)
       router.push("/auth/login")
-      return;
+      return
     }
 
-    // Check if onboarding is completed
-    const onboardingCompletado = user?.onboarding_completado || user?.estudiante?.onboarding_completado;
-
-    console.log("DashboardLayout check:", { user, onboardingCompletado });
+    // Onboarding incompleto -> al wizard de onboarding.
+    const onboardingCompletado =
+      user?.onboarding_completado || user?.estudiante?.onboarding_completado
 
     if (user && !onboardingCompletado) {
-      console.log("DashboardLayout: Onboarding not completed, redirecting to /onboarding");
+      setIsRedirecting(true)
       router.push("/onboarding")
     }
   }, [session, user, isAuthLoading, router])
 
-  if (isAuthLoading || (!session && !user)) {
+  // isRedirecting evita que el contenido del dashboard se alcance a
+  // renderizar por un instante antes de que router.push() complete la
+  // navegación (parpadeo de contenido que el usuario no debería ver).
+  if (isAuthLoading || isRedirecting || (!session && !user)) {
     return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        className="flex items-center justify-center h-screen bg-background"
+      >
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
+        <span className="sr-only">Cargando tu sesión…</span>
       </div>
     )
   }
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Sidebar */}
+      {/* Barra lateral */}
       <Sidebar open={sidebarOpen} />
 
-      {/* Main Content */}
+      {/* Contenido principal */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-
-        {/* Dashboard Content */}
+        <Header onMenuClick={() => setSidebarOpen((open) => !open)} />
         <main className="flex-1 overflow-auto bg-background">{children}</main>
       </div>
     </div>

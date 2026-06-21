@@ -57,7 +57,8 @@ export function LearningPath({ courseId }: LearningPathProps) {
         <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20 font-semibold">
           {error || "No se encontraron datos para este curso."}
         </div>
-        <Link href="/mi-malla">
+        {/* CORREGIDO: Redirección cambiada a "/" ya que la malla está en la página raíz */}
+        <Link href="/">
           <Button variant="outline">Volver a Mi Malla</Button>
         </Link>
       </div>
@@ -76,7 +77,8 @@ export function LearningPath({ courseId }: LearningPathProps) {
     <div className="p-4 md:p-8 max-w-6xl mx-auto">
       {/* Back Navigation */}
       <div className="mb-6">
-        <Link href="/mi-malla">
+        {/* CORREGIDO: Redirección cambiada a "/" para evitar el error 404 */}
+        <Link href="/">
           <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
             <ChevronLeft className="w-4 h-4" />
             Volver a Mi Malla

@@ -48,27 +48,3 @@ class SyllabusIngestor:
         
         print(f"Ingesta exitosa! Todos los {total_chunks} fragmentos están en Supabase.")
         return True
-
-if __name__ == "__main__":
-    vector_prueba = [0.0] * 1536
-    vector_prueba[0] = 0.123
-    vector_prueba[1535] = 0.987
-    
-    chunks_simulados = [
-        {
-            "contenido": "[PRUEBA DE INGESTA] Este es un texto de prueba simulando Cinemática.",
-            "embedding": vector_prueba
-        },
-        {
-            "contenido": "[PRUEBA DE INGESTA] Este es otro texto simulando Dinámica.",
-            "embedding": vector_prueba
-        }
-    ]
-
-    try:
-        ingestor = SyllabusIngestor()
-        exito = ingestor.ingest(chunks_simulados, recurso_id, curso_id ,table_name="resource_chunks", batch_size=2)
-        if exito:
-            print("Ingesta completada. Revisar la tabla en supabase.")
-    except Exception as e:
-        print(f"Ocurrio una falla en la ingestion: {e}")

@@ -1,11 +1,14 @@
-# Endpoint
 import argparse
 import os
+import sys
 import time
+import traceback
+from pathlib import Path
+from typing import Optional
+
 from supabase import Client, create_client
 from dotenv import load_dotenv
 
-import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from extractor import SyllabusExtractor
 from chunker import SyllabusChunker
@@ -14,108 +17,132 @@ from ingest import SyllabusIngestor
 
 load_dotenv()
 
-def registrar_recurso_bd(supabase: Client, titulo: str, curso_id: int, tipo: str="silabo") -> str:
-    print("Registrando documento ...")
-    
-    respuesta = supabase.table("recursos").insert({
-        "curso_id": curso_id,
-        "titulo": titulo,
-        "tipo": tipo
-    }).execute()
 
-    if respuesta.data:
-        recurso_id = respuesta.data[0]["id"]
-        print(f"Documento registrado con ID: {recurso_id}")
-        return recurso_id
-    else:
-        raise Exception("No se pudo obtener el ID del documento al registrarlo. ")
+def _validar_env():
+    faltantes = [k for k in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "GEMINI_API_KEY") if not os.getenv(k)]
+    if faltantes:
+        raise RuntimeError(f"Variables de entorno faltantes: {', '.join(faltantes)}")
+    return os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_KEY")
 
-def procesar_compendio(pdf_path: str, titulo: str, curso_id: int, tipo: str = "silabo", modo: str = "silabo", ollama_url: str = "http://127.0.0.1:11434", modelo_ollama: str = "llava"):
-    print(f"Iniciando procesamiento de RAG para {titulo} (modo extracción: {modo}) ... ")
 
-    tiempo_inicio = time.time()
+def _registrar_recurso(supabase: Client, titulo: str, curso_id: int, tipo: str) -> str:
+    resp = supabase.table("recursos").insert({"curso_id": curso_id, "titulo": titulo, "tipo": tipo}).execute()
+    if not resp.data:
+        raise RuntimeError("No se pudo registrar el recurso en BD.")
+    recurso_id = resp.data[0]["id"]
+    print(f"Recurso registrado (ID: {recurso_id})")
+    return recurso_id
 
-    supabase_url = os.getenv("SUPABASE_URL")
-    supabase_key = os.getenv("SUPABASE_ANON_KEY")
-    supabase: Client = create_client(supabase_url, supabase_key)
+
+def _limpiar_recurso(supabase: Client, recurso_id: str):
+    try:
+        supabase.table("recursos").delete().eq("id", recurso_id).execute()
+        print(f"Recurso huérfano {recurso_id} eliminado.")
+    except Exception as e:
+        print(f"No se pudo eliminar el recurso {recurso_id}: {e}")
+
+
+def procesar_compendio(
+    pdf_path: str,
+    titulo: str,
+    curso_id: int,
+    tipo: str = "silabo",
+    modo: str = "silabo",
+    output_path: Optional[str] = None,
+    rpm: int = 8,
+    dpi: int = 200,
+    salvage: bool = True,
+    skip_failed: bool = False,
+) -> bool:
+    print(f"\nProcesando: {titulo} | modo={modo} | curso_id={curso_id}")
+    t0 = time.time()
+
+    if output_path is None:
+        output_path = str(Path(pdf_path).with_suffix("")) + "_extraido.md"
+    print(f"Checkpoint: {output_path}")
+
+    try:
+        supabase_url, supabase_key = _validar_env()
+    except RuntimeError as e:
+        print(f"Error: {e}")
+        return False
+
+    supabase = create_client(supabase_url, supabase_key)
+
+    try:
+        extractor = SyllabusExtractor(rpm=rpm)
+    except RuntimeError as e:
+        print(f"Error: {e}")
+        return False
 
     recurso_id = None
     try:
-        recurso_id = registrar_recurso_bd(supabase, titulo, curso_id, tipo=tipo)
+        recurso_id = _registrar_recurso(supabase, titulo, curso_id, tipo)
 
-        extractor = SyllabusExtractor()
-        if modo == "ollama":
-            texto_crudo = extractor.extract_text_ollama(pdf_path, ollama_url=ollama_url, modelo=modelo_ollama, modo="examenes")
-        else:
-            texto_crudo = extractor.extract_text(pdf_path, modo=modo)
+        texto_crudo = extractor.extract_text(pdf_path, modo=modo, output_path=output_path, dpi=dpi, salvage=salvage, skip_failed=skip_failed)
         if not texto_crudo:
-            raise Exception("La extraccion devolvio texto vacio. ")
+            raise RuntimeError("Extracción vacía.")
 
-        chunker = SyllabusChunker()
-        chunks = chunker.chunk_text(texto_crudo)
+        paginas_ok = SyllabusExtractor._find_completed_pages(texto_crudo)
+        if not paginas_ok:
+            raise RuntimeError("No hay páginas con contenido real. Revisa los logs del extractor.")
+
+        print(f"{len(paginas_ok)} página(s) extraídas correctamente.")
+
+        chunks = SyllabusChunker().chunk_text(texto_crudo)
         if not chunks:
-            raise Exception("El chunker no genero fragmentos. ")
+            raise RuntimeError("El chunker no generó fragmentos.")
 
-        embedder = SyllabusEmbedder()
-        embeddings = embedder.embedding_generator(chunks)
+        embeddings = SyllabusEmbedder().embedding_generator(chunks)
         if not embeddings:
-            raise Exception("El embedder no logro vectorizar el texto. ")
+            raise RuntimeError("El embedder no generó vectores.")
 
-        ingestor = SyllabusIngestor()
-        exito = ingestor.ingest(embeddings, recurso_id=recurso_id, curso_id=curso_id)
+        if not SyllabusIngestor().ingest(embeddings, recurso_id=recurso_id, curso_id=curso_id):
+            raise RuntimeError("El ingestor reportó fallo.")
 
-        tiempo_total = round(time.time() - tiempo_inicio, 2)
-        if exito:
-            print(f"Proceso culminado con éxito en {tiempo_total}s")
-            print(f"El compendio '{titulo}' ya está listo para ser consultado por la IA.")
+        print(f"Proceso completado en {round(time.time() - t0, 2)}s — '{titulo}' listo para consultas.")
+        return True
 
     except Exception as e:
-        print(f"Error crítico en la ejecución del proceso: {e}")
-        # Evitar dejar un recurso huérfano (registrado pero sin chunks) en la BD.
+        print(f"Error crítico: {e}")
+        traceback.print_exc()
         if recurso_id is not None:
-            try:
-                supabase.table("recursos").delete().eq("id", recurso_id).execute()
-                print(f"Limpieza: se eliminó el recurso huérfano (ID {recurso_id}).")
-            except Exception as cleanup_error:
-                print(f"Advertencia: no se pudo limpiar el recurso {recurso_id}: {cleanup_error}")
-    
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Procesa un PDF (sílabo, compendio, libro, etc.) y lo ingesta en el sistema RAG."
-    )
-    parser.add_argument("pdf_path", help="Ruta al archivo PDF a procesar.")
-    parser.add_argument("--titulo", required=True, help="Título del documento (se guarda en la tabla 'recursos').")
-    parser.add_argument("--curso-id", required=True, type=int, help="ID del curso al que pertenece el documento.")
-    parser.add_argument("--tipo", default="silabo", help="Tipo de recurso que se guarda en la tabla 'recursos' (silabo, Examen, compendio, libro, etc.). Default: silabo.")
-    parser.add_argument(
-        "--modo",
-        default="silabo",
-        choices=["silabo", "examenes", "ollama"],
-        help="Modo de extracción: 'silabo' (Gemini), 'examenes' (Gemini), o 'ollama' (OLLAMA local sin cuota). Default: silabo.",
-    )
-    parser.add_argument(
-        "--ollama-url",
-        default="http://127.0.0.1:11434",
-        help="URL del servidor OLLAMA (solo si --modo ollama). Default: http://127.0.0.1:11434",
-    )
-    parser.add_argument(
-        "--modelo-ollama",
-        default="llava",
-        help="Modelo OLLAMA a usar (llava, qwen2-vl, etc). Default: llava",
-    )
+            _limpiar_recurso(supabase, recurso_id)
+        if os.path.exists(output_path):
+            guardadas = SyllabusExtractor._find_completed_pages(open(output_path, encoding="utf-8").read())
+            if guardadas:
+                print(f"{len(guardadas)} páginas guardadas en '{output_path}'. Puedes reanudar con el mismo comando.")
+        return False
 
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Ingesta un PDF en el sistema RAG usando Gemini.")
+    parser.add_argument("pdf_path")
+    parser.add_argument("--titulo", required=True)
+    parser.add_argument("--curso-id", required=True, type=int)
+    parser.add_argument("--tipo", default="silabo")
+    parser.add_argument("--modo", default="silabo", choices=["silabo", "examenes"])
+    parser.add_argument("--output-path", default=None)
+    parser.add_argument("--rpm", default=8, type=int, help="Requests por minuto (default: 8)")
+    parser.add_argument("--dpi", default=200, type=int, help="Resolución imagen (default: 200)")
+    parser.add_argument("--no-salvage", action="store_true", default=False)
+    parser.add_argument("--skip-failed", action="store_true", default=False)
     args = parser.parse_args()
 
     if not os.path.exists(args.pdf_path):
-        print(f"Error: No se encontró el archivo '{args.pdf_path}'.")
+        print(f"Archivo no encontrado: '{args.pdf_path}'")
         sys.exit(1)
 
-    procesar_compendio(
+    exito = procesar_compendio(
         args.pdf_path,
         titulo=args.titulo,
         curso_id=args.curso_id,
         tipo=args.tipo,
         modo=args.modo,
-        ollama_url=args.ollama_url,
-        modelo_ollama=args.modelo_ollama,
+        output_path=args.output_path,
+        rpm=args.rpm,
+        dpi=args.dpi,
+        salvage=not args.no_salvage,
+        skip_failed=args.skip_failed,
     )
+    sys.exit(0 if exito else 1)

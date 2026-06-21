@@ -32,7 +32,7 @@ export const apiService = {
      */
     async getMalla() {
         try {
-            const response = await fetchWithAuth(`${API_URL}/malla-curricular`);
+            const response = await fetchWithAuth(`${API_URL}/malla`);
             if (!response.ok) {
                 throw new Error(`Error fetching malla: ${response.statusText}`);
             }

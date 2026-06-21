@@ -1,16 +1,33 @@
-# Extractor de texto
 import os
+import re
 import time
-import json
-import base64
-import requests
+import random
+import logging
+from pathlib import Path
+from typing import Optional, Tuple
+
 import google.generativeai as genai
-from pdf2image import convert_from_path
+from pdf2image import convert_from_path, pdfinfo_from_path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Carga .env buscando desde el directorio actual hacia arriba
+for candidate in [
+    Path(__file__).resolve().parent / ".env",
+    Path(__file__).resolve().parents[1] / ".env",
+    Path(__file__).resolve().parents[2] / ".env",
+    Path.cwd() / ".env",
+]:
+    if candidate.exists():
+        load_dotenv(candidate)
+        break
+else:
+    load_dotenv()
 
-# Prompt genérico: para sílabos, apuntes, libros (contenido teórico estructurado).
+POPPLER_PATH = os.getenv("POPPLER_PATH") or None
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
+logger = logging.getLogger(__name__)
+
 PROMPT_SILABO = (
     "Eres un sistema de extracción de datos académicos. "
     "Extrae toda la información de esta página a formato Markdown.\n\n"
@@ -18,246 +35,230 @@ PROMPT_SILABO = (
     "1. Mantén la jerarquía visual (títulos, listas).\n"
     "2. Escribe TODAS las fórmulas matemáticas usando sintaxis LaTeX.\n"
     "3. Si hay tablas, usa el formato de tablas de Markdown.\n"
-    "4. Extrae los datos con tus propias palabras si es necesario para mantener la coherencia, pero no omitas ningún tema, fórmula o inciso.\n"
+    "4. No omitas ningún tema, fórmula o inciso.\n"
     "5. Devuelve ÚNICAMENTE el Markdown."
 )
 
-# Prompt especializado: para compendios/exámenes (fotos de prácticas calificadas
-# de la UNI con ejercicios manuscritos y notación matemática densa).
 PROMPT_EXAMENES = (
-    "Eres un sistema experto en digitalizar exámenes universitarios escaneados "
-    "(prácticas calificadas, parciales, finales) de la Universidad Nacional de Ingeniería.\n"
-    "Esta imagen es una página de un examen con uno o varios EJERCICIOS, posiblemente manuscritos.\n\n"
-    "TU TAREA: transcribir fielmente CADA ENUNCIADO de ejercicio, SIN resolverlo.\n\n"
-    "REGLAS ESTRICTAS:\n"
-    "1. Transcribe cada ejercicio como una unidad independiente. Inicia cada uno con un encabezado markdown de tercer nivel que incluya su número, por ejemplo: '### Ejercicio 1'. Si la página no muestra el número, numéralos en orden de aparición.\n"
-    "2. Escribe TODA la notación matemática usando sintaxis LaTeX limpia: $...$ para fórmulas en línea y $$...$$ para fórmulas en bloque. Respeta vectores (\\\\vec{AB}), proyecciones, ángulos, fracciones, integrales, límites, derivadas, etc.\n"
-    "3. NO resuelvas los ejercicios. NO agregues soluciones, pasos, ni respuestas. Solo el enunciado tal como aparece.\n"
-    "4. Si la página contiene un encabezado de examen (curso, código, práctica N°, fecha), transcríbelo al inicio como texto normal antes de los ejercicios.\n"
-    "5. Si un ejercicio tiene incisos (a, b, c), mantenlos dentro del mismo ejercicio.\n"
-    "6. Ignora elementos decorativos, sellos, marcas de agua o anotaciones al margen que no sean parte del enunciado.\n"
-    "7. Si la página no contiene ningún ejercicio legible (portada, página en blanco), devuelve una cadena vacía.\n"
-    "8. Devuelve ÚNICAMENTE el Markdown, sin comentarios adicionales."
+    "Eres un sistema experto en digitalizar exámenes universitarios escaneados de la UNI.\n"
+    "Esta imagen es una página con uno o varios EJERCICIOS, posiblemente manuscritos.\n\n"
+    "TU TAREA: transcribir fielmente CADA ENUNCIADO, SIN resolverlo.\n\n"
+    "REGLAS:\n"
+    "1. Cada ejercicio inicia con '### Ejercicio N'. Si no hay número, numéralos en orden.\n"
+    "2. Toda notación matemática en LaTeX: $...$ en línea, $$...$$ en bloque.\n"
+    "3. NO resuelvas. Solo el enunciado.\n"
+    "4. Si hay encabezado de examen (curso, fecha, práctica N°), transcríbelo antes de los ejercicios.\n"
+    "5. Mantén los incisos (a, b, c) dentro del mismo ejercicio.\n"
+    "6. Ignora sellos, marcas de agua y anotaciones al margen.\n"
+    "7. Si la página no tiene ejercicios legibles, devuelve cadena vacía.\n"
+    "8. Devuelve ÚNICAMENTE el Markdown."
 )
 
-MODOS_EXTRACCION = {
-    "silabo": PROMPT_SILABO,
-    "examenes": PROMPT_EXAMENES,
-}
+PROMPT_SALVAGE = (
+    "Transcribe únicamente el texto legible de esta página académica. "
+    "Si hay ejercicios, sepáralos con '### Ejercicio N'. "
+    "Usa LaTeX para toda expresión matemática. "
+    "No resuelvas nada. No inventes texto. "
+    "Si algo no se distingue, omítelo."
+)
 
-# Prompt para OLLAMA (igual al de examenes, pero sin características de Gemini)
-PROMPT_EXAMENES_OLLAMA = (
-    "Eres un sistema experto en digitalizar exámenes universitarios escaneados "
-    "(prácticas calificadas, parciales, finales) de la Universidad Nacional de Ingeniería.\n"
-    "Esta imagen es una página de un examen con uno o varios EJERCICIOS, posiblemente manuscritos.\n\n"
-    "TU TAREA: transcribir fielmente CADA ENUNCIADO de ejercicio, SIN resolverlo.\n\n"
-    "REGLAS ESTRICTAS:\n"
-    "1. Transcribe cada ejercicio como una unidad independiente. Inicia cada uno con un encabezado markdown de tercer nivel que incluya su número, por ejemplo: '### Ejercicio 1'. Si la página no muestra el número, numéralos en orden de aparición.\n"
-    "2. Escribe TODA la notación matemática usando sintaxis LaTeX limpia: $...$ para fórmulas en línea y $$...$$ para fórmulas en bloque. Respeta vectores, proyecciones, ángulos, fracciones, integrales, límites, derivadas, etc.\n"
-    "3. NO resuelvas los ejercicios. NO agregues soluciones, pasos, ni respuestas. Solo el enunciado tal como aparece.\n"
-    "4. Si la página contiene un encabezado de examen (curso, código, práctica N°, fecha), transcríbelo al inicio como texto normal antes de los ejercicios.\n"
-    "5. Si un ejercicio tiene incisos (a, b, c), mantenlos dentro del mismo ejercicio.\n"
-    "6. Ignora elementos decorativos, sellos, marcas de agua o anotaciones al margen que no sean parte del enunciado.\n"
-    "7. Si la página no contiene ningún ejercicio legible (portada, página en blanco), devuelve una cadena vacía.\n"
-    "8. Devuelve ÚNICAMENTE el Markdown, sin comentarios adicionales."
+MODOS = {"silabo": PROMPT_SILABO, "examenes": PROMPT_EXAMENES}
+
+BLOQUE_RE = re.compile(
+    r"<!-- === INICIO PAGINA (?P<n1>\d+) === -->\n\n(?P<contenido>.*?)\n\n<!-- === FIN PAGINA (?P=n1) === -->"
+    r"|<!-- === PAGINA (?P<n2>\d+)[^\n]*=== -->",
+    re.DOTALL,
 )
 
 
-def _es_respuesta_sospechosa(texto: str, prompt: str) -> bool:
-    """Heurística para detectar alucinaciones obvias de modelos de visión locales:
-    cuando el modelo no "lee" la imagen y en su lugar repite (eco) fragmentos
-    del propio prompt de instrucciones, o devuelve meta-comentarios sobre la tarea
-    en vez de transcribir contenido real.
-    """
+def es_sospechosa(texto: str) -> bool:
     if not texto:
         return False
-
-    texto_lower = texto.lower()
-
-    # Eco literal de frases características del prompt de instrucciones.
-    frases_prompt = [
-        "transcriba fielmente",
-        "reglas estrictas",
-        "no resuelvas los ejercicios",
-        "transcribe cada ejercicio",
-        "devuelve únicamente el markdown",
-        "ignora elementos decorativos",
-    ]
-    if any(frase in texto_lower for frase in frases_prompt):
-        return True
-
-    # Meta-comentarios típicos de un modelo "explicando" en vez de transcribir.
-    frases_meta = [
-        "this transcription follows",
-        "assumes that the image provided",
-        "i have transcribed",
-        "as an ai",
-        "i cannot",
-    ]
-    if any(frase in texto_lower for frase in frases_meta):
-        return True
-
-    return False
+    t = texto.lower()
+    return any(f in t for f in [
+        "transcriba fielmente", "reglas estrictas", "no resuelvas los ejercicios",
+        "transcribe cada ejercicio", "devuelve únicamente el markdown",
+        "as an ai", "i cannot", "no puedo", "como ia",
+    ])
 
 
-class SyllabusExtractor():
-    def __init__(self):
+def limpiar(texto: str) -> str:
+    texto = texto.replace("\r", "")
+    texto = re.sub(r"[ \t]+", " ", texto)
+    texto = re.sub(r"\n{3,}", "\n\n", texto)
+    return texto.strip()
+
+
+class SyllabusExtractor:
+    def __init__(self, model_name="gemini-2.5-flash", rpm=8, max_retries=6, timeout=120):
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            print("Error obteniendo la API KEY. ")
+            raise RuntimeError("GEMINI_API_KEY no configurada en .env")
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
+        self.model = genai.GenerativeModel(model_name)
+        self.min_interval = 60.0 / max(1, rpm)
+        self.max_retries = max_retries
+        self.timeout = timeout
+        self._last_call = 0.0
+        logger.info(f"Extractor listo | modelo={model_name} rpm={rpm} reintentos={max_retries}")
 
-    def extract_text(self, pdf_path: str, modo: str = "silabo") -> str:
-        if not os.path.exists(pdf_path):
-            print("Error: No se encontró la ruta del archivo. ")
-            return ""
+    def _throttle(self):
+        wait = self.min_interval - (time.monotonic() - self._last_call)
+        if wait > 0:
+            time.sleep(wait)
+        self._last_call = time.monotonic()
 
-        prompt = MODOS_EXTRACCION.get(modo, PROMPT_SILABO)
-        print(f"Iniciando la extracción de {pdf_path} (modo: {modo}) ... ")
-        texto_completo = ""
+    @staticmethod
+    def _es_cuota_diaria(e: Exception) -> bool:
+        s = str(e).lower().replace(" ", "").replace("-", "")
+        return "perday" in s or "dailylimit" in s
 
-        try:
-            images = convert_from_path(pdf_path, dpi=200)
+    @staticmethod
+    def _es_retryable(e: Exception) -> bool:
+        s = str(e).lower()
+        return any(k in s for k in ["429", "quota", "resourceexhausted", "503", "500", "timeout", "overloaded"])
 
-            for i, image in enumerate(images):
-                response = None
-                intentos = 0
-                max_intentos = 5
-
-                # Reintentos con backoff ante errores de cuota (429), como en el embedder.
-                while intentos < max_intentos:
-                    try:
-                        response = self.model.generate_content([prompt, image])
-                        break
-                    except Exception as e:
-                        error_str = str(e)
-                        if "429" in error_str or "Quota" in error_str or "quota" in error_str:
-                            intentos += 1
-                            espera = 15 * intentos
-                            print(f"Límite de cuota detectado en la página {i + 1}. "
-                                  f"Esperando {espera}s (intento {intentos}/{max_intentos})")
-                            time.sleep(espera)
-                        else:
-                            print(f"Error inesperado en la página {i + 1}: {e}")
-                            break
-
-                if response is None:
-                    print(f"Advertencia: no se pudo extraer la página {i + 1} (cuota agotada o error). Se omite.")
-                    texto_completo += f"\n\n<!-- === PAGINA {i + 1} OMITIDA (sin respuesta) === -->\n\n"
-                    time.sleep(5)
-                    continue
-
+    def _llamar_gemini(self, prompt, image, page_num):
+        last_exc = None
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                self._throttle()
                 try:
-                    texto_generado = response.text.strip()
-                    texto_completo += f"\n\n<!-- === INICIO PAGINA {i + 1} === -->\n\n"
-                    texto_completo += texto_generado
-                    texto_completo += f"\n\n<!-- === FIN PAGINA {i + 1} === -->\n\n"
-                except ValueError:
-                    motivo = response.candidates[0].finish_reason.name if response.candidates else "Desconocido"
-                    print(f"Error: Gemini bloqueó la página {i + 1}. Motivo: {motivo}")
-                    texto_completo += f"\n\n<!-- === PAGINA {i + 1} BLOQUEADA POR FILTRO ({motivo}) === -->\n\n"
-
-                time.sleep(5)
-            
-            print(f"Extraccion completada. Se extrajeron {len(texto_completo)} caracteres. ")
-            return texto_completo
-
-        except Exception as e:
-            print(f"Ocurrio un error inesperado durante la extraccion: {e}")
-            return ""
-
-    def extract_text_ollama(self, pdf_path: str, ollama_url: str = "http://127.0.0.1:11434", modelo: str = "llava", modo: str = "examenes") -> str:
-        """Extrae texto de PDF usando OLLAMA (modelo visión-lenguaje local, sin cuota).
-
-        Args:
-            pdf_path: ruta al PDF
-            ollama_url: URL del servidor OLLAMA (default: localhost:11434)
-            modelo: nombre del modelo OLLAMA (default: llava; opciones: qwen2-vl, etc)
-            modo: modo de extracción ("examenes" o "silabo")
-        """
-        if not os.path.exists(pdf_path):
-            print("Error: No se encontró la ruta del archivo. ")
-            return ""
-
-        prompt = PROMPT_EXAMENES_OLLAMA if modo == "examenes" else PROMPT_SILABO
-        print(f"Iniciando extracción de {pdf_path} (modo: {modo}, OLLAMA: {modelo}) ... ")
-        texto_completo = ""
-
-        try:
-            images = convert_from_path(pdf_path, dpi=200)
-
-            for i, image in enumerate(images):
-                # Convertir imagen PIL a base64 para enviar a OLLAMA
-                import io
-                img_buffer = io.BytesIO()
-                image.save(img_buffer, format="PNG")
-                img_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
-
-                print(f"Procesando página {i + 1}/{len(images)}...")
-
-                try:
-                    # Enviar a OLLAMA vía HTTP. temperature=0 reduce alucinación
-                    # (queremos transcripción fiel, no creatividad).
-                    response = requests.post(
-                        f"{ollama_url}/api/generate",
-                        json={
-                            "model": modelo,
-                            "prompt": prompt,
-                            "images": [img_base64],
-                            "stream": False,
-                            "options": {
-                                "temperature": 0,
-                                "top_p": 0.1,
-                            },
-                        },
-                        timeout=300,  # 5 min timeout por página
-                    )
-                    response.raise_for_status()
-                    data = response.json()
-
-                    if data.get("response"):
-                        texto_generado = data["response"].strip()
-                        if _es_respuesta_sospechosa(texto_generado, prompt):
-                            print(f"Advertencia: la página {i + 1} parece alucinada (repite el prompt o es eco). Se omite.")
-                            texto_completo += f"\n\n<!-- === PAGINA {i + 1} DESCARTADA (alucinación detectada) === -->\n\n"
-                        elif texto_generado:
-                            texto_completo += f"\n\n<!-- === INICIO PAGINA {i + 1} === -->\n\n"
-                            texto_completo += texto_generado
-                            texto_completo += f"\n\n<!-- === FIN PAGINA {i + 1} === -->\n\n"
-                        else:
-                            print(f"Advertencia: página {i + 1} devolvió texto vacío (portada/blanca?)")
-                            texto_completo += f"\n\n<!-- === PAGINA {i + 1} VACIA === -->\n\n"
-                    else:
-                        print(f"Advertencia: sin respuesta válida de OLLAMA para página {i + 1}")
-                        texto_completo += f"\n\n<!-- === PAGINA {i + 1} SIN RESPUESTA === -->\n\n"
-
-                except requests.exceptions.ConnectionError:
-                    print(f"Error: no se pudo conectar a OLLAMA en {ollama_url}. ¿Está corriendo 'ollama serve'?")
+                    return self.model.generate_content([prompt, image], request_options={"timeout": self.timeout})
+                except TypeError:
+                    return self.model.generate_content([prompt, image])
+            except Exception as e:
+                last_exc = e
+                if self._es_cuota_diaria(e):
+                    logger.error(f"[p{page_num}] Cuota DIARIA agotada. Progreso guardado. Reintenta mañana.")
                     raise
-                except requests.exceptions.Timeout:
-                    print(f"Timeout en página {i + 1}. OLLAMA tardó más de 5 min (modelo lento o sistema sobrecargado).")
-                    texto_completo += f"\n\n<!-- === PAGINA {i + 1} TIMEOUT === -->\n\n"
-                except Exception as e:
-                    print(f"Error procesando página {i + 1}: {e}")
-                    texto_completo += f"\n\n<!-- === PAGINA {i + 1} ERROR === -->\n\n"
+                if "safety" in str(e).lower() or "blocked" in str(e).lower():
+                    raise
+                if not self._es_retryable(e) or attempt >= self.max_retries:
+                    raise
+                wait = min(120, 15 * attempt) if "429" in str(e) or "quota" in str(e).lower() else min(60, 2 ** attempt)
+                wait += random.uniform(0, 3)
+                logger.warning(f"[p{page_num}] {type(e).__name__} — intento {attempt}/{self.max_retries}, esperando {wait:.1f}s")
+                time.sleep(wait)
+        raise RuntimeError(f"Página {page_num}: falló tras {self.max_retries} intentos") from last_exc
 
-                time.sleep(2)  # Pequeña pausa entre páginas para no saturar OLLAMA
+    @staticmethod
+    def _get_text(response) -> Tuple[Optional[str], Optional[str]]:
+        if not getattr(response, "candidates", None):
+            motivo = getattr(getattr(response, "prompt_feedback", None), "block_reason", "SIN_CANDIDATOS")
+            return None, str(motivo)
+        finish = getattr(response.candidates[0], "finish_reason", None)
+        finish = finish.name if finish else "DESCONOCIDO"
+        if finish == "SAFETY":
+            return None, "SAFETY_FILTER"
+        try:
+            texto = response.text
+            return (limpiar(texto), None) if texto and texto.strip() else (None, f"VACIA ({finish})")
+        except (ValueError, AttributeError) as exc:
+            return None, f"ERROR_TEXTO ({finish}): {exc}"
 
-            print(f"Extracción completada. Se extrajeron {len(texto_completo)} caracteres. ")
-            return texto_completo
+    @staticmethod
+    def _find_completed_pages(texto: str) -> set:
+        return {int(n) for n in re.findall(r"INICIO PAGINA (\d+)", texto)}
 
-        except Exception as e:
-            print(f"Ocurrió un error inesperado durante la extracción: {e}")
+    @staticmethod
+    def _find_all_attempted(texto: str) -> set:
+        return {int(n) for n in re.findall(r"PAGINA (\d+)\b", texto)}
+
+    @staticmethod
+    def _bloque_ok(n, texto):
+        return f"\n\n<!-- === INICIO PAGINA {n} === -->\n\n{texto}\n\n<!-- === FIN PAGINA {n} === -->\n\n"
+
+    @staticmethod
+    def _append(path, content):
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(content)
+
+    def _cargar_progreso(self, output_path, skip_failed=False) -> Tuple[str, set]:
+        if output_path and os.path.exists(output_path):
+            texto = open(output_path, encoding="utf-8").read()
+            completados = self._find_all_attempted(texto) if skip_failed else self._find_completed_pages(texto)
+            logger.info(f"Reanudando: {len(completados)} páginas omitidas.")
+            return texto, completados
+        return "", set()
+
+    def extract_text(self, pdf_path, modo="examenes", output_path=None, dpi=200, salvage=True, skip_failed=False):
+        pdf_path = str(pdf_path)
+        if not os.path.exists(pdf_path):
+            logger.error(f"Archivo no encontrado: {pdf_path}")
             return ""
 
+        try:
+            total = int(pdfinfo_from_path(pdf_path, poppler_path=POPPLER_PATH)["Pages"])
+        except Exception as e:
+            logger.error(f"No se pudo leer el PDF: {e}")
+            return ""
 
-if __name__ == "__main__":
-    root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    test_pdf = os.path.join(root_dir, "scrapeo", "silabos", "BF101-Fisica.pdf")
+        if total > 30:
+            logger.warning(f"El PDF tiene {total} páginas. Optimizado para hasta 30 — la cuota puede agotarse antes de terminar.")
 
-    extractor = SyllabusExtractor()
-    texto_extraido = extractor.extract_text(test_pdf)
+        prompt = MODOS.get(modo, PROMPT_SILABO)
+        texto_completo, done = self._cargar_progreso(output_path, skip_failed)
+        logger.info(f"Extrayendo '{pdf_path}' | {total} págs | modo={modo} | dpi={dpi}")
 
-    if texto_extraido:
-        print(texto_extraido[:500] + "\n...")
+        for n in range(1, total + 1):
+            if n in done:
+                continue
+
+            try:
+                image = convert_from_path(pdf_path, dpi=dpi, first_page=n, last_page=n, poppler_path=POPPLER_PATH)[0]
+            except Exception as e:
+                bloque = f"\n\n<!-- === PAGINA {n} ERROR_CONVERSION: {e} === -->\n\n"
+                texto_completo += bloque
+                if output_path:
+                    self._append(output_path, bloque)
+                logger.error(f"[p{n}/{total}] Error convirtiendo imagen: {e}")
+                continue
+
+            bloque = ""
+            cuota_diaria = False
+
+            try:
+                response = self._llamar_gemini(prompt, image, n)
+                texto, motivo = self._get_text(response)
+
+                if texto and not es_sospechosa(texto):
+                    bloque = self._bloque_ok(n, texto)
+                    logger.info(f"[p{n}/{total}] OK ({len(texto)} chars)")
+                elif salvage and modo == "examenes":
+                    logger.warning(f"[p{n}/{total}] Vacío/sospechoso ({motivo}). Intentando rescate...")
+                    response2 = self._llamar_gemini(PROMPT_SALVAGE, image, n)
+                    texto2, motivo2 = self._get_text(response2)
+                    if texto2 and not es_sospechosa(texto2):
+                        bloque = self._bloque_ok(n, texto2)
+                        logger.info(f"[p{n}/{total}] Rescate OK ({len(texto2)} chars)")
+                    else:
+                        bloque = f"\n\n<!-- === PAGINA {n} NO_LEGIBLE ({motivo2 or motivo}) === -->\n\n"
+                        logger.warning(f"[p{n}/{total}] No legible tras rescate")
+                else:
+                    bloque = f"\n\n<!-- === PAGINA {n} BLOQUEADA ({motivo}) === -->\n\n"
+                    logger.warning(f"[p{n}/{total}] Bloqueada: {motivo}")
+
+            except Exception as e:
+                if self._es_cuota_diaria(e):
+                    cuota_diaria = True
+                else:
+                    bloque = f"\n\n<!-- === PAGINA {n} FALLO: {e} === -->\n\n"
+                    logger.error(f"[p{n}/{total}] Falló definitivamente: {e}")
+            finally:
+                try:
+                    del image
+                except Exception:
+                    pass
+
+            if bloque:
+                texto_completo += bloque
+                if output_path:
+                    self._append(output_path, bloque)
+
+            if cuota_diaria:
+                break
+
+        logger.info(f"Extracción finalizada | {len(texto_completo)} chars totales")
+        return texto_completo

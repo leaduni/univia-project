@@ -25,7 +25,11 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
         exams_resp = supabase.table("recursos").select("*").eq("curso_id", course_id).eq("tipo", "examen").execute()
         
         # 5. Calcular status de los pasos
-        course_status = progreso_resp.data.get("status") if progreso_resp.data else "available"
+        course_status = (
+            progreso_resp.data.get("status")
+            if progreso_resp and progreso_resp.data
+            else "available"
+        )
         timeline_steps = []
         for i, step in enumerate(steps_resp.data):
             step_status = "upcoming"

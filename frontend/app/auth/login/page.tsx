@@ -10,6 +10,7 @@ import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { apiService } from "@/lib/api-service"
+import Image from "next/image"
 
 const loginSchema = z.object({
   codigoUni: z.string().optional(),
@@ -66,14 +67,23 @@ export default function LoginPage() {
 
         {/* Logo & Brand */}
         <div className="relative z-10 text-center">
-          <div className="w-24 h-24 rounded-2xl bg-white/20 backdrop-blur-lg flex items-center justify-center mb-8 mx-auto border border-white/30">
-            <span className="text-white font-bold text-5xl">U</span>
+          <div className="mb-8 flex justify-center">
+            <Image
+              src="/Logo_LEAD_UNI.png"
+              alt="LEAD UNI"
+              width={180}
+              height={180}
+              priority
+              className="drop-shadow-2xl"
+            />
           </div>
           <h1 className="text-5xl font-bold text-white mb-4">UniVia</h1>
           <p className="text-xl text-white/80 max-w-md mx-auto leading-relaxed">
             Tu compañera de ruta académica personalizada
           </p>
-
+          <p className="text-white/70 text-lg">
+            Proyecto desarrollado por LEAD UNI
+          </p>
           {/* Features */}
           <div className="mt-16 space-y-6">
             {[
@@ -99,11 +109,23 @@ export default function LoginPage() {
       <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-6 md:p-8 bg-white">
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
-          <div className="lg:hidden mb-8">
-            <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mx-auto mb-4">
-              <span className="text-white font-bold text-2xl">U</span>
-            </div>
-            <h1 className="text-2xl font-bold text-center text-foreground">UniVia</h1>
+          <div className="lg:hidden mb-8 text-center">
+            <Image
+              src="/Logo_LEAD_UNI.png"
+              alt="LEAD UNI"
+              width={100}
+              height={100}
+              priority
+              className="mx-auto mb-4"
+            />
+
+            <h1 className="text-2xl font-bold text-foreground">
+              UniVia
+            </h1>
+
+            <p className="text-sm text-muted-foreground">
+              Proyecto desarrollado por LEAD UNI
+            </p>
           </div>
 
           {/* Form Header */}

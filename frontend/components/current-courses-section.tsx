@@ -27,7 +27,7 @@ export function CurrentCoursesSection({ courses, isLoading }: CurrentCoursesSect
               id={course.id.toString()}
               title={course.name}
               professor="Asignado"
-              status={course.progress >= 90 ? "Casi completo" : "En progreso"}
+              status={course.status}
               progress={course.progress}
               currentTopic="Contenido del curso"
               nextClass="Horario programado"

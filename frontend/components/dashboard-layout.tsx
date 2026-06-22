@@ -24,7 +24,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     // Sin sesión ni usuario -> al login.
     if (!session && !user) {
       setIsRedirecting(true)
-      router.push("/auth/login")
+      router.replace("/auth/login")
       return
     }
 

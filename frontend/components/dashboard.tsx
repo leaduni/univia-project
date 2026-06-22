@@ -19,9 +19,6 @@ import { AIRecommendation } from "./ai-recommendation"
 import { useAuth } from "./providers/auth-context"
 import { apiService } from "@/lib/api-service"
 
-/**
- * Mapeo exacto de la respuesta de dashboard.py (_calcular_stats)
- */
 interface DashboardStats {
   cursosCompletados: number
   cursosEnProgreso: number
@@ -31,9 +28,6 @@ interface DashboardStats {
   horasEstudio: number
 }
 
-/**
- * Mapeo exacto de la respuesta de dashboard.py (_obtener_logros)
- */
 interface Logro {
   id: string | number
   nombre: string

@@ -4,17 +4,11 @@ import { supabase } from './supabase';
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API_URL = BASE_URL.endsWith('/api') ? BASE_URL : `${BASE_URL}/api`;
 
-/**
- * Helper to get the current session token
- */
 async function getAuthToken() {
     const { data: { session } } = await supabase.auth.getSession();
     return session?.access_token || null;
 }
 
-/**
- * Helper for fetch with auth
- */
 async function fetchWithAuth(url: string, options: RequestInit = {}, customToken?: string) {
     const token = customToken || await getAuthToken();
     console.log(`Fetch with Auth: ${url}, Token present: ${!!token}`);
@@ -27,9 +21,6 @@ async function fetchWithAuth(url: string, options: RequestInit = {}, customToken
 }
 
 export const apiService = {
-    /**
-     * Fetch the curriculum map (Malla Curricular)
-     */
     async getMalla() {
         try {
             const response = await fetchWithAuth(`${API_URL}/malla`);
@@ -43,9 +34,6 @@ export const apiService = {
         }
     },
 
-    /**
-     * Update course status
-     */
     async updateCourseStatus(courseId: number, status: string) {
         try {
             const response = await fetchWithAuth(`${API_URL}/malla-curricular/update-status`, {
@@ -65,9 +53,6 @@ export const apiService = {
         }
     },
 
-    /**
-     * Fetch dashboard summary (stats + achievements)
-     */
     async getDashboardSummary() {
         try {
             const response = await fetchWithAuth(`${API_URL}/dashboard/summary`);
@@ -81,9 +66,6 @@ export const apiService = {
         }
     },
 
-    /**
-     * Fetch dashboard statistics
-     */
     async getDashboardStats() {
         try {
             const response = await fetchWithAuth(`${API_URL}/dashboard/stats`);
@@ -97,9 +79,6 @@ export const apiService = {
         }
     },
 
-    /**
-     * Fetch user achievements (logros)
-     */
     async getLogros() {
         try {
             const response = await fetchWithAuth(`${API_URL}/dashboard/logros`);
@@ -113,9 +92,6 @@ export const apiService = {
         }
     },
 
-    /**
-     * Fetch course details by ID
-     */
     async getCourse(id: string | number) {
         try {
             const response = await fetchWithAuth(`${API_URL}/cursos/${id}`);
@@ -129,9 +105,6 @@ export const apiService = {
         }
     },
 
-    /**
-     * Fetch complete learning path for a course
-     */
     async getLearningPath(courseId: string | number) {
         try {
             const response = await fetchWithAuth(`${API_URL}/curso/${courseId}/learning-path`);
@@ -145,9 +118,6 @@ export const apiService = {
         }
     },
 
-    /**
-     * Fetch resources with filters
-     */
     async getRecursos(filters: { tipo?: string; ciclo?: number; codigo_curso?: string; search?: string } = {}) {
         try {
             const params = new URLSearchParams();
@@ -167,9 +137,6 @@ export const apiService = {
         }
     },
 
-    /**
-     * Fetch all available careers and course curriculum for onboarding
-     */
     async getOnboardingData() {
         try {
             const response = await fetchWithAuth(`${API_URL}/onboarding/data`);
@@ -183,9 +150,6 @@ export const apiService = {
         }
     },
 
-    /**
-     * Complete onboarding process
-     */
     async completeOnboarding(data: {
         carrera_id: number;
         ciclo_actual: number;
@@ -213,9 +177,6 @@ export const apiService = {
         }
     },
 
-    /**
-     * Authenticate user with Supabase
-     */
     async login(credentials: { email: string; password: string }) {
         try {
             const { data, error } = await supabase.auth.signInWithPassword({
@@ -228,10 +189,8 @@ export const apiService = {
 
             console.log("Login successful, fetching profile...");
 
-            // Use the token directly from the login response
             const profile = await this.getProfile(data.session.access_token);
 
-            // Store in localStorage for compatibility with existing components (DashboardLayout, etc.)
             if (typeof window !== 'undefined') {
                 localStorage.setItem('user', JSON.stringify(profile));
                 localStorage.setItem('token', data.session.access_token);
@@ -248,9 +207,6 @@ export const apiService = {
         }
     },
 
-    /**
-     * Fetch current user profile from backend
-     */
     async getProfile(customToken?: string) {
         try {
             const response = await fetchWithAuth(`${API_URL}/usuarios/me`, {}, customToken);
@@ -266,9 +222,6 @@ export const apiService = {
         }
     },
 
-    /**
-     * Sign up a new user with Supabase
-     */
     async signup(data: { email: string; password: string; fullName: string; rol?: string }) {
         
         console.log("Chequeo de URL: '" + process.env.NEXT_PUBLIC_SUPABASE_URL + "'");
@@ -294,9 +247,6 @@ export const apiService = {
         }
     },
 
-    /**
-     * Sign out
-     */
     async logout() {
         const { error } = await supabase.auth.signOut();
         if (error) console.error("Error signing out:", error);

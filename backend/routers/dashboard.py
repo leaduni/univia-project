@@ -6,8 +6,6 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/dashboard", tags=["Academic Dashboard"])
 
-# --- Esquemas de Datos (Pydantic) ---
-
 class AcademicStats(BaseModel):
     cursosCompletados: int
     cursosEnProgreso: int
@@ -28,16 +26,12 @@ class DashboardSummary(BaseModel):
     stats: AcademicStats
     logros: List[Achievement]
 
-# --- Lógica de Negocio ---
-
 def _calcular_stats(user, supabase) -> Dict[str, Any]:
     """
     Calcula métricas académicas usando el esquema exacto de UNIVIA-PROJECT.
     Tablas: perfiles, cursos, progreso_cursos.
     """
     try:
-        # 1. Obtener perfil del usuario (Tabla: perfiles)
-        # Campos: id, carrera_id, nombre_completo
         profile_resp = (
             supabase.table("perfiles")
             .select("carrera_id")
@@ -47,8 +41,6 @@ def _calcular_stats(user, supabase) -> Dict[str, Any]:
         )
         carrera_id = profile_resp.data.get("carrera_id") if profile_resp.data else None
 
-        # 2. Obtener progreso del usuario (Tabla: progreso_cursos)
-        # Campos: perfil_id, status, nota
         progreso_resp = (
             supabase.table("progreso_cursos")
             .select("status, nota")
@@ -57,8 +49,7 @@ def _calcular_stats(user, supabase) -> Dict[str, Any]:
         )
         progreso_data = progreso_resp.data or []
 
-        # 3. Obtener total de cursos de la carrera (Tabla: cursos)
-        # Campos: carrera_id
+
         total_cursos = 0
         if carrera_id:
             cursos_resp = (
@@ -69,12 +60,10 @@ def _calcular_stats(user, supabase) -> Dict[str, Any]:
             )
             total_cursos = cursos_resp.count if cursos_resp.count is not None else 0
 
-        # Procesamiento de métricas
         completados = sum(1 for p in progreso_data if p.get("status") == "completed")
         en_progreso = sum(1 for p in progreso_data if p.get("status") == "in_progress")
         porcentaje = (completados / total_cursos * 100) if total_cursos > 0 else 0
         
-        # Cálculo de promedio ponderado (Tabla: progreso_cursos -> campo: nota)
         notas = [p.get("nota") for p in progreso_data if p.get("nota") is not None]
         promedio = sum(notas) / len(notas) if notas else 0.0
 
@@ -103,10 +92,8 @@ def _obtener_logros(user, supabase) -> List[Dict[str, Any]]:
     Sincroniza logros usando las tablas: logros y logros_usuarios.
     """
     try:
-        # Tabla: logros (id, nombre, descripcion, icon)
         logros_resp = supabase.table("logros").select("*").execute()
         
-        # Tabla: logros_usuarios (perfil_id, logro_id, unlocked_at)
         unlocked_resp = (
             supabase.table("logros_usuarios")
             .select("logro_id, unlocked_at")
@@ -131,8 +118,6 @@ def _obtener_logros(user, supabase) -> List[Dict[str, Any]]:
     except Exception as e:
         print(f"[DEBUG] Error en _obtener_logros: {str(e)}")
         return []
-
-# --- Endpoints ---
 
 @router.get("/summary", response_model=DashboardSummary)
 async def get_dashboard_summary(user_data = Depends(get_current_user)):

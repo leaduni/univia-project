@@ -28,7 +28,6 @@ def get_retriever() -> Optional[SyllabusRetriever]:
             return None
     return _retriever
 
-# Configurar Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 client = None
 if GEMINI_API_KEY:
@@ -40,9 +39,9 @@ class ConfiguracionEvaluacion(BaseModel):
     curso_id: int
     modulo: str
     temas: List[str]
-    num_preguntas: int = 5  # 5-10 preguntas
-    observaciones: Optional[str] = None  # Metodología del profesor, lenguaje, etc.
-    tipo_evaluacion: str = "mixta"  # "multiple", "unica", "verdadero_falso", "mixta"
+    num_preguntas: int = 5
+    observaciones: Optional[str] = None
+    tipo_evaluacion: str = "mixta"
 
 class CasoDeEjemplo(BaseModel):
     input: str
@@ -55,9 +54,9 @@ class Pregunta(BaseModel):
     contexto_markdown: Optional[str] = None
     input_markdown: Optional[str] = None
     output_markdown: Optional[str] = None
-    tipo: str  # "multiple", "unica", "verdadero_falso", "codigo"
+    tipo: str 
     opciones: Optional[List[str]] = None
-    respuesta_correcta: Any  # Puede ser int, List[int] o str para código
+    respuesta_correcta: Any 
     explicacion: Optional[str] = None
     codigo_base: Optional[str] = None
     caso_de_ejemplo: Optional[CasoDeEjemplo] = None
@@ -68,12 +67,12 @@ class Evaluacion(BaseModel):
     modulo: str
     temas: List[str]
     preguntas: List[Pregunta]
-    tiempo_estimado: int  # En minutos
+    tiempo_estimado: int
 
 class RespuestaEstudiante(BaseModel):
     """Respuesta de un estudiante a una pregunta"""
     pregunta_id: int
-    respuesta: Any  # int, List[int] o str (código del estudiante)
+    respuesta: Any 
 
 class EnvioEvaluacion(BaseModel):
     """Envío completo de una evaluación"""
@@ -128,8 +127,8 @@ def recuperar_contexto_semantico(tema_consulta: str, curso_id: int) -> List[str]
         resultados = retriever.buscar_contexto_por_nombre(
             tema_consulta,
             curso_nombre=curso_nombre,
-            limit=8,                # Más candidatos: los compendios mezclan temas en una misma PC
-            umbral_similitud=0.1,   # Umbral más permisivo
+            limit=8,    
+            umbral_similitud=0.1,   
         )
         return [item["contenido"] for item in resultados]
 
@@ -268,7 +267,6 @@ REGLAS ESTRICTAS PARA LA GENERACIÓN DEL JSON:
 def limpiar_json_response(text: str) -> str:
     """Limpia la respuesta de Gemini para extraer solo el JSON"""
     json_text = text
-    # Buscar JSON entre ```json y ``` o entre { y }
     json_match = re.search(r'```(?:json)?\s*(.*?)\s*```', text, re.DOTALL)
     if json_match:
         json_text = json_match.group(1)
@@ -294,7 +292,6 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion):
         tema_completo = f"{config.modulo}: {', '.join(config.temas)}"
         contexto = recuperar_contexto_semantico(tema_completo, config.curso_id)
         
-        # --- LOG PARA VERIFICAR EL RAG EN LA TERMINAL ---
         print("\n" + "="*50)
         print(f"RAG: Se recuperaron {len(contexto)} fragmentos del PDF.")
         print("="*50 + "\n")
@@ -447,16 +444,10 @@ async def evaluar_respuestas(
         
         es_correcta = False
         if pregunta.tipo == 'codigo':
-            # La respuesta del estudiante es el código que escribieron
-            # La respuesta correcta es el output esperado
-            # Aquí no ejecutamos código, solo comparamos el output (simulado por ahora)
-            # En un futuro, se podría usar un sandbox para ejecutar el código
             es_correcta = str(respuesta.respuesta).strip() == str(pregunta.respuesta_correcta).strip()
         elif isinstance(pregunta.respuesta_correcta, list):
-            # Selección múltiple
             es_correcta = set(respuesta.respuesta) == set(pregunta.respuesta_correcta)
         else:
-            # Única respuesta o V/F
             es_correcta = respuesta.respuesta == pregunta.respuesta_correcta
         
         if es_correcta:

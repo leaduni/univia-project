@@ -10,7 +10,7 @@ import google.generativeai as genai
 from pdf2image import convert_from_path, pdfinfo_from_path
 from dotenv import load_dotenv
 
-# Carga .env buscando desde el directorio actual hacia arriba
+
 for candidate in [
     Path(__file__).resolve().parent / ".env",
     Path(__file__).resolve().parents[1] / ".env",

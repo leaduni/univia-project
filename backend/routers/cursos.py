@@ -36,9 +36,9 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
             if course_status == "completed":
                 step_status = "completed"
             elif course_status == "in_progress":
-                if i == 0: # Simplificación: Primera semana es la actual
+                if i == 0:
                     step_status = "current"
-                elif i < 0: # Lógica para semanas pasadas (a implementar después)
+                elif i < 0:
                     step_status = "completed"
                 else:
                     step_status = "upcoming"
@@ -48,7 +48,7 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
                 "status": step_status
             })
 
-        # 6. Lógica de "IA Insights" (Mock por ahora, pero con datos del curso)
+        # 6. Lógica de "IA Insights"
         course_name = course_resp.data.get("name", "el curso")
         ai_insights = [
             {

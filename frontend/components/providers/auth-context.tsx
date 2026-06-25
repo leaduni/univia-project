@@ -30,8 +30,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 localStorage.setItem('user', JSON.stringify(profile));
                 localStorage.setItem('token', token);
             }
-        } catch (error) {
-            console.error("Error fetching user profile:", error);
+        } catch (error: any) {
+            // Si el error es de red (backend no disponible), lo logueamos
+            // pero NO cerramos la sesión de Supabase
+            const isNetworkError = error instanceof TypeError && error.message === 'Failed to fetch';
+            if (isNetworkError) {
+                console.warn("Backend no disponible en este momento. El usuario de Supabase sigue autenticado.");
+                // Intentar cargar perfil cacheado del localStorage
+                if (typeof window !== 'undefined') {
+                    const cached = localStorage.getItem('user');
+                    if (cached) {
+                        try { setUser(JSON.parse(cached)); } catch { setUser(null); }
+                        return;
+                    }
+                }
+            } else {
+                console.error("Error fetching user profile:", error);
+            }
             setUser(null);
         }
     };
@@ -65,7 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     localStorage.removeItem('token');
                 }
             }
-            setIsLoading(false);
+            setIsLoading(false);  // Siempre se ejecuta
         });
 
         return () => subscription.unsubscribe();

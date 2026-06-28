@@ -1,6 +1,6 @@
-# Conversión del texto a vectores
 import os
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from dotenv import load_dotenv
 import time
 
@@ -11,17 +11,16 @@ class SyllabusEmbedder:
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             print("Error: No se detectó el API_KEY de Gemini. ")
-        
-        genai.configure(api_key=api_key)
 
+        self.client = genai.Client(api_key=api_key)
         self.model_name = model_name
-        self.expected_dimensions=expected_dimensions
-    
+        self.expected_dimensions = expected_dimensions
+
     def embedding_generator(self, chunks: list, batch_size: int = 5) -> list:
         if not chunks:
             print("Error: No se encontraron chunks para convertir. ")
             return []
-        
+
         print("Iniciando conversion de chunks a embeddings ... ")
         chunks_transformados = []
 
@@ -36,13 +35,13 @@ class SyllabusEmbedder:
 
             while intentos < max_intentos:
                 try:
-                    embeddings = genai.embed_content(
+                    result = self.client.models.embed_content(
                         model=self.model_name,
-                        content=textos_lote,
-                        task_type="RETRIEVAL_DOCUMENT"
+                        contents=textos_lote,
+                        config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
                     )
 
-                    vectores = embeddings["embedding"]
+                    vectores = [e.values for e in result.embeddings]
 
                     for j, vector in enumerate(vectores):
                         vector_ajustado = vector[:self.expected_dimensions]
@@ -60,13 +59,13 @@ class SyllabusEmbedder:
                         espera = 5 * intentos
                         print(f"Limite de cuota detectado. Esperando {espera} segundos (intento {intentos}/{max_intentos})")
                         time.sleep(espera)
-                    
+
                     else:
                         print(f"Ocurrio un error inesperado: {e}")
                         break
-            
+
             time.sleep(2)
-        
+
         print(f"Vectorización completada para {len(chunks_transformados)} fragmentos.")
         return chunks_transformados
 
@@ -89,6 +88,6 @@ if __name__ == "__main__":
         print("Contenido del primer chunk:")
         print(chunks_finales[0]["contenido"])
         print("\nDimensiones del vector generado:")
-        print(len(chunks_finales[0]["embedding"])) 
+        print(len(chunks_finales[0]["embedding"]))
         print("\nPrimeros 5 números del vector:")
         print(chunks_finales[0]["embedding"][:5])

@@ -1,6 +1,6 @@
-# Buscador de los fragmentos más relevante
 import os
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from dotenv import load_dotenv
 from supabase import Client, create_client
 
@@ -12,33 +12,32 @@ class SyllabusRetriever:
         supabase_key = os.getenv("SUPABASE_ANON_KEY")
         if not supabase_url or not supabase_key:
             print("No se encontraron las credenciales de usuario para supabase. ")
-        
+
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             print("No se encontró la API KEY de Gemini. ")
-        
-        genai.configure(api_key=api_key)
 
+        self.client = genai.Client(api_key=api_key)
         self.supabase: Client = create_client(supabase_url, supabase_key)
         self.expected_dimensions = expected_dimensions
         self.model_name = model_name
-    
+
     def vectorizar_pregunta(self, pregunta: str) -> list:
         print("Vectorizando el query ... ")
 
         try:
-            respuesta = genai.embed_content(
+            result = self.client.models.embed_content(
                 model=self.model_name,
-                content=pregunta,
-                task_type="RETRIEVAL_QUERY"
+                contents=pregunta,
+                config=types.EmbedContentConfig(task_type="RETRIEVAL_QUERY")
             )
 
-            vector = respuesta["embedding"]
+            vector = result.embeddings[0].values
             return vector[:self.expected_dimensions]
         except Exception as e:
             print(f"Error al vectorizar la pregunta: {e}")
             return []
-    
+
     def buscar_contexto(self, pregunta: str, limit: int = 5, umbral_similitud: float = 0.5, curso_id: int = None) -> list:
         pregunta_vectorizada = self.vectorizar_pregunta(pregunta)
 
@@ -62,7 +61,7 @@ class SyllabusRetriever:
 
             if not resultados:
                 print("No se encontró información suficientemente relevante. ")
-            
+
             print(f"Se encontraron {len(resultados)} fragmentos de contexto.")
             return resultados
 
@@ -71,13 +70,6 @@ class SyllabusRetriever:
             return []
 
     def buscar_contexto_por_nombre(self, pregunta: str, curso_nombre: str = None, limit: int = 5, umbral_similitud: float = 0.5) -> list:
-        """Busca fragmentos relevantes filtrando por el NOMBRE del curso.
-
-        A diferencia de buscar_contexto (que filtra por curso_id), esto permite que
-        un mismo material ingestado bajo un único curso_id sea recuperado para todas
-        las versiones del curso que compartan el mismo nombre (ej. las variantes por
-        carrera _SIS / _SOFT / _IND de "Geometría Analítica").
-        """
         pregunta_vectorizada = self.vectorizar_pregunta(pregunta)
 
         if not pregunta_vectorizada:
@@ -121,4 +113,3 @@ if __name__ == "__main__":
             similitud = round(frag.get('similarity', 0) * 100, 2)
             print(f"\n[{i+1}] Similitud: {similitud}% | Curso ID: {frag.get('curso_id')}")
             print(f"Contenido: {frag.get('contenido')[:200]}...")
-

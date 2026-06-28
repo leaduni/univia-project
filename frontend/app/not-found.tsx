@@ -1,3 +1,5 @@
+// Página global de recurso no existente
+
 "use client"
 
 import Link from "next/link"

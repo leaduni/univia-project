@@ -1,3 +1,4 @@
+// Signup page with multi-step registration form
 "use client"
 
 import { useState } from "react"

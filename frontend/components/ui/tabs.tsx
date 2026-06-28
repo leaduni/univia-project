@@ -1,3 +1,4 @@
+// UI primitive: tabbed navigation component
 'use client'
 
 import * as React from 'react'

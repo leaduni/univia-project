@@ -1,3 +1,4 @@
+// API service layer - Supabase calls for auth, malla, stats
 
 import { supabase } from './supabase';
 

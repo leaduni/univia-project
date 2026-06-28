@@ -1,3 +1,4 @@
+// Onboarding step - select completed courses
 "use client"
 
 import { useState } from "react"

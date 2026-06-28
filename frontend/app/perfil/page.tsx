@@ -1,3 +1,4 @@
+// User profile page with academic info and settings
 "use client"
 
 import { DashboardLayout } from "@/components/dashboard-layout";

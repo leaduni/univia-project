@@ -1,3 +1,4 @@
+// Malla curricular course card with status and link
 "use client"
 
 import { cn } from "@/lib/utils"

@@ -1,3 +1,4 @@
+// Root layout with ThemeProvider, AuthProvider, League Spartan + Roboto fonts
 import type React from "react"
 import type { Metadata } from "next"
 import { League_Spartan, Roboto } from "next/font/google"

@@ -1,3 +1,4 @@
+// Dashboard section listing active semester courses
 "use client"
 import { BookOpen } from "lucide-react"
 import { CourseCard } from "./course-card"

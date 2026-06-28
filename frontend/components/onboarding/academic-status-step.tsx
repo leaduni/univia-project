@@ -1,3 +1,4 @@
+// Onboarding step - select current academic status
 "use client"
 
 import { useState, useMemo } from "react"

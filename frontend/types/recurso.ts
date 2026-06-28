@@ -1,3 +1,4 @@
+// Resource/exam-related TypeScript type definitions
 export interface Recurso {
   id: string
   title: string

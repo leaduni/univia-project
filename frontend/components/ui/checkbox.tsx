@@ -1,3 +1,4 @@
+// UI primitive: checkbox input component
 'use client'
 
 import * as React from 'react'

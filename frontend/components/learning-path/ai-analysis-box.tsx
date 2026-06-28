@@ -1,3 +1,4 @@
+// AI analysis insights - strengths, weaknesses, recommendations
 "use client"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"

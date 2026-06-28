@@ -1,3 +1,4 @@
+// Dynamic icon renderer for auth form fields
 import type { LucideIcon } from "lucide-react"
 
 /**

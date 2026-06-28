@@ -1,3 +1,4 @@
+// Dashboard page — main authenticated landing page
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Dashboard } from "@/components/dashboard"
 

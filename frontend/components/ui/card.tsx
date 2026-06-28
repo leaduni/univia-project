@@ -1,3 +1,4 @@
+// UI primitive: card with header, content, footer layout
 import * as React from 'react'
 
 import { cn } from '@/lib/utils'

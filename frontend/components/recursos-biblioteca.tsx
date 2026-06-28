@@ -1,3 +1,4 @@
+// Resource library with search, filters, and AI exam generation
 "use client"
 
 import { useState, useMemo, useEffect } from "react"

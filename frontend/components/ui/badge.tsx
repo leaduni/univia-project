@@ -1,3 +1,4 @@
+// UI primitive: badge with CVA variants including neon-outline
 import * as React from 'react'
 import { Slot } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'

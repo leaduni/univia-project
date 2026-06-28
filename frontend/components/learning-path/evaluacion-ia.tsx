@@ -1,3 +1,4 @@
+// AI-generated evaluation with config, code editor, and results
 "use client"
 
 import { useState } from "react"

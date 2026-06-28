@@ -1,3 +1,4 @@
+// Malla curricular alternative view
 "use client"
 
 import { useState } from "react"

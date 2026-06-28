@@ -1,3 +1,4 @@
+// Dashboard statistics cards with unique icon colors per metric
 "use client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BookOpen, TrendingUp, Award, Clock, Calendar } from "lucide-react"

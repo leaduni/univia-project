@@ -1,3 +1,4 @@
+// Multi-step onboarding wizard for new users
 "use client"
 
 import { useState, useEffect } from "react"

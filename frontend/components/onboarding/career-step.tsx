@@ -1,3 +1,4 @@
+// Onboarding step - select career/major
 "use client"
 
 import { useState } from "react"

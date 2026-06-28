@@ -1,3 +1,4 @@
+// Legend explaining course status colors and icons
 "use client"
 
 import { cn } from "@/lib/utils"

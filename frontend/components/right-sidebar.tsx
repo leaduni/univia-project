@@ -1,3 +1,4 @@
+// Dashboard right sidebar - achievements and quick actions
 "use client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Trophy } from "lucide-react"

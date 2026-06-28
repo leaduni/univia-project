@@ -1,3 +1,4 @@
+// Source of truth for course status colors, badges, icons
 export const COURSE_STATUS_MAP = {
   completed: {
     label: "Completado",

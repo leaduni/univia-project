@@ -1,3 +1,4 @@
+// Main dashboard with stats, courses, malla, AI recommendations
 "use client"
 
 import { useEffect, useRef, useState } from "react"

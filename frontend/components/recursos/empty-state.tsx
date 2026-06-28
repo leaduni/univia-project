@@ -1,3 +1,4 @@
+// Empty state for resource library with AI suggestion card
 "use client"
 
 import { Search, Sparkles } from "lucide-react"

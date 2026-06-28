@@ -1,3 +1,4 @@
+// Onboarding completion - success summary and CTA
 "use client"
 
 import { Button } from "@/components/ui/button"

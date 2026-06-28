@@ -1,3 +1,4 @@
+// AI recommendation card with neon glow styling
 "use client"
 import { Sparkles } from "lucide-react"
 

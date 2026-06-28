@@ -1,3 +1,4 @@
+// App sidebar navigation with collapsible menu
 "use client"
 import { LayoutDashboard, BookOpen, FileText, User, GraduationCap } from "lucide-react"
 import Link from "next/link"

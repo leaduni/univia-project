@@ -1,3 +1,4 @@
+// App logo component used in sidebar
 import Image from "next/image"
 
 export function Logo() {

@@ -1,3 +1,4 @@
+// Login page with feature showcase and credentials form
 "use client"
 
 import { Suspense, useState, useEffect } from "react"

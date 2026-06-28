@@ -114,7 +114,7 @@ export default function PerfilPage() {
 
             </CardContent>
           </Card>
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-900/20 dark:to-blue-900/10">
+          <Card className="bg-card border-border">
             <CardHeader>
               <CardTitle>Gestión Académica</CardTitle>
               <CardDescription>

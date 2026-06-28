@@ -152,29 +152,29 @@ export function Dashboard() {
   const displayName = user?.nombre_completo || "Estudiante"
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-indigo-100">
+    <div className="min-h-screen bg-background text-foreground font-sans">
       <div className="max-w-[1400px] mx-auto p-6 md:p-10">
         <div className="flex flex-col lg:flex-row gap-10">
           
           <main className="flex-1 space-y-10 min-w-0">
-            <header className="border-b border-slate-200 pb-8">
-              <nav className="flex items-center gap-2 text-xs font-medium text-slate-500 uppercase tracking-wider mb-4">
-                <span className="hover:text-indigo-600 cursor-pointer transition-colors">Portal</span>
+            <header className="border-b border-border pb-8">
+              <nav className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">
+                <span className="hover:text-primary cursor-pointer transition-colors">Portal</span>
                 <ChevronRight className="w-3 h-3" />
-                <span className="text-slate-900">Dashboard Académico</span>
+                <span className="text-foreground">Dashboard Académico</span>
               </nav>
               
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
-                  <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 mb-2">
-                    {saludo}, <span className="text-indigo-600">{displayName}</span>
+                  <h1 className="text-4xl font-extrabold tracking-tight text-foreground mb-2">
+                    {saludo}, <span className="text-primary">{displayName}</span>
                   </h1>
-                  <div className="flex items-center gap-4 text-slate-500">
+                  <div className="flex items-center gap-4 text-muted-foreground">
                     <div className="flex items-center gap-1.5">
                       <Calendar className="w-4 h-4" />
                       <span className="text-sm font-medium capitalize">{fechaFormateada}</span>
                     </div>
-                    <div className="hidden md:block w-1 h-1 rounded-full bg-slate-300" />
+                    <div className="hidden md:block w-1 h-1 rounded-full bg-border" />
                     <div className="flex items-center gap-1.5">
                       <GraduationCap className="w-4 h-4" />
                       <span className="text-sm font-medium">Expediente Universitario Activo</span>
@@ -185,7 +185,7 @@ export function Dashboard() {
                 <button 
                   onClick={loadDashboardData}
                   disabled={isLoading}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm disabled:opacity-50"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-lg text-sm font-semibold text-foreground hover:bg-muted hover:border-border/80 transition-all shadow-sm disabled:opacity-50"
                 >
                   <RefreshCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
                   Sincronizar Datos
@@ -194,7 +194,7 @@ export function Dashboard() {
             </header>
 
             {error && (
-              <div role="alert" className="flex items-start gap-3 p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 shadow-sm">
+              <div role="alert" className="flex items-start gap-3 p-4 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive shadow-sm">
                 <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
                   <p className="text-sm font-bold">Aviso del Sistema</p>
@@ -208,23 +208,23 @@ export function Dashboard() {
 
             <section aria-label="Estadísticas de rendimiento">
               <div className="flex items-center gap-2 mb-6">
-                <div className="p-2 bg-indigo-50 rounded-lg">
-                  <BookOpen className="w-5 h-5 text-indigo-600" />
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <BookOpen className="w-5 h-5 text-primary" />
                 </div>
-                <h2 className="text-xl font-bold text-slate-800 tracking-tight">Indicadores de Rendimiento</h2>
+                <h2 className="text-xl font-bold text-foreground tracking-tight">Indicadores de Rendimiento</h2>
               </div>
               <StatsCards stats={stats} isLoading={isLoading} />
             </section>
 
-            <section aria-label="Cursos actuales" className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <section aria-label="Cursos actuales" className="bg-card rounded-2xl border border-border p-6 shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
-                  <div className="p-2 bg-emerald-50 rounded-lg">
-                    <Clock className="w-5 h-5 text-emerald-600" />
+                  <div className="p-2 bg-secondary/10 rounded-lg">
+                    <Clock className="w-5 h-5 text-secondary" />
                   </div>
-                  <h2 className="text-xl font-bold text-slate-800 tracking-tight">Semestre en Curso</h2>
+                  <h2 className="text-xl font-bold text-foreground tracking-tight">Semestre en Curso</h2>
                 </div>
-                <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full uppercase tracking-wider">
+                <span className="px-3 py-1 bg-secondary/15 text-secondary text-xs font-bold rounded-full uppercase tracking-wider">
                   Activo
                 </span>
               </div>
@@ -233,15 +233,15 @@ export function Dashboard() {
 
             <section aria-label="Malla curricular" className="pt-4">
               <div className="mb-6">
-                <h2 className="text-xl font-bold text-slate-800 tracking-tight">Plan de Estudios</h2>
-                <p className="text-sm text-slate-500 mt-1">Seguimiento detallado de tu progreso curricular por ciclo.</p>
+                <h2 className="text-xl font-bold text-foreground tracking-tight">Plan de Estudios</h2>
+                <p className="text-sm text-muted-foreground mt-1">Seguimiento detallado de tu progreso curricular por ciclo.</p>
               </div>
-              <div className="bg-white rounded-2xl border border-slate-200 p-1 shadow-sm overflow-hidden">
+              <div className="bg-card rounded-2xl border border-border p-1 shadow-sm overflow-hidden">
                 <MallaCurricular malla={mallaData} isLoading={isLoading} />
               </div>
             </section>
 
-            <section aria-label="Recomendaciones" className="bg-indigo-900 rounded-2xl p-8 text-white shadow-xl shadow-indigo-100 relative overflow-hidden">
+            <section aria-label="Recomendaciones" className="bg-sidebar rounded-2xl p-8 text-sidebar-foreground shadow-xl shadow-primary/5 relative overflow-hidden">
               <div className="absolute top-0 right-0 p-8 opacity-10">
                 <GraduationCap className="w-32 h-32" />
               </div>
@@ -253,18 +253,10 @@ export function Dashboard() {
 
           <aside className="lg:w-80 flex-shrink-0 space-y-8">
             <div className="sticky top-10">
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                <div className="flex items-center gap-2 mb-6 border-b border-slate-100 pb-4">
-                  <Trophy className="w-5 h-5 text-amber-500" />
-                  <h3 className="text-lg font-bold text-slate-800">
-                    Logros Académicos
-                  </h3>
-                </div>
-                <RightSidebar achievements={logros} isLoading={isLoading} />
-              </div>
+              <RightSidebar achievements={logros} isLoading={isLoading} />
               
-              <div className="mt-6 p-4 bg-slate-100 rounded-xl border border-slate-200">
-                <p className="text-xs text-slate-500 leading-relaxed">
+              <div className="mt-6 p-4 bg-muted rounded-xl border border-border">
+                <p className="text-xs text-muted-foreground leading-relaxed">
                   Para consultas administrativas o soporte técnico, por favor contacte a la oficina de registros académicos.
                 </p>
               </div>

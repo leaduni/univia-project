@@ -312,8 +312,8 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
                     key={idx}
                     onClick={() => setSelectedModulo(modulo)}
                     className={`p-4 rounded-lg border-2 text-left transition-all ${selectedModulo?.title === modulo.title
-                        ? "border-purple-500 bg-purple-50 dark:bg-purple-950"
-                        : "border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700"
+                        ? "border-[var(--ai-neon-pink)] bg-[#a0218b]/10 ring-1 ring-[var(--ai-neon-pink)]/30"
+                        : "border-border hover:border-[var(--ai-neon-pink)]/50"
                       }`}
                   >
                     <h4 className="font-semibold text-sm mb-2">{modulo.title}</h4>
@@ -367,7 +367,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
             <Button
               onClick={generarEvaluacion}
               disabled={!selectedModulo || isLoading}
-              className="w-full gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+              className="w-full gap-2 gradient-ai-neon text-white border-0"
             >
               <Sparkles className="w-4 h-4" />
               Generar Evaluación con IA
@@ -408,7 +408,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
 
     return (
       <div className="space-y-6">
-        <Card className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950 dark:to-blue-950 border-purple-200 dark:border-purple-800">
+        <Card className="ai-card-neon">
           <CardContent className="pt-6">
             <div className="flex items-start justify-between">
               <div>
@@ -514,13 +514,13 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
                                   <Label className="text-sm font-semibold text-purple-600 dark:text-purple-400">Caso de Ejemplo</Label>
                                   <div className="p-4 font-mono text-sm bg-slate-900 text-slate-300 rounded-md border border-slate-800">
                                     <div className="mb-4">
-                                      <p className="text-slate-400 text-xs uppercase tracking-wider mb-2 font-semibold">Entrada de Prueba</p>
+                                      <p className="text-slate-300 text-xs uppercase tracking-wider mb-2 font-semibold">Entrada de Prueba</p>
                                       <div className="p-3 bg-black/50 rounded border border-slate-800/50 overflow-x-auto">
                                         <code className="text-cyan-400 whitespace-pre">{casoDeEjemplo.input}</code>
                                       </div>
                                     </div>
                                     <div>
-                                      <p className="text-slate-400 text-xs uppercase tracking-wider mb-2 font-semibold">Salida Esperada</p>
+                                      <p className="text-slate-300 text-xs uppercase tracking-wider mb-2 font-semibold">Salida Esperada</p>
                                       <div className="p-3 bg-black/50 rounded border border-slate-800/50 overflow-x-auto">
                                         <code className="text-green-400 whitespace-pre">{casoDeEjemplo.output}</code>
                                       </div>
@@ -557,7 +557,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
                               
                               {executionResult && (
                                 <div className="w-full p-4 bg-slate-950 border border-slate-800 rounded-md shadow-inner">
-                                  <p className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Consola de Salida</p>
+                                  <p className="text-xs font-semibold text-slate-300 mb-2 uppercase tracking-wider">Consola de Salida</p>
                                   <pre className="font-mono text-sm whitespace-pre-wrap overflow-x-auto">
                                     {executionResult.error ? (
                                       <code className="text-red-400">{executionResult.error}</code>
@@ -611,7 +611,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
           <Button
             onClick={enviarEvaluacion}
             disabled={!todasRespondidas || isLoading}
-            className="flex-1 gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+            className="flex-1 gap-2 gradient-ai-neon text-white border-0"
           >
             <PlayCircle className="w-4 h-4" />
             {isLoading ? "Evaluando..." : "Enviar Evaluación"}
@@ -656,7 +656,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
     return (
       <div className="space-y-6">
         {/* Resultado General */}
-        <Card className={`${aprobado ? "bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950 dark:to-green-950" : "bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950 dark:to-orange-950"}`}>
+        <Card className={`${aprobado ? "gradient-result-pass" : "gradient-result-fail"}`}>
           <CardContent className="pt-6">
             <div className="text-center space-y-4">
               {aprobado ? (

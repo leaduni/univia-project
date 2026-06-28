@@ -40,7 +40,7 @@ export function LearningTimeline({ courseId, timeline }: { courseId: string; tim
       {/* Timeline Container */}
       <div className="relative">
         {/* Vertical Line */}
-        <div className="absolute left-6 top-12 bottom-0 w-0.5 bg-gradient-to-b from-blue-400 via-cyan-400 to-gray-300" />
+        <div className="absolute left-6 top-12 bottom-0 w-0.5 gradient-timeline" />
 
         {/* Steps */}
         <div className="space-y-6">
@@ -48,15 +48,15 @@ export function LearningTimeline({ courseId, timeline }: { courseId: string; tim
             <div key={step.id} className="relative pl-20">
               {/* Timeline Circle */}
               <div className="absolute left-0 top-2 w-12 h-12 flex items-center justify-center">
-                <div
-                  className={`w-12 h-12 rounded-full flex items-center justify-center border-4 bg-background transition-all ${step.status === "completed"
-                    ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600"
-                    : step.status === "current"
-                      ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 ring-4 ring-blue-200 dark:ring-blue-800"
-                      : step.status === "upcoming"
-                        ? "border-gray-300 bg-gray-50 dark:bg-gray-950/30 text-gray-400"
-                        : "border-gray-300 bg-gray-100 dark:bg-gray-900 text-gray-400"
-                    }`}
+                  <div
+                    className={`w-12 h-12 rounded-full flex items-center justify-center border-4 bg-background transition-all ${step.status === "completed"
+                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-400"
+                      : step.status === "current"
+                        ? "border-primary bg-primary/10 text-primary ring-4 ring-primary/30"
+                        : step.status === "upcoming"
+                          ? "border-muted-foreground/30 bg-muted text-muted-foreground"
+                          : "border-muted-foreground/20 bg-muted/50 text-muted-foreground/60"
+                      }`}
                 >
                   {step.status === "completed" ? (
                     <CheckCircle2 className="w-6 h-6" />
@@ -70,11 +70,11 @@ export function LearningTimeline({ courseId, timeline }: { courseId: string; tim
 
               {/* Card */}
               <Card
-                className={`transition-all ${step.status === "current"
-                  ? "border-blue-400 bg-blue-50/50 dark:border-blue-700 dark:bg-blue-950/20 ring-1 ring-blue-200 dark:ring-blue-800"
+                className={`bg-card transition-all ${step.status === "current"
+                  ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
                   : step.status === "locked"
                     ? "opacity-60 cursor-not-allowed"
-                    : ""
+                    : "border-border"
                   }`}
               >
                 <CardHeader>
@@ -88,10 +88,10 @@ export function LearningTimeline({ courseId, timeline }: { courseId: string; tim
                         step.status === "completed" ? "default" : step.status === "current" ? "secondary" : "outline"
                       }
                       className={`whitespace-nowrap ${step.status === "completed" &&
-                        "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
+                        "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
                         }
                       ${step.status === "current" &&
-                        "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 animate-pulse"
+                        "bg-primary/15 text-primary border-primary/30 ring-1 ring-primary/30"
                         }`}
                     >
                       {step.status === "completed"
@@ -132,10 +132,10 @@ export function LearningTimeline({ courseId, timeline }: { courseId: string; tim
                             disabled={step.status === "locked"}
                             className="w-full flex items-center gap-3 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-left group"
                           >
-                            {resource.type === "video" && <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />}
-                            {resource.type === "code" && <Code className="w-4 h-4 text-cyan-500 flex-shrink-0" />}
+                            {resource.type === "video" && <FileText className="w-4 h-4 text-primary flex-shrink-0" />}
+                            {resource.type === "code" && <Code className="w-4 h-4 text-secondary flex-shrink-0" />}
                             {resource.type === "document" && (
-                              <BookOpen className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                              <BookOpen className="w-4 h-4 text-destructive flex-shrink-0" />
                             )}
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-foreground group-hover:text-accent transition-colors">
@@ -154,7 +154,7 @@ export function LearningTimeline({ courseId, timeline }: { courseId: string; tim
                   {/* Action Buttons */}
                   <div className="pt-2 flex gap-2">
                     {step.status !== "locked" && (
-                      <Button variant="default" size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                      <Button variant="default" size="sm" className="gradient-brand-hover text-white border-0">
                         {step.status === "completed" ? "Revisar" : step.status === "current" ? "Continuar" : "Comenzar"}
                       </Button>
                     )}

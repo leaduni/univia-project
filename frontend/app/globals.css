@@ -1,47 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
-
 :root {
-  /* Identidad visual LEAD UNI — navy / magenta / rojo / violeta / lila */
-  --background: oklch(0.985 0.006 295.3);
-  --foreground: oklch(0.16 0.03 266.1);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.16 0.03 266.1);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.16 0.03 266.1);
-  --primary: oklch(0.578 0.219 287.6);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.518 0.208 331.3);
-  --secondary-foreground: oklch(0.98 0 0);
-  --muted: oklch(0.96 0.012 295.3);
-  --muted-foreground: oklch(0.5 0.02 266.1);
-  --accent: oklch(0.94 0.03 287.6);
-  --accent-foreground: oklch(0.16 0.03 266.1);
-  --destructive: oklch(0.55 0.19 22.3);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.88 0.025 295.3);
-  --input: oklch(0.95 0.015 295.3);
-  --ring: oklch(0.578 0.219 287.6);
-  --chart-1: oklch(0.195 0.098 266.1);
-  --chart-2: oklch(0.584 0.201 22.3);
-  --chart-3: oklch(0.534 0.184 11.5);
-  --chart-4: oklch(0.518 0.208 331.3);
-  --chart-5: oklch(0.578 0.219 287.6);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.195 0.098 266.1);
-  --sidebar-foreground: oklch(0.96 0.01 266.1);
-  --sidebar-primary: oklch(0.578 0.219 287.6);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.28 0.07 266.1);
-  --sidebar-accent-foreground: oklch(0.96 0.01 266.1);
-  --sidebar-border: oklch(0.3 0.06 266.1);
-  --sidebar-ring: oklch(0.578 0.219 287.6);
-  --ai-glow: oklch(0.578 0.219 287.6);
-}
-
-.dark {
   --background: oklch(0.12 0.03 266.1);
   --foreground: oklch(0.96 0.008 266.1);
   --card: oklch(0.21 0.045 266.1);
@@ -66,6 +26,7 @@
   --chart-3: oklch(0.62 0.17 11.5);
   --chart-4: oklch(0.62 0.18 331.3);
   --chart-5: oklch(0.62 0.15 287.6);
+  --radius: 0.625rem;
   --sidebar: oklch(0.195 0.098 266.1);
   --sidebar-foreground: oklch(0.96 0.01 266.1);
   --sidebar-primary: oklch(0.578 0.219 287.6);
@@ -75,13 +36,17 @@
   --sidebar-border: oklch(0.3 0.06 266.1);
   --sidebar-ring: oklch(0.578 0.219 287.6);
   --ai-glow: oklch(0.578 0.219 287.6);
+  --ai-neon-pink: #ff86ff;
+  --ai-neon-magenta: #a0218b;
+  --ai-neon-red: #cb2b46;
+  --ai-neon-glow: oklch(0.65 0.3 330);
 }
 
 @theme inline {
-  --font-sans: "Open Sans", "Montserrat", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "MediaPro Heavy Condensed", "Anton", ui-sans-serif, sans-serif;
-  --font-wordmark: "Poppins", ui-sans-serif, sans-serif;
-  --font-mono: "Geist Mono", "Geist Mono Fallback";
+  --font-sans: var(--font-roboto), "Roboto", ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-heading), "League Spartan", ui-sans-serif, sans-serif;
+  --font-heading: "League Spartan", ui-sans-serif, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -160,12 +125,12 @@
 
   .progress-bar-modern-fill {
     @apply h-full rounded-full transition-all duration-500;
-    background-image: linear-gradient(90deg, var(--destructive), var(--primary));
+    background-image: linear-gradient(90deg, var(--secondary), var(--primary));
   }
 
   /* Wordmark "LEAD UNI" y nav clave: Poppins mayúscula/negrita */
   .brand-wordmark {
-    @apply font-wordmark uppercase font-bold tracking-wide;
+    @apply font-heading uppercase font-bold tracking-wide;
   }
 }
 
@@ -174,8 +139,126 @@
 .auth-input:-webkit-autofill:hover,
 .auth-input:-webkit-autofill:focus,
 .auth-input:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0px 1000px #0a1456 inset !important;
-  -webkit-text-fill-color: #e2e8f0 !important;
-  caret-color: #e2e8f0;
+  -webkit-box-shadow: 0 0 0px 1000px var(--sidebar) inset !important;
+  -webkit-text-fill-color: var(--sidebar-foreground) !important;
+  caret-color: var(--sidebar-foreground);
   transition: background-color 5000s ease-in-out 0s;
+}
+
+/* === GRADIENT UTILITY CLASSES (marca LEAD UNI) === */
+.gradient-brand {
+  background-image: linear-gradient(to right, var(--destructive), var(--secondary), var(--primary));
+}
+
+.gradient-brand-hover {
+  background-image: linear-gradient(to right, var(--destructive), var(--secondary), var(--primary));
+}
+
+.gradient-brand-hover:hover {
+  background-image: linear-gradient(to right,
+    color-mix(in srgb, var(--destructive) 85%, black),
+    color-mix(in srgb, var(--secondary) 85%, black),
+    color-mix(in srgb, var(--primary) 85%, black));
+}
+
+.gradient-brand-br {
+  background-image: linear-gradient(to bottom right, var(--destructive), var(--secondary), var(--primary));
+}
+
+.gradient-brand-br-hover {
+  background-image: linear-gradient(to bottom right, var(--destructive), var(--secondary), var(--primary));
+}
+
+.gradient-brand-br-hover:hover {
+  background-image: linear-gradient(to bottom right,
+    color-mix(in srgb, var(--destructive) 85%, black),
+    color-mix(in srgb, var(--secondary) 85%, black),
+    color-mix(in srgb, var(--primary) 85%, black));
+}
+
+.gradient-timeline {
+  background-image: linear-gradient(to bottom, var(--destructive), var(--secondary), var(--primary));
+  opacity: 0.5;
+}
+
+.gradient-purple {
+  background-image: linear-gradient(to right, var(--secondary), var(--primary));
+}
+
+.gradient-purple:hover {
+  background-image: linear-gradient(to right,
+    color-mix(in srgb, var(--secondary) 85%, black),
+    color-mix(in srgb, var(--primary) 85%, black));
+}
+
+.gradient-sidebar-icon {
+  background-image: linear-gradient(to bottom right, var(--destructive), var(--secondary), var(--primary));
+}
+
+.gradient-icon {
+  background-image: linear-gradient(to bottom right, var(--secondary), var(--primary));
+}
+
+.gradient-card-ai {
+  background-image: linear-gradient(to right, color-mix(in srgb, var(--primary) 10%, transparent), color-mix(in srgb, var(--secondary) 10%, transparent));
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+
+.gradient-empty-icon {
+  background-image: linear-gradient(to right, color-mix(in srgb, var(--primary) 15%, transparent), color-mix(in srgb, var(--secondary) 15%, transparent));
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+
+.gradient-login {
+  background-image: linear-gradient(to bottom right, var(--destructive), var(--secondary), var(--primary));
+}
+
+.gradient-login-btn {
+  background-image: linear-gradient(to right, var(--destructive), var(--secondary), var(--primary));
+}
+
+.gradient-login-btn:hover {
+  background-image: linear-gradient(to right,
+    color-mix(in srgb, var(--destructive) 85%, black),
+    color-mix(in srgb, var(--secondary) 85%, black),
+    color-mix(in srgb, var(--primary) 85%, black));
+}
+
+.gradient-result-pass {
+  background-image: linear-gradient(to right, color-mix(in srgb, oklch(0.65 0.19 160) 10%, transparent), color-mix(in srgb, oklch(0.5 0.19 160) 10%, transparent));
+  border-color: color-mix(in srgb, oklch(0.65 0.19 160) 30%, transparent);
+}
+
+.gradient-result-fail {
+  background-image: linear-gradient(to right, color-mix(in srgb, var(--destructive) 10%, transparent), color-mix(in srgb, oklch(0.55 0.19 50) 10%, transparent));
+  border-color: color-mix(in srgb, var(--destructive) 30%, transparent);
+}
+
+/* === NEON AI UTILITY CLASSES === */
+.gradient-ai-neon {
+  background-image: linear-gradient(135deg, #cb2b46, #a0218b, #ff86ff);
+}
+
+.gradient-ai-neon-hover {
+  background-image: linear-gradient(135deg, #cb2b46, #a0218b, #ff86ff);
+}
+
+.gradient-ai-neon-hover:hover {
+  background-image: linear-gradient(135deg,
+    color-mix(in srgb, #cb2b46 85%, black),
+    color-mix(in srgb, #a0218b 85%, black),
+    color-mix(in srgb, #ff86ff 85%, black));
+}
+
+.ai-neon-glow {
+  box-shadow: 0 0 20px color-mix(in srgb, var(--ai-neon-pink) 30%, transparent);
+}
+
+.ai-card-neon {
+  background-image: linear-gradient(to right, color-mix(in srgb, #a0218b 15%, transparent), color-mix(in srgb, #ff86ff 8%, transparent));
+  border-color: color-mix(in srgb, #a0218b 40%, transparent);
+}
+
+.gradient-ai-neon-br {
+  background-image: linear-gradient(to bottom right, #cb2b46, #a0218b, #ff86ff);
 }

@@ -1,5 +1,5 @@
 "use client"
-import { LayoutDashboard, BookOpen, FileText, User } from "lucide-react"
+import { LayoutDashboard, BookOpen, FileText, User, GraduationCap } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -18,11 +18,13 @@ export function Sidebar({ open }: SidebarProps) {
 
   const menuItems = [
     { icon: LayoutDashboard, label: "Dashboard", id: "Dashboard", href: "/" },
+    { icon: GraduationCap, label: "Mi Malla", id: "Malla", href: "/malla" },
+    { icon: FileText, label: "Recursos", id: "Recursos", href: "/recursos" },
     { icon: User, label: "Perfil", id: "Perfil", href: "/perfil" },
   ]
 
   const getActiveItem = () => {
-    const item = menuItems.find((m) => m.href === pathname)
+    const item = menuItems.find((m) => pathname === m.href || (m.href !== "/" && pathname.startsWith(m.href)))
     return item?.id || "Dashboard"
   }
 

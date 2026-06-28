@@ -1,11 +1,19 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { League_Spartan, Roboto } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 
-const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
+const leagueSpartan = League_Spartan({
+  subsets: ["latin"],
+  variable: "--font-heading",
+})
+
+const roboto = Roboto({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  variable: "--font-roboto",
+})
 
 export const metadata: Metadata = {
   title: "UniVia - Academic Orientation Dashboard",
@@ -20,6 +28,7 @@ export const metadata: Metadata = {
 }
 
 import { AuthProvider } from "@/components/providers/auth-context"
+import { ThemeProvider } from "@/components/theme-provider"
 
 export default function RootLayout({
   children,
@@ -27,11 +36,13 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="es">
-      <body className={`font-sans antialiased text-foreground bg-background`}>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+    <html lang="es" suppressHydrationWarning>
+      <body className={`${roboto.variable} ${leagueSpartan.variable} font-sans antialiased text-foreground bg-background`}>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </ThemeProvider>
         <Analytics />
       </body>
     </html>

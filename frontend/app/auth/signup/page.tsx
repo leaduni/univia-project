@@ -107,7 +107,7 @@ export default function SignupPage() {
               </div>
             </div>
           </div>
-          <h1 className="text-4xl font-display font-black text-slate-900 mb-3">¡Cuenta Creada!</h1>
+          <h1 className="text-4xl font-heading font-black text-slate-900 mb-3">¡Cuenta Creada!</h1>
           <p className="text-slate-600 mb-8 leading-relaxed text-lg">
             Bienvenido a la comunidad de <span className="font-black text-[#030c40]">LEAD UNI</span>. Tu expediente académico está listo.
           </p>
@@ -142,7 +142,7 @@ export default function SignupPage() {
           </div>
 
           <div className="max-w-xl mt-20 space-y-8">
-            <h1 className="text-6xl font-display font-black tracking-tight leading-[1.05] text-white animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
+            <h1 className="text-6xl font-heading font-black tracking-tight leading-[1.05] text-white animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
               Únete a la <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#d93340] via-[#a6249d] to-[#7957f1]">
                 Revolución Académica
@@ -168,7 +168,7 @@ export default function SignupPage() {
                   </div>
                   <div>
                     <h3 className="text-white font-bold text-lg">{feature.title}</h3>
-                    <p className="text-slate-400 text-sm leading-snug">{feature.desc}</p>
+                    <p className="text-slate-300 text-sm leading-snug">{feature.desc}</p>
                   </div>
                 </div>
               ))}
@@ -176,7 +176,7 @@ export default function SignupPage() {
           </div>
         </div>
 
-        <div className="relative z-10 text-slate-500 text-xs font-bold uppercase tracking-widest">
+        <div className="relative z-10 text-slate-400 text-xs font-bold uppercase tracking-widest">
           © 2026 LEAD UNI — Plataforma de Gestión Académica Superior
         </div>
       </div>
@@ -189,7 +189,7 @@ export default function SignupPage() {
               <Sparkles className="w-3 h-3" />
               Crear Cuenta
             </div>
-            <h2 className="text-4xl font-display font-black text-slate-900 mb-2">Regístrate</h2>
+            <h2 className="text-4xl font-heading font-black text-slate-900 mb-2">Regístrate</h2>
             <p className="text-slate-500 font-medium">Completa tus datos para acceder a UniVia y transformar tu experiencia académica.</p>
           </div>
 

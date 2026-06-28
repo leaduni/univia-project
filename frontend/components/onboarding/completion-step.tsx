@@ -65,7 +65,7 @@ export function CompletionStep({ data, onBack, onComplete, isSubmitting = false 
       {/* Success Icon with Glow */}
       <div className="flex justify-center">
         <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-accent to-cyan-400 rounded-full blur-2xl animate-pulse" />
+          <div className="absolute inset-0 gradient-brand rounded-full blur-2xl animate-pulse" />
           <div className="relative bg-accent/10 border-2 border-accent rounded-full p-8">
             <CheckCircle className="w-16 h-16 text-accent" />
           </div>
@@ -129,7 +129,7 @@ export function CompletionStep({ data, onBack, onComplete, isSubmitting = false 
           onClick={onComplete}
           disabled={isSubmitting}
           size="lg"
-          className="gap-2 px-8 bg-gradient-to-r from-accent to-cyan-400 hover:from-accent/90 hover:to-cyan-400/90"
+          className="gap-2 px-8 gradient-brand-hover text-white border-0"
         >
           {isSubmitting ? "Guardando..." : "Comenzar mi Ruta"} <Sparkles className="w-4 h-4" />
         </Button>

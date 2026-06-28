@@ -1,4 +1,5 @@
 "use client"
+import { BookOpen } from "lucide-react"
 import { CourseCard } from "./course-card"
 
 interface CurrentCoursesSectionProps {
@@ -28,14 +29,18 @@ export function CurrentCoursesSection({ courses, isLoading }: CurrentCoursesSect
               title={course.name}
               professor="Asignado"
               status={course.status}
-              progress={course.progress}
+              progress={course.progreso}
               currentTopic="Contenido del curso"
               nextClass="Horario programado"
             />
           ))
         ) : (
-          <div className="p-8 text-center bg-card rounded-xl border border-border">
-            <p className="text-muted-foreground">No tienes cursos activos en este momento.</p>
+          <div className="p-10 text-center bg-card rounded-xl border border-dashed border-primary/20">
+            <div className="p-3 rounded-lg gradient-brand-br inline-flex mb-4">
+              <BookOpen className="w-6 h-6 text-white" />
+            </div>
+            <p className="text-muted-foreground font-medium">No tienes cursos activos en este momento.</p>
+            <p className="text-xs text-muted-foreground/70 mt-2">Los cursos aparecerán aquí cuando te inscribas.</p>
           </div>
         )}
       </div>

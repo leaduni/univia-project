@@ -1,7 +1,8 @@
 "use client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Trophy } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Trophy, Zap, BookOpen, Award, Star, Medal } from "lucide-react"
+import { Zap, BookOpen, Award, Star, Medal } from "lucide-react"
 import { ACHIEVEMENTS } from "@/lib/mockData"
 
 interface RightSidebarProps {
@@ -10,25 +11,26 @@ interface RightSidebarProps {
 }
 
 export function RightSidebar({ achievements = [], isLoading = false }: RightSidebarProps) {
-  // Mapping of achievement icons
-  const getIcon = (icon: string) => {
-    switch (icon) {
-      case '🏆': return Trophy;
-      case '⚡': return Zap;
-      case '⭐': return Star;
-      case '🎓': return BookOpen;
-      case '🎖️': return Medal;
-      case '✨': return Award;
-      default: return Award;
-    }
+  const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+    trophy: Trophy,
+    zap: Zap,
+    star: Star,
+    graduation: BookOpen,
+    medal: Medal,
+    sparkles: Award,
   }
+
+  const getIcon = (iconName: string) => ICON_MAP[iconName?.toLowerCase()] || Award
 
   return (
     <div className="space-y-6">
       {/* Logros Card */}
-      <Card className="bg-card border-border sticky top-32">
+      <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Logros</CardTitle>
+          <div className="flex items-center gap-2 mb-1">
+            <Trophy className="w-5 h-5 text-accent" />
+            <CardTitle className="text-lg">Logros Académicos</CardTitle>
+          </div>
           <CardDescription>Tus insignias académicas</CardDescription>
         </CardHeader>
         <CardContent>
@@ -77,7 +79,7 @@ export function RightSidebar({ achievements = [], isLoading = false }: RightSide
             <BookOpen className="w-4 h-4 mr-2" />
             Ver Malla Curricular
           </Button>
-          <Button className="w-full justify-start bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white border-0">
+          <Button className="w-full justify-start gradient-brand-hover text-white border-0">
             <Zap className="w-4 h-4 mr-2" />
             Nueva Evaluación
           </Button>

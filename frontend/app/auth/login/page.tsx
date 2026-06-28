@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { Suspense, useState, useEffect } from "react"
 import Link from "next/link"
 import { 
   ShieldCheck, 
@@ -41,6 +41,14 @@ interface LoginPayload {
 }
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="h-screen bg-background flex items-center justify-center"><p className="text-foreground">Cargando...</p></div>}>
+      <LoginPageContent />
+    </Suspense>
+  )
+}
+
+function LoginPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
@@ -114,7 +122,7 @@ export default function LoginPage() {
         {/* Contenido central — siempre centrado sin importar el zoom */}
         <div className="relative z-10 flex-1 flex flex-col justify-center pb-10">
           <div className="w-full max-w-md mx-auto space-y-4">
-            <h1 className="text-4xl font-display font-black tracking-tight leading-[1.05] text-white animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
+            <h1 className="text-4xl font-heading font-black tracking-tight leading-[1.05] text-white animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
               Tu futuro <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#d93340] via-[#a6249d] to-[#7957f1]">
                 comienza aquí.
@@ -140,7 +148,7 @@ export default function LoginPage() {
                   </div>
                   <div className="flex flex-col gap-1">
                     <h3 className="text-white font-bold text-base">{feature.title}</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">{feature.desc}</p>
+                    <p className="text-slate-300 text-sm leading-relaxed">{feature.desc}</p>
                   </div>
                 </div>
               ))}
@@ -149,7 +157,7 @@ export default function LoginPage() {
         </div>
 
         {/* Footer — siempre abajo */}
-        <div className="relative z-10 flex items-center justify-between text-slate-500 text-xs font-bold uppercase tracking-widest shrink-0">
+        <div className="relative z-10 flex items-center justify-between text-slate-400 text-xs font-bold uppercase tracking-widest shrink-0">
           <span>© 2026 LEAD UNI</span>
           <div className="flex gap-6">
             <span className="hover:text-white transition-colors cursor-pointer">Privacidad</span>
@@ -178,8 +186,8 @@ export default function LoginPage() {
           {/* Header centrado */}
           <div className="text-center mb-8">
             <p className="text-[#a78bfa] text-xs font-bold uppercase tracking-widest mb-3">Portal Universitario</p>
-            <h2 className="text-3xl font-display font-black text-white mb-2">Bienvenido</h2>
-            <p className="text-slate-400 text-sm leading-relaxed">
+            <h2 className="text-3xl font-heading font-black text-white mb-2">Bienvenido</h2>
+            <p className="text-slate-300 text-sm leading-relaxed">
               Ingresa tus credenciales académicas para continuar.
             </p>
           </div>
@@ -194,12 +202,12 @@ export default function LoginPage() {
                 name="codigoUni"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
+                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block">
                       Código Universitario
                     </FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <IdCard className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                        <IdCard className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" />
                         <Input
                           placeholder="Ej. 20241000"
                           className="auth-input h-12 pl-10 w-full bg-white/5 border border-white/10 text-white placeholder:text-slate-600 rounded-xl focus-visible:ring-1 focus-visible:ring-[#7957f1] focus-visible:border-[#7957f1] transition-colors font-medium text-sm"
@@ -217,16 +225,16 @@ export default function LoginPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
+                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block">
                       Correo Institucional
                     </FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                        <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" />
                         <Input
                           type="email"
                           placeholder="nombre@uni.pe"
-                          className="auth-input h-12 pl-10 w-full bg-white/5 border border-white/10 text-white placeholder:text-slate-600 rounded-xl focus-visible:ring-1 focus-visible:ring-[#7957f1] focus-visible:border-[#7957f1] transition-colors font-medium text-sm"
+                          className="auth-input h-12 pl-10 w-full bg-white/5 border border-white/10 text-white placeholder:text-slate-400 rounded-xl focus-visible:ring-1 focus-visible:ring-[#7957f1] focus-visible:border-[#7957f1] transition-colors font-medium text-sm"
                           {...field}
                         />
                       </div>
@@ -242,7 +250,7 @@ export default function LoginPage() {
                 render={({ field }) => (
                   <FormItem>
                     <div className="flex justify-between items-center">
-                      <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                      <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-slate-300">
                         Contraseña
                       </FormLabel>
                       <Link
@@ -256,7 +264,7 @@ export default function LoginPage() {
                       <PasswordField
                         field={field}
                         placeholder="••••••••"
-                        className="h-12 w-full bg-white/5 border border-white/10 text-white placeholder:text-slate-600 rounded-xl focus-visible:ring-1 focus-visible:ring-[#7957f1] focus-visible:border-[#7957f1] transition-colors auth-input"
+                        className="h-12 w-full bg-white/5 border border-white/10 text-white placeholder:text-slate-400 rounded-xl focus-visible:ring-1 focus-visible:ring-[#7957f1] focus-visible:border-[#7957f1] transition-colors auth-input"
                       />
                     </FormControl>
                     <FormMessage className="text-xs text-red-400" />
@@ -282,7 +290,7 @@ export default function LoginPage() {
           </Form>
 
           <div className="mt-8 text-center">
-            <p className="text-slate-500 text-sm">
+            <p className="text-slate-300 text-sm">
               ¿No tienes cuenta?{" "}
               <Link
                 href="/auth/signup"

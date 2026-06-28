@@ -19,9 +19,9 @@ export function RecursosEmptyState() {
           <p className="text-sm text-muted-foreground mb-6">Intenta ajustar tus filtros o busca con otros términos</p>
 
           {/* AI Suggestion */}
-          <div className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/20 rounded-lg p-4 mb-4">
+          <div className="gradient-empty-icon rounded-lg p-4 mb-4">
             <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500">
+              <div className="p-2 rounded-lg gradient-brand-br">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
               <div className="text-left">
@@ -34,7 +34,7 @@ export function RecursosEmptyState() {
             </div>
           </div>
 
-          <Button className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white gap-2">
+          <Button className="w-full gradient-brand-hover text-white gap-2 border-0">
             <Sparkles className="w-4 h-4" />
             Generar Examen con IA
           </Button>

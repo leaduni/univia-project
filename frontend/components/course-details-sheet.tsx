@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Badge } from "@/components/ui/badge"
 import type { Course } from "@/types/course"
-import { CheckCircle2, AlertCircle, Lock, BookMarked } from "lucide-react"
+import { CheckCircle2, PlayCircle, Circle, Lock, BookMarked } from "lucide-react"
 import Link from "next/link"
+import { COURSE_STATUS_MAP } from "@/lib/course-status"
 
 interface CourseDetailsSheetProps {
   course: Course | null
@@ -15,49 +16,30 @@ interface CourseDetailsSheetProps {
 export function CourseDetailsSheet({ course, isOpen, onOpenChange }: CourseDetailsSheetProps) {
   if (!course) return null
 
-  const statusConfig = {
-    completed: {
-      icon: CheckCircle2,
-      label: "Completado",
-      color: "text-emerald-600 dark:text-emerald-400",
-      bgColor: "bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200",
-    },
-    in_progress: {
-      icon: AlertCircle,
-      label: "En Progreso",
-      color: "text-blue-600 dark:text-blue-400",
-      bgColor: "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200",
-    },
-    available: {
-      icon: null,
-      label: "Pendiente",
-      color: "text-gray-600 dark:text-gray-400",
-      bgColor: "bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200",
-    },
-    locked: {
-      icon: Lock,
-      label: "Bloqueado",
-      color: "text-gray-600 dark:text-gray-400",
-      bgColor: "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300",
-    },
-  }
+  const config = COURSE_STATUS_MAP[course.status]
 
-  const config = statusConfig[course.status]
-  const Icon = config.icon
+  const icons = {
+    completed: CheckCircle2,
+    in_progress: PlayCircle,
+    available: Circle,
+    locked: Lock,
+  } as const
+
+  const Icon = icons[course.status]
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md">
+      <SheetContent className="w-full sm:max-w-md bg-background border-border">
         <SheetHeader>
-          <SheetTitle className="text-2xl">{course.name}</SheetTitle>
+          <SheetTitle className="text-2xl text-foreground">{course.name}</SheetTitle>
           <SheetDescription>{course.code}</SheetDescription>
         </SheetHeader>
 
         <div className="space-y-6 mt-6">
           {/* Status Badge */}
           <div className="flex items-center gap-2">
-            {Icon && <Icon className={`w-5 h-5 ${config.color}`} />}
-            <Badge className={config.bgColor}>{config.label}</Badge>
+            {Icon && <Icon className="text-foreground w-5 h-5" />}
+            <Badge className={config.badge}>{config.label}</Badge>
           </div>
 
           {/* Course Info */}
@@ -87,8 +69,8 @@ export function CourseDetailsSheet({ course, isOpen, onOpenChange }: CourseDetai
             )}
 
             {course.status === "locked" && (
-              <div className="bg-yellow-50 dark:bg-yellow-950/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-900">
-                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+              <div className="bg-muted/30 rounded-lg p-4 border border-border/50 opacity-60">
+                <p className="text-sm text-muted-foreground">
                   Completa los requisitos previos para desbloquear este curso.
                 </p>
               </div>
@@ -100,7 +82,7 @@ export function CourseDetailsSheet({ course, isOpen, onOpenChange }: CourseDetai
             {course.status !== "locked" && (
               <>
                 <Link href={`/curso/${course.id}`} className="w-full">
-                  <Button className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white">
+                  <Button className="w-full gradient-brand-hover text-white border-0">
                     Ver Ruta de Aprendizaje
                   </Button>
                 </Link>

@@ -107,7 +107,7 @@ export function OnboardingWizard() {
               <Sparkles className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-4xl md:text-5xl font-display font-black text-slate-900">
+              <h1 className="text-4xl md:text-5xl font-heading font-black text-slate-900">
                 Bienvenido a <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#d93340] via-[#a6249d] to-[#7957f1]">UniVia</span>
               </h1>
               <p className="text-slate-500 font-bold mt-1">Configura tu perfil académico en 4 pasos sencillos</p>

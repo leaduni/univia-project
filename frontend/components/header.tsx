@@ -26,7 +26,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const userFullInitial = user?.nombre_completo?.split(" ").map((n: string) => n[0]).join("").slice(0, 2) || "U"
 
   return (
-    <header className="bg-card border-b border-border sticky top-0 z-40">
+    <header className="bg-card/80 backdrop-blur-md border-b border-border sticky top-0 z-40">
       <div className="flex items-center justify-between px-6 py-4 gap-4">
         {/* Left: Menu & Search */}
         <div className="flex items-center gap-4 flex-1">
@@ -54,7 +54,7 @@ export function Header({ onMenuClick }: HeaderProps) {
         <div className="flex items-center gap-2 md:gap-4">
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+            <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
           </Button>
 
           <DropdownMenu>
@@ -88,7 +88,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                className="text-red-500 cursor-pointer"
+                className="text-destructive cursor-pointer"
                 onClick={() => signOut()}
               >
                 <LogOut className="w-4 h-4 mr-2" />

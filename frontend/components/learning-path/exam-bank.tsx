@@ -33,20 +33,19 @@ export function ExamBank({ courseId, exams }: { courseId: string; exams: Exam[] 
   })
 
   const typeConfig = {
-    midterm: { label: "Parcial", bg: "bg-blue-100 dark:bg-blue-900", text: "text-blue-800 dark:text-blue-200" },
-    final: { label: "Final", bg: "bg-red-100 dark:bg-red-900", text: "text-red-800 dark:text-red-200" },
-    quiz: { label: "Quiz", bg: "bg-purple-100 dark:bg-purple-900", text: "text-purple-800 dark:text-purple-200" },
+    midterm: { label: "Parcial", bg: "bg-primary/15 text-primary border-primary/30" },
+    final: { label: "Final", bg: "bg-destructive/15 text-destructive border-destructive/30" },
+    quiz: { label: "Quiz", bg: "bg-secondary/15 text-secondary border-secondary/30" },
     practice: {
       label: "Práctica",
-      bg: "bg-emerald-100 dark:bg-emerald-900",
-      text: "text-emerald-800 dark:text-emerald-200",
+      bg: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
     },
   }
 
   const difficultyConfig = {
-    easy: { label: "Fácil", color: "text-emerald-600" },
-    medium: { label: "Medio", color: "text-amber-600" },
-    hard: { label: "Difícil", color: "text-red-600" },
+    easy: { label: "Fácil", color: "text-emerald-400" },
+    medium: { label: "Medio", color: "text-amber-400" },
+    hard: { label: "Difícil", color: "text-destructive" },
   }
 
   return (
@@ -142,7 +141,7 @@ export function ExamBank({ courseId, exams }: { courseId: string; exams: Exam[] 
                     Descargar
                   </Button>
                   {exam.hasAnswers && (
-                    <Button variant="default" size="sm" className="flex-1 gap-2 bg-blue-600 hover:bg-blue-700">
+                    <Button variant="default" size="sm" className="flex-1 gap-2 gradient-brand-hover text-white border-0">
                       <BarChart3 className="w-4 h-4" />
                       Soluciones
                     </Button>

@@ -208,8 +208,8 @@ export function Dashboard() {
 
             <section aria-label="Estadísticas de rendimiento">
               <div className="flex items-center gap-2 mb-6">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <BookOpen className="w-5 h-5 text-primary" />
+                <div className="p-2 bg-[#a0218b]/15 rounded-lg">
+                  <BookOpen className="w-5 h-5 text-[var(--ai-neon-pink)]" />
                 </div>
                 <h2 className="text-xl font-bold text-foreground tracking-tight">Indicadores de Rendimiento</h2>
               </div>

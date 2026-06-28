@@ -119,6 +119,11 @@
     background-image: linear-gradient(90deg, var(--destructive), var(--secondary), var(--primary));
   }
 
+  .ai-glow-text-neon {
+    @apply text-sm font-medium text-transparent bg-clip-text;
+    background-image: linear-gradient(90deg, #cb2b46, #a0218b, #ff86ff);
+  }
+
   .progress-bar-modern {
     @apply h-2 bg-muted rounded-full overflow-hidden;
   }

@@ -136,7 +136,7 @@ function LoginPageContent() {
             <div className="grid grid-cols-1 gap-2 pt-1 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
               {[
                 { icon: BookOpen, title: "Expediente 360°", desc: "Visualiza tu progreso académico con claridad absoluta.", color: "from-[#d93340] to-[#bf2a51]" },
-                { icon: Cpu, title: "Motor RAG (IA)", desc: "Recomendaciones inteligentes basadas en tu perfil único.", color: "from-[#a6249d] to-[#7957f1]" },
+                { icon: Cpu, title: "Motor RAG (IA)", desc: "Recomendaciones inteligentes basadas en tu perfil único.", color: "gradient-ai-neon-br" },
                 { icon: ShieldCheck, title: "Protocolo Seguro", desc: "Seguridad institucional de grado militar para tus datos.", color: "from-[#7957f1] to-[#030c40]" },
               ].map((feature) => (
                 <div

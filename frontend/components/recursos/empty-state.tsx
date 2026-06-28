@@ -19,9 +19,9 @@ export function RecursosEmptyState() {
           <p className="text-sm text-muted-foreground mb-6">Intenta ajustar tus filtros o busca con otros términos</p>
 
           {/* AI Suggestion */}
-          <div className="gradient-empty-icon rounded-lg p-4 mb-4">
+          <div className="ai-card-neon rounded-lg p-4 mb-4">
             <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg gradient-brand-br">
+              <div className="p-2 rounded-lg gradient-ai-neon-br">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
               <div className="text-left">
@@ -34,7 +34,7 @@ export function RecursosEmptyState() {
             </div>
           </div>
 
-          <Button className="w-full gradient-brand-hover text-white gap-2 border-0">
+          <Button className="w-full gradient-ai-neon-hover text-white gap-2 border-0">
             <Sparkles className="w-4 h-4" />
             Generar Examen con IA
           </Button>

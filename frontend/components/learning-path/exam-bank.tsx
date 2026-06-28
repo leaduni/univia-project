@@ -141,7 +141,7 @@ export function ExamBank({ courseId, exams }: { courseId: string; exams: Exam[] 
                     Descargar
                   </Button>
                   {exam.hasAnswers && (
-                    <Button variant="default" size="sm" className="flex-1 gap-2 gradient-brand-hover text-white border-0">
+                    <Button variant="default" size="sm" className="flex-1 gap-2 gradient-ai-neon-hover text-white border-0">
                       <BarChart3 className="w-4 h-4" />
                       Soluciones
                     </Button>

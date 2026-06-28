@@ -79,7 +79,7 @@ export function RightSidebar({ achievements = [], isLoading = false }: RightSide
             <BookOpen className="w-4 h-4 mr-2" />
             Ver Malla Curricular
           </Button>
-          <Button className="w-full justify-start gradient-brand-hover text-white border-0">
+          <Button className="w-full justify-start gradient-ai-neon text-white border-0">
             <Zap className="w-4 h-4 mr-2" />
             Nueva Evaluación
           </Button>

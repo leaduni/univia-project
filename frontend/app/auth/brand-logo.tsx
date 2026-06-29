@@ -1,3 +1,4 @@
+// LEAD UNI brand logo with gradient text
 import Image from "next/image"
 
 /**

@@ -1,3 +1,4 @@
+// Dashboard layout wrapper with sidebar and header
 "use client"
 
 import type React from "react"

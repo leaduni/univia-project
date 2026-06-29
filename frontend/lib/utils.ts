@@ -1,3 +1,4 @@
+// General utility functions (cn, etc.)
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 

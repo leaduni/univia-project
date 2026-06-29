@@ -1,3 +1,4 @@
+// Course card with status badge, progress bar, and CTA
 "use client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"

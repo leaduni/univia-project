@@ -1,3 +1,4 @@
+// Auth context provider with Supabase session management
 "use client"
 
 import React, { createContext, useContext, useEffect, useState } from 'react';

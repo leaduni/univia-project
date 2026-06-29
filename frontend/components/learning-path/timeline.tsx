@@ -1,3 +1,4 @@
+// Learning path timeline with step cards and progress
 "use client"
 
 import { TIMELINE_DATA } from "@/lib/mockData"

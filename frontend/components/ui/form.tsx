@@ -1,3 +1,4 @@
+// UI primitive: form field wrapper with label and message
 'use client'
 
 import * as React from 'react'

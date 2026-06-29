@@ -1,3 +1,4 @@
+// Onboarding step - select current semester
 "use client"
 
 import { useState } from "react"

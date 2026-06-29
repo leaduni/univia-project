@@ -1,3 +1,4 @@
+// Curso detail page - learning path, exams, resources
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { LearningPath } from "@/components/learning-path"
 

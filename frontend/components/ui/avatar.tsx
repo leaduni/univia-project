@@ -1,3 +1,4 @@
+// UI primitive: avatar with image and fallback
 'use client'
 
 import * as React from 'react'

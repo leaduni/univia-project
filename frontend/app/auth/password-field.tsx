@@ -1,3 +1,4 @@
+// Password input with show/hide toggle for auth forms
 "use client"
 
 import { useState } from "react"

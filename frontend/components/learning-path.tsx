@@ -1,3 +1,4 @@
+// Learning path page - timeline, AI analysis, exam bank
 "use client"
 
 import { useState, useEffect } from "react"

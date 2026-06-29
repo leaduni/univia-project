@@ -1,3 +1,4 @@
+// Curriculum/malla data structure and mock data
 export const CURRICULUM_DATA = [
   {
     ciclo: "Ciclo I",

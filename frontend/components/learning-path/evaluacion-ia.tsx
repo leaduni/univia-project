@@ -1,3 +1,4 @@
+// AI-generated evaluation with config, code editor, and results
 "use client"
 
 import { useState } from "react"
@@ -280,7 +281,9 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
       <div className="space-y-6">
         <div>
           <h3 className="text-xl font-semibold text-foreground mb-2 flex items-center gap-2">
-            <Brain className="w-6 h-6 text-purple-500" />
+            <div className="flex items-center justify-center h-6 w-6 rounded gradient-ai-neon">
+              <Brain className="w-4 h-4 text-white" />
+            </div>
             Evaluación Generada con IA
           </h3>
           <p className="text-sm text-muted-foreground">
@@ -383,10 +386,10 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
         <div className="relative">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-500"></div>
-          <Brain className="w-8 h-8 text-purple-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-[var(--ai-neon-pink)] ai-neon-glow"></div>
+          <Brain className="w-8 h-8 text-[var(--ai-neon-pink)] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
         </div>
-        <p className="text-lg font-medium animate-pulse">Generando evaluación con IA...</p>
+        <p className="text-lg font-medium animate-pulse ai-glow-text">Generando evaluación con IA...</p>
         <p className="text-sm text-muted-foreground">Esto puede tomar unos segundos</p>
       </div>
     )
@@ -447,7 +450,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
               <Card key={pregunta.id} className={pregunta.tipo === 'codigo' ? "overflow-hidden" : ""}>
                 <CardHeader className={pregunta.tipo === 'codigo' ? "pb-2" : ""}>
                   <CardTitle className="text-base flex items-start gap-3">
-                    <span className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 flex items-center justify-center text-sm font-bold">
+                    <span className="flex-shrink-0 w-8 h-8 rounded-full bg-[#a0218b]/15 text-[var(--ai-neon-pink)] flex items-center justify-center text-sm font-bold">
                       {idx + 1}
                     </span>
                     {pregunta.tipo !== 'codigo' && (
@@ -474,7 +477,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
                           {/* Columna Izquierda: Enunciado y Formatos */}
                           <div className="flex flex-col">
                             <div className="mb-2">
-                              <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 text-xs font-semibold px-2.5 py-0.5 rounded">💻 Reto de Código</span>
+                              <span className="inline-flex items-center gap-1 bg-[#a0218b]/15 text-[var(--ai-neon-pink)] text-xs font-semibold px-2.5 py-0.5 rounded">💻 Reto de Código</span>
                             </div>
                             <div className="max-h-[500px] overflow-y-auto bg-white dark:bg-slate-950 rounded-lg border border-slate-100 dark:border-slate-800">
                               <div className="p-5 space-y-6">
@@ -679,7 +682,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
 
         {/* Retroalimentación de IA */}
         {resultado.retroalimentacion && (
-          <Card className="border-purple-200 dark:border-purple-800">
+          <Card className="ai-card-neon">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Brain className="w-5 h-5 text-purple-500" />

@@ -1,3 +1,4 @@
+// Accordion-based malla curricular with course grid and progress
 "use client"
 
 import React from "react"

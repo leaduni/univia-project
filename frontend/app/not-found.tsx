@@ -1,3 +1,6 @@
+// Custom 404 page with space/rocket illustration
+// Página global de recurso no existente
+
 "use client"
 
 import Link from "next/link"

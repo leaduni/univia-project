@@ -1,3 +1,4 @@
+// Signup page with multi-step registration form
 "use client"
 
 import { useState } from "react"
@@ -163,7 +164,7 @@ export default function SignupPage() {
                   key={feature.title}
                   className="group flex items-center gap-5 p-5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm hover:bg-white/10 transition-all duration-300 cursor-default"
                 >
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-[#a6249d] to-[#7957f1] text-white shadow-lg transition-transform group-hover:scale-110">
+                  <div className="p-3 rounded-xl gradient-ai-neon-br text-white shadow-lg transition-transform group-hover:scale-110">
                     <feature.icon className="w-6 h-6" />
                   </div>
                   <div>

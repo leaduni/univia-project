@@ -1,3 +1,4 @@
+// UI primitive: slide-over sheet panel
 'use client'
 
 import * as React from 'react'

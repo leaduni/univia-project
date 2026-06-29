@@ -1,3 +1,4 @@
+// Onboarding progress indicator with step labels
 "use client"
 
 interface OnboardingProgressProps {

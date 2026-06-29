@@ -1,3 +1,4 @@
+// Onboarding step - select currently enrolled courses
 "use client"
 
 import { useState, useMemo } from "react"

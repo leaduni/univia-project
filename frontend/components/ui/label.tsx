@@ -1,3 +1,4 @@
+// UI primitive: label component
 'use client'
 
 import * as React from 'react'

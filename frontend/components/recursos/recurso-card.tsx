@@ -1,3 +1,4 @@
+// Resource card with type badge, metadata, and download
 "use client"
 
 import { Download, Eye, FileCheck, Star } from "lucide-react"

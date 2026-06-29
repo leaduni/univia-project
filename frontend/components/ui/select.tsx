@@ -1,3 +1,4 @@
+// UI primitive: select dropdown component
 'use client'
 
 import * as React from 'react'

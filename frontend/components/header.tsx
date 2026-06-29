@@ -1,3 +1,4 @@
+// App header with search bar, notifications, and user menu
 "use client"
 
 import { useState } from "react"

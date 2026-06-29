@@ -1,3 +1,4 @@
+// UI primitive: markdown rendering component
 
 import React from 'react';
 import ReactMarkdown from 'react-markdown';

@@ -1,3 +1,4 @@
+// Onboarding completion - success summary and CTA
 "use client"
 
 import { Button } from "@/components/ui/button"
@@ -65,9 +66,9 @@ export function CompletionStep({ data, onBack, onComplete, isSubmitting = false 
       {/* Success Icon with Glow */}
       <div className="flex justify-center">
         <div className="relative">
-          <div className="absolute inset-0 gradient-brand rounded-full blur-2xl animate-pulse" />
-          <div className="relative bg-accent/10 border-2 border-accent rounded-full p-8">
-            <CheckCircle className="w-16 h-16 text-accent" />
+          <div className="absolute inset-0 gradient-ai-neon rounded-full blur-2xl animate-pulse" />
+          <div className="relative bg-[#a0218b]/10 border-2 border-[var(--ai-neon-pink)] rounded-full p-8 ai-neon-glow">
+            <CheckCircle className="w-16 h-16 text-[var(--ai-neon-pink)]" />
           </div>
         </div>
       </div>

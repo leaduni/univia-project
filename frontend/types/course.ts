@@ -1,3 +1,4 @@
+// Course-related TypeScript type definitions
 export interface Course {
   id: string
   code: string

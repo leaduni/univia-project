@@ -1,3 +1,4 @@
+// Semester/cycle section component for malla curricular
 "use client"
 
 import { Badge } from "@/components/ui/badge"

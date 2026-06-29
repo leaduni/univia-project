@@ -1,3 +1,4 @@
+// Theme provider wrapper using next-themes
 'use client'
 
 import * as React from 'react'

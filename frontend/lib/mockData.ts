@@ -1,3 +1,4 @@
+// Mock data for development and testing
 import type { Recurso } from "@/types/recurso"
 
 // CAREER DATA

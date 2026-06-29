@@ -1,3 +1,4 @@
+// Reusable error banner component for auth forms
 import { AlertCircle } from "lucide-react"
 
 /**

@@ -1,12 +1,18 @@
 // Learning path timeline with step cards and progress
 "use client"
 
-import { TIMELINE_DATA } from "@/lib/mockData"
-
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { CheckCircle2, Lock, BookOpen, Code, FileText } from "lucide-react"
+import { CheckCircle2, Lock, BookOpen, Code, FileText, Download, ArrowRight, ArrowLeft, Loader2 } from "lucide-react"
+import { apiService } from "@/lib/api-service"
+
+interface Plancha {
+  nombre: string
+  archivo: string
+  url: string
+}
 
 interface TimelineStep {
   id: string | number
@@ -16,6 +22,8 @@ interface TimelineStep {
   status: "completed" | "current" | "upcoming" | "locked"
   topics: string[]
   icon?: string
+  completado?: boolean
+  planchas?: Plancha[]
   resources?: {
     type: "video" | "document" | "code"
     title: string
@@ -23,41 +31,207 @@ interface TimelineStep {
   }[]
 }
 
-export function LearningTimeline({ courseId, timeline }: { courseId: string; timeline: TimelineStep[] }) {
+export function LearningTimeline({
+  courseId,
+  timeline,
+  onStartEvaluation
+}: {
+  courseId: string
+  timeline: TimelineStep[]
+  onStartEvaluation?: (moduleTitle: string, topics: string[]) => void
+}) {
+  const [selectedStep, setSelectedStep] = useState<TimelineStep | null>(null)
+  const [completingStep, setCompletingStep] = useState<number | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const steps = timeline
 
   const getStepIcon = (iconName?: string) => {
     switch (iconName) {
-      case 'monitor': return <BookOpen className="w-6 h-6" />;
-      case 'code': return <Code className="w-6 h-6" />;
-      case 'book': return <BookOpen className="w-6 h-6" />;
-      case 'award': return <FileText className="w-6 h-6" />;
-      default: return <BookOpen className="w-6 h-6" />;
+      case 'move': return <BookOpen className="w-6 h-6" />
+      case 'code': return <Code className="w-6 h-6" />
+      case 'book': return <BookOpen className="w-6 h-6" />
+      default: return <BookOpen className="w-6 h-6" />
     }
   }
 
+  const handleContinue = (step: TimelineStep) => {
+    setSelectedStep(step)
+  }
+
+  const handleComplete = async () => {
+    if (!selectedStep) return
+    setCompletingStep(Number(selectedStep.id))
+    setError(null)
+    try {
+      await apiService.completeStep(courseId, selectedStep.id)
+      setCompletingStep(null)
+      setSelectedStep(null)
+      if (onStartEvaluation) {
+        onStartEvaluation(selectedStep.title, selectedStep.topics)
+      }
+      window.location.reload()
+    } catch (err: any) {
+      setError(err.message)
+      setCompletingStep(null)
+    }
+  }
+
+  // Vista detallada de unidad seleccionada
+  if (selectedStep) {
+    return (
+      <div className="space-y-6">
+        {/* Back button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-2 text-muted-foreground hover:text-foreground"
+          onClick={() => { setSelectedStep(null); setError(null); }}
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Volver a la ruta de aprendizaje
+        </Button>
+
+        {/* Unit Header */}
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-4 ${
+              selectedStep.status === "completed"
+                ? "border-emerald-500 bg-emerald-500/10 text-emerald-400"
+                : "border-primary bg-primary/10 text-primary ring-4 ring-primary/30"
+            }`}>
+              {selectedStep.status === "completed"
+                ? <CheckCircle2 className="w-5 h-5" />
+                : getStepIcon(selectedStep.icon)
+              }
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-foreground">{selectedStep.title}</h2>
+              <p className="text-sm text-muted-foreground">{selectedStep.description}</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1 ml-13">Duración estimada: {selectedStep.duration}</p>
+        </div>
+
+        {/* Topics */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-primary" />
+              Temas a Cubrir
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {selectedStep.topics.map((topic) => (
+                <Badge key={topic} variant="secondary" className="text-sm px-3 py-1.5">
+                  {topic}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Resources - Planchas PDF */}
+        {selectedStep.planchas && selectedStep.planchas.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileText className="w-4 h-4 text-destructive" />
+                Material de Estudio
+              </CardTitle>
+              <CardDescription>
+                Revisa estos materiales antes de continuar. Descarga y estudia cada recurso.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {selectedStep.planchas.map((plancha, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => apiService.downloadPlancha(courseId, plancha.archivo)}
+                    className="w-full flex items-center gap-4 p-4 rounded-lg border border-border hover:bg-secondary/50 transition-colors text-left group"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-5 h-5 text-blue-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground group-hover:text-accent transition-colors truncate">
+                        Práctica Dirigida: {plancha.nombre}
+                      </p>
+                      <p className="text-xs text-muted-foreground">PDF - Haz clic para descargar</p>
+                    </div>
+                    <Download className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* No resources message */}
+        {(!selectedStep.planchas || selectedStep.planchas.length === 0) && (
+          <Card className="border-dashed">
+            <CardContent className="py-8 text-center">
+              <BookOpen className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
+              <p className="text-muted-foreground">No hay material adicional disponible para esta unidad.</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20">
+            {error}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="space-y-3 pt-2">
+          <Button
+            onClick={handleComplete}
+            disabled={completingStep !== null || selectedStep.status === "completed"}
+            className="w-full gap-2 gradient-brand-hover text-white border-0"
+            size="lg"
+          >
+            {completingStep !== null ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4" />
+            )}
+            {completingStep !== null
+              ? "Completando..."
+              : selectedStep.status === "completed"
+                ? "Unidad Completada"
+                : "Marcar como Completado"}
+          </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Al marcar como completado, serás redirigido a la evaluación con IA de esta unidad.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Vista de lista (timeline)
   return (
     <div className="space-y-6">
-      {/* Timeline Container */}
       <div className="relative">
-        {/* Vertical Line */}
         <div className="absolute left-6 top-12 bottom-0 w-0.5 gradient-timeline" />
 
-        {/* Steps */}
         <div className="space-y-6">
-          {steps.map((step, index) => (
+          {steps.map((step) => (
             <div key={step.id} className="relative pl-20">
-              {/* Timeline Circle */}
               <div className="absolute left-0 top-2 w-12 h-12 flex items-center justify-center">
-                  <div
-                    className={`w-12 h-12 rounded-full flex items-center justify-center border-4 bg-background transition-all ${step.status === "completed"
+                <div
+                  className={`w-12 h-12 rounded-full flex items-center justify-center border-4 bg-background transition-all ${
+                    step.status === "completed"
                       ? "border-emerald-500 bg-emerald-500/10 text-emerald-400"
                       : step.status === "current"
                         ? "border-primary bg-primary/10 text-primary ring-4 ring-primary/30"
                         : step.status === "upcoming"
                           ? "border-muted-foreground/30 bg-muted text-muted-foreground"
                           : "border-muted-foreground/20 bg-muted/50 text-muted-foreground/60"
-                      }`}
+                  }`}
                 >
                   {step.status === "completed" ? (
                     <CheckCircle2 className="w-6 h-6" />
@@ -69,14 +243,14 @@ export function LearningTimeline({ courseId, timeline }: { courseId: string; tim
                 </div>
               </div>
 
-              {/* Card */}
               <Card
-                className={`bg-card transition-all ${step.status === "current"
-                  ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
-                  : step.status === "locked"
-                    ? "opacity-60 cursor-not-allowed"
-                    : "border-border"
-                  }`}
+                className={`bg-card transition-all ${
+                  step.status === "current"
+                    ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
+                    : step.status === "locked"
+                      ? "opacity-60 cursor-not-allowed"
+                      : "border-border"
+                }`}
               >
                 <CardHeader>
                   <div className="flex items-start justify-between mb-2">
@@ -88,12 +262,14 @@ export function LearningTimeline({ courseId, timeline }: { courseId: string; tim
                       variant={
                         step.status === "completed" ? "default" : step.status === "current" ? "secondary" : "outline"
                       }
-                      className={`whitespace-nowrap ${step.status === "completed" &&
+                      className={`whitespace-nowrap ${
+                        step.status === "completed" &&
                         "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                        }
-                      ${step.status === "current" &&
+                      }
+                      ${
+                        step.status === "current" &&
                         "bg-primary/15 text-primary border-primary/30 ring-1 ring-primary/30"
-                        }`}
+                      }`}
                     >
                       {step.status === "completed"
                         ? "Completado"
@@ -108,7 +284,6 @@ export function LearningTimeline({ courseId, timeline }: { courseId: string; tim
                 </CardHeader>
 
                 <CardContent className="space-y-4">
-                  {/* Topics */}
                   {step.topics && step.topics.length > 0 && (
                     <div>
                       <h4 className="text-sm font-semibold text-foreground mb-3">Temas a Cubrir</h4>
@@ -122,46 +297,31 @@ export function LearningTimeline({ courseId, timeline }: { courseId: string; tim
                     </div>
                   )}
 
-                  {/* Resources */}
-                  {step.resources && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-foreground mb-3">Recursos</h4>
-                      <div className="space-y-2">
-                        {step.resources.map((resource, idx) => (
-                          <button
-                            key={idx}
-                            disabled={step.status === "locked"}
-                            className="w-full flex items-center gap-3 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-left group"
-                          >
-                            {resource.type === "video" && <FileText className="w-4 h-4 text-primary flex-shrink-0" />}
-                            {resource.type === "code" && <Code className="w-4 h-4 text-secondary flex-shrink-0" />}
-                            {resource.type === "document" && (
-                              <BookOpen className="w-4 h-4 text-destructive flex-shrink-0" />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-foreground group-hover:text-accent transition-colors">
-                                {resource.title}
-                              </p>
-                              {resource.duration && (
-                                <p className="text-xs text-muted-foreground">{resource.duration}</p>
-                              )}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Action Buttons */}
                   <div className="pt-2 flex gap-2">
-                    {step.status !== "locked" && (
-                      <Button variant="default" size="sm" className="gradient-brand-hover text-white border-0">
-                        {step.status === "completed" ? "Revisar" : step.status === "current" ? "Continuar" : "Comenzar"}
+                    {step.status !== "locked" && step.status !== "completed" && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="gradient-brand-hover text-white border-0 gap-2"
+                        onClick={() => handleContinue(step)}
+                      >
+                        {step.status === "current" ? "Continuar" : "Comenzar"}
+                        <ArrowRight className="w-4 h-4" />
                       </Button>
                     )}
-                    {step.status === "current" && (
-                      <Button variant="outline" size="sm">
-                        Marcar como Completo
+                    {step.status === "completed" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => {
+                          if (onStartEvaluation) {
+                            onStartEvaluation(step.title, step.topics)
+                          }
+                        }}
+                      >
+                        Evaluación de Unidad
+                        <ArrowRight className="w-4 h-4" />
                       </Button>
                     )}
                   </div>

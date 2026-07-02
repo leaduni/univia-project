@@ -110,11 +110,54 @@ export const apiService = {
         try {
             const response = await fetchWithAuth(`${API_URL}/curso/${courseId}/learning-path`);
             if (!response.ok) {
-                throw new Error(`Error fetching learning path for ${courseId}: ${response.statusText}`);
+                let errorMsg = `Error ${response.status}: ${response.statusText}`;
+                try {
+                    const errorBody = await response.json();
+                    if (errorBody.detail) errorMsg = errorBody.detail;
+                } catch {}
+                throw new Error(errorMsg);
             }
             return await response.json();
         } catch (error) {
             console.error(`API Error (getLearningPath ${courseId}):`, error);
+            throw error;
+        }
+    },
+
+    async completeStep(courseId: string | number, stepId: string | number) {
+        try {
+            const response = await fetchWithAuth(`${API_URL}/curso/${courseId}/step/${stepId}/complete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`Error completing step: ${response.statusText}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('API Error (completeStep):', error);
+            throw error;
+        }
+    },
+
+    async downloadPlancha(courseId: string | number, filename: string) {
+        try {
+            const url = `${API_URL}/curso/${courseId}/plancha/${encodeURIComponent(filename)}`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Error al descargar el archivo');
+            const blob = await response.blob();
+            const downloadUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(downloadUrl);
+        } catch (error) {
+            console.error('Error downloading plancha:', error);
             throw error;
         }
     },

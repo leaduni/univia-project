@@ -21,6 +21,8 @@ export function LearningPath({ courseId }: LearningPathProps) {
   const [data, setData] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [preSelectedModulo, setPreSelectedModulo] = useState<string | null>(null)
+  const [preSelectedTopics, setPreSelectedTopics] = useState<string[]>([])
 
   useEffect(() => {
     const fetchLearningPath = async () => {
@@ -33,8 +35,8 @@ export function LearningPath({ courseId }: LearningPathProps) {
 
         const result = await apiService.getLearningPath(cleanId)
         setData(result)
-      } catch (err) {
-        setError("Error al cargar la ruta de aprendizaje.")
+      } catch (err: any) {
+        setError(err.message || "Error al cargar la ruta de aprendizaje.")
         console.error(err)
       } finally {
         setIsLoading(false)
@@ -69,10 +71,28 @@ export function LearningPath({ courseId }: LearningPathProps) {
   const { curso, timeline, ai_insights, exam_bank } = data
 
   // Preparar módulos para la evaluación
+  // topics llega como string de PostgreSQL: "{Tema1, Tema2}" → parseamos a array
+  const parseTopics = (topics: any): string[] => {
+    if (Array.isArray(topics)) return topics
+    if (typeof topics === "string") {
+      return topics.replace(/^\{|\}$/g, "").split(",").map((t: string) => t.trim()).filter(Boolean)
+    }
+    return []
+  }
+
   const modulos = timeline.map((item: any) => ({
+    id: item.id,
     title: item.title,
-    topics: item.topics || []
+    topics: parseTopics(item.topics),
+    status: item.status,
+    completado: item.completado,
   }))
+
+  const handleStartEvaluation = (moduleTitle: string, topics: string[]) => {
+    setPreSelectedModulo(moduleTitle)
+    setPreSelectedTopics(topics)
+    setActiveTab("evaluacion")
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto">
@@ -113,12 +133,25 @@ export function LearningPath({ courseId }: LearningPathProps) {
 
         {/* Learning Path Timeline */}
         <TabsContent value="path" className="space-y-6">
-          <LearningTimeline courseId={courseId} timeline={timeline} />
+          <LearningTimeline
+            courseId={courseId}
+            timeline={timeline}
+            onStartEvaluation={handleStartEvaluation}
+          />
         </TabsContent>
 
         {/* Evaluación IA */}
         <TabsContent value="evaluacion" className="space-y-6">
-          <EvaluacionIA courseId={courseId} modulos={modulos} />
+          <EvaluacionIA
+            courseId={courseId}
+            modulos={modulos}
+            preSelectedModulo={preSelectedModulo}
+            preSelectedTopics={preSelectedTopics}
+            onClearPreselection={() => {
+              setPreSelectedModulo(null)
+              setPreSelectedTopics([])
+            }}
+          />
         </TabsContent>
 
         {/* AI Analysis */}

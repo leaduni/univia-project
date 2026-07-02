@@ -1,7 +1,7 @@
 // AI-generated evaluation with config, code editor, and results
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,7 +17,8 @@ import {
   RotateCcw,
   TrendingUp,
   Clock,
-  Loader2
+  Loader2,
+  Lock
 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { supabase } from "@/lib/supabase"
@@ -51,8 +52,11 @@ interface Evaluacion {
 }
 
 interface ModuloInfo {
+  id?: string | number
   title: string
   topics: string[]
+  status?: string
+  completado?: boolean
 }
 
 interface ExecutionResult {
@@ -61,10 +65,32 @@ interface ExecutionResult {
   isLoading: boolean;
 }
 
-export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: ModuloInfo[] }) {
+export function EvaluacionIA({
+  courseId,
+  modulos,
+  preSelectedModulo,
+  preSelectedTopics,
+  onClearPreselection
+}: {
+  courseId: string
+  modulos: ModuloInfo[]
+  preSelectedModulo?: string | null
+  preSelectedTopics?: string[]
+  onClearPreselection?: () => void
+}) {
   const [step, setStep] = useState<"config" | "loading" | "evaluacion" | "resultados">("config")
   const [selectedModulo, setSelectedModulo] = useState<ModuloInfo | null>(null)
-  const [numPreguntas, setNumPreguntas] = useState(5)
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
+  const LIMITES_POR_CURSO: Record<string, { min: number; max: number }> = {
+    "11": { min: 3, max: 4 }, // Geometría Analítica (Sistemas)
+    "31": { min: 3, max: 4 }, // Geometría Analítica (Software)
+    "54": { min: 3, max: 4 }, // Geometría Analítica (Industrial)
+    "12": { min: 3, max: 4 }, // Cálculo Diferencial (Sistemas)
+    "32": { min: 3, max: 4 }, // Cálculo Diferencial (Software)
+    "50": { min: 3, max: 4 }, // Cálculo Diferencial (Industrial)
+  }
+  const limites = LIMITES_POR_CURSO[courseId] ?? { min: 3, max: 5 }
+  const [numPreguntas, setNumPreguntas] = useState(limites.min)
   const [observaciones, setObservaciones] = useState("")
   const [evaluacion, setEvaluacion] = useState<Evaluacion | null>(null)
   const [respuestas, setRespuestas] = useState<Record<number, any>>({})
@@ -72,6 +98,52 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [executionResults, setExecutionResults] = useState<Record<number, ExecutionResult>>({});
+
+  // Pre-seleccionar módulo cuando viene desde la ruta de aprendizaje
+  const hasProcessedPreselection = useRef(false)
+  useEffect(() => {
+    if (preSelectedModulo && !hasProcessedPreselection.current) {
+      const modulo = modulos.find(m => m.title === preSelectedModulo)
+      if (modulo) {
+        setSelectedModulo(modulo)
+        // Auto-select first topic or use preSelectedTopics
+        if (preSelectedTopics && preSelectedTopics.length > 0) {
+          setSelectedTopic(preSelectedTopics[0])
+        } else if (modulo.topics.length > 0) {
+          setSelectedTopic(modulo.topics[0])
+        }
+        hasProcessedPreselection.current = true
+      }
+    }
+  }, [preSelectedModulo, modulos, preSelectedTopics])
+
+  // Reset preselección cuando se reinicia
+  useEffect(() => {
+    if (step === "config") {
+      hasProcessedPreselection.current = false
+    }
+  }, [step])
+
+  // Determinar qué módulos están disponibles según progreso
+  interface ModuloDisponible extends ModuloInfo {
+    disabled: boolean
+    reason?: string
+  }
+  const getModulosDisponibles = (): ModuloDisponible[] => {
+    let previousCompleted = true
+    return modulos.map((modulo) => {
+      if (!previousCompleted) {
+        return { ...modulo, disabled: true, reason: "Completa la unidad anterior primero" }
+      }
+      if (modulo.completado) {
+        previousCompleted = true
+        return { ...modulo, disabled: false }
+      }
+      const isAvailable = previousCompleted
+      previousCompleted = false
+      return { ...modulo, disabled: !isAvailable, reason: isAvailable ? undefined : "Completa la unidad anterior primero" }
+    })
+  }
 
   const handleEjecutarCodigo = async (preguntaId: number, sourceCode: string) => {
     setExecutionResults(prev => ({ ...prev, [preguntaId]: { isLoading: true, output: undefined, error: undefined } }));
@@ -146,7 +218,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
   };
 
   const generarEvaluacion = async () => {
-    if (!selectedModulo) return
+    if (!selectedModulo || !selectedTopic) return
 
     try {
       setIsLoading(true)
@@ -157,7 +229,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
 
-      const response = await fetch(`${API_URL}/api/evaluaciones/generar`, {
+      const response = await fetch(`${API_URL}/api/evaluaciones/generar-stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -166,7 +238,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
         body: JSON.stringify({
           curso_id: parseInt(courseId),
           modulo: selectedModulo.title,
-          temas: selectedModulo.topics,
+          temas: [selectedTopic],
           num_preguntas: numPreguntas,
           observaciones: observaciones || null,
           tipo_evaluacion: "mixta"
@@ -174,16 +246,41 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
       })
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json()
         throw new Error(errorData.detail || "Error al generar la evaluación")
       }
 
-      // Robust parsing
-      const rawResponse = await response.text();
-      // Remove control characters but keep \n and \t
-      const cleanResponse = rawResponse.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, "");
-      const data = JSON.parse(cleanResponse);
-      
+      const reader = response.body!.getReader()
+      const decoder = new TextDecoder()
+      let data: any = null
+      let preguntasRecibidas = 0
+      let buffer = ""
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        // Acumula en buffer y procesa solo eventos SSE completos (separados por \n\n)
+        buffer += decoder.decode(value, { stream: true })
+        const eventos = buffer.split("\n\n")
+        buffer = eventos.pop() ?? "" // el último puede estar incompleto
+
+        for (const evento of eventos) {
+          const linea = evento.split("\n").find((l) => l.startsWith("data: "))
+          if (!linea) continue
+          let payload: any
+          try { payload = JSON.parse(linea.slice(6)) } catch { continue }
+          if (payload.error) throw new Error(payload.error)
+          if (payload.pregunta) {
+            preguntasRecibidas++
+            setError(`Generando... ${preguntasRecibidas}/${payload.total ?? numPreguntas} preguntas listas`)
+          }
+          if (payload.done && payload.result) data = payload.result
+        }
+      }
+
+      setError(null)
+      if (!data) throw new Error("No se recibió respuesta de la IA")
+
       setEvaluacion(data)
       setStep("evaluacion")
     } catch (err: any) {
@@ -256,6 +353,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
   const reiniciar = () => {
     setStep("config")
     setSelectedModulo(null)
+    setSelectedTopic(null)
     setRespuestas({})
     setResultado(null)
     setEvaluacion(null)
@@ -306,47 +404,93 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
             <CardDescription>Selecciona el módulo y personaliza tu evaluación</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Selección de módulo */}
+            {/* Paso 1: Selección de módulo */}
             <div className="space-y-3">
-              <Label>Selecciona un módulo</Label>
+              <Label>1. Selecciona un módulo</Label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {modulos.map((modulo, idx) => (
+                {getModulosDisponibles().map((modulo, idx) => (
                   <button
                     key={idx}
-                    onClick={() => setSelectedModulo(modulo)}
-                    className={`p-4 rounded-lg border-2 text-left transition-all ${selectedModulo?.title === modulo.title
-                        ? "border-[var(--ai-neon-pink)] bg-[#a0218b]/10 ring-1 ring-[var(--ai-neon-pink)]/30"
-                        : "border-border hover:border-[var(--ai-neon-pink)]/50"
-                      }`}
+                    onClick={() => { if (!modulo.disabled) { setSelectedModulo(modulo); setSelectedTopic(null); } }}
+                    disabled={modulo.disabled}
+                    className={`p-4 rounded-lg border-2 text-left transition-all ${
+                      modulo.disabled
+                        ? "border-border/50 opacity-50 cursor-not-allowed"
+                        : selectedModulo?.title === modulo.title
+                          ? "border-[var(--ai-neon-pink)] bg-[#a0218b]/10 ring-1 ring-[var(--ai-neon-pink)]/30"
+                          : "border-border hover:border-[var(--ai-neon-pink)]/50"
+                    }`}
                   >
-                    <h4 className="font-semibold text-sm mb-2">{modulo.title}</h4>
-                    <div className="flex flex-wrap gap-1">
-                      {modulo.topics.slice(0, 3).map((topic, i) => (
-                        <Badge key={i} variant="secondary" className="text-xs">
-                          {topic}
-                        </Badge>
-                      ))}
-                      {modulo.topics.length > 3 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{modulo.topics.length - 3}
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-semibold text-sm">{modulo.title}</h4>
+                      {modulo.completado && (
+                        <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-xs">
+                          Completado
                         </Badge>
                       )}
+                      {modulo.disabled && (
+                        <Lock className="w-4 h-4 text-muted-foreground" />
+                      )}
                     </div>
+                    {modulo.disabled && modulo.reason && (
+                      <p className="text-xs text-muted-foreground mb-2">{modulo.reason}</p>
+                    )}
+                    {!modulo.disabled && (
+                      <div className="flex flex-wrap gap-1">
+                        {modulo.topics.slice(0, 3).map((topic, i) => (
+                          <Badge key={i} variant="secondary" className="text-xs">
+                            {topic}
+                          </Badge>
+                        ))}
+                        {modulo.topics.length > 3 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{modulo.topics.length - 3}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>
             </div>
 
+            {/* Paso 2: Selección de tema específico */}
+            {selectedModulo && (
+              <div className="space-y-3">
+                <Label>2. Selecciona el tema a evaluar</Label>
+                <div className="flex flex-wrap gap-2">
+                  {selectedModulo.topics.map((topic, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setSelectedTopic(topic)}
+                      className={`px-4 py-2 rounded-full text-sm font-medium border-2 transition-all ${
+                        selectedTopic === topic
+                          ? "border-[var(--ai-neon-pink)] bg-[#a0218b]/15 text-foreground ring-1 ring-[var(--ai-neon-pink)]/30"
+                          : "border-border hover:border-[var(--ai-neon-pink)]/50 text-muted-foreground"
+                      }`}
+                    >
+                      {topic}
+                    </button>
+                  ))}
+                </div>
+                {selectedTopic && (
+                  <p className="text-xs text-muted-foreground">
+                    La IA generará preguntas <strong>exclusivamente</strong> sobre <span className="text-[var(--ai-neon-pink)]">{selectedTopic}</span>.
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Número de preguntas */}
             <div className="space-y-2">
-              <Label htmlFor="num-preguntas">Número de preguntas (5-10)</Label>
+              <Label htmlFor="num-preguntas">Número de preguntas ({limites.min}–{limites.max})</Label>
               <Input
                 id="num-preguntas"
                 type="number"
-                min="5"
-                max="10"
+                min={limites.min}
+                max={limites.max}
                 value={numPreguntas}
-                onChange={(e) => setNumPreguntas(Math.min(10, Math.max(5, parseInt(e.target.value) || 5)))}
+                onChange={(e) => setNumPreguntas(Math.min(limites.max, Math.max(limites.min, parseInt(e.target.value) || limites.min)))}
                 className="max-w-xs"
               />
             </div>
@@ -369,7 +513,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
 
             <Button
               onClick={generarEvaluacion}
-              disabled={!selectedModulo || isLoading}
+              disabled={!selectedModulo || !selectedTopic || isLoading}
               className="w-full gap-2 gradient-ai-neon text-white border-0"
             >
               <Sparkles className="w-4 h-4" />
@@ -390,7 +534,7 @@ export function EvaluacionIA({ courseId, modulos }: { courseId:string; modulos: 
           <Brain className="w-8 h-8 text-[var(--ai-neon-pink)] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
         </div>
         <p className="text-lg font-medium animate-pulse ai-glow-text">Generando evaluación con IA...</p>
-        <p className="text-sm text-muted-foreground">Esto puede tomar unos segundos</p>
+        <p className="text-sm text-muted-foreground">{error || "Preparando preguntas en paralelo..."}</p>
       </div>
     )
   }

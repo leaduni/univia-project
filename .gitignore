@@ -30,11 +30,12 @@ __pycache__/
 .pytest_cache/
 backend/__pycache__/
 backend/**/__pycache__/
-backend/routers/__pycache__/
 backend/venv/
 venv/
 .venv/
 
-# Archivos locales de pruebas o raspado de datos (Scrapeo)
-scrapeo/
-backend/docs_nuevo/
+# Archivos locales de pruebas o raspado de datos (ingesta de sílabos)
+ingesta_silabos/
+
+# Metadata de Windows Explorer
+desktop.ini

@@ -10,3 +10,4 @@ google-genai==1.10.0
 google-generativeai
 langchain-text-splitters
 pdf2image
+openai>=1.0.0

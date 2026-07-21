@@ -96,8 +96,8 @@ export function OnboardingWizard() {
       
       {/* Elementos de Fondo Decorativos (Premium) */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-[#7957f1] rounded-full blur-[160px] opacity-10 animate-pulse" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-[#a6249d] rounded-full blur-[160px] opacity-10 animate-pulse [animation-delay:2s]" />
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-accent rounded-full blur-[160px] opacity-10 animate-pulse" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-secondary rounded-full blur-[160px] opacity-10 animate-pulse [animation-delay:2s]" />
       </div>
 
       {/* Header Premium */}

@@ -1,19 +1,22 @@
-// Root layout with ThemeProvider, AuthProvider, League Spartan + Roboto fonts
+// Root layout with ThemeProvider, AuthProvider, Poppins + Open Sans fonts
 import type React from "react"
 import type { Metadata } from "next"
-import { League_Spartan, Roboto } from "next/font/google"
+import { Poppins, Open_Sans } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 
-const leagueSpartan = League_Spartan({
+const poppins = Poppins({
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
   variable: "--font-heading",
 })
 
-const roboto = Roboto({
+const openSans = Open_Sans({
   subsets: ["latin"],
-  weight: ["400", "500", "700"],
-  variable: "--font-roboto",
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-sans",
 })
 
 export const metadata: Metadata = {
@@ -38,7 +41,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className={`${roboto.variable} ${leagueSpartan.variable} font-sans antialiased text-foreground bg-background`}>
+      <body className={`${poppins.variable} ${openSans.variable} font-sans antialiased text-foreground bg-background min-h-screen`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <AuthProvider>
             {children}

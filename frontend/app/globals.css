@@ -3,50 +3,56 @@
 @import "tw-animate-css";
 
 :root {
-  --background: oklch(0.12 0.03 266.1);
-  --foreground: oklch(0.96 0.008 266.1);
-  --card: oklch(0.21 0.045 266.1);
-  --card-foreground: oklch(0.96 0.008 266.1);
-  --popover: oklch(0.21 0.045 266.1);
-  --popover-foreground: oklch(0.96 0.008 266.1);
-  --primary: oklch(0.578 0.219 287.6);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.518 0.208 331.3);
-  --secondary-foreground: oklch(0.98 0 0);
-  --muted: oklch(0.22 0.035 295.3);
-  --muted-foreground: oklch(0.68 0.015 266.1);
-  --accent: oklch(0.26 0.05 287.6);
-  --accent-foreground: oklch(0.96 0.008 266.1);
-  --destructive: oklch(0.55 0.19 22.3);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.3 0.045 295.3);
-  --input: oklch(0.22 0.04 295.3);
-  --ring: oklch(0.578 0.219 287.6);
-  --chart-1: oklch(0.872 0.057 295.3);
-  --chart-2: oklch(0.65 0.19 22.3);
-  --chart-3: oklch(0.62 0.17 11.5);
-  --chart-4: oklch(0.62 0.18 331.3);
-  --chart-5: oklch(0.62 0.15 287.6);
+  --background: #030c40;
+  --foreground: #f8fafc;
+  --card: #0a0a1f;
+  --card-foreground: #e2e8f0;
+  --popover: #0a0a1f;
+  --popover-foreground: #e2e8f0;
+  --primary: #d93340;
+  --primary-foreground: #ffffff;
+  --secondary: #a6249d;
+  --secondary-foreground: #ffffff;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #7957f1;
+  --accent-foreground: #f8fafc;
+  --destructive: #bf2a51;
+  --destructive-foreground: #ffffff;
+  --border: #1e293b;
+  --input: #1e293b;
+  --ring: #7957f1;
+  --chart-1: #d93340;
+  --chart-2: #a6249d;
+  --chart-3: #7957f1;
+  --chart-4: #bf2a51;
+  --chart-5: #d7cef7;
   --radius: 0.625rem;
-  --sidebar: oklch(0.195 0.098 266.1);
-  --sidebar-foreground: oklch(0.96 0.01 266.1);
-  --sidebar-primary: oklch(0.578 0.219 287.6);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.28 0.07 266.1);
-  --sidebar-accent-foreground: oklch(0.96 0.01 266.1);
-  --sidebar-border: oklch(0.3 0.06 266.1);
-  --sidebar-ring: oklch(0.578 0.219 287.6);
-  --ai-glow: oklch(0.578 0.219 287.6);
+  --sidebar: #030c40;
+  --sidebar-foreground: #e2e8f0;
+  --sidebar-primary: #d93340;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1e293b;
+  --sidebar-accent-foreground: #e2e8f0;
+  --sidebar-border: #1e293b;
+  --sidebar-ring: #7957f1;
+  --brand-red: #d93340;
+  --brand-carmin: #bf2a51;
+  --brand-magenta: #a6249d;
+  --brand-violet: #7957f1;
+  --brand-lila: #d7cef7;
+  --brand-navy: #030c40;
+  --ai-glow: #7957f1;
   --ai-neon-pink: #ff86ff;
   --ai-neon-magenta: #a0218b;
   --ai-neon-red: #cb2b46;
-  --ai-neon-glow: oklch(0.65 0.3 330);
+  --ai-neon-glow: rgba(121, 87, 241, 0.25);
 }
 
 @theme inline {
-  --font-sans: var(--font-roboto), "Roboto", ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-heading), "League Spartan", ui-sans-serif, sans-serif;
-  --font-heading: "League Spartan", ui-sans-serif, sans-serif;
+  --font-sans: var(--font-sans), "Open Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-heading), "Poppins", ui-sans-serif, sans-serif;
+  --font-heading: var(--font-heading), "Poppins", ui-sans-serif, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -84,6 +90,12 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-brand-red: var(--brand-red);
+  --color-brand-carmin: var(--brand-carmin);
+  --color-brand-magenta: var(--brand-magenta);
+  --color-brand-violet: var(--brand-violet);
+  --color-brand-lila: var(--brand-lila);
+  --color-brand-navy: var(--brand-navy);
 }
 
 @layer base {
@@ -99,25 +111,14 @@
    Rojo -> Magenta -> Violeta sobre fondo Navy, vía tokens semánticos. */
 @layer utilities {
   .ai-glow {
-    @apply relative bg-[#030c40];
-  }
-
-  .ai-glow::before {
-    content: "";
-    position: absolute;
-    inset: -1px;
-    border-radius: inherit;
-    padding: 1px;
-    background: linear-gradient(135deg, var(--destructive), var(--secondary), var(--primary));
-    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    mask-composite: intersect;
-    -webkit-mask-composite: source-out;
-    opacity: 0.3;
+    @apply relative;
+    box-shadow: 0 0 20px rgba(121, 87, 241, 0.25), 0 0 40px rgba(166, 36, 157, 0.2);
   }
 
   .ai-glow-text {
     @apply text-sm font-medium text-transparent bg-clip-text;
-    background-image: linear-gradient(90deg, var(--destructive), var(--secondary), var(--primary));
+    background-image: linear-gradient(90deg, #d93340, #a6249d, #7957f1);
+    text-shadow: 0 0 10px rgba(121, 87, 241, 0.3);
   }
 
   .ai-glow-text-neon {
@@ -131,7 +132,7 @@
 
   .progress-bar-modern-fill {
     @apply h-full rounded-full transition-all duration-500;
-    background-image: linear-gradient(90deg, var(--secondary), var(--primary));
+    background-image: linear-gradient(90deg, #d93340, #a6249d, #7957f1);
   }
 
   /* Wordmark "LEAD UNI" y nav clave: Poppins mayúscula/negrita */
@@ -153,81 +154,88 @@
 
 /* === GRADIENT UTILITY CLASSES (marca LEAD UNI) === */
 .gradient-brand {
-  background-image: linear-gradient(to right, var(--destructive), var(--secondary), var(--primary));
+  background-image: linear-gradient(135deg, #d93340, #a6249d, #7957f1);
 }
 
 .gradient-brand-hover {
-  background-image: linear-gradient(to right, var(--destructive), var(--secondary), var(--primary));
+  background-image: linear-gradient(135deg, #d93340, #a6249d, #7957f1);
 }
 
 .gradient-brand-hover:hover {
-  background-image: linear-gradient(to right,
-    color-mix(in srgb, var(--destructive) 85%, black),
-    color-mix(in srgb, var(--secondary) 85%, black),
-    color-mix(in srgb, var(--primary) 85%, black));
+  background-image: linear-gradient(135deg,
+    color-mix(in srgb, #d93340 85%, black),
+    color-mix(in srgb, #a6249d 85%, black),
+    color-mix(in srgb, #7957f1 85%, black));
 }
 
 .gradient-brand-br {
-  background-image: linear-gradient(to bottom right, var(--destructive), var(--secondary), var(--primary));
+  background-image: linear-gradient(to bottom right, #d93340, #a6249d, #7957f1);
 }
 
 .gradient-brand-br-hover {
-  background-image: linear-gradient(to bottom right, var(--destructive), var(--secondary), var(--primary));
+  background-image: linear-gradient(to bottom right, #d93340, #a6249d, #7957f1);
 }
 
 .gradient-brand-br-hover:hover {
   background-image: linear-gradient(to bottom right,
-    color-mix(in srgb, var(--destructive) 85%, black),
-    color-mix(in srgb, var(--secondary) 85%, black),
-    color-mix(in srgb, var(--primary) 85%, black));
+    color-mix(in srgb, #d93340 85%, black),
+    color-mix(in srgb, #a6249d 85%, black),
+    color-mix(in srgb, #7957f1 85%, black));
+}
+
+.gradient-brand-text {
+  background-image: linear-gradient(135deg, #d93340, #a6249d, #7957f1);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .gradient-timeline {
-  background-image: linear-gradient(to bottom, var(--destructive), var(--secondary), var(--primary));
+  background-image: linear-gradient(to bottom, #d93340, #a6249d, #7957f1);
   opacity: 0.5;
 }
 
 .gradient-purple {
-  background-image: linear-gradient(to right, var(--secondary), var(--primary));
+  background-image: linear-gradient(to right, #a6249d, #7957f1);
 }
 
 .gradient-purple:hover {
   background-image: linear-gradient(to right,
-    color-mix(in srgb, var(--secondary) 85%, black),
-    color-mix(in srgb, var(--primary) 85%, black));
+    color-mix(in srgb, #a6249d 85%, black),
+    color-mix(in srgb, #7957f1 85%, black));
 }
 
 .gradient-sidebar-icon {
-  background-image: linear-gradient(to bottom right, var(--destructive), var(--secondary), var(--primary));
+  background-image: linear-gradient(to bottom right, #d93340, #a6249d, #7957f1);
 }
 
 .gradient-icon {
-  background-image: linear-gradient(to bottom right, var(--secondary), var(--primary));
+  background-image: linear-gradient(to bottom right, #a6249d, #7957f1);
 }
 
 .gradient-card-ai {
-  background-image: linear-gradient(to right, color-mix(in srgb, var(--primary) 10%, transparent), color-mix(in srgb, var(--secondary) 10%, transparent));
-  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  background-image: linear-gradient(to right, color-mix(in srgb, #d93340 10%, transparent), color-mix(in srgb, #a6249d 10%, transparent));
+  border-color: color-mix(in srgb, #7957f1 30%, transparent);
 }
 
 .gradient-empty-icon {
-  background-image: linear-gradient(to right, color-mix(in srgb, var(--primary) 15%, transparent), color-mix(in srgb, var(--secondary) 15%, transparent));
-  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  background-image: linear-gradient(to right, color-mix(in srgb, #7957f1 15%, transparent), color-mix(in srgb, #a6249d 15%, transparent));
+  border-color: color-mix(in srgb, #7957f1 30%, transparent);
 }
 
 .gradient-login {
-  background-image: linear-gradient(to bottom right, var(--destructive), var(--secondary), var(--primary));
+  background-image: linear-gradient(to bottom right, #d93340, #a6249d, #7957f1);
 }
 
 .gradient-login-btn {
-  background-image: linear-gradient(to right, var(--destructive), var(--secondary), var(--primary));
+  background-image: linear-gradient(to right, #d93340, #a6249d, #7957f1);
 }
 
 .gradient-login-btn:hover {
   background-image: linear-gradient(to right,
-    color-mix(in srgb, var(--destructive) 85%, black),
-    color-mix(in srgb, var(--secondary) 85%, black),
-    color-mix(in srgb, var(--primary) 85%, black));
+    color-mix(in srgb, #d93340 85%, black),
+    color-mix(in srgb, #a6249d 85%, black),
+    color-mix(in srgb, #7957f1 85%, black));
 }
 
 .gradient-result-pass {

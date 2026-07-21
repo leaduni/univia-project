@@ -639,7 +639,7 @@ export function EvaluacionIA({
                                 <div className="space-y-4">
                                   {pregunta.input_markdown && (
                                     <div className="space-y-2">
-                                      <Label className="text-sm font-semibold text-purple-600 dark:text-purple-400">Formato de Entrada</Label>
+                                      <Label className="text-sm font-semibold text-accent">Formato de Entrada</Label>
                                       <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-md prose dark:prose-invert max-w-none text-sm">
                                         <MarkdownRenderer content={pregunta.input_markdown} />
                                       </div>
@@ -647,7 +647,7 @@ export function EvaluacionIA({
                                   )}
                                   {pregunta.output_markdown && (
                                     <div className="space-y-2">
-                                      <Label className="text-sm font-semibold text-purple-600 dark:text-purple-400">Formato de Salida</Label>
+                                      <Label className="text-sm font-semibold text-accent">Formato de Salida</Label>
                                       <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-md prose dark:prose-invert max-w-none text-sm">
                                         <MarkdownRenderer content={pregunta.output_markdown} />
                                       </div>
@@ -658,7 +658,7 @@ export function EvaluacionIA({
 
                               {casoDeEjemplo && (
                                 <div className="space-y-2">
-                                  <Label className="text-sm font-semibold text-purple-600 dark:text-purple-400">Caso de Ejemplo</Label>
+                                  <Label className="text-sm font-semibold text-accent">Caso de Ejemplo</Label>
                                   <div className="p-4 font-mono text-sm bg-slate-900 text-slate-300 rounded-md border border-slate-800">
                                     <div className="mb-4">
                                       <p className="text-slate-300 text-xs uppercase tracking-wider mb-2 font-semibold">Entrada de Prueba</p>
@@ -688,7 +688,7 @@ export function EvaluacionIA({
                                 value={respuestas[pregunta.id] ?? pregunta.codigo_base ?? ''}
                                 onChange={(e) => handleRespuesta(pregunta.id, e.target.value, false)}
                                 placeholder="Escribe tu código aquí..."
-                                className="w-full flex-1 min-h-[300px] p-4 font-mono text-sm bg-[#1e1e1e] text-[#d4d4d4] border border-slate-800 rounded-md focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all"
+                                className="w-full flex-1 min-h-[300px] p-4 font-mono text-sm bg-[#1e1e1e] text-[#d4d4d4] border border-slate-800 rounded-md focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all"
                                 style={{ resize: 'vertical' }}
                               />
                             </div>
@@ -696,7 +696,7 @@ export function EvaluacionIA({
                               <Button
                                 onClick={() => handleEjecutarCodigo(pregunta.id, respuestas[pregunta.id] ?? '')}
                                 disabled={executionResult?.isLoading}
-                                className="w-full sm:w-auto gap-2 bg-purple-600 hover:bg-purple-700 text-white"
+                                className="w-full sm:w-auto gap-2 bg-accent hover:bg-accent/80 text-white"
                               >
                                 {executionResult?.isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
                                 {executionResult?.isLoading ? "Ejecutando..." : "Ejecutar Código"}
@@ -829,7 +829,7 @@ export function EvaluacionIA({
           <Card className="ai-card-neon">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Brain className="w-5 h-5 text-purple-500" />
+                <Brain className="w-5 h-5 text-accent" />
                 Retroalimentación de IA
               </CardTitle>
             </CardHeader>

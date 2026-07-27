@@ -10,19 +10,18 @@ import { Badge } from "@/components/ui/badge"
 import {
   Brain,
   Sparkles,
-  CheckCircle2,
-  XCircle,
   PlayCircle,
   Settings,
   RotateCcw,
-  TrendingUp,
   Clock,
   Loader2,
   Lock
 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
-import { supabase } from "@/lib/supabase"
 import MarkdownRenderer from "@/components/ui/markdown-renderer"
+import { useAuth } from "@/components/providers/auth-context"
+import { EvaluationResultsView } from "@/components/learning-path/evaluation-results-view"
+import type { EvaluationResultData, QuestionDetail } from "@/types/evaluation"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -69,18 +68,17 @@ export function EvaluacionIA({
   courseId,
   modulos,
   preSelectedModulo,
-  preSelectedTopics,
-  onClearPreselection
+  onClearPreselection,
+  onResultsChange
 }: {
   courseId: string
   modulos: ModuloInfo[]
   preSelectedModulo?: string | null
-  preSelectedTopics?: string[]
   onClearPreselection?: () => void
+  onResultsChange?: (showing: boolean) => void
 }) {
   const [step, setStep] = useState<"config" | "loading" | "evaluacion" | "resultados">("config")
   const [selectedModulo, setSelectedModulo] = useState<ModuloInfo | null>(null)
-  const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
   const LIMITES_POR_CURSO: Record<string, { min: number; max: number }> = {
     "11": { min: 3, max: 4 }, // Geometría Analítica (Sistemas)
     "31": { min: 3, max: 4 }, // Geometría Analítica (Software)
@@ -98,6 +96,13 @@ export function EvaluacionIA({
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [executionResults, setExecutionResults] = useState<Record<number, ExecutionResult>>({});
+  const { session } = useAuth()
+
+  const normalizeTopics = (topics: any): string[] => {
+    if (Array.isArray(topics)) return topics
+    if (typeof topics === "string") return topics.split(",").map(s => s.trim()).filter(Boolean)
+    return []
+  }
 
   // Pre-seleccionar módulo cuando viene desde la ruta de aprendizaje
   const hasProcessedPreselection = useRef(false)
@@ -106,16 +111,10 @@ export function EvaluacionIA({
       const modulo = modulos.find(m => m.title === preSelectedModulo)
       if (modulo) {
         setSelectedModulo(modulo)
-        // Auto-select first topic or use preSelectedTopics
-        if (preSelectedTopics && preSelectedTopics.length > 0) {
-          setSelectedTopic(preSelectedTopics[0])
-        } else if (modulo.topics.length > 0) {
-          setSelectedTopic(modulo.topics[0])
-        }
         hasProcessedPreselection.current = true
       }
     }
-  }, [preSelectedModulo, modulos, preSelectedTopics])
+  }, [preSelectedModulo, modulos])
 
   // Reset preselección cuando se reinicia
   useEffect(() => {
@@ -218,16 +217,15 @@ export function EvaluacionIA({
   };
 
   const generarEvaluacion = async () => {
-    if (!selectedModulo || !selectedTopic) return
+    if (!selectedModulo) return
 
     try {
       setIsLoading(true)
       setError(null)
       setStep("loading")
 
-      // Get auth token
-      const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
+      if (!token) { console.error("No active authentication token found."); return }
 
       const response = await fetch(`${API_URL}/api/evaluaciones/generar-stream`, {
         method: "POST",
@@ -238,7 +236,7 @@ export function EvaluacionIA({
         body: JSON.stringify({
           curso_id: parseInt(courseId),
           modulo: selectedModulo.title,
-          temas: [selectedTopic],
+          temas: [selectedModulo.title],
           num_preguntas: numPreguntas,
           observaciones: observaciones || null,
           tipo_evaluacion: "mixta"
@@ -284,6 +282,7 @@ export function EvaluacionIA({
       setEvaluacion(data)
       setStep("evaluacion")
     } catch (err: any) {
+      if (onResultsChange) onResultsChange(false)
       setError(`Error al procesar la evaluación: ${err.message}. Asegúrate de que la respuesta de la IA sea un JSON válido.`)
       setStep("config")
     } finally {
@@ -316,9 +315,8 @@ export function EvaluacionIA({
         };
       });
 
-      // Get auth token
-      const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
+      if (!token) { console.error("No active authentication token found."); return }
 
       const response = await fetch(`${API_URL}/api/evaluaciones/evaluar`, {
         method: "POST",
@@ -343,7 +341,9 @@ export function EvaluacionIA({
       const data = await response.json()
       setResultado(data)
       setStep("resultados")
+      if (onResultsChange) onResultsChange(true)
     } catch (err: any) {
+      if (onResultsChange) onResultsChange(false)
       setError(err.message)
     } finally {
       setIsLoading(false)
@@ -353,12 +353,12 @@ export function EvaluacionIA({
   const reiniciar = () => {
     setStep("config")
     setSelectedModulo(null)
-    setSelectedTopic(null)
     setRespuestas({})
     setResultado(null)
     setEvaluacion(null)
     setError(null)
     setExecutionResults({})
+    if (onResultsChange) onResultsChange(false)
   }
 
   const handleRespuesta = (preguntaId: number, valor: any, esMultiple: boolean) => {
@@ -372,6 +372,52 @@ export function EvaluacionIA({
       setRespuestas({ ...respuestas, [preguntaId]: valor })
     }
   }
+
+  const formatAnswerText = (detalle: any): string => {
+    if (detalle.pregunta_tipo === "codigo") return detalle.respuesta_estudiante || "";
+    const val = detalle.respuesta_estudiante;
+    if (Array.isArray(val) && detalle.opciones) {
+      return val.map((idx: number) => detalle.opciones[idx]).join(", ");
+    }
+    if (detalle.opciones && detalle.opciones[val] !== undefined) return detalle.opciones[val];
+    return val != null ? String(val) : "";
+  };
+
+  const formatCorrectAnswerText = (detalle: any): string => {
+    if (detalle.pregunta_tipo === "codigo") return detalle.respuesta_correcta || "";
+    const val = detalle.respuesta_correcta;
+    if (Array.isArray(val) && detalle.opciones) {
+      return val.map((idx: number) => detalle.opciones[idx]).join(", ");
+    }
+    if (detalle.opciones && detalle.opciones[val] !== undefined) return detalle.opciones[val];
+    return val != null ? String(val) : "";
+  };
+
+  const mapResultadoToEvaluationData = (backend: any, topic: string): EvaluationResultData => {
+    return {
+      score: backend.puntaje ?? 0,
+      totalQuestions: backend.total ?? 0,
+      percentage: backend.porcentaje ?? 0,
+      topic,
+      feedback: {
+        rawRetroalimentacion: backend.retroalimentacion || "",
+      },
+      questions: (backend.detalles || []).map((d: any, i: number): QuestionDetail => ({
+        id: d.pregunta_id ?? i,
+        questionNumber: i + 1,
+        questionText: d.contexto_markdown || d.pregunta || "",
+        isCorrect: d.es_correcta ?? false,
+        userAnswer: formatAnswerText(d),
+        correctAnswer: formatCorrectAnswerText(d),
+        explanation: d.explicacion || "",
+        questionType: d.pregunta_tipo,
+        options: d.opciones,
+        contextoMarkdown: d.contexto_markdown,
+        inputMarkdown: d.input_markdown,
+        outputMarkdown: d.output_markdown,
+      })),
+    };
+  };
 
   // Paso 1: Configuración
   if (step === "config") {
@@ -437,14 +483,14 @@ export function EvaluacionIA({
                     )}
                     {!modulo.disabled && (
                       <div className="flex flex-wrap gap-1">
-                        {modulo.topics.slice(0, 3).map((topic, i) => (
+                        {normalizeTopics(modulo.topics).slice(0, 3).map((topic, i) => (
                           <Badge key={i} variant="secondary" className="text-xs">
                             {topic}
                           </Badge>
                         ))}
-                        {modulo.topics.length > 3 && (
+                        {normalizeTopics(modulo.topics).length > 3 && (
                           <Badge variant="outline" className="text-xs">
-                            +{modulo.topics.length - 3}
+                            +{normalizeTopics(modulo.topics).length - 3}
                           </Badge>
                         )}
                       </div>
@@ -453,33 +499,6 @@ export function EvaluacionIA({
                 ))}
               </div>
             </div>
-
-            {/* Paso 2: Selección de tema específico */}
-            {selectedModulo && (
-              <div className="space-y-3">
-                <Label>2. Selecciona el tema a evaluar</Label>
-                <div className="flex flex-wrap gap-2">
-                  {selectedModulo.topics.map((topic, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setSelectedTopic(topic)}
-                      className={`px-4 py-2 rounded-full text-sm font-medium border-2 transition-all ${
-                        selectedTopic === topic
-                          ? "border-[var(--ai-neon-pink)] bg-[#a0218b]/15 text-foreground ring-1 ring-[var(--ai-neon-pink)]/30"
-                          : "border-border hover:border-[var(--ai-neon-pink)]/50 text-muted-foreground"
-                      }`}
-                    >
-                      {topic}
-                    </button>
-                  ))}
-                </div>
-                {selectedTopic && (
-                  <p className="text-xs text-muted-foreground">
-                    La IA generará preguntas <strong>exclusivamente</strong> sobre <span className="text-[var(--ai-neon-pink)]">{selectedTopic}</span>.
-                  </p>
-                )}
-              </div>
-            )}
 
             {/* Número de preguntas */}
             <div className="space-y-2">
@@ -513,7 +532,7 @@ export function EvaluacionIA({
 
             <Button
               onClick={generarEvaluacion}
-              disabled={!selectedModulo || !selectedTopic || isLoading}
+              disabled={!selectedModulo || isLoading}
               className="w-full gap-2 gradient-ai-neon text-white border-0"
             >
               <Sparkles className="w-4 h-4" />
@@ -769,129 +788,18 @@ export function EvaluacionIA({
   }
 
   // Paso 4: Resultados
-  if (step === "resultados" && resultado && evaluacion) {
-    const porcentaje = resultado.porcentaje
-    const aprobado = porcentaje >= 60
-
-    const renderRespuestaEstudiante = (detalle: any) => {
-      if (detalle.pregunta_tipo === 'codigo') {
-        return <pre className="p-2 bg-gray-100 dark:bg-gray-800 rounded text-sm whitespace-pre-wrap"><code>{detalle.respuesta_estudiante}</code></pre>;
-      }
-      const content = Array.isArray(detalle.respuesta_estudiante)
-        ? detalle.respuesta_estudiante.map((idx: number) => detalle.opciones[idx]).join(", ")
-        : (detalle.opciones && detalle.opciones[detalle.respuesta_estudiante])
-        ? detalle.opciones[detalle.respuesta_estudiante]
-        : detalle.respuesta_estudiante;
-      
-      return <MarkdownRenderer content={content} />;
-    };
-
-    // Helper para mostrar la respuesta correcta
-    const renderRespuestaCorrecta = (detalle: any) => {
-      if (detalle.pregunta_tipo === 'codigo') {
-        return <pre className="p-2 bg-emerald-100/50 dark:bg-emerald-900/50 rounded text-sm whitespace-pre-wrap"><code>{detalle.respuesta_correcta}</code></pre>;
-      }
-       const content = Array.isArray(detalle.respuesta_correcta)
-        ? detalle.respuesta_correcta.map((idx: number) => detalle.opciones[idx]).join(", ")
-        : (detalle.opciones && detalle.opciones[detalle.respuesta_correcta])
-        ? detalle.opciones[detalle.respuesta_correcta]
-        : detalle.respuesta_correcta;
-
-      return <MarkdownRenderer content={content} />;
-    };
-
+  if (step === "resultados" && resultado) {
+    const evaluationData = mapResultadoToEvaluationData(resultado, selectedModulo?.title || "");
     return (
-      <div className="space-y-6">
-        {/* Resultado General */}
-        <Card className={`${aprobado ? "gradient-result-pass" : "gradient-result-fail"}`}>
-          <CardContent className="pt-6">
-            <div className="text-center space-y-4">
-              {aprobado ? (
-                <CheckCircle2 className="w-16 h-16 text-emerald-600 mx-auto" />
-              ) : (
-                <TrendingUp className="w-16 h-16 text-orange-600 mx-auto" />
-              )}
-              <div>
-                <h3 className="text-3xl font-bold mb-2">{porcentaje.toFixed(1)}%</h3>
-                <p className="text-lg font-medium">
-                  {resultado.respuestas_correctas} de {resultado.total} preguntas correctas
-                </p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  {aprobado ? "¡Excelente trabajo!" : "Sigue practicando"}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Retroalimentación de IA */}
-        {resultado.retroalimentacion && (
-          <Card className="ai-card-neon">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Brain className="w-5 h-5 text-accent" />
-                Retroalimentación de IA
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MarkdownRenderer content={resultado.retroalimentacion} />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Detalle de respuestas */}
-        <div className="space-y-3">
-          <h4 className="font-semibold text-lg">Revisión Detallada</h4>
-          {resultado.detalles.map((detalle: any, idx: number) => (
-            <Card key={idx} className={detalle.es_correcta ? "border-emerald-200 dark:border-emerald-800" : "border-red-200 dark:border-red-800"}>
-              <CardHeader>
-                <CardTitle className="text-sm flex items-start gap-3">
-                  <span className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${detalle.es_correcta ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-600" : "bg-red-100 dark:bg-red-900 text-red-600"}`}>
-                    {detalle.es_correcta ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
-                  </span>
-                  <div className="flex-1">
-                    <MarkdownRenderer content={detalle.contexto_markdown || detalle.pregunta} />
-                  </div>
-                </CardTitle>
-                {(detalle.input_markdown || detalle.output_markdown) && (
-                  <CardDescription className="ml-11 mt-2 space-y-1 text-xs">
-                      {detalle.input_markdown && <div><strong>Input:</strong> {detalle.input_markdown}</div>}
-                      {detalle.output_markdown && <div><strong>Output Esperado:</strong> {detalle.output_markdown}</div>}
-                  </CardDescription>
-                )}
-              </CardHeader>
-              <CardContent className="ml-11 space-y-3">
-                <div className="space-y-2">
-                  <div className="text-sm">
-                    <span className="font-medium">Tu respuesta:</span>{" "}
-                    {renderRespuestaEstudiante(detalle)}
-                  </div>
-                  {!detalle.es_correcta && (
-                    <div className="text-sm text-emerald-600 dark:text-emerald-400">
-                      <span className="font-medium">Respuesta correcta:</span>{" "}
-                      {renderRespuestaCorrecta(detalle)}
-                    </div>
-                  )}
-                </div>
-                {detalle.explicacion && (
-                  <div className="bg-secondary/30 p-3 rounded-lg">
-                    <p className="text-sm font-medium mb-1">Explicación:</p>
-                    <div className="text-sm text-muted-foreground">
-                      <MarkdownRenderer content={detalle.explicacion} />
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        <Button onClick={reiniciar} className="w-full gap-2" variant="outline">
-          <RotateCcw className="w-4 h-4" />
-          Generar Nueva Evaluación
-        </Button>
-      </div>
-    )
+      <EvaluationResultsView
+        data={evaluationData}
+        onGenerateNew={reiniciar}
+        onBackToCourse={() => {
+          reiniciar();
+          if (onClearPreselection) onClearPreselection();
+        }}
+      />
+    );
   }
 
   return null

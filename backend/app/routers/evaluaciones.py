@@ -1,16 +1,31 @@
+import os
+import json
+import re
+import asyncio
+import logging
+import traceback
+import sys
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any, Union, AsyncGenerator
 from openai import OpenAI
-import os
 from dotenv import load_dotenv
 load_dotenv()
-import json
-import re
-import asyncio
 
 from app.rag.retriever import SyllabusRetriever
+
+logger = logging.getLogger("evaluaciones_tracer")
+logger.setLevel(logging.DEBUG)
+if not logger.handlers:
+    handler = logging.StreamHandler(sys.stdout)
+    formatter = logging.Formatter(
+        "\n[TRACE-EVALUACIONES] %(asctime)s | %(levelname)s | %(message)s",
+        datefmt="%H:%M:%S"
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 router = APIRouter()
 
@@ -278,19 +293,26 @@ REGLAS ESTRICTAS PARA LA GENERACIÓN DEL JSON:
     
     return prompt
 
-def limpiar_json_response(text: str) -> str:
-    """Extrae el JSON de la respuesta del modelo y repara escapes inválidos."""
-    json_text = text
-    json_match = re.search(r'```(?:json)?\s*(.*?)\s*```', text, re.DOTALL)
+def parse_llm_json_response(raw_response: str) -> dict:
+    """Limpia bloques de código markdown, repara escapes inválidos (LaTeX)
+    y extrae un diccionario JSON válido de la respuesta del modelo."""
+    logger.debug(f"[JSON_PARSER] Analizando respuesta de longitud {len(raw_response) if raw_response else 0} caracteres")
+    if not raw_response or not raw_response.strip():
+        logger.error("[JSON_PARSER] El texto recibido está completamente vacío.")
+        raise ValueError("La respuesta del modelo de IA está vacía.")
+
+    # 1. Eliminar bloques de código markdown ```json ... ```
+    cleaned = re.sub(r"^```(?:json)?\s*", "", raw_response.strip(), flags=re.MULTILINE)
+    cleaned = re.sub(r"\s*```$", "", cleaned, flags=re.MULTILINE).strip()
+
+    # 2. Intentar extraer el primer bloque de objeto/array JSON
+    json_text = cleaned
+    json_match = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', cleaned)
     if json_match:
         json_text = json_match.group(1)
-    else:
-        json_match = re.search(r'(\{[\s\S]*\})', text)
-        if json_match:
-            json_text = json_match.group(1)
 
-    # State machine: recorre caracter a caracter.
-    # Dentro de strings JSON: escapa backslashes inválidos y caracteres de control.
+    # 3. State machine: recorre caracter a caracter.
+    #    Dentro de strings JSON: escapa backslashes inválidos y caracteres de control.
     result = []
     in_string = False
     i = 0
@@ -337,7 +359,27 @@ def limpiar_json_response(text: str) -> str:
         else:
             result.append(ch); i += 1
 
-    return ''.join(result)
+    sanitized = ''.join(result)
+
+    # 4. Intentar parsear
+    try:
+        data = json.loads(sanitized)
+        logger.info(f"[JSON_PARSER] Éxito al parsear JSON: {len(data.get('preguntas', []))} preguntas extraídas.")
+        return data
+    except json.JSONDecodeError as e:
+        logger.error(f"[JSON_PARSER ERROR] No se pudo parsear el JSON.")
+        logger.error(f"[JSON_PARSER TEXTO CRUDO QUE FALLÓ]:\n>>>\n{raw_response}\n<<<")
+        logger.error(f"[JSON_PARSER TEXTO TRAS LIMPIEZA]:\n>>>\n{sanitized}\n<<<")
+        # Último recurso: buscar cualquier {…} o […] en el texto limpio
+        json_match = re.search(r"(\{.*\}|\[.*\])", sanitized, re.DOTALL)
+        if json_match:
+            try:
+                fallback = json.loads(json_match.group(1))
+                logger.warning(f"[JSON_PARSER] Fallback regex exitoso: {len(fallback.get('preguntas', []))} preguntas.")
+                return fallback
+            except json.JSONDecodeError:
+                pass
+        raise ValueError(f"No se pudo extraer un JSON válido de la respuesta de la IA: {str(e)}")
 
 @router.post("/evaluaciones/generar", response_model=Evaluacion)
 async def generar_evaluacion(config: ConfiguracionEvaluacion):
@@ -401,8 +443,7 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion):
                 raw_content += delta
 
         # Limpiar y parsear la respuesta
-        json_text = limpiar_json_response(raw_content)
-        data = json.loads(json_text)
+        data = parse_llm_json_response(raw_content)
         
         # Validar que tenemos preguntas
         if "preguntas" not in data or not data["preguntas"]:
@@ -438,7 +479,7 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion):
         
         return evaluacion
         
-    except json.JSONDecodeError as e:
+    except (json.JSONDecodeError, ValueError) as e:
         raise HTTPException(
             status_code=500,
             detail=f"Error al parsear respuesta de IA: {str(e)}"
@@ -745,31 +786,62 @@ async def _generar_una_pregunta(idx: int, prompt: str, tipo_real: str) -> dict:
 async def generar_evaluacion_stream(config: ConfiguracionEvaluacion):
     """Genera cada pregunta en paralelo (1 llamada por pregunta) y las envía por SSE conforme llegan."""
 
+    logger.info("=" * 60)
+    logger.info(f"PASO 1: Nueva petición recibida | curso_id={config.curso_id}, modulo='{config.modulo}', "
+                f"temas={config.temas}, num_preguntas={config.num_preguntas}")
+
     if not openai_client:
+        logger.error("PASO 1 ERROR: OpenAI client no inicializado - API Key no configurada")
         raise HTTPException(status_code=500, detail="API Key de OpenAI no configurada")
 
-    es_programacion = config.curso_id in CURSOS_PROGRAMACION_IDS
+    try:
+        # --- PASO 2: RAG / Recuperación de Contexto Semántico ---
+        logger.info("PASO 2: Buscando contexto semántico / sílabo (RAG)...")
 
-    # Contexto RAG (una sola vez)
-    tema_completo = config.temas[0] if len(config.temas) == 1 else f"{config.modulo}: {', '.join(config.temas)}"
-    contexto = recuperar_contexto_semantico(tema_completo, config.curso_id)
+        es_programacion = config.curso_id in CURSOS_PROGRAMACION_IDS
 
-    temas_str = config.temas[0] if len(config.temas) == 1 else ', '.join(config.temas)
+        tema_completo = config.temas[0] if len(config.temas) == 1 else f"{config.modulo}: {', '.join(config.temas)}"
+        contexto = recuperar_contexto_semantico(tema_completo, config.curso_id)
 
-    contexto_bloque = ""
-    if contexto:
-        contexto_str = "\n\n---\n".join(contexto)
-        contexto_bloque = (
-            f"### EJERCICIOS REALES DE EXÁMENES UNI — REFERENCIA OBLIGATORIA ###\n"
-            f"{contexto_str}\n"
-            f"### FIN DE REFERENCIA ###\n\n"
-            f"Transforma estos ejercicios: misma estructura y dificultad, solo cambia valores numéricos.\n"
+        temas_str = config.temas[0] if len(config.temas) == 1 else ', '.join(config.temas)
+
+        contexto_bloque = ""
+        if contexto:
+            contexto_str = "\n\n---\n".join(contexto)
+            contexto_bloque = (
+                f"### EJERCICIOS REALES DE EXÁMENES UNI — REFERENCIA OBLIGATORIA ###\n"
+                f"{contexto_str}\n"
+                f"### FIN DE REFERENCIA ###\n\n"
+                f"Transforma estos ejercicios: misma estructura y dificultad, solo cambia valores numéricos.\n"
+            )
+            logger.info(f"PASO 2 COMPLETADO: {len(contexto)} fragmentos recuperados ({len(contexto_str)} caracteres).")
+        else:
+            logger.warning("PASO 2 ALERTA: No se recuperó contexto RAG. Continuando sin él...")
+
+        # --- PASO 3: Verificación de OpenAI ---
+        logger.info("PASO 3: Verificando cliente OpenAI...")
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            logger.error("PASO 3 ERROR: OPENAI_API_KEY no está configurada en variables de entorno.")
+            raise HTTPException(status_code=500, detail="Falta configuración de API Key de OpenAI en el servidor.")
+        logger.info(f"PASO 3 OK: API Key presente (primeros caracteres: {api_key[:8]}...)")
+
+    except Exception as e:
+        stack_trace = traceback.format_exc()
+        logger.error(f"💥 ERROR CRÍTICO PRE-STREAMING (HTTP 500):\n{stack_trace}")
+        logger.info("=" * 60)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error interno al generar la evaluación con IA: {str(e)}"
         )
 
     async def event_generator() -> AsyncGenerator[str, None]:
+        logger.info("PASO 4: Iniciando streaming SSE event_generator...")
         try:
             if es_programacion:
-                # Para programación: generación en bloque (prompt ya optimizado)
+                # --- PASO 5: Llamada a OpenAI (Programación) ---
+                logger.info("PASO 5: Invocando API de OpenAI (flujo programación)...")
+
                 cfg1 = ConfiguracionEvaluacion(
                     curso_id=config.curso_id,
                     modulo=config.modulo,
@@ -795,12 +867,18 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion):
                     return resp.choices[0].message.content
 
                 raw = await loop.run_in_executor(None, _call_prog)
-                json_text = limpiar_json_response(raw)
-                data = json.loads(json_text)
+                logger.info(f"PASO 5 COMPLETADO: Respuesta cruda recibida ({len(raw)} caracteres).")
+
+                # --- PASO 6: Parseo de JSON ---
+                logger.info("PASO 6: Parseando JSON de respuesta...")
+                data = parse_llm_json_response(raw)
+                logger.info(f"PASO 6 COMPLETADO: {len(data.get('preguntas', []))} preguntas parseadas.")
                 yield f"data: {json.dumps({'done': True, 'result': data})}\n\n"
                 return
 
-            # Para cursos teóricos: N llamadas paralelas, 1 pregunta cada una
+            # --- PASO 5 (teórico): N llamadas paralelas ---
+            logger.info(f"PASO 5: Generando {config.num_preguntas} preguntas teóricas en paralelo...")
+
             prompts_tipos = [
                 _prompt_una_pregunta_teorica(i, temas_str, config.tipo_evaluacion, contexto_bloque)
                 for i in range(config.num_preguntas)
@@ -809,24 +887,28 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion):
             preguntas: List[dict] = [None] * config.num_preguntas
             tareas = [_generar_una_pregunta(i, p, t) for i, (p, t) in enumerate(prompts_tipos)]
 
-            # Lanza todas en paralelo y envía cada una conforme termina
+            total_errores = 0
             for coro in asyncio.as_completed(tareas):
                 try:
                     pregunta = await coro
                     idx = pregunta.get("id", 1) - 1
                     preguntas[idx] = pregunta
+                    logger.info(f"PASO 5 PROGRESO: Pregunta {idx + 1}/{config.num_preguntas} generada.")
                     yield f"data: {json.dumps({'pregunta': pregunta, 'total': config.num_preguntas})}\n\n"
                 except Exception as e:
-                    import traceback
-                    print(f"Error generando pregunta: {type(e).__name__}: {e}")
-                    traceback.print_exc()
+                    total_errores += 1
+                    logger.error(f"PASO 5 ERROR generando pregunta: {type(e).__name__}: {e}")
+                    logger.error(traceback.format_exc())
                     yield f"data: {json.dumps({'advertencia': f'Una pregunta falló: {str(e)}'})}\n\n"
 
-            # Filtra None por si alguna falló
             preguntas_ok = [p for p in preguntas if p is not None]
             if not preguntas_ok:
+                logger.error("PASO 5 ERROR: No se pudo generar ninguna pregunta.")
                 yield f"data: {json.dumps({'error': 'No se pudo generar ninguna pregunta'})}\n\n"
                 return
+
+            logger.info(f"PASO 5 COMPLETADO: {len(preguntas_ok)}/{config.num_preguntas} preguntas generadas "
+                        f"({total_errores} errores).")
 
             resultado = {
                 "curso_id": config.curso_id,
@@ -837,9 +919,13 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion):
             }
             yield f"data: {json.dumps({'done': True, 'result': resultado})}\n\n"
 
-        except Exception as e:
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        except Exception as stream_err:
+            stack_trace = traceback.format_exc()
+            logger.error(f"❌ ERROR DENTRO DEL GENERADOR STREAM:\n{stack_trace}")
+            yield f"data: {json.dumps({'error': str(stream_err)})}\n\n"
 
+    logger.info("PASO 4 COMPLETADO: StreamingResponse iniciado.")
+    logger.info("=" * 60)
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",

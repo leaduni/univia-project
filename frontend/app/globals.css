@@ -3,7 +3,7 @@
 @import "tw-animate-css";
 
 :root {
-  --background: #030c40;
+  --background: #0b0c16;
   --foreground: #f8fafc;
   --card: #0a0a1f;
   --card-foreground: #e2e8f0;
@@ -47,6 +47,9 @@
   --ai-neon-magenta: #a0218b;
   --ai-neon-red: #cb2b46;
   --ai-neon-glow: rgba(121, 87, 241, 0.25);
+  --dashboard-bg: #0b0c16;
+  --dashboard-card: #151428;
+  --dashboard-card-border: #262444;
 }
 
 @theme inline {
@@ -96,6 +99,7 @@
   --color-brand-violet: var(--brand-violet);
   --color-brand-lila: var(--brand-lila);
   --color-brand-navy: var(--brand-navy);
+  --breakpoint-3xl: 1800px;
 }
 
 @layer base {
@@ -103,7 +107,12 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background-color: #0b0c16;
+    background-image:
+      radial-gradient(circle at 10% 10%, #1e1338 0%, transparent 45%),
+      radial-gradient(circle at 85% 60%, #15102a 0%, transparent 50%);
+    background-attachment: fixed;
   }
 }
 
@@ -275,4 +284,31 @@
 
 .gradient-ai-neon-br {
   background-image: linear-gradient(to bottom right, #cb2b46, #a0218b, #ff86ff);
+}
+
+/* === DASHBOARD REDESIGN GRADIENT UTILITIES === */
+.gradient-course-1 {
+  background: linear-gradient(135deg, #d93340, #a6249d);
+}
+
+.gradient-course-2 {
+  background: linear-gradient(135deg, #a6249d, #7957f1);
+}
+
+.gradient-course-3 {
+  background: linear-gradient(135deg, #f97316, #d93340);
+}
+
+.gradient-course-4 {
+  background: linear-gradient(135deg, #a0218b, #ff86ff);
+}
+
+.gradient-btn-pink-violet {
+  background: linear-gradient(135deg, #ec4899, #8b5cf6);
+}
+
+.gradient-btn-pink-violet:hover {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, #ec4899 85%, black),
+    color-mix(in srgb, #8b5cf6 85%, black));
 }

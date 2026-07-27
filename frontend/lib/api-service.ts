@@ -115,7 +115,9 @@ export const apiService = {
                     const errorBody = await response.json();
                     if (errorBody.detail) errorMsg = errorBody.detail;
                 } catch {}
-                throw new Error(errorMsg);
+                const error: any = new Error(errorMsg);
+                error.status = response.status;
+                throw error;
             }
             return await response.json();
         } catch (error) {
@@ -181,6 +183,38 @@ export const apiService = {
         }
     },
 
+    async getEnvironmentCursos(carreraId: number, cicloActual: number) {
+        try {
+            const params = new URLSearchParams({
+                carrera_id: carreraId.toString(),
+                ciclo_actual: cicloActual.toString()
+            });
+            const response = await fetchWithAuth(`${API_URL}/onboarding/cursos?${params}`);
+            if (!response.ok) {
+                throw new Error(`Error al obtener los cursos: ${response.statusText}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error("API Error (getEnvironmentCursos):", error);
+            throw error;
+        }
+    },
+
+    async completarCurso(cursoId: number) {
+        try {
+            const response = await fetchWithAuth(`${API_URL}/cursos/${cursoId}/completar`, {
+                method: 'POST'
+            });
+            if (!response.ok) {
+                throw new Error('No se pudo marcar el curso como completado');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error("API Error (completarCurso):", error);
+            throw error;
+        }
+    },
+
     async getOnboardingData() {
         try {
             const response = await fetchWithAuth(`${API_URL}/onboarding/data`);
@@ -197,8 +231,7 @@ export const apiService = {
     async completeOnboarding(data: {
         carrera_id: number;
         ciclo_actual: number;
-        cursos_completados: number[];
-        matricula_actual: number[];
+        cursos_inscritos: number[];
     }) {
         try {
             const response = await fetchWithAuth(`${API_URL}/onboarding/complete`, {
@@ -266,28 +299,37 @@ export const apiService = {
         }
     },
 
-    async signup(data: { email: string; password: string; fullName: string; rol?: string }) {
-        
-        console.log("Chequeo de URL: '" + process.env.NEXT_PUBLIC_SUPABASE_URL + "'");
-        console.log("Longitud de la Key:", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length);
-        
+    async signup(data: { email: string; password: string; fullName: string; codigoUni: string }) {
+
         try {
-            const { data: authData, error } = await supabase.auth.signUp({
-                email: data.email,
-                password: data.password,
-                options: {
-                    data: {
-                        nombre_completo: data.fullName,
-                        rol: data.rol || 'estudiante'
-                    }
-                }
+            const response = await fetch(`${API_URL}/auth/register-user`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: data.email,
+                    password: data.password,
+                    codigo_estudiante: data.codigoUni,
+                    nombre_completo: data.fullName,
+                }),
             });
 
-            if (error) throw error;
-            return authData;
+            const body = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                const validationErrors = body?.errors;
+                if (validationErrors && validationErrors.length > 0) {
+                    const errorObj = new Error(validationErrors.map((e: any) => e.message).join('. ')) as any;
+                    errorObj.validationErrors = validationErrors;
+                    throw errorObj;
+                }
+                throw new Error(body?.detail || 'Error al registrar la cuenta.');
+            }
+
+            return body;
         } catch (error: any) {
-            console.error("Supabase Auth Error (signup):", error);
-            throw new Error(error.message || "Signup failed");
+            if (error.validationErrors) throw error;
+            console.error("Signup error:", error);
+            throw new Error(error.message || "Error al registrar la cuenta.");
         }
     },
 

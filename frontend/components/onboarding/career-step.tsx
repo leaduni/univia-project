@@ -1,11 +1,18 @@
-// Onboarding step - select career/major
 "use client"
 
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { ChevronRight } from "lucide-react"
+import { ArrowRight, Network, Code, Factory, Cpu, Building2, GraduationCap } from "lucide-react"
 import type { OnboardingData } from "@/types/onboarding"
 
+const getCareerIcon = (name: string = "") => {
+  const n = name.toLowerCase()
+  if (n.includes("sistema") || n.includes("red")) return Network
+  if (n.includes("software") || n.includes("computac")) return Code
+  if (n.includes("industr")) return Factory
+  if (n.includes("mecatr") || n.includes("electr")) return Cpu
+  if (n.includes("civil") || n.includes("estruct")) return Building2
+  return GraduationCap
+}
 
 interface CareerStepProps {
   data: OnboardingData
@@ -14,63 +21,64 @@ interface CareerStepProps {
 }
 
 export function CareerStep({ data, onNext, careers }: CareerStepProps) {
-  const [selected, setSelected] = useState(data.career)
+  const [selected, setSelected] = useState<number>(data.career)
 
-  const handleSelect = (careerId: string) => {
+  const handleSelect = (careerId: number) => {
     setSelected(careerId)
   }
 
   const handleContinue = () => {
-    if (selected) {
+    if (selected > 0) {
       onNext({ career: selected })
     }
   }
 
   return (
     <div className="space-y-6">
-      <div className="text-center space-y-2">
-        <h2 className="text-3xl font-bold text-foreground">¿Cuál es tu carrera?</h2>
-        <p className="text-muted-foreground max-w-2xl mx-auto">
-          Selecciona tu programa académico para personalizar tu malla curricular
+      <div className="space-y-1">
+        <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+          &iquest;Qu&eacute; carrera estudias?
+        </h1>
+        <p className="text-sm text-slate-300">
+          Con esto armamos tu malla curricular personalizada.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
-        {careers?.map((career) => (
-          <button
-            key={career.id}
-            onClick={() => handleSelect(career.id.toString())}
-            className={`relative p-6 rounded-xl border-2 transition-all duration-200 group overflow-hidden ${selected === career.id.toString()
-              ? "border-accent bg-accent/5 shadow-lg shadow-accent/20"
-              : "border-border bg-card hover:border-accent/50 hover:shadow-md"
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {careers?.map((career) => {
+          const Icon = getCareerIcon(career.name)
+          const isSelected = selected === career.id
+          return (
+            <button
+              key={career.id}
+              onClick={() => handleSelect(career.id)}
+              className={`flex items-center gap-4 p-4 rounded-2xl border text-left transition-all duration-200 ${
+                isSelected
+                  ? "bg-[#181438] border-[#ec4899] shadow-lg shadow-pink-500/10 ring-1 ring-[#ec4899]"
+                  : "bg-[#121124]/80 border-[#232045] hover:border-[#3d376e] hover:bg-[#16142e]"
               }`}
-          >
-            {/* Animated background for selected state */}
-            {selected === career.id.toString() && (
-              <div className="absolute inset-0 bg-gradient-to-r from-accent/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            )}
-
-            <div className="relative space-y-3 text-center">
-              <div className="text-4xl">{career.codigo === 'IS' || career.codigo === 'CS' ? '🖥️' : '🎓'}</div>
-              <div className="text-center">
-                <p className="font-semibold text-foreground group-hover:text-accent transition-colors">{career.name}</p>
-                {selected === career.id.toString() && <p className="text-sm text-muted-foreground">{career.codigo}</p>}
+            >
+              <div className={`p-3 rounded-xl ${isSelected ? "bg-gradient-to-br from-[#ec4899] to-[#a855f7] text-white" : "bg-[#1d1a3b] text-slate-300"}`}>
+                <Icon className="w-5 h-5" />
               </div>
-              {selected === career.id.toString() && (
-                <div className="absolute top-2 right-2 w-5 h-5 bg-accent rounded-full flex items-center justify-center">
-                  <div className="w-2 h-2 bg-accent-foreground rounded-full" />
-                </div>
-              )}
-            </div>
-          </button>
-        ))}
+              <div>
+                <h3 className="text-sm font-bold text-white">{career.name}</h3>
+                <span className="text-xs font-semibold text-slate-400">{career.codigo || "UNI"}</span>
+              </div>
+            </button>
+          )
+        })}
       </div>
 
-      {/* Continue Button */}
-      <div className="flex justify-center pt-4">
-        <Button onClick={handleContinue} disabled={!selected} size="lg" className="gap-2 px-8">
-          Continuar <ChevronRight className="w-4 h-4" />
-        </Button>
+      <div className="flex justify-end pt-2">
+        <button
+          onClick={handleContinue}
+          disabled={!selected}
+          className="px-8 py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-[#ec4899] via-[#8b5cf6] to-[#a855f7] hover:opacity-90 disabled:opacity-40 transition-all shadow-lg shadow-pink-500/20 flex items-center gap-2"
+        >
+          <span>Continuar</span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
       </div>
     </div>
   )

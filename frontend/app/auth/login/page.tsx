@@ -1,19 +1,10 @@
-// Login page with feature showcase and credentials form
+// Login page with dark theme, email/password only
 "use client"
 
 import { Suspense, useState, useEffect } from "react"
 import Link from "next/link"
-import { 
-  ShieldCheck, 
-  BookOpen, 
-  Cpu, 
-  ArrowRight, 
-  Mail, 
-  IdCard, 
-  Loader2,
-  Sparkles,
-  ChevronRight
-} from "lucide-react"
+import Image from "next/image"
+import { Sparkles, ChevronRight, Loader2, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form"
@@ -22,28 +13,18 @@ import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { apiService } from "@/lib/api-service"
 import { useRouter, useSearchParams } from "next/navigation"
-import { FieldIcon } from "@/app/auth/field-icon"
-import { PasswordField } from "@/app/auth/password-field"
 import { AuthErrorBanner } from "@/app/auth/auth-error-banner"
-import { BrandLogo } from "@/app/auth/brand-logo"
 
 const loginSchema = z.object({
-  codigoUni: z.string().min(1, "El código UNI es obligatorio para tu expediente"),
   email: z.string().email("Ingresa un correo institucional válido (@uni.pe)"),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
 })
 
 type LoginFormValues = z.infer<typeof loginSchema>
 
-interface LoginPayload {
-  email: string
-  password: string
-  codigoUni: string
-}
-
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="h-screen bg-background flex items-center justify-center"><p className="text-foreground">Cargando...</p></div>}>
+    <Suspense fallback={<div className="h-screen bg-[#0B0C14] flex items-center justify-center"><p className="text-gray-100">Cargando...</p></div>}>
       <LoginPageContent />
     </Suspense>
   )
@@ -55,8 +36,8 @@ function LoginPageContent() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [showSuccessToast, setShowSuccessToast] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
-  // Efecto para detectar si viene de un registro exitoso
   useEffect(() => {
     if (searchParams.get("registered") === "true") {
       setShowSuccessToast(true)
@@ -68,7 +49,6 @@ function LoginPageContent() {
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      codigoUni: "",
       email: "",
       password: "",
     },
@@ -78,12 +58,10 @@ function LoginPageContent() {
     setIsLoading(true)
     setError("")
     try {
-      const payload: LoginPayload = {
+      await apiService.login({
         email: data.email,
         password: data.password,
-        codigoUni: data.codigoUni,
-      }
-      await apiService.login(payload)
+      })
       router.push("/")
     } catch (err: any) {
       setError(err.message || "No pudimos validar tus credenciales académicas.")
@@ -93,9 +71,7 @@ function LoginPageContent() {
   }
 
   return (
-    <div className="h-screen flex bg-[#fdfdff] font-sans overflow-hidden selection:bg-[#7957f1]/10 selection:text-[#7957f1]">
-      
-      {/* Toast de Registro Exitoso (UX Dinámica) */}
+    <div className="min-h-screen w-full bg-[#0B0C14] grid grid-cols-1 lg:grid-cols-12 text-gray-100 font-sans selection:bg-violet-500/30 selection:text-white">
       {showSuccessToast && (
         <div className="fixed top-6 right-6 z-50 animate-in fade-in slide-in-from-top-4 duration-500">
           <div className="bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-emerald-500/20">
@@ -105,140 +81,80 @@ function LoginPageContent() {
         </div>
       )}
 
-      {/* Lado Izquierdo - Inmersión Académica (LEAD UNI) */}
-      <div className="hidden lg:flex lg:w-[55%] bg-[#030c40] relative flex-col px-16 py-6 overflow-hidden">
-        
-        {/* Fondos decorativos */}
-        <div className="absolute inset-0 opacity-20">
-          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(#7957f1_1px,transparent_1px)] [background-size:32px_32px]" />
+      {/* SECCIÓN IZQUIERDA: HERO / BRANDING */}
+      <div className="hidden lg:flex lg:col-span-5 flex-col justify-between bg-[#0E0F1D] border-r border-[#1E2030] p-8 xl:p-12 2xl:p-16 3xl:p-24 relative overflow-hidden min-h-screen">
+        <div className="absolute -top-24 -left-24 w-96 h-96 2xl:w-[500px] 2xl:h-[500px] bg-purple-600/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 2xl:w-[500px] 2xl:h-[500px] bg-rose-600/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="flex items-center gap-3 z-10 py-2">
+          <Image
+            src="/Logo_LEAD_UNI.png"
+            alt="LEAD UNI"
+            width={48}
+            height={48}
+            priority
+            className="w-12 h-12 xl:w-14 xl:h-14 2xl:w-16 2xl:h-16 object-contain drop-shadow-[0_4px_16px_rgba(244,63,94,0.4)]"
+          />
+          <span className="font-extrabold tracking-wider text-white text-lg xl:text-xl 2xl:text-2xl uppercase font-sans select-none">
+            LEAD UNI
+          </span>
         </div>
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-[#a6249d] rounded-full blur-[160px] opacity-20 animate-pulse" />
-        <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-[#7957f1] rounded-full blur-[140px] opacity-20 animate-pulse [animation-delay:2s]" />
 
-        {/* Logo */}
-        <div className="relative z-10 animate-in fade-in slide-in-from-left-4 duration-700 shrink-0">
-          <BrandLogo />
-        </div>
-
-        {/* Contenido central — siempre centrado sin importar el zoom */}
-        <div className="relative z-10 flex-1 flex flex-col justify-center pb-10">
-          <div className="w-full max-w-md mx-auto space-y-4">
-            <h1 className="text-4xl font-heading font-black tracking-tight leading-[1.05] text-white animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
-              Tu futuro <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#d93340] via-[#a6249d] to-[#7957f1]">
-                comienza aquí.
-              </span>
-            </h1>
-
-            <p className="text-base text-slate-300 font-medium leading-relaxed animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
-              UniVia es el ecosistema inteligente de LEAD UNI que transforma tu trayectoria académica en un camino de éxito guiado por datos.
-            </p>
-
-            <div className="grid grid-cols-1 gap-2 pt-1 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
-              {[
-                { icon: BookOpen, title: "Expediente 360°", desc: "Visualiza tu progreso académico con claridad absoluta.", color: "from-[#d93340] to-[#bf2a51]" },
-                { icon: Cpu, title: "Motor RAG (IA)", desc: "Recomendaciones inteligentes basadas en tu perfil único.", color: "gradient-ai-neon-br" },
-                { icon: ShieldCheck, title: "Protocolo Seguro", desc: "Seguridad institucional de grado militar para tus datos.", color: "from-[#7957f1] to-[#030c40]" },
-              ].map((feature) => (
-                <div
-                  key={feature.title}
-                  className="group flex items-start gap-4 px-4 py-3 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm hover:bg-white/10 transition-all duration-300 cursor-default"
-                >
-                  <div className={`shrink-0 mt-0.5 p-3 rounded-xl bg-gradient-to-br ${feature.color} text-white shadow-lg transition-transform group-hover:scale-110`}>
-                    <feature.icon className="w-5 h-5" />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <h3 className="text-white font-bold text-base">{feature.title}</h3>
-                    <p className="text-slate-300 text-sm leading-relaxed">{feature.desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+        <div className="z-10 my-auto max-w-md space-y-6">
+          <h1 className="text-3xl xl:text-4xl 2xl:text-5xl 3xl:text-6xl font-bold tracking-tight leading-tight text-white">
+            Toda la UNI,<br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 via-purple-400 to-violet-400">
+              en un solo lugar.
+            </span>
+          </h1>
+          <p className="text-gray-400 text-sm xl:text-base 2xl:text-lg leading-relaxed">
+            Tu malla, tus cursos, exámenes pasados y evaluaciones de práctica generadas con IA. UniVia ordena tu camino académico para que tú solo te ocupes de aprender.
+          </p>
+          <div className="flex items-center gap-3 text-xs text-gray-500 tracking-widest uppercase font-medium pt-2">
+            <span className="h-0.5 w-8 bg-gradient-to-r from-rose-500 to-violet-500 inline-block rounded-full" />
+            Learn. Explore. Aspire. Discover.
           </div>
         </div>
 
-        {/* Footer — siempre abajo */}
-        <div className="relative z-10 flex items-center justify-between text-slate-400 text-xs font-bold uppercase tracking-widest shrink-0">
-          <span>© 2026 LEAD UNI</span>
-          <div className="flex gap-6">
-            <span className="hover:text-white transition-colors cursor-pointer">Privacidad</span>
-            <span className="hover:text-white transition-colors cursor-pointer">Términos</span>
-          </div>
-        </div>
+        <p className="text-xs text-gray-600 z-10">
+          Un proyecto de ayuda social de LEAD UNI para la comunidad UNI.
+        </p>
       </div>
 
-      {/* Lado Derecho - Portal de Acceso */}
-      <div className="w-full lg:w-[45%] flex items-center justify-center bg-[#060e4a] relative overflow-hidden">
-
-        {/* Acento magenta arriba-derecha */}
-        <div className="absolute -top-32 -right-32 w-80 h-80 bg-[#a6249d] rounded-full blur-[120px] opacity-25 pointer-events-none" />
-        {/* Acento violeta abajo-izquierda */}
-        <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-[#7957f1] rounded-full blur-[100px] opacity-20 pointer-events-none" />
-
-        <div className="w-full max-w-md px-10 py-14 animate-in fade-in duration-500 relative z-10">
-
-          {/* Ícono central con glow */}
-          <div className="flex justify-center mb-8">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#7957f1] to-[#a6249d] flex items-center justify-center shadow-lg shadow-[#7957f1]/40">
-              <Sparkles className="w-7 h-7 text-white" />
+      {/* SECCIÓN DERECHA: FORMULARIO */}
+      <div className="col-span-1 lg:col-span-7 bg-[#0B0C14] flex flex-col justify-center items-center p-6 sm:p-12 xl:p-16 2xl:p-24 min-h-screen">
+        <div className="w-full max-w-md xl:max-w-lg 2xl:max-w-xl space-y-6 2xl:space-y-8">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-2xl xl:text-3xl 2xl:text-4xl font-bold tracking-tight text-white">UniVia</h2>
+              <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 uppercase tracking-wider">
+                Portal
+              </span>
             </div>
-          </div>
-
-          {/* Header centrado */}
-          <div className="text-center mb-8">
-            <p className="text-[#a78bfa] text-xs font-bold uppercase tracking-widest mb-3">Portal Universitario</p>
-            <h2 className="text-3xl font-heading font-black text-white mb-2">Bienvenido</h2>
-            <p className="text-slate-300 text-sm leading-relaxed">
-              Ingresa tus credenciales académicas para continuar.
+            <p className="text-sm xl:text-base 2xl:text-lg text-gray-400">
+              Qué bueno verte por acá 👋 Ingresa con tu correo institucional.
             </p>
           </div>
 
           {error && <AuthErrorBanner message={error} />}
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-
-              <FormField
-                control={form.control}
-                name="codigoUni"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block">
-                      Código Universitario
-                    </FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <IdCard className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" />
-                        <Input
-                          placeholder="Ej. 20241000"
-                          className="auth-input h-12 pl-10 w-full bg-white/5 border border-white/10 text-white placeholder:text-slate-600 rounded-xl focus-visible:ring-1 focus-visible:ring-[#7957f1] focus-visible:border-[#7957f1] transition-colors font-medium text-sm"
-                          {...field}
-                        />
-                      </div>
-                    </FormControl>
-                    <FormMessage className="text-xs text-red-400" />
-                  </FormItem>
-                )}
-              />
-
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
               <FormField
                 control={form.control}
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block">
-                      Correo Institucional
+                    <FormLabel className="block text-xs 2xl:text-sm font-medium text-gray-400">
+                      Correo institucional
                     </FormLabel>
                     <FormControl>
-                      <div className="relative">
-                        <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" />
-                        <Input
-                          type="email"
-                          placeholder="nombre@uni.pe"
-                          className="auth-input h-12 pl-10 w-full bg-white/5 border border-white/10 text-white placeholder:text-slate-400 rounded-xl focus-visible:ring-1 focus-visible:ring-[#7957f1] focus-visible:border-[#7957f1] transition-colors font-medium text-sm"
-                          {...field}
-                        />
-                      </div>
+                      <Input
+                        type="email"
+                        placeholder="tucodigo@uni.pe"
+                        className="w-full px-4 py-3 2xl:py-4 bg-[#1E2030] border border-[#2A2D42] rounded-xl text-sm 2xl:text-base text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all duration-200 h-auto"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage className="text-xs text-red-400" />
                   </FormItem>
@@ -250,64 +166,65 @@ function LoginPageContent() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <div className="flex justify-between items-center">
-                      <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-slate-300">
-                        Contraseña
-                      </FormLabel>
-                      <Link
-                        href="/auth/forgot-password"
-                        className="text-[10px] font-bold text-[#a78bfa] hover:text-[#d93340] transition-colors"
-                      >
-                        ¿Olvidaste tu clave?
-                      </Link>
-                    </div>
+                    <FormLabel className="block text-xs 2xl:text-sm font-medium text-gray-400">
+                      Contraseña
+                    </FormLabel>
                     <FormControl>
-                      <PasswordField
-                        field={field}
-                        placeholder="••••••••"
-                        className="h-12 w-full bg-white/5 border border-white/10 text-white placeholder:text-slate-400 rounded-xl focus-visible:ring-1 focus-visible:ring-[#7957f1] focus-visible:border-[#7957f1] transition-colors auth-input"
-                      />
+                      <div className="relative">
+                        <Input
+                          type={showPassword ? "text" : "password"}
+                          placeholder="••••••••"
+                          className="w-full px-4 py-3 2xl:py-4 bg-[#1E2030] border border-[#2A2D42] rounded-xl text-sm 2xl:text-base text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all duration-200 pr-10 h-auto"
+                          {...field}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 text-xs"
+                          aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </FormControl>
                     <FormMessage className="text-xs text-red-400" />
                   </FormItem>
                 )}
               />
 
-              <div className="pt-2">
-                <Button
-                  type="submit"
-                  disabled={isLoading}
-                  className="group w-full h-12 bg-gradient-to-r from-[#7957f1] to-[#a6249d] hover:from-[#6644e0] hover:to-[#8e1e8a] text-white rounded-xl font-bold text-sm transition-all duration-200 active:scale-[0.98] shadow-lg shadow-[#7957f1]/30"
-                >
-                  {isLoading ? (
-                    <><Loader2 className="w-4 h-4 animate-spin mr-2" />Validando...</>
-                  ) : (
-                    <>Ingresar al Portal <ChevronRight className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-0.5" /></>
-                  )}
-                </Button>
-              </div>
-
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3.5 2xl:py-4 px-4 bg-gradient-to-r from-rose-600 via-purple-600 to-violet-600 hover:opacity-95 text-white font-semibold rounded-xl text-sm 2xl:text-base transition-all duration-200 shadow-lg shadow-purple-900/20 active:scale-[0.99] mt-2 h-auto"
+              >
+                {isLoading ? (
+                  <><Loader2 className="w-4 h-4 animate-spin mr-2" />Validando...</>
+                ) : (
+                  <>Ingresar a UniVia <ChevronRight className="w-4 h-4 ml-1" /></>
+                )}
+              </Button>
             </form>
           </Form>
 
-          <div className="mt-8 text-center">
-            <p className="text-slate-300 text-sm">
-              ¿No tienes cuenta?{" "}
-              <Link
-                href="/auth/signup"
-                className="text-[#a6249d] hover:text-[#7957f1] font-bold transition-colors"
-              >
-                Regístrate ahora →
-              </Link>
-            </p>
+          <div className="flex items-center justify-between text-xs 2xl:text-sm text-gray-400 pt-1">
+            <Link href="/auth/forgot-password" className="hover:text-white transition-colors">
+              ¿Olvidaste tu contraseña?
+            </Link>
+            <Link className="text-violet-400 hover:text-violet-300 font-medium transition-colors" href="/auth/signup">
+              Crear cuenta
+            </Link>
           </div>
 
+          <div className="p-4 2xl:p-5 bg-[#161826] border border-[#2A2D42] rounded-xl flex items-start gap-3">
+            <svg className="w-5 h-5 text-violet-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-xs 2xl:text-sm text-gray-400 leading-relaxed">
+              Solo necesitas tu correo <strong className="text-gray-200 font-medium">@uni.pe</strong> — sin trámites, sin costo.
+            </p>
+          </div>
         </div>
       </div>
     </div>
   )
 }
-
-
-
-

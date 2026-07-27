@@ -1,20 +1,17 @@
-// Multi-step onboarding wizard for new users
 "use client"
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { CareerStep } from "./onboarding/career-step"
 import { SemesterStep } from "./onboarding/semester-step"
-import { AcademicStatusStep } from "./onboarding/academic-status-step"
 import { CurrentEnrollmentStep } from "./onboarding/current-enrollment-step"
 import { CompletionStep } from "./onboarding/completion-step"
-import { OnboardingProgress } from "./onboarding/onboarding-progress"
 import type { OnboardingData } from "@/types/onboarding"
 import { useAuth } from "./providers/auth-context"
 import { apiService } from "@/lib/api-service"
-import { Sparkles, BookOpen, Zap, CheckCircle2 } from "lucide-react"
+import { BookOpen, Zap, Sparkles } from "lucide-react"
 
-const STEPS = ["Carrera", "Semestre Actual", "Inscripciones", "Confirmación"]
+const STEPS = ["Carrera", "Semestre", "Cursos", "Confirmación"]
 
 export function OnboardingWizard() {
   const router = useRouter()
@@ -22,35 +19,23 @@ export function OnboardingWizard() {
   const [step, setStep] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [onboardingMeta, setOnboardingMeta] = useState<{ careers: any[], malla: any[] }>({ careers: [], malla: [] })
+  const [onboardingMeta, setOnboardingMeta] = useState<{ careers: any[] }>({ careers: [] })
 
   const [data, setData] = useState<OnboardingData>({
-    career: "",
+    career: 0,
     semester: 1,
-    completedCourses: [],
-    currentEnrollment: [],
+    cursosInscritos: [],
   })
 
-  // Cargar datos iniciales de la base de datos
+  const selectedCareerName = onboardingMeta.careers.find((c: any) => c.id === data.career)?.name || "Tu carrera"
+
   useEffect(() => {
     const fetchOnboardingMeta = async () => {
       try {
         setLoading(true)
         const result = await apiService.getOnboardingData()
-
         if (result) {
-          const metaData = {
-            careers: result.carreras || result.careers || [],
-            malla: result.malla || []
-          }
-          setOnboardingMeta(metaData)
-
-          if (metaData.careers && Array.isArray(metaData.careers)) {
-            const sistemas = metaData.careers.find((c: any) => c.codigo === 'IS' || c.codigo === 'CS')
-            if (sistemas) {
-              setData(prev => ({ ...prev, career: sistemas.id.toString() }))
-            }
-          }
+          setOnboardingMeta({ careers: result.carreras || result.careers || [] })
         }
       } catch (error) {
         console.error("Error fetching onboarding meta:", error)
@@ -74,12 +59,10 @@ export function OnboardingWizard() {
     setIsSubmitting(true)
     try {
       const payload = {
-        carrera_id: parseInt(data.career),
+        carrera_id: data.career,
         ciclo_actual: data.semester,
-        cursos_completados: data.completedCourses.map(id => parseInt(id)),
-        matricula_actual: (data.currentEnrollment || []).map(id => parseInt(id))
+        cursos_inscritos: data.cursosInscritos,
       }
-
       await apiService.completeOnboarding(payload)
       await refreshProfile()
       router.push("/")
@@ -92,110 +75,118 @@ export function OnboardingWizard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#fdfdff] via-slate-50 to-indigo-50/30 flex flex-col relative overflow-hidden">
-      
-      {/* Elementos de Fondo Decorativos (Premium) */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-accent rounded-full blur-[160px] opacity-10 animate-pulse" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-secondary rounded-full blur-[160px] opacity-10 animate-pulse [animation-delay:2s]" />
-      </div>
+    <div className="min-h-screen bg-[#0b0a16] flex flex-col relative overflow-hidden">
+      {/* Dark mesh atmosphere */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: "radial-gradient(circle at 20% 20%, rgba(236,72,153,0.06) 0%, rgba(139,92,246,0.04) 45%, rgba(11,10,22,1) 70%)" }}
+      />
 
-      {/* Header Premium */}
-      <div className="relative z-10 bg-white/40 backdrop-blur-xl border-b border-white/20 sticky top-0">
-        <div className="max-w-5xl mx-auto px-6 py-8 md:py-10">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 rounded-2xl bg-gradient-to-br from-[#d93340] to-[#a6249d] text-white shadow-lg">
-              <Sparkles className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-4xl md:text-5xl font-heading font-black text-slate-900">
-                Bienvenido a <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#d93340] via-[#a6249d] to-[#7957f1]">UniVia</span>
-              </h1>
-              <p className="text-slate-500 font-bold mt-1">Configura tu perfil académico en 4 pasos sencillos</p>
-            </div>
+      {/* Header + Stepper Combined */}
+      <div className="relative z-10 max-w-4xl mx-auto w-full pt-8 pb-6 px-4">
+        {/* Top Bar */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-2.5">
+            <img src="/Logo_LEAD_UNI.png" alt="LEAD UNI" className="w-7 h-7 object-contain" />
+            <span className="text-xl font-extrabold bg-gradient-to-r from-[#f43f5e] via-[#ec4899] to-[#a855f7] bg-clip-text text-transparent">
+              UniVia
+            </span>
           </div>
+          <button className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
+            Omitir por ahora
+          </button>
         </div>
-      </div>
 
-      {/* Indicador de Progreso Premium */}
-      <div className="relative z-10 bg-white/20 backdrop-blur-md border-b border-white/20">
-        <div className="max-w-5xl mx-auto px-6 py-8">
-          <div className="flex items-center justify-between gap-4">
+        {/* Combined Stepper */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs font-semibold text-slate-400 px-1">
             {STEPS.map((stepName, idx) => (
-              <div key={idx} className="flex-1 flex items-center gap-3">
-                <div
-                  className={`flex-shrink-0 w-12 h-12 rounded-2xl font-black text-lg flex items-center justify-center transition-all duration-300 ${
-                    idx < step
-                      ? "bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg"
-                      : idx === step
-                      ? "bg-gradient-to-br from-[#7957f1] to-[#a6249d] text-white shadow-lg scale-110"
-                      : "bg-slate-100 text-slate-400"
-                  }`}
-                >
-                  {idx < step ? <CheckCircle2 className="w-6 h-6" /> : idx + 1}
-                </div>
-                <div className="flex-1">
-                  <p className={`font-bold text-sm transition-colors ${
-                    idx <= step ? "text-slate-900" : "text-slate-400"
-                  }`}>
-                    {stepName}
-                  </p>
-                </div>
-                {idx < STEPS.length - 1 && (
-                  <div className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                    idx < step ? "bg-gradient-to-r from-emerald-400 to-emerald-600" : "bg-slate-200"
-                  }`} />
-                )}
-              </div>
+              <span
+                key={idx}
+                className={idx === step ? "text-[#ec4899] font-bold" : ""}
+              >
+                {idx === 0 ? `1. ${stepName}` : `${idx + 1}. ${stepName}`}
+              </span>
+            ))}
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {STEPS.map((_, idx) => (
+              <div
+                key={idx}
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  idx <= step
+                    ? "bg-gradient-to-r from-[#ec4899] to-[#a855f7] shadow-sm shadow-pink-500/30"
+                    : "bg-[#1e1b3a]"
+                }`}
+              />
             ))}
           </div>
         </div>
       </div>
 
-      {/* Contenido Principal */}
-      <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-12 md:py-16">
+      {/* Main Content */}
+      <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8 md:py-12">
         <div className="w-full max-w-4xl">
           {loading ? (
             <div className="flex flex-col items-center justify-center space-y-6 py-16">
               <div className="relative w-16 h-16">
-                <div className="absolute inset-0 bg-gradient-to-r from-[#7957f1] to-[#a6249d] rounded-full animate-spin" />
-                <div className="absolute inset-2 bg-white rounded-full" />
+                <div className="absolute inset-0 bg-gradient-to-r from-[#ec4899] to-[#a855f7] rounded-full animate-spin" />
+                <div className="absolute inset-2 bg-[#0b0a16] rounded-full" />
               </div>
               <div className="text-center">
-                <p className="text-slate-600 font-bold text-lg animate-pulse">Cargando tu malla académica...</p>
-                <p className="text-slate-400 text-sm mt-2">Esto solo toma unos segundos</p>
+                <p className="text-slate-300 font-bold text-lg animate-pulse">Cargando tu malla académica...</p>
+                <p className="text-slate-500 text-sm mt-2">Esto solo toma unos segundos</p>
               </div>
             </div>
           ) : (
             <div className="animate-in fade-in zoom-in-95 duration-500">
               {step === 0 && <CareerStep data={data} onNext={handleNext} careers={onboardingMeta.careers} />}
               {step === 1 && <SemesterStep data={data} onNext={handleNext} onBack={handleBack} />}
-              {step === 2 && <CurrentEnrollmentStep data={data} onNext={handleNext} onBack={handleBack} curriculum={onboardingMeta.malla} />}
-              {step === 3 && <CompletionStep data={data} onBack={handleBack} onComplete={handleComplete} isSubmitting={isSubmitting} />}
+              {step === 2 && (
+                <CurrentEnrollmentStep
+                  data={data}
+                  onNext={handleNext}
+                  onBack={handleBack}
+                  carrera_id={data.career}
+                />
+              )}
+              {step === 3 && <CompletionStep data={data} onBack={handleBack} onComplete={handleComplete} isSubmitting={isSubmitting} careerName={selectedCareerName} />}
             </div>
           )}
         </div>
       </div>
 
-      {/* Footer Académico */}
-      <div className="relative z-10 bg-white/20 backdrop-blur-md border-t border-white/20 mt-auto">
-        <div className="max-w-5xl mx-auto px-6 py-6">
+      {/* Footer */}
+      <div className="relative z-10 border-t border-[#1e1b3a] mt-auto">
+        <div className="max-w-4xl mx-auto px-4 py-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[
-              { icon: BookOpen, title: "Expediente Completo", desc: "Acceso a tu malla curricular" },
-              { icon: Zap, title: "Configuración Rápida", desc: "Solo 4 pasos para comenzar" },
-              { icon: Sparkles, title: "Experiencia Premium", desc: "Diseñado por LEAD UNI" },
-            ].map((feature, idx) => (
-              <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-white/30 border border-white/20">
-                <div className="p-2 rounded-lg bg-gradient-to-br from-[#a6249d] to-[#7957f1] text-white">
-                  <feature.icon className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="font-bold text-sm text-slate-900">{feature.title}</p>
-                  <p className="text-xs text-slate-500">{feature.desc}</p>
-                </div>
+            <div className="flex items-center gap-3 p-3 rounded-2xl bg-[#121124]/60 border border-[#232045] backdrop-blur-md">
+              <div className="p-2 rounded-lg bg-[#211d45] text-purple-300">
+                <BookOpen className="w-4 h-4" />
               </div>
-            ))}
+              <div>
+                <p className="text-xs font-bold text-white">Expediente Completo</p>
+                <p className="text-[11px] text-slate-400">Acceso a tu malla curricular</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-2xl bg-[#121124]/60 border border-[#232045] backdrop-blur-md">
+              <div className="p-2 rounded-lg bg-[#331c2b] text-pink-300">
+                <Zap className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-white">Configuraci&oacute;n R&aacute;pida</p>
+                <p className="text-[11px] text-slate-400">Solo 4 pasos para comenzar</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-2xl bg-[#121124]/60 border border-[#232045] backdrop-blur-md">
+              <div className="p-2 rounded-lg bg-[#1a233d] text-sky-300">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-white">Experiencia Premium</p>
+                <p className="text-[11px] text-slate-400">Dise&ntilde;ado por LEAD UNI</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

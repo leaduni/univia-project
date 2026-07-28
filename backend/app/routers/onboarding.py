@@ -286,6 +286,105 @@ async def get_cursos_por_carrera(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def calcular_resumen_academico(supabase, user, perfil: dict) -> dict:
+    """Resumen del estado académico del estudiante (RF-07).
+
+    Es el precálculo que consume el paso final del onboarding y que el
+    dashboard de la Fase 3 debe reutilizar en vez de recalcular el avance
+    por su cuenta.
+    """
+    carrera_id = perfil.get("carrera_id")
+    if not carrera_id:
+        return {
+            "carrera": None,
+            "ciclo_actual": perfil.get("ciclo_actual"),
+            "cursos_aprobados": [],
+            "cursos_en_curso": [],
+            "cursos_disponibles": [],
+            "creditos_aprobados": 0,
+            "creditos_totales": 0,
+            "porcentaje_avance": 0.0,
+        }
+
+    carrera = _obtener_carrera(supabase, carrera_id)
+
+    try:
+        cursos_resp = (
+            supabase.table("cursos")
+            .select("id, code, name, credits, ciclo")
+            .eq("carrera_id", carrera_id)
+            .execute()
+        )
+        cursos_dict: Dict[int, dict] = {
+            c["id"]: c for c in (getattr(cursos_resp, "data", None) or [])
+        }
+
+        progreso_resp = (
+            supabase.table("progreso_cursos")
+            .select("curso_id, status")
+            .eq("perfil_id", user.id)
+            .execute()
+        )
+        progreso_raw = getattr(progreso_resp, "data", None) or []
+    except Exception as e:
+        logger.error(f"Error calculando resumen de {user.id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo calcular tu avance académico.")
+
+    progreso_map: Dict[int, str] = {p["curso_id"]: p["status"] for p in progreso_raw}
+    aprobados: Set[int] = {c for c, s in progreso_map.items() if s == "completed"}
+    en_curso: Set[int] = {c for c, s in progreso_map.items() if s == "in_progress"}
+
+    prereq_map: Dict[int, List[int]] = {}
+    for p in _cargar_prerrequisitos(supabase, set(cursos_dict)):
+        prereq_map.setdefault(p["curso_id"], []).append(p["prerrequisito_id"])
+
+    # Disponible = no cursado aún y con toda su cadena de prerrequisitos aprobada.
+    disponibles = [
+        cid
+        for cid in cursos_dict
+        if cid not in progreso_map
+        and all(pid in aprobados for pid in resolve_prereq_chain(cid, prereq_map))
+    ]
+
+    def resumir(ids) -> List[dict]:
+        return [
+            {
+                "id": cid,
+                "code": cursos_dict[cid]["code"],
+                "name": cursos_dict[cid]["name"],
+                "credits": cursos_dict[cid]["credits"],
+            }
+            for cid in sorted(ids, key=lambda c: (cursos_dict[c]["ciclo"], cursos_dict[c]["code"]))
+            if cid in cursos_dict
+        ]
+
+    creditos_totales = sum(c["credits"] or 0 for c in cursos_dict.values())
+    creditos_aprobados = sum(
+        cursos_dict[cid]["credits"] or 0 for cid in aprobados if cid in cursos_dict
+    )
+    porcentaje = round(creditos_aprobados / creditos_totales * 100, 1) if creditos_totales else 0.0
+
+    return {
+        "carrera": {"id": carrera["id"], "codigo": carrera["codigo"], "name": carrera["name"]},
+        "ciclo_actual": perfil.get("ciclo_actual"),
+        "cursos_aprobados": resumir(aprobados),
+        "cursos_en_curso": resumir(en_curso),
+        "cursos_disponibles": resumir(disponibles),
+        "creditos_aprobados": creditos_aprobados,
+        "creditos_totales": creditos_totales,
+        "porcentaje_avance": porcentaje,
+    }
+
+
+@router.get("/onboarding/resumen")
+async def get_resumen_onboarding(user_data=Depends(get_current_user)):
+    """Resumen del paso final del wizard: qué aprobó, qué puede llevar y su avance."""
+    user, token = user_data
+    supabase = get_supabase(token)
+    perfil = _verificar_perfil_minimo(supabase, user)
+    return calcular_resumen_academico(supabase, user, perfil)
+
+
 @router.put("/perfil/cursos")
 async def actualizar_cursos_del_ciclo(
     data: ActualizarCursosRequest,

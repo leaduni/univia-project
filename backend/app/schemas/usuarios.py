@@ -1,8 +1,22 @@
-import re
 from pydantic import BaseModel, field_validator
 
-EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+-]+@uni\.pe$")
-CODIGO_PATTERN = re.compile(r"^[0-9]{8}[A-Za-z]$")
+from app.core.validators import (
+    EMAIL_PATTERN,
+    CODIGO_PATTERN,
+    validar_codigo_estudiante,
+    validar_email_institucional,
+    validar_password,
+)
+
+# Se reexportan los patrones porque otros módulos ya los importaban desde aquí.
+__all__ = [
+    "EMAIL_PATTERN",
+    "CODIGO_PATTERN",
+    "RegistroEstudiante",
+    "RegistroCompleto",
+    "PerfilUpdate",
+    "CambioPassword",
+]
 
 
 class RegistroEstudiante(BaseModel):
@@ -13,20 +27,12 @@ class RegistroEstudiante(BaseModel):
     @field_validator("email")
     @classmethod
     def validar_email(cls, v: str) -> str:
-        if not EMAIL_PATTERN.match(v.strip()):
-            raise ValueError(
-                "El correo electrónico debe ser una cuenta institucional válida terminada en @uni.pe."
-            )
-        return v.strip().lower()
+        return validar_email_institucional(v)
 
     @field_validator("codigo_estudiante")
     @classmethod
     def validar_codigo(cls, v: str) -> str:
-        if not CODIGO_PATTERN.match(v.strip()):
-            raise ValueError(
-                "El código universitario debe tener 8 números y 1 letra verificadora al final (ej. 20210001K)."
-            )
-        return v.strip().upper()
+        return validar_codigo_estudiante(v)
 
 
 class RegistroCompleto(BaseModel):
@@ -38,20 +44,17 @@ class RegistroCompleto(BaseModel):
     @field_validator("email")
     @classmethod
     def validar_email(cls, v: str) -> str:
-        if not EMAIL_PATTERN.match(v.strip()):
-            raise ValueError(
-                "El correo electrónico debe ser una cuenta institucional válida terminada en @uni.pe."
-            )
-        return v.strip().lower()
+        return validar_email_institucional(v)
 
     @field_validator("codigo_estudiante")
     @classmethod
     def validar_codigo(cls, v: str) -> str:
-        if not CODIGO_PATTERN.match(v.strip()):
-            raise ValueError(
-                "El código universitario debe tener 8 números y 1 letra verificadora al final (ej. 20210001K)."
-            )
-        return v.strip().upper()
+        return validar_codigo_estudiante(v)
+
+    @field_validator("password")
+    @classmethod
+    def validar_pass(cls, v: str) -> str:
+        return validar_password(v)
 
 
 class LoginRequest(BaseModel):
@@ -93,17 +96,25 @@ class PerfilUpdate(BaseModel):
     @field_validator("email")
     @classmethod
     def validar_email(cls, v: str | None) -> str | None:
-        if v is not None and not EMAIL_PATTERN.match(v.strip()):
-            raise ValueError(
-                "El correo electrónico debe ser una cuenta institucional válida terminada en @uni.pe."
-            )
-        return v.strip().lower() if v else v
+        return validar_email_institucional(v) if v is not None else v
 
     @field_validator("codigo_estudiante")
     @classmethod
     def validar_codigo(cls, v: str | None) -> str | None:
-        if v is not None and not CODIGO_PATTERN.match(v.strip()):
-            raise ValueError(
-                "El código universitario debe tener 8 números y 1 letra verificadora al final (ej. 20210001K)."
-            )
-        return v.strip().upper() if v else v
+        return validar_codigo_estudiante(v) if v is not None else v
+
+
+class CambioPassword(BaseModel):
+    """Cambio de contraseña del estudiante (RF-PRF-03).
+
+    Las reglas viven en core/validators.py para que el flujo de recuperación
+    de la Fase 2 aplique exactamente las mismas condiciones de seguridad.
+    """
+
+    password_actual: str
+    password_nueva: str
+
+    @field_validator("password_nueva")
+    @classmethod
+    def validar_pass_nueva(cls, v: str) -> str:
+        return validar_password(v)

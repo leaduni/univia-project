@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS cursos (
 CREATE TABLE IF NOT EXISTS perfiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email VARCHAR(255) UNIQUE NOT NULL,
+    -- Código universitario: 8 dígitos + 1 letra verificadora (RF-EST-01/02).
+    codigo_estudiante VARCHAR(9) UNIQUE,
     nombre_completo VARCHAR(255),
     carrera_id INTEGER REFERENCES carreras(id),
     ciclo_actual INTEGER DEFAULT 1,
@@ -44,6 +46,17 @@ CREATE TABLE IF NOT EXISTS perfiles (
     avatar_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 3b. Prerrequisitos de cursos (RF-EST-03)
+-- Sostiene el bloqueo de cursos en onboarding y el estado de la malla.
+CREATE TABLE IF NOT EXISTS curso_prerrequisitos (
+    id SERIAL PRIMARY KEY,
+    curso_id INTEGER REFERENCES cursos(id) ON DELETE CASCADE,
+    prerrequisito_id INTEGER REFERENCES cursos(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(curso_id, prerrequisito_id),
+    CHECK (curso_id <> prerrequisito_id)
 );
 
 -- 4. Progreso Académico

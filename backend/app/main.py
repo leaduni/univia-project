@@ -1,12 +1,21 @@
+import logging
+import os
+
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from app.core.exceptions import ErrorResponse, ErrorDetail
-import os
 from dotenv import load_dotenv
 
+from app.core.exceptions import ErrorResponse, ErrorDetail
+
 load_dotenv()
+
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="UniVia API",
@@ -14,10 +23,13 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# Configuración de CORS
+# Orígenes permitidos: configurables por entorno (lista separada por comas)
+# para no tener que tocar el código al desplegar.
+DEFAULT_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
 origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", DEFAULT_ORIGINS).split(",")
+    if origin.strip()
 ]
 
 app.add_middleware(

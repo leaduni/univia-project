@@ -11,8 +11,8 @@
 --      pero NO estaba declarada en ningún archivo SQL del repositorio. Existía
 --      solo en la base de datos viva, aplicada a mano.
 --   2. 'curso_prerrequisitos' se consulta en onboarding, malla y cursos, pero
---      su CREATE TABLE vivía dentro de un archivo de semillas
---      (semillas/seed_requirements.sql) en vez del esquema canónico.
+--      su CREATE TABLE vivía dentro de un archivo de semillas, no del esquema
+--      canónico.
 --
 -- Esta migración consolida ambas en el esquema y agrega las restricciones de
 -- integridad que sostienen RF-EST-01, RF-EST-02 y RF-EST-03.
@@ -76,8 +76,8 @@ END $$;
 -- -----------------------------------------------------------------------------
 -- 4. RF-EST-03 — Modelo de prerrequisitos en el esquema canónico
 -- -----------------------------------------------------------------------------
--- Definición trasladada desde semillas/seed_requirements.sql. El seed puede
--- seguir ejecutándose: su CREATE TABLE IF NOT EXISTS es compatible con esta.
+-- Definición trasladada desde el antiguo semillas/seed_requirements.sql, que
+-- se eliminó por usar IDs de carrera fijos ya desincronizados.
 CREATE TABLE IF NOT EXISTS curso_prerrequisitos (
     id SERIAL PRIMARY KEY,
     curso_id INTEGER REFERENCES cursos(id) ON DELETE CASCADE,

@@ -43,15 +43,20 @@ relaciones **por código** (`FIIS`, `IND`, `SI`, `SW`, y el `code` de cada curso
 nunca por ID. Los IDs son `SERIAL` y difieren entre entornos: ese fue exactamente
 el fallo de los seeds anteriores.
 
-### Seeds obsoletos — no ejecutar
+### Seeds eliminados
 
-Se conservan solo por historial. Todos usan IDs fijos que ya no corresponden:
+Se retiraron tres semillas que no podían reconstruir la base y que era fácil
+ejecutar por error. Quedan en el historial de git si hiciera falta consultarlas:
 
-| Archivo | Por qué no sirve |
+| Archivo | Por qué se eliminó |
 |---|---|
-| `db_seed.sql` | Crea carreras `CS`, `CE`, `EE`, `IE` que no existen en el proyecto. Sin `ON CONFLICT`: falla al repetirse |
-| `seed_requirements.sql` | Inserta cursos con `carrera_id` 2/3/4; las carreras reales son 5/6/7 |
+| `db_seed.sql` | Creaba carreras `CS`, `CE`, `EE`, `IE` que no existen en el proyecto. Sin `ON CONFLICT`: fallaba al repetirse |
+| `seed_requirements.sql` | Insertaba cursos con `carrera_id` 2/3/4; las carreras reales son 5/6/7 |
 | `seed_industrial.sql` | Solo Industrial, con `carrera_id` 6 fijo. Cubierto por `seed_catalogo.sql` |
+
+La lección que conviene no repetir: **una semilla nunca debe referenciar un
+`SERIAL` por su valor**. Resuelve siempre por la columna con significado de
+negocio (`codigo`, `code`).
 
 ---
 

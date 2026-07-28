@@ -12,14 +12,9 @@ MAX_CURSOS_INSCRITOS = 12
 CICLO_POR_DEFECTO = 10
 
 
-class OnboardingCompleteRequest(BaseModel):
-    """Datos con los que el estudiante cierra su registro de perfil (RF-EST-01).
+class SeleccionCursosBase(BaseModel):
+    """Reglas comunes a elegir cursos, tanto en el onboarding como cada ciclo."""
 
-    Completa los campos que faltan tras el registro inicial: carrera, ciclo
-    relativo y lista de cursos.
-    """
-
-    carrera_id: int = Field(gt=0)
     ciclo_actual: int = Field(ge=1, le=CICLO_MAXIMO_ADMITIDO)
     cursos_inscritos: List[int]
 
@@ -37,6 +32,24 @@ class OnboardingCompleteRequest(BaseModel):
         if any(cid <= 0 for cid in v):
             raise ValueError("La selección de cursos contiene un identificador inválido.")
         return v
+
+
+class OnboardingCompleteRequest(SeleccionCursosBase):
+    """Datos con los que el estudiante cierra su registro de perfil (RF-EST-01).
+
+    Completa los campos que faltan tras el registro inicial: carrera, ciclo
+    relativo y lista de cursos.
+    """
+
+    carrera_id: int = Field(gt=0)
+
+
+class ActualizarCursosRequest(SeleccionCursosBase):
+    """Cambio de cursos al iniciar un ciclo nuevo (RF-PRF-01).
+
+    No incluye carrera: se conserva la del perfil. Cambiar de carrera
+    invalidaría todo el historial académico y no es parte del requisito.
+    """
 
 
 class FacultadItem(BaseModel):

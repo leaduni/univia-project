@@ -6,6 +6,7 @@ from app.core.exceptions import raise_field_error
 from app.core.prereqs import resolve_prereq_chain, check_course_status
 from app.schemas.onboarding import (
     CICLO_POR_DEFECTO,
+    ActualizarCursosRequest,
     OnboardingCompleteRequest,
     OnboardingDataResponse,
     CarreraItem,
@@ -102,7 +103,7 @@ def _verificar_perfil_minimo(supabase, user) -> dict:
     try:
         resp = (
             supabase.table("perfiles")
-            .select("id, email, codigo_estudiante, nombre_completo")
+            .select("id, email, codigo_estudiante, nombre_completo, carrera_id, ciclo_actual")
             .eq("id", user.id)
             .maybe_single()
             .execute()
@@ -283,6 +284,162 @@ async def get_cursos_por_carrera(
     except Exception as e:
         logger.error(f"Error fetching cursos por carrera: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/perfil/cursos")
+async def actualizar_cursos_del_ciclo(
+    data: ActualizarCursosRequest,
+    user_data=Depends(get_current_user),
+):
+    """Reemplaza los cursos activos al iniciar un ciclo nuevo (RF-PRF-01).
+
+    Regla de transición, pensada para no perder el historial que consume la
+    malla (RF-APR-06):
+
+    - Los cursos que estaban en curso y NO se vuelven a elegir se dan por
+      aprobados: el estudiante terminó ese ciclo.
+    - Los que sí se vuelven a elegir siguen en curso, que es como se modela
+      repetir un curso.
+    - Los ya aprobados no se tocan nunca.
+    """
+    user, token = user_data
+    supabase = get_supabase(token)
+
+    perfil = _verificar_perfil_minimo(supabase, user)
+
+    carrera_id = perfil.get("carrera_id")
+    if not carrera_id:
+        raise_field_error(
+            "carrera_id",
+            "Aún no completaste tu registro inicial. Termina el onboarding primero.",
+            status_code=400,
+        )
+
+    carrera = _obtener_carrera(supabase, carrera_id)
+    _validar_ciclo(carrera, data.ciclo_actual)
+
+    try:
+        cursos_resp = (
+            supabase.table("cursos")
+            .select("id, code, name, credits, ciclo")
+            .eq("carrera_id", carrera_id)
+            .execute()
+        )
+        cursos_en_carrera: Dict[int, dict] = {
+            c["id"]: c for c in (getattr(cursos_resp, "data", None) or [])
+        }
+
+        progreso_resp = (
+            supabase.table("progreso_cursos")
+            .select("curso_id, status")
+            .eq("perfil_id", user.id)
+            .execute()
+        )
+        progreso_raw = getattr(progreso_resp, "data", None) or []
+    except Exception as e:
+        logger.error(f"Error cargando datos para actualizar cursos de {user.id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo cargar tu progreso académico.")
+
+    nuevos = data.cursos_inscritos
+    _validar_cursos_de_carrera(nuevos, cursos_en_carrera, carrera)
+
+    aprobados: Set[int] = {p["curso_id"] for p in progreso_raw if p["status"] == "completed"}
+    en_curso: Set[int] = {p["curso_id"] for p in progreso_raw if p["status"] == "in_progress"}
+    nuevos_set: Set[int] = set(nuevos)
+
+    def nombre(cid: int) -> str:
+        return cursos_en_carrera.get(cid, {}).get("name", str(cid))
+
+    # Un curso ya aprobado no se vuelve a llevar: aceptarlo lo devolvería a
+    # 'en curso' y borraría un avance que la malla ya da por ganado.
+    ya_aprobados = [cid for cid in nuevos if cid in aprobados]
+    if ya_aprobados:
+        raise_field_error(
+            "cursos_inscritos",
+            "Ya aprobaste: " + ", ".join(nombre(c) for c in ya_aprobados) + ".",
+            status_code=400,
+        )
+
+    # Cierre del ciclo anterior: lo que no se repite queda aprobado.
+    a_cerrar = en_curso - nuevos_set
+    aprobados_tras_cierre = aprobados | a_cerrar
+
+    prereq_map: Dict[int, List[int]] = {}
+    for p in _cargar_prerrequisitos(supabase, set(cursos_en_carrera)):
+        prereq_map.setdefault(p["curso_id"], []).append(p["prerrequisito_id"])
+
+    # RF-EST-03 sobre la selección nueva, contando ya el cierre del ciclo.
+    for curso_id in nuevos:
+        faltantes = [
+            pid
+            for pid in resolve_prereq_chain(curso_id, prereq_map)
+            if pid not in aprobados_tras_cierre and pid not in nuevos_set
+        ]
+        if faltantes:
+            raise_field_error(
+                "cursos_inscritos",
+                f"No puedes llevar '{nombre(curso_id)}': te falta aprobar "
+                + ", ".join(nombre(f) for f in faltantes)
+                + ".",
+                status_code=400,
+            )
+
+    # No se puede llevar un curso junto a su prerrequisito directo.
+    for curso_id in nuevos:
+        for prereq_id in prereq_map.get(curso_id, []):
+            if prereq_id in nuevos_set:
+                raise_field_error(
+                    "cursos_inscritos",
+                    f"No puedes matricularte simultáneamente en "
+                    f"'{nombre(prereq_id)}' y '{nombre(curso_id)}'.",
+                    status_code=400,
+                )
+
+    try:
+        if a_cerrar:
+            (
+                supabase.table("progreso_cursos")
+                .update({"status": "completed", "fecha_completado": "now()"})
+                .eq("perfil_id", user.id)
+                .in_("curso_id", list(a_cerrar))
+                .execute()
+            )
+
+        a_insertar = [cid for cid in nuevos if cid not in en_curso]
+        if a_insertar:
+            supabase.table("progreso_cursos").insert(
+                [
+                    {"perfil_id": user.id, "curso_id": cid, "status": "in_progress"}
+                    for cid in a_insertar
+                ]
+            ).execute()
+
+        supabase.table("perfiles").update(
+            {"ciclo_actual": data.ciclo_actual, "updated_at": "now()"}
+        ).eq("id", user.id).execute()
+    except Exception as e:
+        logger.error(f"Error actualizando cursos de {user.id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudieron guardar tus cursos.")
+
+    logger.info(
+        f"Cursos actualizados. Usuario={user.id}, ciclo={data.ciclo_actual}, "
+        f"cerrados={len(a_cerrar)}, activos={len(nuevos)}"
+    )
+
+    return {
+        "status": "success",
+        "message": "Tus cursos se actualizaron para el ciclo nuevo.",
+        "ciclo_actual": data.ciclo_actual,
+        "cursos_activos": [
+            {"id": cid, "code": cursos_en_carrera[cid]["code"], "name": nombre(cid)}
+            for cid in nuevos
+        ],
+        "cursos_aprobados_al_cerrar": [
+            {"id": cid, "code": cursos_en_carrera[cid]["code"], "name": nombre(cid)}
+            for cid in sorted(a_cerrar)
+        ],
+        "total_aprobados": len(aprobados_tras_cierre),
+    }
 
 
 @router.post("/onboarding/complete")

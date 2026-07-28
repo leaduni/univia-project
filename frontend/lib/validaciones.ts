@@ -30,6 +30,11 @@ export const MSG_PASSWORD_LARGA =
   `La contraseña no puede superar los ${PASSWORD_MAX_LENGTH} caracteres.`
 export const MSG_PASSWORD_SIN_LETRA = "La contraseña debe incluir al menos una letra."
 export const MSG_PASSWORD_SIN_NUMERO = "La contraseña debe incluir al menos un número."
+export const MSG_PASSWORD_VACIA = "La contraseña es obligatoria."
+
+/** Al iniciar sesión se admite el correo institucional o el código UNI. */
+export const MSG_IDENTIFICADOR_INVALIDO =
+  "Ingresa tu correo institucional (@uni.pe) o tu código universitario de 8 números y 1 letra (ej. 20210001K)."
 
 export const esEmailInstitucional = (valor: string): boolean =>
   EMAIL_PATTERN.test(valor.trim())

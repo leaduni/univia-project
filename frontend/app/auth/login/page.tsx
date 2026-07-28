@@ -14,10 +14,22 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { apiService } from "@/lib/api-service"
 import { useRouter, useSearchParams } from "next/navigation"
 import { AuthErrorBanner } from "@/app/auth/auth-error-banner"
+import {
+  esCodigoEstudiante,
+  esEmailInstitucional,
+  MSG_IDENTIFICADOR_INVALIDO,
+  MSG_PASSWORD_VACIA,
+} from "@/lib/validaciones"
 
+// El backend admite correo institucional o código UNI (RF-01). No se aplica
+// aquí la política de complejidad de contraseña: hay cuentas creadas antes de
+// esa regla y quedarían fuera al intentar entrar.
 const loginSchema = z.object({
-  email: z.string().email("Ingresa un correo institucional válido (@uni.pe)"),
-  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
+  identificador: z.string().refine(
+    (v) => esEmailInstitucional(v) || esCodigoEstudiante(v),
+    MSG_IDENTIFICADOR_INVALIDO,
+  ),
+  password: z.string().min(1, MSG_PASSWORD_VACIA),
 })
 
 type LoginFormValues = z.infer<typeof loginSchema>
@@ -49,7 +61,7 @@ function LoginPageContent() {
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: "",
+      identificador: "",
       password: "",
     },
   })
@@ -59,7 +71,7 @@ function LoginPageContent() {
     setError("")
     try {
       await apiService.login({
-        email: data.email,
+        identificador: data.identificador,
         password: data.password,
       })
       router.push("/")
@@ -130,16 +142,18 @@ function LoginPageContent() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
               <FormField
                 control={form.control}
-                name="email"
+                name="identificador"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="block text-xs 2xl:text-sm font-medium text-muted-foreground">
-                      Correo institucional
+                      Correo institucional o código UNI
                     </FormLabel>
                     <FormControl>
                       <Input
-                        type="email"
-                        placeholder="tucodigo@uni.pe"
+                        type="text"
+                        inputMode="email"
+                        autoComplete="username"
+                        placeholder="tucodigo@uni.pe o 20210001K"
                         className="w-full px-4 py-3 2xl:py-4 bg-input border border-border rounded-xl text-sm 2xl:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 h-auto"
                         {...field}
                       />

@@ -254,32 +254,53 @@ export const apiService = {
         }
     },
 
-    async login(credentials: { email: string; password: string }) {
+    /**
+     * Inicia sesión contra el backend (RF-01), que acepta correo institucional
+     * o código universitario. Antes esto llamaba a Supabase directamente, lo
+     * que hacía imposible entrar con el código.
+     */
+    async login(credentials: { identificador: string; password: string }) {
         try {
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email: credentials.email,
-                password: credentials.password,
+            const response = await fetch(`${API_URL}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(credentials),
             });
 
-            if (error) throw error;
-            if (!data.session) throw new Error("No session created after login");
+            const body = await response.json().catch(() => ({}));
 
-            console.log("Login successful, fetching profile...");
+            if (!response.ok) {
+                const mensaje = body?.errors?.[0]?.message
+                    || body?.detail
+                    || "No pudimos validar tus credenciales.";
+                throw new Error(mensaje);
+            }
 
-            const profile = await this.getProfile(data.session.access_token);
+            // El resto de la app obtiene el token desde el cliente de Supabase
+            // (fetchWithAuth -> getSession). Como la sesión la creó el backend,
+            // hay que cargarla aquí o toda petición posterior saldría sin token.
+            const { error: sessionError } = await supabase.auth.setSession({
+                access_token: body.access_token,
+                refresh_token: body.refresh_token,
+            });
+            if (sessionError) {
+                throw new Error("No se pudo iniciar la sesión en el navegador.");
+            }
 
             if (typeof window !== 'undefined') {
-                localStorage.setItem('user', JSON.stringify(profile));
-                localStorage.setItem('token', data.session.access_token);
+                localStorage.setItem('user', JSON.stringify(body.usuario));
+                localStorage.setItem('token', body.access_token);
             }
 
             return {
-                user: profile,
-                token: data.session.access_token,
-                supabaseUser: data.user
+                user: body.usuario,
+                token: body.access_token,
+                carrera: body.carrera,
+                planEstudios: body.plan_estudios,
+                onboardingCompletado: body.onboarding_completado,
             };
         } catch (error: any) {
-            console.error("Supabase Auth Error (login):", error);
+            console.error("API Error (login):", error);
             throw new Error(error.message || "Login failed");
         }
     },

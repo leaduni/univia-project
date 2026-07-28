@@ -1,12 +1,23 @@
 import logging
+import os
+
 from fastapi import APIRouter, Depends, HTTPException
 from app.core.database import get_supabase, get_admin_client
 from app.core.auth_utils import get_current_user
 from app.core.exceptions import raise_field_error
-from app.schemas.usuarios import RegistroEstudiante, RegistroCompleto, LoginRequest
+from app.schemas.usuarios import (
+    RegistroEstudiante,
+    RegistroCompleto,
+    LoginRequest,
+    SolicitudRecuperacion,
+    RestablecerPassword,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Destino del enlace de recuperación: debe apuntar al frontend, no a la API.
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
 
 # Mensaje único para credenciales inválidas: no revela si el correo o el código existe.
 CREDENCIALES_INVALIDAS = "El correo/código o la contraseña son incorrectos."
@@ -149,6 +160,64 @@ async def login(data: LoginRequest):
         "plan_estudios": plan_estudios,
         "onboarding_completado": bool(perfil.get("onboarding_completado")),
     }
+
+@router.post("/auth/recuperar-password")
+async def solicitar_recuperacion(data: SolicitudRecuperacion):
+    """Envía el correo de recuperación de contraseña (RF-03).
+
+    Supabase genera el enlace con token temporal y lo envía; el backend no
+    almacena ni gestiona ese token.
+    """
+    try:
+        get_supabase().auth.reset_password_for_email(
+            data.email,
+            options={"redirect_to": f"{FRONTEND_URL}/auth/restablecer-password"},
+        )
+    except Exception as e:
+        # No se propaga el fallo: revelar que el envío falló delataría si el
+        # correo existe. Queda en el log para poder diagnosticarlo.
+        logger.error(f"[RECUPERACION] Error enviando correo a {data.email}: {e}")
+
+    # Respuesta idéntica exista o no la cuenta, para no permitir enumeración.
+    return {
+        "status": "success",
+        "message": (
+            "Si el correo está registrado, recibirás un enlace para "
+            "restablecer tu contraseña."
+        ),
+    }
+
+
+@router.post("/auth/restablecer-password")
+async def restablecer_password(
+    data: RestablecerPassword,
+    user_data=Depends(get_current_user),
+):
+    """Guarda la contraseña nueva tras abrir el enlace de recuperación (RF-03).
+
+    El estudiante llega con la sesión que Supabase crea al validar el enlace,
+    así que get_current_user ya acredita su identidad. Las condiciones de
+    seguridad de la contraseña las aplica el schema (reglas de la Fase 1).
+    """
+    user, _token = user_data
+
+    try:
+        get_admin_client().auth.admin.update_user_by_id(
+            user.id, {"password": data.password_nueva}
+        )
+    except Exception as e:
+        logger.error(f"[RECUPERACION] Error actualizando contraseña de {user.id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudo actualizar la contraseña. Solicita un enlace nuevo.",
+        )
+
+    logger.info(f"[RECUPERACION] Contraseña actualizada para {user.id}")
+    return {
+        "status": "success",
+        "message": "Contraseña actualizada. Ya puedes iniciar sesión con ella.",
+    }
+
 
 @router.get("/usuarios/me")
 async def get_profile(user_data = Depends(get_current_user)):

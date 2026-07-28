@@ -20,6 +20,8 @@ __all__ = [
     "RegistroEstudiante",
     "RegistroCompleto",
     "LoginRequest",
+    "SolicitudRecuperacion",
+    "RestablecerPassword",
     "PerfilUpdate",
     "CambioPassword",
 ]
@@ -110,6 +112,33 @@ class PerfilUpdate(BaseModel):
     @classmethod
     def validar_codigo(cls, v: str | None) -> str | None:
         return validar_codigo_estudiante(v) if v is not None else v
+
+
+class SolicitudRecuperacion(BaseModel):
+    """Solicitud de correo de recuperación de contraseña (RF-03)."""
+
+    email: str
+
+    @field_validator("email")
+    @classmethod
+    def validar_email(cls, v: str) -> str:
+        return validar_email_institucional(v)
+
+
+class RestablecerPassword(BaseModel):
+    """Contraseña nueva enviada desde el enlace de recuperación (RF-03).
+
+    No pide la contraseña anterior: el estudiante llega aquí justamente
+    porque no la recuerda. Lo que acredita su identidad es la sesión que
+    Supabase crea al abrir el enlace del correo.
+    """
+
+    password_nueva: str
+
+    @field_validator("password_nueva")
+    @classmethod
+    def validar_pass_nueva(cls, v: str) -> str:
+        return validar_password(v)
 
 
 class CambioPassword(BaseModel):

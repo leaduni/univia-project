@@ -2,16 +2,133 @@ import logging
 from fastapi import APIRouter, HTTPException, Depends, Query
 from app.core.database import get_supabase
 from app.core.auth_utils import get_current_user
-from app.core.prereqs import resolve_prereq_chain
+from app.core.exceptions import raise_field_error
+from app.core.prereqs import resolve_prereq_chain, check_course_status
 from app.schemas.onboarding import (
     OnboardingCompleteRequest,
     CursosPorCarreraResponse,
     CursoPrereqItem,
+    PrerrequisitoFaltante,
 )
 from typing import Dict, Set, List
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _cargar_prerrequisitos(supabase, cursos_de_carrera: Set[int]) -> List[dict]:
+    """Devuelve los prerrequisitos que aplican a los cursos de una carrera.
+
+    La tabla es global, así que se filtra en memoria para no arrastrar
+    relaciones de otras carreras a la resolución de cadenas.
+    """
+    try:
+        resp = supabase.table("curso_prerrequisitos").select("curso_id, prerrequisito_id").execute()
+        filas = getattr(resp, "data", None) or []
+    except Exception as e:
+        logger.error(f"Error cargando prerrequisitos: {e}")
+        return []
+
+    return [f for f in filas if f["curso_id"] in cursos_de_carrera]
+
+
+def _obtener_carrera(supabase, carrera_id: int) -> dict:
+    """Devuelve la carrera elegida o corta con 400 si no existe (RF-EST-01).
+
+    Sin esta comprobación, un carrera_id inventado se guardaba igual en el
+    perfil y dejaba al estudiante con una carrera que no existe.
+    """
+    try:
+        resp = (
+            supabase.table("carreras")
+            .select("id, codigo, name, duracion_ciclos")
+            .eq("id", carrera_id)
+            .maybe_single()
+            .execute()
+        )
+        carrera = getattr(resp, "data", None) if resp else None
+    except Exception as e:
+        logger.error(f"Error consultando carrera {carrera_id}: {e}")
+        carrera = None
+
+    if not carrera:
+        raise_field_error("carrera_id", "La carrera seleccionada no existe.", status_code=400)
+
+    return carrera
+
+
+def _validar_ciclo(carrera: dict, ciclo_actual: int) -> None:
+    """Comprueba que el ciclo relativo cabe dentro del plan de la carrera."""
+    duracion = carrera.get("duracion_ciclos") or 10
+    if ciclo_actual > duracion:
+        raise_field_error(
+            "ciclo_actual",
+            f"{carrera['name']} tiene {duracion} ciclos, así que el ciclo "
+            f"{ciclo_actual} no es válido.",
+            status_code=400,
+        )
+
+
+def _validar_cursos_de_carrera(
+    cursos_inscritos: List[int], cursos_en_carrera: Dict[int, dict], carrera: dict
+) -> None:
+    """Rechaza cursos que no pertenecen a la carrera elegida (RF-EST-01).
+
+    Antes no se comprobaba: se podía inscribir cursos de otra carrera y la
+    malla quedaba mostrando cursos que no son del plan del estudiante.
+    """
+    ajenos = [cid for cid in cursos_inscritos if cid not in cursos_en_carrera]
+    if ajenos:
+        raise_field_error(
+            "cursos_inscritos",
+            f"Seleccionaste {len(ajenos)} curso(s) que no pertenecen a "
+            f"{carrera['name']}.",
+            status_code=400,
+        )
+
+
+def _verificar_perfil_minimo(supabase, user) -> dict:
+    """Exige que el perfil traiga los datos mínimos antes de cerrar el registro.
+
+    RF-EST-01 pide código, correo y nombres; esos se capturan en el registro.
+    Si faltan, el onboarding no debe marcarse como completado, porque dejaría
+    un perfil a medias que la malla y el dashboard no pueden usar.
+    """
+    try:
+        resp = (
+            supabase.table("perfiles")
+            .select("id, email, codigo_estudiante, nombre_completo")
+            .eq("id", user.id)
+            .maybe_single()
+            .execute()
+        )
+        perfil = getattr(resp, "data", None) if resp else None
+    except Exception as e:
+        logger.error(f"Error consultando perfil {user.id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo verificar tu perfil.")
+
+    if not perfil:
+        raise_field_error(
+            "perfil", "No encontramos tu perfil. Vuelve a iniciar sesión.", status_code=400
+        )
+
+    faltantes = [
+        etiqueta
+        for campo, etiqueta in (
+            ("email", "correo institucional"),
+            ("codigo_estudiante", "código universitario"),
+            ("nombre_completo", "nombres y apellidos"),
+        )
+        if not perfil.get(campo)
+    ]
+    if faltantes:
+        raise_field_error(
+            "perfil",
+            "Tu perfil está incompleto. Falta: " + ", ".join(faltantes) + ".",
+            status_code=400,
+        )
+
+    return perfil
 
 
 @router.get("/onboarding/data")
@@ -37,24 +154,27 @@ async def get_cursos_por_carrera(
     supabase = get_supabase(token)
 
     try:
-        cursos_raw = (
+        # Se cargan TODOS los cursos de la carrera, no solo los visibles: la
+        # cadena de prerrequisitos necesita resolver también los de ciclos que
+        # el estudiante no verá en pantalla.
+        todos_resp = (
             supabase.table("cursos")
             .select("id, code, name, credits, ciclo, carrera_id")
             .eq("carrera_id", carrera_id)
-            .lte("ciclo", ciclo_actual)
             .order("ciclo")
             .order("code")
             .execute()
         )
-        if not cursos_raw.data:
+        todos_los_cursos = todos_resp.data or []
+        if not todos_los_cursos:
             return CursosPorCarreraResponse(carrera_id=carrera_id, cursos=[])
 
-        prereq_resp = supabase.table("curso_prerrequisitos").select("*").execute()
+        cursos_dict: Dict[int, dict] = {c["id"]: c for c in todos_los_cursos}
+        visibles = [c for c in todos_los_cursos if c["ciclo"] <= ciclo_actual]
+
         prereq_map: Dict[int, List[int]] = {}
-        for p in prereq_resp.data or []:
-            cid = p["curso_id"]
-            if any(c["id"] == cid for c in cursos_raw.data):
-                prereq_map.setdefault(cid, []).append(p["prerrequisito_id"])
+        for p in _cargar_prerrequisitos(supabase, set(cursos_dict)):
+            prereq_map.setdefault(p["curso_id"], []).append(p["prerrequisito_id"])
 
         progreso_resp = (
             supabase.table("progreso_cursos")
@@ -63,24 +183,38 @@ async def get_cursos_por_carrera(
             .execute()
         )
         progreso_raw = progreso_resp.data or []
-        es_usuario_nuevo = len(progreso_raw) == 0
         progreso_map: Dict[int, str] = {p["curso_id"]: p["status"] for p in progreso_raw}
-        in_progress_ids: Set[int] = {p["curso_id"] for p in progreso_raw if p["status"] == "in_progress"}
+        completadas: Set[int] = {
+            p["curso_id"] for p in progreso_raw if p["status"] == "completed"
+        }
+
+        # El estudiante sin historial está haciendo su onboarding inicial: aún
+        # no ha declarado qué aprobó, así que no hay nada contra qué bloquear.
+        # Al confirmar, complete_onboarding marca como aprobada la cadena de
+        # prerrequisitos de lo que eligió.
+        sin_historial = not progreso_raw
 
         cursos = []
-        for c in cursos_raw.data:
+        for c in visibles:
             cid = c["id"]
 
-            if cid in progreso_map:
-                status = progreso_map[cid]
-            elif es_usuario_nuevo:
-                status = "available"
+            if sin_historial:
+                status, faltantes = "available", []
             else:
-                chain = resolve_prereq_chain(cid, prereq_map)
-                if any(pre_id in in_progress_ids for pre_id in chain):
-                    status = "locked"
-                else:
-                    status = "available"
+                status, prereq_info, _ok = check_course_status(
+                    curso_id=cid,
+                    db_status=progreso_map.get(cid),
+                    completed_courses=completadas,
+                    prereq_map=prereq_map,
+                    cursos_dict=cursos_dict,
+                )
+                faltantes = [
+                    PrerrequisitoFaltante(
+                        id=p["id"], code=p["code"], name=p["name"]
+                    )
+                    for p in prereq_info
+                    if not p["completado"]
+                ]
 
             cursos.append(
                 CursoPrereqItem(
@@ -92,6 +226,7 @@ async def get_cursos_por_carrera(
                     carrera_id=c["carrera_id"],
                     prerrequisito_ids=prereq_map.get(cid, []),
                     status=status,
+                    prerrequisitos_faltantes=faltantes,
                 )
             )
 
@@ -118,8 +253,10 @@ async def complete_onboarding(
         cursos_inscritos = data.cursos_inscritos
         inscritos_set: Set[int] = set(cursos_inscritos)
 
-        if not cursos_inscritos:
-            raise HTTPException(status_code=400, detail="Debes inscribirte en al menos 1 curso.")
+        # --- Validaciones de RF-EST-01 antes de tocar nada ---
+        perfil = _verificar_perfil_minimo(supabase, user)
+        carrera = _obtener_carrera(supabase, carrera_id)
+        _validar_ciclo(carrera, ciclo_actual)
 
         # --- Cargar datos de la carrera ---
         cursos_resp = supabase.table("cursos").select("*").eq("carrera_id", carrera_id).execute()
@@ -127,6 +264,8 @@ async def complete_onboarding(
         for c in cursos_resp.data or []:
             cid = c["id"]
             cursos_en_carrera[cid] = c
+
+        _validar_cursos_de_carrera(cursos_inscritos, cursos_en_carrera, carrera)
 
         prereq_resp = supabase.table("curso_prerrequisitos").select("*").execute()
         prereq_map: Dict[int, List[int]] = {}
@@ -227,6 +366,20 @@ async def complete_onboarding(
             "message": "Onboarding completado exitosamente",
             "completados": completados_final,
             "inscritos": inscritos_final,
+            # Perfil ya con los datos mínimos de RF-EST-01, para que el
+            # frontend no tenga que volver a pedirlo tras el wizard.
+            "perfil": {
+                "codigo_estudiante": perfil.get("codigo_estudiante"),
+                "email": perfil.get("email"),
+                "nombre_completo": perfil.get("nombre_completo"),
+                "carrera": {
+                    "id": carrera["id"],
+                    "codigo": carrera["codigo"],
+                    "name": carrera["name"],
+                },
+                "ciclo_actual": ciclo_actual,
+                "total_cursos_inscritos": len(inscritos_final),
+            },
         }
 
     except HTTPException:

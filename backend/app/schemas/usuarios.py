@@ -3,6 +3,11 @@ from pydantic import BaseModel, field_validator
 from app.core.validators import (
     EMAIL_PATTERN,
     CODIGO_PATTERN,
+    MSG_PASSWORD_VACIA,
+    es_codigo_estudiante,
+    es_email_institucional,
+    normalizar_codigo,
+    normalizar_email,
     validar_codigo_estudiante,
     validar_email_institucional,
     validar_password,
@@ -14,6 +19,7 @@ __all__ = [
     "CODIGO_PATTERN",
     "RegistroEstudiante",
     "RegistroCompleto",
+    "LoginRequest",
     "PerfilUpdate",
     "CambioPassword",
 ]
@@ -66,11 +72,10 @@ class LoginRequest(BaseModel):
     @field_validator("identificador")
     @classmethod
     def validar_identificador(cls, v: str) -> str:
-        valor = v.strip()
-        if EMAIL_PATTERN.match(valor):
-            return valor.lower()
-        if CODIGO_PATTERN.match(valor):
-            return valor.upper()
+        if es_email_institucional(v):
+            return normalizar_email(v)
+        if es_codigo_estudiante(v):
+            return normalizar_codigo(v)
         raise ValueError(
             "Ingresa tu correo institucional (@uni.pe) o tu código universitario "
             "de 8 números y 1 letra (ej. 20210001K)."
@@ -78,14 +83,17 @@ class LoginRequest(BaseModel):
 
     @field_validator("password")
     @classmethod
-    def validar_password(cls, v: str) -> str:
+    def validar_pass(cls, v: str) -> str:
+        # A propósito NO se aplica la política de complejidad aquí: al iniciar
+        # sesión hay que aceptar contraseñas anteriores a la regla vigente, y
+        # rechazarlas por formato revelaría la política a quien no tiene cuenta.
         if not v:
-            raise ValueError("La contraseña es obligatoria.")
+            raise ValueError(MSG_PASSWORD_VACIA)
         return v
 
     @property
     def es_email(self) -> bool:
-        return "@" in self.identificador
+        return es_email_institucional(self.identificador)
 
 
 class PerfilUpdate(BaseModel):

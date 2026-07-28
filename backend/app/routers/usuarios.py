@@ -1,10 +1,154 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from app.core.database import get_supabase, get_admin_client
 from app.core.auth_utils import get_current_user
 from app.core.exceptions import raise_field_error
-from app.schemas.usuarios import RegistroEstudiante, RegistroCompleto
+from app.schemas.usuarios import RegistroEstudiante, RegistroCompleto, LoginRequest
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Mensaje único para credenciales inválidas: no revela si el correo o el código existe.
+CREDENCIALES_INVALIDAS = "El correo/código o la contraseña son incorrectos."
+
+
+def _resolver_email(identificador: str, es_email: bool) -> str | None:
+    """Traduce un código universitario a su correo institucional (RF-01).
+
+    Usa el cliente admin porque el login ocurre sin sesión activa y RLS
+    bloquearía la lectura de 'perfiles' con la llave anónima.
+    """
+    if es_email:
+        return identificador
+
+    try:
+        resp = (
+            get_admin_client()
+            .table("perfiles")
+            .select("email")
+            .eq("codigo_estudiante", identificador)
+            .maybe_single()
+            .execute()
+        )
+    except Exception as e:
+        logger.error(f"[LOGIN] Error resolviendo código {identificador}: {e}")
+        return None
+
+    data = getattr(resp, "data", None) if resp else None
+    return data.get("email") if data else None
+
+
+def _cargar_carrera_y_plan(token: str, carrera_id: int | None) -> tuple[dict | None, dict | None]:
+    """Devuelve la carrera del estudiante y el resumen de su plan de estudios (RF-02).
+
+    El plan se deriva del catálogo de cursos de la carrera; el avance del
+    estudiante lo expone la Fase 3 y no se duplica aquí.
+    """
+    if not carrera_id:
+        return None, None
+
+    supabase = get_supabase(token)
+
+    try:
+        carrera_resp = (
+            supabase.table("carreras")
+            .select("id, name, codigo")
+            .eq("id", carrera_id)
+            .maybe_single()
+            .execute()
+        )
+        carrera = getattr(carrera_resp, "data", None) if carrera_resp else None
+    except Exception as e:
+        logger.error(f"[LOGIN] Error cargando carrera {carrera_id}: {e}")
+        return None, None
+
+    try:
+        cursos_resp = (
+            supabase.table("cursos")
+            .select("credits, ciclo")
+            .eq("carrera_id", carrera_id)
+            .execute()
+        )
+        cursos = getattr(cursos_resp, "data", None) or []
+    except Exception as e:
+        logger.error(f"[LOGIN] Error cargando plan de carrera {carrera_id}: {e}")
+        return carrera, None
+
+    if not cursos:
+        return carrera, None
+
+    ciclos = {c["ciclo"] for c in cursos if c.get("ciclo") is not None}
+    plan = {
+        "carrera_id": carrera_id,
+        "total_cursos": len(cursos),
+        "total_creditos": sum(c.get("credits") or 0 for c in cursos),
+        "total_ciclos": max(ciclos) if ciclos else 0,
+    }
+    return carrera, plan
+
+
+@router.post("/auth/login")
+async def login(data: LoginRequest):
+    """Inicia sesión con correo institucional o código universitario (RF-01).
+
+    Devuelve la sesión junto con el perfil, la carrera y el plan de estudios
+    asociados automáticamente (RF-02).
+    """
+    email = _resolver_email(data.identificador, data.es_email)
+    if not email:
+        raise_field_error("identificador", CREDENCIALES_INVALIDAS, status_code=401)
+
+    try:
+        auth_resp = get_supabase().auth.sign_in_with_password(
+            {"email": email, "password": data.password}
+        )
+    except Exception as e:
+        logger.warning(f"[LOGIN] Credenciales rechazadas para {email}: {e}")
+        raise_field_error("identificador", CREDENCIALES_INVALIDAS, status_code=401)
+
+    session = getattr(auth_resp, "session", None)
+    user = getattr(auth_resp, "user", None)
+    if not session or not user:
+        raise_field_error("identificador", CREDENCIALES_INVALIDAS, status_code=401)
+
+    token = session.access_token
+
+    try:
+        perfil_resp = (
+            get_supabase(token)
+            .table("perfiles")
+            .select("*")
+            .eq("id", user.id)
+            .maybe_single()
+            .execute()
+        )
+        perfil = getattr(perfil_resp, "data", None) if perfil_resp else None
+    except Exception as e:
+        logger.error(f"[LOGIN] Error cargando perfil de {user.id}: {e}")
+        perfil = None
+
+    if not perfil:
+        # El perfil se crea en el registro; si falta, devolvemos lo mínimo de auth.
+        perfil = {
+            "id": user.id,
+            "email": user.email,
+            "nombre_completo": user.user_metadata.get("nombre_completo", ""),
+            "onboarding_completado": False,
+        }
+
+    carrera, plan_estudios = _cargar_carrera_y_plan(token, perfil.get("carrera_id"))
+
+    return {
+        "status": "success",
+        "access_token": token,
+        "refresh_token": session.refresh_token,
+        "expires_at": session.expires_at,
+        "token_type": "bearer",
+        "usuario": perfil,
+        "carrera": carrera,
+        "plan_estudios": plan_estudios,
+        "onboarding_completado": bool(perfil.get("onboarding_completado")),
+    }
 
 @router.get("/usuarios/me")
 async def get_profile(user_data = Depends(get_current_user)):

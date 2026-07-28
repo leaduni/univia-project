@@ -54,6 +54,37 @@ class RegistroCompleto(BaseModel):
         return v.strip().upper()
 
 
+class LoginRequest(BaseModel):
+    """Login por correo institucional o código universitario (RF-01)."""
+
+    identificador: str
+    password: str
+
+    @field_validator("identificador")
+    @classmethod
+    def validar_identificador(cls, v: str) -> str:
+        valor = v.strip()
+        if EMAIL_PATTERN.match(valor):
+            return valor.lower()
+        if CODIGO_PATTERN.match(valor):
+            return valor.upper()
+        raise ValueError(
+            "Ingresa tu correo institucional (@uni.pe) o tu código universitario "
+            "de 8 números y 1 letra (ej. 20210001K)."
+        )
+
+    @field_validator("password")
+    @classmethod
+    def validar_password(cls, v: str) -> str:
+        if not v:
+            raise ValueError("La contraseña es obligatoria.")
+        return v
+
+    @property
+    def es_email(self) -> bool:
+        return "@" in self.identificador
+
+
 class PerfilUpdate(BaseModel):
     email: str | None = None
     codigo_estudiante: str | None = None

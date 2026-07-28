@@ -27,6 +27,34 @@ Dos desviaciones rompían cualquier base recreada desde cero:
 
 ---
 
+## 1b. Cómo levantar la base desde cero
+
+Ejecutar **en este orden** en el SQL Editor de Supabase:
+
+| # | Archivo | Qué hace |
+|---|---|---|
+| 1 | `esquema/db_schema.sql` | Tablas, triggers y relaciones |
+| 2 | `esquema/migracion_fase1_fundacion.sql` | Restricciones e índices de la Fase 1 |
+| 3 | `semillas/seed_catalogo.sql` | Facultad, carreras, 59 cursos y 40 prerrequisitos |
+| 4 | `semillas/seed_learning_paths*.sql` | Pasos de las rutas de aprendizaje |
+
+`seed_catalogo.sql` se generó desde la base de datos real y resuelve todas las
+relaciones **por código** (`FIIS`, `IND`, `SI`, `SW`, y el `code` de cada curso),
+nunca por ID. Los IDs son `SERIAL` y difieren entre entornos: ese fue exactamente
+el fallo de los seeds anteriores.
+
+### Seeds obsoletos — no ejecutar
+
+Se conservan solo por historial. Todos usan IDs fijos que ya no corresponden:
+
+| Archivo | Por qué no sirve |
+|---|---|
+| `db_seed.sql` | Crea carreras `CS`, `CE`, `EE`, `IE` que no existen en el proyecto. Sin `ON CONFLICT`: falla al repetirse |
+| `seed_requirements.sql` | Inserta cursos con `carrera_id` 2/3/4; las carreras reales son 5/6/7 |
+| `seed_industrial.sql` | Solo Industrial, con `carrera_id` 6 fijo. Cubierto por `seed_catalogo.sql` |
+
+---
+
 ## 2. Mapa de tablas
 
 ### Identidad y perfil

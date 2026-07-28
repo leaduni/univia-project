@@ -305,6 +305,62 @@ export const apiService = {
         }
     },
 
+    /**
+     * Pide el correo de recuperación de contraseña (RF-03).
+     *
+     * El backend responde lo mismo exista o no la cuenta, para no revelar qué
+     * correos están registrados. La UI debe mostrar ese mensaje tal cual.
+     */
+    async solicitarRecuperacion(email: string) {
+        try {
+            const response = await fetch(`${API_URL}/auth/recuperar-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email }),
+            });
+
+            const body = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(
+                    body?.errors?.[0]?.message || "No pudimos procesar tu solicitud."
+                );
+            }
+
+            return body;
+        } catch (error: any) {
+            console.error("API Error (solicitarRecuperacion):", error);
+            throw new Error(error.message || "No pudimos procesar tu solicitud.");
+        }
+    },
+
+    /**
+     * Guarda la contraseña nueva (RF-03). Requiere la sesión temporal que
+     * Supabase crea al abrir el enlace del correo.
+     */
+    async restablecerPassword(passwordNueva: string) {
+        try {
+            const response = await fetchWithAuth(`${API_URL}/auth/restablecer-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password_nueva: passwordNueva }),
+            });
+
+            const body = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(
+                    body?.errors?.[0]?.message || "No se pudo actualizar la contraseña."
+                );
+            }
+
+            return body;
+        } catch (error: any) {
+            console.error("API Error (restablecerPassword):", error);
+            throw new Error(error.message || "No se pudo actualizar la contraseña.");
+        }
+    },
+
     async getProfile(customToken?: string) {
         try {
             const response = await fetchWithAuth(`${API_URL}/usuarios/me`, {}, customToken);

@@ -5,7 +5,12 @@ from app.core.auth_utils import get_current_user
 from app.core.exceptions import raise_field_error
 from app.core.prereqs import resolve_prereq_chain, check_course_status
 from app.schemas.onboarding import (
+    CICLO_POR_DEFECTO,
     OnboardingCompleteRequest,
+    OnboardingDataResponse,
+    CarreraItem,
+    FacultadItem,
+    RangoCiclos,
     CursosPorCarreraResponse,
     CursoPrereqItem,
     PrerrequisitoFaltante,
@@ -131,17 +136,58 @@ def _verificar_perfil_minimo(supabase, user) -> dict:
     return perfil
 
 
-@router.get("/onboarding/data")
+@router.get("/onboarding/data", response_model=OnboardingDataResponse)
 async def get_onboarding_data(user_data=Depends(get_current_user)):
+    """Catálogo que alimenta los pasos de carrera y ciclo del wizard.
+
+    Devuelve cada carrera con su facultad y la duración de su plan, más el
+    rango de ciclos seleccionable, para que el frontend no tenga que asumir
+    un número fijo de ciclos.
+    """
     user, token = user_data
     supabase = get_supabase(token)
 
     try:
-        carreras_resp = supabase.table("carreras").select("id, name, codigo").execute()
-        return {"carreras": carreras_resp.data}
+        carreras_resp = (
+            supabase.table("carreras")
+            .select("id, codigo, name, description, duracion_ciclos, facultad_id")
+            .order("name")
+            .execute()
+        )
+        carreras_raw = getattr(carreras_resp, "data", None) or []
+
+        facultades_resp = (
+            supabase.table("facultades").select("id, codigo, nombre").order("nombre").execute()
+        )
+        facultades_raw = getattr(facultades_resp, "data", None) or []
     except Exception as e:
         logger.error(f"Error fetching onboarding data: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="No se pudo cargar el catálogo académico.")
+
+    facultades = [FacultadItem(**f) for f in facultades_raw]
+    facultades_por_id = {f.id: f for f in facultades}
+
+    carreras = [
+        CarreraItem(
+            id=c["id"],
+            codigo=c["codigo"],
+            name=c["name"],
+            description=c.get("description"),
+            duracion_ciclos=c.get("duracion_ciclos") or CICLO_POR_DEFECTO,
+            facultad=facultades_por_id.get(c.get("facultad_id")),
+        )
+        for c in carreras_raw
+    ]
+
+    # El tope global cubre el caso en que el frontend aún no sabe qué carrera
+    # eligió el estudiante; cada carrera lleva además su propia duración.
+    ciclo_max = max((c.duracion_ciclos for c in carreras), default=CICLO_POR_DEFECTO)
+
+    return OnboardingDataResponse(
+        carreras=carreras,
+        facultades=facultades,
+        ciclos=RangoCiclos(min=1, max=ciclo_max),
+    )
 
 
 @router.get("/onboarding/cursos", response_model=CursosPorCarreraResponse)

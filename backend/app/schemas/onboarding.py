@@ -8,6 +8,9 @@ CICLO_MAXIMO_ADMITIDO = 20
 # Evita que una petición manipulada intente inscribir cientos de cursos.
 MAX_CURSOS_INSCRITOS = 12
 
+# Duración de plan asumida cuando la carrera no la tiene registrada.
+CICLO_POR_DEFECTO = 10
+
 
 class OnboardingCompleteRequest(BaseModel):
     """Datos con los que el estudiante cierra su registro de perfil (RF-EST-01).
@@ -34,6 +37,38 @@ class OnboardingCompleteRequest(BaseModel):
         if any(cid <= 0 for cid in v):
             raise ValueError("La selección de cursos contiene un identificador inválido.")
         return v
+
+
+class FacultadItem(BaseModel):
+    id: int
+    codigo: str
+    nombre: str
+
+
+class CarreraItem(BaseModel):
+    """Carrera para el paso 'Career Step' del wizard."""
+
+    id: int
+    codigo: str
+    name: str
+    description: str | None = None
+    # Largo del plan de estudios: define hasta qué ciclo puede declararse el
+    # estudiante en el paso siguiente.
+    duracion_ciclos: int = 10
+    facultad: FacultadItem | None = None
+
+
+class RangoCiclos(BaseModel):
+    """Ciclos seleccionables en el paso 'Semester Step'."""
+
+    min: int = 1
+    max: int
+
+
+class OnboardingDataResponse(BaseModel):
+    carreras: List[CarreraItem]
+    facultades: List[FacultadItem]
+    ciclos: RangoCiclos
 
 
 class PrerrequisitoFaltante(BaseModel):

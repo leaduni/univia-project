@@ -1,7 +1,6 @@
 // Onboarding-related TypeScript type definitions
 export interface OnboardingData {
-  career: string
+  career: number
   semester: number
-  completedCourses: string[]
-  currentEnrollment?: string[]
+  cursosInscritos: number[]
 }

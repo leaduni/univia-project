@@ -5,7 +5,7 @@ import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { CheckCircle2, Lock, BookOpen, Code, FileText, Download, ArrowRight, ArrowLeft, Loader2 } from "lucide-react"
+import { CheckCircle2, PlayCircle, Lock, BookOpen, Code, FileText, Download, ArrowRight, ArrowLeft, Loader2 } from "lucide-react"
 import { apiService } from "@/lib/api-service"
 
 interface Plancha {
@@ -38,7 +38,7 @@ export function LearningTimeline({
 }: {
   courseId: string
   timeline: TimelineStep[]
-  onStartEvaluation?: (moduleTitle: string, topics: string[]) => void
+  onStartEvaluation?: (moduleTitle: string) => void
 }) {
   const [selectedStep, setSelectedStep] = useState<TimelineStep | null>(null)
   const [completingStep, setCompletingStep] = useState<number | null>(null)
@@ -67,7 +67,7 @@ export function LearningTimeline({
       setCompletingStep(null)
       setSelectedStep(null)
       if (onStartEvaluation) {
-        onStartEvaluation(selectedStep.title, selectedStep.topics)
+        onStartEvaluation(selectedStep.title)
       }
       window.location.reload()
     } catch (err: any) {
@@ -122,7 +122,7 @@ export function LearningTimeline({
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              {selectedStep.topics.map((topic) => (
+              {selectedStep.topics?.map((topic) => (
                 <Badge key={topic} variant="secondary" className="text-sm px-3 py-1.5">
                   {topic}
                 </Badge>
@@ -214,123 +214,100 @@ export function LearningTimeline({
 
   // Vista de lista (timeline)
   return (
-    <div className="space-y-6">
-      <div className="relative">
-        <div className="absolute left-6 top-12 bottom-0 w-0.5 gradient-timeline" />
+    <div className="relative pl-10 space-y-8">
+      <div className="absolute left-[19px] top-2 bottom-0 w-[2px] bg-[#232045]" />
 
-        <div className="space-y-6">
-          {steps.map((step) => (
-            <div key={step.id} className="relative pl-20">
-              <div className="absolute left-0 top-2 w-12 h-12 flex items-center justify-center">
-                <div
-                  className={`w-12 h-12 rounded-full flex items-center justify-center border-4 bg-background transition-all ${
-                    step.status === "completed"
-                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-400"
-                      : step.status === "current"
-                        ? "border-primary bg-primary/10 text-primary ring-4 ring-primary/30"
-                        : step.status === "upcoming"
-                          ? "border-muted-foreground/30 bg-muted text-muted-foreground"
-                          : "border-muted-foreground/20 bg-muted/50 text-muted-foreground/60"
-                  }`}
-                >
-                  {step.status === "completed" ? (
-                    <CheckCircle2 className="w-6 h-6" />
-                  ) : step.status === "locked" ? (
-                    <Lock className="w-6 h-6" />
-                  ) : (
-                    getStepIcon(step.icon)
-                  )}
-                </div>
-              </div>
+      {steps.map((step, idx) => {
+        const isCompleted = step.status === "completed"
+        const isCurrent = step.status === "current" || step.status === "upcoming"
+        const isLockedStep = step.status === "locked"
+        const StatusIcon = isCompleted ? CheckCircle2 : isCurrent && !isLockedStep ? PlayCircle : Lock
 
-              <Card
-                className={`bg-card transition-all ${
-                  step.status === "current"
-                    ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
-                    : step.status === "locked"
-                      ? "opacity-60 cursor-not-allowed"
-                      : "border-border"
+        return (
+          <div key={step.id} className="relative">
+            {/* Icon bubble */}
+            <div
+              className={`absolute -left-[26px] w-[38px] h-[38px] rounded-full flex items-center justify-center border-2 transition-all ${
+                isCompleted
+                  ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"
+                  : !isLockedStep
+                    ? "bg-[#ec4899]/20 border-[#ec4899] text-[#ec4899] ring-1 ring-[#ec4899]/30"
+                    : "bg-[#121124]/60 border-[#232045] text-slate-600"
+              }`}
+            >
+              <StatusIcon className="w-[18px] h-[18px]" />
+            </div>
+
+            {/* Content card */}
+            <div
+              className={`rounded-2xl border p-4 transition-all ${
+                isCompleted
+                  ? "bg-[#121124]/60 border-[#232045]"
+                  : !isLockedStep
+                    ? "bg-[#14132a]/90 border-[#ec4899]/30 shadow-lg shadow-pink-500/5"
+                    : "bg-[#121124]/60 border-[#232045] opacity-50"
+              }`}
+            >
+              {/* Status label */}
+              <span
+                className={`text-[11px] font-bold tracking-wider ${
+                  isCompleted
+                    ? "text-emerald-400"
+                    : !isLockedStep
+                      ? "text-[#ec4899]"
+                      : "text-slate-500"
                 }`}
               >
-                <CardHeader>
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg">{step.title}</CardTitle>
-                      <CardDescription>{step.description}</CardDescription>
-                    </div>
-                    <Badge
-                      variant={
-                        step.status === "completed" ? "default" : step.status === "current" ? "secondary" : "outline"
-                      }
-                      className={`whitespace-nowrap ${
-                        step.status === "completed" &&
-                        "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                      }
-                      ${
-                        step.status === "current" &&
-                        "bg-primary/15 text-primary border-primary/30 ring-1 ring-primary/30"
-                      }`}
+                SEMANA {idx + 1} &middot;{" "}
+                {isCompleted ? "COMPLETADA" : !isLockedStep ? "EN CURSO" : "PENDIENTE"}
+              </span>
+
+              {/* Title */}
+              <h3
+                className={`text-base font-bold mt-1 ${
+                  isLockedStep ? "text-slate-500" : "text-white"
+                }`}
+              >
+                {step.title}
+              </h3>
+
+              {/* Topics pills */}
+              {step.topics && step.topics.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {step.topics.map((topic) => (
+                    <span
+                      key={topic}
+                      className="text-[11px] px-2 py-0.5 rounded-full bg-[#1e1b3a] text-slate-400"
                     >
-                      {step.status === "completed"
-                        ? "Completado"
-                        : step.status === "current"
-                          ? "En progreso"
-                          : step.status === "upcoming"
-                            ? "Próximo"
-                            : "Bloqueado"}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground font-medium mt-2">Duración estimada: {step.duration}</p>
-                </CardHeader>
+                      {topic}
+                    </span>
+                  ))}
+                </div>
+              )}
 
-                <CardContent className="space-y-4">
-                  {step.topics && step.topics.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-foreground mb-3">Temas a Cubrir</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {step.topics.map((topic) => (
-                          <Badge key={topic} variant="secondary" className="text-xs">
-                            {topic}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="pt-2 flex gap-2">
-                    {step.status !== "locked" && step.status !== "completed" && (
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="gradient-brand-hover text-white border-0 gap-2"
-                        onClick={() => handleContinue(step)}
-                      >
-                        {step.status === "current" ? "Continuar" : "Comenzar"}
-                        <ArrowRight className="w-4 h-4" />
-                      </Button>
-                    )}
-                    {step.status === "completed" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-2"
-                        onClick={() => {
-                          if (onStartEvaluation) {
-                            onStartEvaluation(step.title, step.topics)
-                          }
-                        }}
-                      >
-                        Evaluación de Unidad
-                        <ArrowRight className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+              {/* Actions row */}
+              <div className="flex gap-2 mt-3">
+                {!isLockedStep && !isCompleted && (
+                  <button
+                    onClick={() => handleContinue(step)}
+                    className="px-4 py-2 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-[#ec4899] to-[#a855f7] hover:opacity-90 transition-all shadow-md shadow-pink-500/20"
+                  >
+                    Practicar este m&oacute;dulo
+                  </button>
+                )}
+                {isCompleted && onStartEvaluation && (
+                  <button
+                    onClick={() => onStartEvaluation(step.title)}
+                    className="px-4 py-2 rounded-xl font-semibold text-xs text-slate-300 bg-[#1d1a3b] border border-[#3b3475] hover:bg-[#282452] transition-all"
+                  >
+                    Evaluaci&oacute;n de Unidad
+                  </button>
+                )}
+              </div>
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

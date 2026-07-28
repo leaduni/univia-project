@@ -1,16 +1,18 @@
-// Learning path page - timeline, AI analysis, exam bank
 "use client"
 
 import { useState, useEffect } from "react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import Link from "next/link"
 import { LearningTimeline } from "./learning-path/timeline"
-import { AIAnalysisBox } from "./learning-path/ai-analysis-box"
 import { ExamBank } from "./learning-path/exam-bank"
 import { EvaluacionIA } from "./learning-path/evaluacion-ia"
-import { ChevronLeft } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Sparkles, GraduationCap, Calendar, FileText, Target, Lock, CheckCircle2 } from "lucide-react"
 import { apiService } from "@/lib/api-service"
-import Link from "next/link"
+
+const TABS = [
+  { key: "path", label: "Ruta de aprendizaje" },
+  { key: "exams", label: "Banco de exámenes" },
+  { key: "evaluacion", label: "Mis evaluaciones" },
+]
 
 interface LearningPathProps {
   courseId: string
@@ -21,22 +23,29 @@ export function LearningPath({ courseId }: LearningPathProps) {
   const [data, setData] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [accessDenied, setAccessDenied] = useState(false)
   const [preSelectedModulo, setPreSelectedModulo] = useState<string | null>(null)
-  const [preSelectedTopics, setPreSelectedTopics] = useState<string[]>([])
+  const [showingEvaluationResults, setShowingEvaluationResults] = useState(false)
+
+  const [showCompleteModal, setShowCompleteModal] = useState(false)
+  const [completing, setCompleting] = useState(false)
+  const [completeSuccess, setCompleteSuccess] = useState(false)
 
   useEffect(() => {
     const fetchLearningPath = async () => {
       try {
         setIsLoading(true)
-        // Limpiar el ID si viene con el prefijo 'c' (ej: 'c101' -> '101')
-        const cleanId = courseId.toString().startsWith('c')
+        const cleanId = courseId.toString().startsWith("c")
           ? courseId.toString().substring(1)
           : courseId
-
         const result = await apiService.getLearningPath(cleanId)
         setData(result)
       } catch (err: any) {
-        setError(err.message || "Error al cargar la ruta de aprendizaje.")
+        if (err.status === 403) {
+          setAccessDenied(true)
+        } else {
+          setError(err.message || "Error al cargar la ruta de aprendizaje.")
+        }
         console.error(err)
       } finally {
         setIsLoading(false)
@@ -48,8 +57,42 @@ export function LearningPath({ courseId }: LearningPathProps) {
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        <p className="text-muted-foreground animate-pulse">Cargando ruta de aprendizaje...</p>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#ec4899]" />
+        <p className="text-slate-400 animate-pulse">Cargando ruta de aprendizaje...</p>
+      </div>
+    )
+  }
+
+  if (accessDenied) {
+    return (
+      <div className="p-8 text-center max-w-2xl mx-auto space-y-4">
+        <div className="bg-amber-500/10 text-amber-200 p-6 rounded-2xl border border-amber-500/30">
+          <Lock className="h-10 w-10 mx-auto mb-3 text-amber-400" />
+          <h2 className="text-lg font-bold mb-2 text-white">Curso Bloqueado</h2>
+          <p className="text-sm text-amber-300/80">
+            Este curso tiene prerrequisitos que a&uacute;n no has completado. Debes aprobar los cursos anteriores para acceder a su contenido.
+          </p>
+        </div>
+        <Link href="/" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#3b3475] bg-[#1d1a3b] text-sm font-semibold text-white hover:bg-[#282452] transition-all shadow-md">
+          Volver a Mi Malla
+        </Link>
+      </div>
+    )
+  }
+
+  if (completeSuccess) {
+    return (
+      <div className="p-8 text-center max-w-2xl mx-auto space-y-4">
+        <div className="bg-emerald-500/10 text-emerald-200 p-6 rounded-2xl border border-emerald-500/30">
+          <CheckCircle2 className="h-10 w-10 mx-auto mb-3 text-emerald-400" />
+          <h2 className="text-lg font-bold mb-2 text-white">Curso completado exitosamente</h2>
+          <p className="text-sm text-emerald-300/80">
+            El curso ha sido marcado al 100% de progreso. Los cursos correlativos se desbloquear&aacute;n en tu malla.
+          </p>
+        </div>
+        <Link href="/" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#3b3475] bg-[#1d1a3b] text-sm font-semibold text-white hover:bg-[#282452] transition-all shadow-md">
+          Volver a Mi Malla
+        </Link>
       </div>
     )
   }
@@ -57,12 +100,11 @@ export function LearningPath({ courseId }: LearningPathProps) {
   if (error || !data) {
     return (
       <div className="p-8 text-center max-w-2xl mx-auto space-y-4">
-        <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20 font-semibold">
+        <div className="bg-rose-500/10 text-rose-200 p-4 rounded-2xl border border-rose-500/20 font-semibold">
           {error || "No se encontraron datos para este curso."}
         </div>
-        {/* CORREGIDO: Redirección cambiada a "/" ya que la malla está en la página raíz */}
-        <Link href="/">
-          <Button variant="outline">Volver a Mi Malla</Button>
+        <Link href="/" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#3b3475] bg-[#1d1a3b] text-sm font-semibold text-white hover:bg-[#282452] transition-all shadow-md">
+          Volver a Mi Malla
         </Link>
       </div>
     )
@@ -70,8 +112,6 @@ export function LearningPath({ courseId }: LearningPathProps) {
 
   const { curso, timeline, ai_insights, exam_bank } = data
 
-  // Preparar módulos para la evaluación
-  // topics llega como string de PostgreSQL: "{Tema1, Tema2}" → parseamos a array
   const parseTopics = (topics: any): string[] => {
     if (Array.isArray(topics)) return topics
     if (typeof topics === "string") {
@@ -80,7 +120,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
     return []
   }
 
-  const modulos = timeline.map((item: any) => ({
+  const modulos = (timeline ?? []).map((item: any) => ({
     id: item.id,
     title: item.title,
     topics: parseTopics(item.topics),
@@ -88,82 +128,278 @@ export function LearningPath({ courseId }: LearningPathProps) {
     completado: item.completado,
   }))
 
-  const handleStartEvaluation = (moduleTitle: string, topics: string[]) => {
+  const weeksCompleted = timeline.filter((s: any) => s.status === "completed").length
+  const totalWeeks = timeline.length
+  const progress = curso.progress ?? 0
+  const aiText = ai_insights?.[0]?.description
+    || "Basado en tu desempeño actual, recomendamos reforzar los temas de la semana en curso."
+
+  const handleStartEvaluation = (moduleTitle: string) => {
     setPreSelectedModulo(moduleTitle)
-    setPreSelectedTopics(topics)
     setActiveTab("evaluacion")
   }
 
-  return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto">
-      {/* Back Navigation */}
-      <div className="mb-6">
-        {/* CORREGIDO: Redirección cambiada a "/" para evitar el error 404 */}
-        <Link href="/">
-          <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
-            <ChevronLeft className="w-4 h-4" />
-            Volver a Mi Malla
-          </Button>
-        </Link>
-      </div>
+  const handleConfirmComplete = async () => {
+    setCompleting(true)
+    try {
+      const courseIdNum = Number(courseId.toString().replace(/^c/, ""))
+      await apiService.completarCurso(courseIdNum)
+      setShowCompleteModal(false)
+      setCompleteSuccess(true)
+      setTimeout(() => setCompleteSuccess(false), 4000)
+      const cleanId = courseId.toString().startsWith("c")
+        ? courseId.toString().substring(1)
+        : courseId
+      const result = await apiService.getLearningPath(cleanId)
+      setData(result)
+    } catch (err: any) {
+      console.error(err)
+      setError(err.message || "Error al completar el curso")
+    } finally {
+      setCompleting(false)
+    }
+  }
 
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-start justify-between mb-4">
+  return (
+    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6">
+
+      {/* Hero Banner */}
+      {!showingEvaluationResults && <div className="bg-gradient-to-r from-[#17112c] via-[#0f0e21] to-[#0b0a16] rounded-2xl border border-[#27244a] p-6 md:p-8">
+        {/* Breadcrumbs */}
+        <p className="text-xs text-slate-500 mb-4">
+          <Link href="/" className="hover:text-slate-300 transition-colors">Inicio</Link>
+          <span className="mx-1.5">/</span>
+          <Link href="/" className="hover:text-slate-300 transition-colors">Mi malla</Link>
+          <span className="mx-1.5">/</span>
+          <span className="text-slate-400">{curso.name}</span>
+        </p>
+
+        {/* Badges */}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#211d45] text-purple-300 border border-[#3b3475]">
+            {curso.code || "S/C"}
+          </span>
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#1a233d] text-sky-300 border border-[#283b66]">
+            {curso.ciclo_roman || `Ciclo ${curso.ciclo || "III"}`}
+          </span>
+          {(progress ?? 0) < 100 && (
+            <button
+              onClick={() => setShowCompleteModal(true)}
+              className="ml-auto px-4 py-1.5 rounded-xl text-xs font-semibold text-slate-300 bg-[#1d1a3b] border border-[#3b3475] hover:bg-[#282452] transition-all"
+            >
+              Marcar como completado
+            </button>
+          )}
+        </div>
+
+        {/* Title & Description */}
+        <h1 className="text-3xl font-black text-white tracking-tight mb-2">
+          {curso.name}
+        </h1>
+        {curso.professor && (
+          <p className="text-sm text-slate-400 mb-3">{curso.professor}</p>
+        )}
+        {curso.description && (
+          <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
+            {curso.description}
+          </p>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex flex-wrap items-center gap-3 mt-6">
+          <button
+            onClick={() => setActiveTab("evaluacion")}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-[#ec4899] to-[#8b5cf6] hover:opacity-90 transition-all shadow-lg shadow-pink-500/20"
+          >
+            <Sparkles className="w-4 h-4" />
+            Generar evaluaci&oacute;n con IA
+          </button>
+          <button
+            onClick={() => setActiveTab("exams")}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-300 bg-[#1a1735]/80 border border-[#2b2654] hover:bg-[#231f47] transition-all"
+          >
+            <FileText className="w-4 h-4" />
+            Ver banco de ex&aacute;menes
+          </button>
+        </div>
+      </div>}
+
+      {/* Metrics Grid */}
+      {!showingEvaluationResults && <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="p-4 rounded-2xl bg-[#121124]/60 border border-[#232045] flex items-center gap-3">
+          <GraduationCap className="w-5 h-5 text-indigo-400" />
           <div>
-            <p className="text-sm font-medium text-accent mb-1">{curso.code}</p>
-            <h1 className="text-3xl font-bold text-foreground mb-2">{curso.name}</h1>
-            <p className="text-muted-foreground">{curso.professor}</p>
-          </div>
-          <div className="text-right">
-            <div className="text-3xl font-bold text-blue-600">{curso.progress}%</div>
-            <p className="text-sm text-muted-foreground">Progreso del curso</p>
+            <p className="text-sm font-bold text-white">{curso.credits || 4} cr&eacute;ditos</p>
+            <p className="text-xs text-slate-400">Obligatorio &middot; FIIS</p>
           </div>
         </div>
+        <div className="p-4 rounded-2xl bg-[#121124]/60 border border-[#232045] flex items-center gap-3">
+          <Calendar className="w-5 h-5 text-indigo-400" />
+          <div>
+            <p className="text-sm font-bold text-white">{totalWeeks || 8} semanas</p>
+            <p className="text-xs text-slate-400">Alineado al s&iacute;labo 2026-1</p>
+          </div>
+        </div>
+        <div className="p-4 rounded-2xl bg-[#121124]/60 border border-[#232045] flex items-center gap-3">
+          <FileText className="w-5 h-5 text-indigo-400" />
+          <div>
+            <p className="text-sm font-bold text-white">{exam_bank?.length || 15} recursos</p>
+            <p className="text-xs text-slate-400">Ex&aacute;menes, pr&aacute;cticas y clases</p>
+          </div>
+        </div>
+        <div className="p-4 rounded-2xl bg-[#121124]/60 border border-[#232045] flex items-center gap-3">
+          <Target className="w-5 h-5 text-indigo-400" />
+          <div>
+            <p className="text-sm font-bold text-white">Nivel exigente</p>
+            <p className="text-xs text-slate-400">Estilo examen real UNI</p>
+          </div>
+        </div>
+      </div>}
+
+      {/* 2-Column Layout */}
+      <div className={`grid grid-cols-1 gap-8 ${showingEvaluationResults ? "" : "lg:grid-cols-12"}`}>
+
+        {/* Left Column — Tabs + Content */}
+        <div className={showingEvaluationResults ? "space-y-6" : "lg:col-span-8 space-y-6"}>
+          {/* Inline Tab Buttons */}
+          <div className="flex items-center gap-1 border-b border-[#232045]">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-4 py-3 text-sm font-semibold transition-all border-b-2 -mb-[1px] ${
+                  activeTab === tab.key
+                    ? "text-[#ec4899] border-[#ec4899]"
+                    : "text-slate-500 border-transparent hover:text-slate-300"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab Panels */}
+          {activeTab === "path" && (
+            <LearningTimeline
+              courseId={courseId}
+              timeline={timeline}
+              onStartEvaluation={handleStartEvaluation}
+            />
+          )}
+          {activeTab === "exams" && (
+            <ExamBank courseId={courseId} exams={exam_bank} />
+          )}
+          {activeTab === "evaluacion" && (
+            <EvaluacionIA
+              courseId={courseId}
+              modulos={modulos}
+              preSelectedModulo={preSelectedModulo}
+              onClearPreselection={() => {
+                setPreSelectedModulo(null)
+              }}
+              onResultsChange={setShowingEvaluationResults}
+            />
+          )}
+        </div>
+
+        {/* Right Column — Widgets */}
+        {!showingEvaluationResults && <div className="lg:col-span-4 space-y-6">
+
+          {/* AI Analysis Widget */}
+          <div className="p-5 rounded-2xl bg-[#121124]/80 border border-[#232045] space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#ec4899] to-[#a855f7] flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-white" />
+              </div>
+              <h3 className="text-sm font-bold text-white">An&aacute;lisis de tu asistente IA</h3>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              {aiText}
+            </p>
+            <button
+              onClick={() => setActiveTab("evaluacion")}
+              className="w-full py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-[#ec4899] to-[#8b5cf6] hover:opacity-90 transition-all shadow-md shadow-pink-500/20"
+            >
+              Generar pr&aacute;ctica dirigida
+            </button>
+          </div>
+
+          {/* Progress Widget */}
+          <div className="p-5 rounded-2xl bg-[#121124]/80 border border-[#232045] space-y-4">
+            <h3 className="text-sm font-bold text-white">Progreso del Curso</h3>
+            <div className="flex items-baseline justify-between">
+              <span className="text-2xl font-black text-white">{weeksCompleted} de {totalWeeks}</span>
+              <span className="text-sm font-bold text-[#ec4899]">{Math.round(progress)}%</span>
+            </div>
+            <div className="h-2 bg-[#232045] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-[#ec4899] to-[#a855f7] rounded-full transition-all"
+                style={{ width: `${Math.round(progress)}%` }}
+              />
+            </div>
+            <ul className="space-y-2 text-xs text-slate-400">
+              <li className="flex items-center justify-between">
+                <span>Evaluaciones completadas</span>
+                <span className="font-semibold text-white">{weeksCompleted}/{totalWeeks}</span>
+              </li>
+              <li className="flex items-center justify-between">
+                <span>Promedio</span>
+                <span className="font-semibold text-white">15.2 / 20</span>
+              </li>
+              <li className="flex items-center justify-between">
+                <span>Racha activa</span>
+                <span className="font-semibold text-emerald-400">3 d&iacute;as</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Professor Widget */}
+          <div className="p-5 rounded-2xl bg-[#121124]/80 border border-[#232045] space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#a855f7] to-[#ec4899] p-0.5 flex items-center justify-center">
+                <div className="w-full h-full bg-[#121124] rounded-full flex items-center justify-center text-sm font-black text-white">
+                  {curso.professor ? curso.professor.charAt(0) : "M"}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white">{curso.professor || "Docente"}</p>
+                <p className="text-xs text-slate-400">Profesor del curso</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              &quot;Sus ex&aacute;menes priorizan an&aacute;lisis de casos pr&aacute;cticos aplicados a la realidad nacional.&quot;
+            </p>
+          </div>
+        </div>}
       </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="path">Ruta de Aprendizaje</TabsTrigger>
-          <TabsTrigger value="evaluacion">Evaluación IA</TabsTrigger>
-          <TabsTrigger value="analysis">Análisis de IA</TabsTrigger>
-          <TabsTrigger value="exams">Banco de Exámenes</TabsTrigger>
-        </TabsList>
-
-        {/* Learning Path Timeline */}
-        <TabsContent value="path" className="space-y-6">
-          <LearningTimeline
-            courseId={courseId}
-            timeline={timeline}
-            onStartEvaluation={handleStartEvaluation}
-          />
-        </TabsContent>
-
-        {/* Evaluación IA */}
-        <TabsContent value="evaluacion" className="space-y-6">
-          <EvaluacionIA
-            courseId={courseId}
-            modulos={modulos}
-            preSelectedModulo={preSelectedModulo}
-            preSelectedTopics={preSelectedTopics}
-            onClearPreselection={() => {
-              setPreSelectedModulo(null)
-              setPreSelectedTopics([])
-            }}
-          />
-        </TabsContent>
-
-        {/* AI Analysis */}
-        <TabsContent value="analysis" className="space-y-6">
-          <AIAnalysisBox courseId={courseId} insights={ai_insights} />
-        </TabsContent>
-
-        {/* Exam Bank */}
-        <TabsContent value="exams" className="space-y-6">
-          <ExamBank courseId={courseId} exams={exam_bank} />
-        </TabsContent>
-      </Tabs>
+      {/* Complete Modal */}
+      {showCompleteModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-[#14132a] border border-[#27244a] rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <h3 className="text-lg font-bold text-white">&iquest;Marcar curso como completado?</h3>
+            <p className="text-sm text-slate-400">
+              Esta acci&oacute;n registrar&aacute; el curso al 100% de progreso.
+              Los cursos correlativos dependientes en tu malla curricular se desbloquear&aacute;n.
+            </p>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => setShowCompleteModal(false)}
+                className="px-5 py-2.5 rounded-xl border border-[#3b3475] bg-[#1d1a3b] text-sm font-semibold text-white hover:bg-[#282452] transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmComplete}
+                disabled={completing}
+                className="px-5 py-2.5 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-[#ec4899] to-[#a855f7] hover:opacity-90 disabled:opacity-40 transition-all shadow-md shadow-pink-500/20"
+              >
+                {completing ? "Completando..." : "S&iacute;, completar al 100%"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

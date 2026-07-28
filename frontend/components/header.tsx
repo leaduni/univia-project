@@ -27,7 +27,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const userFullInitial = user?.nombre_completo?.split(" ").map((n: string) => n[0]).join("").slice(0, 2) || "U"
 
   return (
-    <header className="bg-card/80 backdrop-blur-md border-b border-border sticky top-0 z-40">
+    <header className="bg-[#0b0c16]/80 backdrop-blur-md border-b border-[#1d1b38] sticky top-0 z-40">
       <div className="flex items-center justify-between px-6 py-4 gap-4">
         {/* Left: Menu & Search */}
         <div className="flex items-center gap-4 flex-1">
@@ -35,19 +35,22 @@ export function Header({ onMenuClick }: HeaderProps) {
             <Menu className="w-5 h-5" />
           </Button>
 
-          {/* Search Bar */}
-          <div
-            className={`relative flex-1 max-w-md hidden md:flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-200 ${searchFocus ? "border-accent bg-secondary" : "border-border"
-              }`}
-          >
-            <Search className="w-4 h-4 text-muted-foreground" />
+          {/* Search Bar — pill with neon button */}
+          <div className="relative flex-1 max-w-xl hidden md:flex items-center">
             <input
               type="text"
-              placeholder="Buscar cursos, recursos..."
-              className="flex-1 bg-transparent text-sm outline-none text-foreground placeholder:text-muted-foreground"
+              placeholder="¿Qué curso quieres reforzar hoy?"
+              className="w-full py-2.5 pl-5 pr-12 rounded-full bg-[#151428] border border-[#2d2959] text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#ec4899] transition-all"
               onFocus={() => setSearchFocus(true)}
               onBlur={() => setSearchFocus(false)}
             />
+            <button
+              type="button"
+              aria-label="Buscar"
+              className="absolute right-1.5 p-2 rounded-full bg-gradient-to-r from-[#ec4899] to-[#a855f7] text-white hover:opacity-90 transition-opacity shadow-md shadow-pink-500/20"
+            >
+              <Search className="w-4 h-4" />
+            </button>
           </div>
         </div>
 

@@ -1,24 +1,15 @@
-// Main dashboard with stats, courses, malla, AI recommendations
+// Prototype-aligned dashboard with metrics, courses, resources sidebar
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { 
-  BookOpen, 
-  GraduationCap, 
-  Calendar, 
-  Clock, 
-  AlertCircle, 
-  RefreshCcw,
-  ChevronRight,
-  Trophy
-} from "lucide-react"
+import { AlertCircle, FileText } from "lucide-react"
 import { StatsCards } from "./stats-cards"
 import { CurrentCoursesSection } from "./current-courses-section"
-import { MallaCurricular } from "./malla-curricular"
 import { RightSidebar } from "./right-sidebar"
 import { AIRecommendation } from "./ai-recommendation"
 import { useAuth } from "./providers/auth-context"
 import { apiService } from "@/lib/api-service"
+import { RECURSOS_DATA } from "@/lib/mockData"
 
 interface DashboardStats {
   cursosCompletados: number
@@ -48,47 +39,23 @@ interface Curso {
   progreso: number
 }
 
-interface Ciclo {
-  ciclo: string
-  credits: number
-  courses: Curso[]
-}
-
-function useAcademicHeader() {
-  const [currentTime, setCurrentTime] = useState(new Date())
-
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 60000)
-    return () => clearInterval(timer)
-  }, [])
-
-  const hora = currentTime.getHours()
-  let saludo = "Buen día"
-  if (hora >= 6 && hora < 12) saludo = "Buenos días"
-  else if (hora >= 12 && hora < 19) saludo = "Buenas tardes"
-  else saludo = "Buenas noches"
-
-  const fechaFormateada = currentTime.toLocaleDateString("es-ES", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  })
-
-  return { saludo, fechaFormateada }
-}
+const RESOURCE_GRADIENTS = [
+  "linear-gradient(135deg, #d93340, #a6249d)",
+  "linear-gradient(135deg, #a6249d, #7957f1)",
+  "linear-gradient(135deg, #f97316, #d93340)",
+  "linear-gradient(135deg, #a0218b, #ff86ff)",
+  "linear-gradient(135deg, #d93340, #7957f1)",
+  "linear-gradient(135deg, #a6249d, #d93340)",
+]
 
 export function Dashboard() {
   const { user } = useAuth()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [logros, setLogros] = useState<Logro[]>([])
   const [currentCourses, setCurrentCourses] = useState<(Curso & { progreso: number })[]>([])
-  const [mallaData, setMallaData] = useState<Ciclo[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const isMounted = useRef(true)
-
-  const { saludo, fechaFormateada } = useAcademicHeader()
 
   useEffect(() => {
     isMounted.current = true
@@ -113,7 +80,7 @@ export function Dashboard() {
       let errorCount = 0
 
       if (summaryResult.status === "fulfilled") {
-        const { stats, logros } = summaryResult.value as { stats: DashboardStats, logros: Logro[] }
+        const { stats, logros } = summaryResult.value as { stats: DashboardStats; logros: Logro[] }
         setStats(stats)
         setLogros(logros)
       } else {
@@ -122,14 +89,13 @@ export function Dashboard() {
       }
 
       if (mallaResult.status === "fulfilled") {
-        const malla: Ciclo[] = (mallaResult.value as Ciclo[]) ?? []
-        setMallaData(malla)
-
-        const activos = malla.flatMap(ciclo => 
-          (ciclo.courses ?? [])
-            .filter(curso => curso.status === "in_progress")
-            .map(curso => ({ ...curso, progreso: curso.progreso ?? 0 }))
-        )
+        const malla: any[] = (mallaResult.value as any[]) ?? []
+        const activos = malla.flatMap((ciclo: any) => {
+          const listaCursos = ciclo.courses || ciclo.cursos || []
+          return listaCursos
+            .filter((curso: any) => curso.status === "in_progress")
+            .map((curso: any) => ({ ...curso, progreso: curso.progreso ?? 0 }))
+        })
         setCurrentCourses(activos)
       } else {
         console.error("Error en Malla Curricular:", mallaResult.reason)
@@ -138,9 +104,9 @@ export function Dashboard() {
 
       if (errorCount > 0) {
         setError(
-          errorCount === 2 
-            ? "Error de conexión: No se pudo sincronizar el expediente académico." 
-            : "Sincronización parcial: Algunos datos académicos no están actualizados."
+          errorCount === 2
+            ? "Error de conexión: No se pudo sincronizar el expediente académico."
+            : "Sincronización parcial: Algunos datos académicos no están actualizados.",
         )
       }
     } catch (err) {
@@ -153,118 +119,85 @@ export function Dashboard() {
   const displayName = user?.nombre_completo || "Estudiante"
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans">
+    <div className="min-h-screen" style={{ backgroundColor: "#0b0c16" }}>
       <div className="max-w-[1400px] mx-auto p-6 md:p-10">
-        <div className="flex flex-col lg:flex-row gap-10">
-          
-          <main className="flex-1 space-y-10 min-w-0">
-            <header className="border-b border-border pb-8">
-              <nav className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">
-                <span className="hover:text-primary cursor-pointer transition-colors">Portal</span>
-                <ChevronRight className="w-3 h-3" />
-                <span className="text-foreground">Dashboard Académico</span>
-              </nav>
-              
-              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                <div>
-                  <h1 className="text-4xl font-extrabold tracking-tight text-foreground mb-2">
-                    {saludo}, <span className="text-primary">{displayName}</span>
-                  </h1>
-                  <div className="flex items-center gap-4 text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                      <Calendar className="w-4 h-4" />
-                      <span className="text-sm font-medium capitalize">{fechaFormateada}</span>
-                    </div>
-                    <div className="hidden md:block w-1 h-1 rounded-full bg-border" />
-                    <div className="flex items-center gap-1.5">
-                      <GraduationCap className="w-4 h-4" />
-                      <span className="text-sm font-medium">Expediente Universitario Activo</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <button 
-                  onClick={loadDashboardData}
-                  disabled={isLoading}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-lg text-sm font-semibold text-foreground hover:bg-muted hover:border-border/80 transition-all shadow-sm disabled:opacity-50"
-                >
-                  <RefreshCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-                  Sincronizar Datos
-                </button>
-              </div>
-            </header>
+        {/* Hero + Metrics Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center mb-8">
+          <div className="lg:col-span-5 space-y-1">
+            <h1 className="text-2xl lg:text-3xl font-extrabold text-white flex items-center gap-2">
+              Hola, {displayName} <span className="animate-bounce">👋</span>
+            </h1>
+            <p className="text-sm text-slate-300 leading-relaxed">
+              Llevas <span className="font-bold text-white">0 días</span> de racha estudiando. Sigue así, la constancia gana ciclos.
+            </p>
+          </div>
+          <div className="lg:col-span-7">
+            <StatsCards stats={stats} isLoading={isLoading} compact />
+          </div>
+        </div>
 
-            {error && (
-              <div role="alert" className="flex items-start gap-3 p-4 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive shadow-sm">
-                <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-bold">Aviso del Sistema</p>
-                  <p className="text-sm opacity-90">{error}</p>
-                </div>
-                <button onClick={loadDashboardData} className="text-xs font-bold uppercase tracking-tight hover:underline underline-offset-4">
-                  Reintentar
-                </button>
-              </div>
-            )}
+        {/* Error Banner */}
+        {error && (
+          <div role="alert" className="flex items-start gap-3 p-4 mb-6 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive">
+            <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-bold">Aviso del Sistema</p>
+              <p className="text-sm opacity-90">{error}</p>
+            </div>
+            <button onClick={loadDashboardData} className="text-xs font-bold uppercase hover:underline underline-offset-4">
+              Reintentar
+            </button>
+          </div>
+        )}
 
-            <section aria-label="Estadísticas de rendimiento">
-              <div className="flex items-center gap-2 mb-6">
-                <div className="p-2 bg-[#a0218b]/15 rounded-lg">
-                  <BookOpen className="w-5 h-5 text-[var(--ai-neon-pink)]" />
-                </div>
-                <h2 className="text-xl font-bold text-foreground tracking-tight">Indicadores de Rendimiento</h2>
-              </div>
-              <StatsCards stats={stats} isLoading={isLoading} />
-            </section>
-
-            <section aria-label="Cursos actuales" className="bg-card rounded-2xl border border-border p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-secondary/10 rounded-lg">
-                    <Clock className="w-5 h-5 text-secondary" />
-                  </div>
-                  <h2 className="text-xl font-bold text-foreground tracking-tight">Semestre en Curso</h2>
-                </div>
-                <span className="px-3 py-1 bg-secondary/15 text-secondary text-xs font-bold rounded-full uppercase tracking-wider">
-                  Activo
-                </span>
-              </div>
+        {/* Main Grid: content + sidebar */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Main Content */}
+          <div className="lg:col-span-8 space-y-6">
+            <AIRecommendation />
+            <section>
+              <h2 className="text-lg font-semibold text-white mb-4">Continúa donde te quedaste</h2>
               <CurrentCoursesSection courses={currentCourses} isLoading={isLoading} />
             </section>
+          </div>
 
-            <section aria-label="Malla curricular" className="pt-4">
-              <div className="mb-6">
-                <h2 className="text-xl font-bold text-foreground tracking-tight">Plan de Estudios</h2>
-                <p className="text-sm text-muted-foreground mt-1">Seguimiento detallado de tu progreso curricular por ciclo.</p>
-              </div>
-              <div className="bg-card rounded-2xl border border-border p-1 shadow-sm overflow-hidden">
-                <MallaCurricular malla={mallaData} isLoading={isLoading} />
-              </div>
-            </section>
-
-            <section aria-label="Recomendaciones" className="bg-sidebar rounded-2xl p-8 text-sidebar-foreground shadow-xl shadow-primary/5 relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-8 opacity-10">
-                <GraduationCap className="w-32 h-32" />
-              </div>
-              <div className="relative z-10">
-                <AIRecommendation />
-              </div>
-            </section>
-          </main>
-
-          <aside className="lg:w-80 flex-shrink-0 space-y-8">
-            <div className="sticky top-10">
-              <RightSidebar achievements={logros} isLoading={isLoading} />
-              
-              <div className="mt-6 p-4 bg-muted rounded-xl border border-border">
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Para consultas administrativas o soporte técnico, por favor contacte a la oficina de registros académicos.
-                </p>
-              </div>
-            </div>
-          </aside>
-          
+          {/* Right Sidebar */}
+          <div className="lg:col-span-4">
+            <RightSidebar stats={stats} achievements={logros} isLoading={isLoading} />
+          </div>
         </div>
+
+        {/* Resources Section */}
+        <section className="mt-10">
+          <h2 className="text-lg font-semibold text-white mb-4">Recursos nuevos en tus cursos</h2>
+          <div className="flex gap-4 overflow-x-auto pb-2">
+            {RECURSOS_DATA.slice(0, 6).map((r, i) => (
+              <div
+                key={r.id}
+                className="flex-shrink-0 w-64 bg-[#151428] border border-[#262444] rounded-xl overflow-hidden hover:border-white/20 transition-colors"
+              >
+                <div className="relative h-16 overflow-hidden" style={{ background: RESOURCE_GRADIENTS[i % RESOURCE_GRADIENTS.length] }}>
+                  <div className="absolute -right-1 -bottom-1 opacity-10 text-white pointer-events-none">
+                    <FileText className="w-14 h-14 stroke-[1.5]" />
+                  </div>
+                </div>
+                <div className="p-4">
+                  <span className="text-xs text-white/40 font-mono">{r.code}</span>
+                  <h4 className="text-sm font-medium text-white mt-1 truncate">{r.title}</h4>
+                  <p className="text-xs text-white/40 mt-1 line-clamp-2">
+                    {r.type} · {r.semester} · {r.downloads.toLocaleString()} descargas
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="border-t border-[#1d1b38] pt-6 mt-16 flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-sm text-white/40">UniVia · Un proyecto de LEAD UNI para la comunidad UNI</p>
+          <p className="text-xs text-white/30 uppercase tracking-widest">LEARN. EXPLORE. ASPIRE. DISCOVER.</p>
+        </footer>
       </div>
     </div>
   )

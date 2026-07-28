@@ -1,6 +1,6 @@
 // App sidebar navigation with collapsible menu
 "use client"
-import { LayoutDashboard, BookOpen, FileText, User, GraduationCap } from "lucide-react"
+import { Grid, BookOpen, FileText, User, GraduationCap } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -18,7 +18,7 @@ export function Sidebar({ open }: SidebarProps) {
   }
 
   const menuItems = [
-    { icon: LayoutDashboard, label: "Dashboard", id: "Dashboard", href: "/" },
+    { icon: Grid, label: "Mi aprendizaje", id: "Dashboard", href: "/" },
     { icon: GraduationCap, label: "Mi Malla", id: "Malla", href: "/malla" },
     { icon: FileText, label: "Recursos", id: "Recursos", href: "/recursos" },
     { icon: User, label: "Perfil", id: "Perfil", href: "/perfil" },
@@ -32,7 +32,7 @@ export function Sidebar({ open }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300 hidden md:flex flex-col",
+        "bg-[#0b0c16] text-white border-r border-[#1d1b38] transition-all duration-300 hidden md:flex flex-col",
         open ? "w-64" : "w-20",
       )}
     >
@@ -51,13 +51,13 @@ export function Sidebar({ open }: SidebarProps) {
               key={item.id}
               href={item.href}
               className={cn(
-                "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
+                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200",
                 isActive
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent",
+                  ? "bg-gradient-to-r from-[#ec4899]/20 to-[#8b5cf6]/20 border border-[#ec4899]/40 text-white font-medium shadow-lg shadow-pink-500/10"
+                  : "text-slate-400 hover:text-white hover:bg-white/5",
               )}
             >
-              <Icon className="w-5 h-5 flex-shrink-0" />
+              <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-[#ec4899]" : ""}`} />
               {open && <span className="brand-wordmark text-xs">{item.label}</span>}
             </Link>
           )
@@ -66,8 +66,8 @@ export function Sidebar({ open }: SidebarProps) {
 
       {/* Footer Section */}
       {open && (
-        <div className="p-4 border-t border-sidebar-border">
-          <div className="text-xs text-sidebar-foreground/60">v1.0.0</div>
+          <div className="p-4 border-t border-[#1d1b38]">
+          <div className="text-xs text-white/30">v1.0.0</div>
         </div>
       )}
     </aside>

@@ -18,8 +18,22 @@ const badgeVariants = cva(
           'border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60',
         outline:
           'text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground',
+        completed:
+          'border-emerald-500/20 bg-emerald-500/10 text-emerald-400',
+        'in-progress':
+          'border-accent/30 bg-accent/15 text-accent',
+        available:
+          'border-brand-lila/20 bg-brand-lila/10 text-brand-lila',
+        locked:
+          'border-slate-800 bg-muted/50 text-slate-500',
+        easy:
+          'border-emerald-500/20 bg-emerald-500/10 text-emerald-400',
+        medium:
+          'border-amber-500/20 bg-amber-500/10 text-amber-400',
+        hard:
+          'border-primary/30 bg-primary/15 text-primary',
         'neon-outline':
-          'border-[var(--ai-neon-pink)] text-[var(--ai-neon-pink)] bg-[#a0218b]/10',
+          'border-[var(--ai-neon-pink)] text-[var(--ai-neon-pink)] bg-[var(--ai-neon-magenta)]/10',
       },
     },
     defaultVariants: {

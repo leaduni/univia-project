@@ -1,5 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from app.core.exceptions import ErrorResponse, ErrorDetail
 import os
 from dotenv import load_dotenv
 
@@ -24,6 +27,29 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc: RequestValidationError):
+    errors = []
+    for error in exc.errors():
+        loc = error.get("loc", [])
+        field = str(loc[-1]) if len(loc) > 1 else (str(loc[0]) if loc else "unknown")
+        errors.append(ErrorDetail(field=field, message=error.get("msg", "Error de validación")))
+    return JSONResponse(
+        status_code=422,
+        content=ErrorResponse(errors=errors).model_dump(),
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc: HTTPException):
+    if isinstance(exc.detail, dict) and "errors" in exc.detail:
+        return JSONResponse(status_code=exc.status_code, content=exc.detail)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=ErrorResponse(errors=[ErrorDetail(field="general", message=str(exc.detail))]).model_dump(),
+    )
 
 @app.get("/")
 async def root():

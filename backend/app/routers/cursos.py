@@ -2,12 +2,72 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse
 from app.core.database import get_supabase
 from app.core.auth_utils import get_current_user
+from app.core.prereqs import check_course_status, resolve_prereq_chain
+from typing import Dict, List, Set
 import os
 import logging
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _verificar_acceso_curso(supabase, user, course_id: int | str) -> None:
+    """Verifica si el usuario tiene acceso al curso.
+    Guard clause: si el curso está in_progress/completed en DB → retorna de inmediato.
+    En otro caso, evalúa prerrequisitos y lanza HTTP 403 si está bloqueado."""
+    cid_int = int(course_id)
+
+    # Short-circuit: acceso inmediato si el usuario ya cursa o completó el curso
+    progreso_check = (
+        supabase.table("progreso_cursos")
+        .select("status")
+        .eq("perfil_id", user.id)
+        .eq("curso_id", cid_int)
+        .execute()
+    )
+    if progreso_check.data:
+        status_actual = progreso_check.data[0].get("status")
+        if status_actual in ("in_progress", "completed"):
+            return
+
+    profile_resp = supabase.table("perfiles").select("carrera_id").eq("id", user.id).single().execute()
+    carrera_id = profile_resp.data.get("carrera_id") if profile_resp.data else None
+    if not carrera_id:
+        raise HTTPException(status_code=403, detail="No tienes una carrera asignada.")
+
+    cursos_resp = supabase.table("cursos").select("*").eq("carrera_id", carrera_id).execute()
+    cursos_en_carrera = {str(c["id"]): c for c in (cursos_resp.data or [])}
+    cid_str = str(cid_int)
+    if cid_str not in cursos_en_carrera:
+        raise HTTPException(status_code=404, detail="Curso no encontrado en tu carrera.")
+
+    prereq_resp = supabase.table("curso_prerrequisitos").select("*").execute()
+    prereq_map: Dict[str, List[str]] = {}
+    for p in prereq_resp.data or []:
+        cid = str(p["curso_id"])
+        if cid in cursos_en_carrera:
+            prereq_map.setdefault(cid, []).append(str(p["prerrequisito_id"]))
+
+    progreso_resp = supabase.table("progreso_cursos").select("curso_id, status").eq("perfil_id", user.id).execute()
+    progreso_data: Dict[str, str] = {str(p["curso_id"]): p["status"] for p in (progreso_resp.data or [])}
+    completed_courses: Set[str] = {str(p["curso_id"]) for p in (progreso_resp.data or []) if p["status"] == "completed"}
+    db_status = progreso_data.get(cid_str)
+
+    final_status, _, _ = check_course_status(
+        curso_id=cid_str,
+        db_status=db_status,
+        completed_courses=completed_courses,
+        prereq_map=prereq_map,
+        cursos_dict=cursos_en_carrera,
+    )
+
+    if final_status == "locked":
+        nombre = cursos_en_carrera.get(cid_str, {}).get("name", cid_str)
+        raise HTTPException(
+            status_code=403,
+            detail=f"El curso '{nombre}' se encuentra bloqueado. Debes completar sus prerrequisitos para acceder al contenido.",
+        )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PLANCHAS_DIR = REPO_ROOT / "ingesta_silabos" / "planchas"
@@ -71,20 +131,18 @@ def get_planchas_for_step(course_id: int, step_title: str) -> list:
 async def get_learning_path(course_id: int, user_data = Depends(get_current_user)):
     user, token = user_data
     supabase = get_supabase(token)
-    
+
     try:
-        # 1. Obtener detalles del curso básico
+        _verificar_acceso_curso(supabase, user, course_id)
+
         course_resp = supabase.table("cursos").select("*").eq("id", course_id).single().execute()
         if not course_resp.data:
             raise HTTPException(status_code=404, detail="Curso no encontrado")
-        
-        # 2. Obtener pasos de la ruta (sílabo)
+
         steps_resp = supabase.table("learning_path_steps").select("*").eq("curso_id", course_id).order("order_index").execute()
-        
-        # 3. Obtener progreso del usuario para este curso
+
         progreso_resp = supabase.table("progreso_cursos").select("*").eq("perfil_id", user.id).eq("curso_id", course_id).maybe_single().execute()
-        
-        # 4. Obtener progreso de unidades individuales
+
         step_ids = [s["id"] for s in steps_resp.data]
         unidades_completadas = {}
         try:
@@ -96,8 +154,7 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
                 logger.warning("Tabla 'progreso_unidades' no existe. Se usa progreso por defecto (ninguna unidad completada).")
             else:
                 raise
-        
-        # 5. Obtener recursos vinculados (Banco de exámenes)
+
         exams_resp = supabase.table("recursos").select("*").eq("curso_id", course_id).eq("tipo", "examen").execute()
         exam_bank = [
             {
@@ -115,18 +172,17 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
             if r.get("titulo")
         ]
 
-        # 6. Calcular status de los pasos
         course_status = (
             progreso_resp.data.get("status")
             if progreso_resp and progreso_resp.data
             else "available"
         )
-        
+
         timeline_steps = []
         all_completed = True
         for i, step in enumerate(steps_resp.data):
             step_completado = unidades_completadas.get(step["id"], {}).get("completado", False)
-            
+
             if course_status == "completed":
                 step_status = "completed"
             elif step_completado:
@@ -138,9 +194,9 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
                 step_status = "locked"
             else:
                 step_status = "upcoming"
-            
+
             planchas = get_planchas_for_step(course_id, step.get("title", ""))
-            
+
             timeline_steps.append({
                 **step,
                 "status": step_status,
@@ -152,7 +208,6 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
                 } for p in planchas]
             })
 
-        # 7. Lógica de "IA Insights"
         course_name = course_resp.data.get("name", "el curso")
         ai_insights = [
             {
@@ -187,28 +242,28 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
             "ai_insights": ai_insights,
             "exam_bank": exam_bank
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error fetching learning path for {course_id}: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error fetching learning path for {course_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error interno al procesar la ruta de aprendizaje.")
 
 
 @router.post("/curso/{course_id}/step/{step_id}/complete")
 async def complete_step(course_id: int, step_id: int, user_data = Depends(get_current_user)):
     user, token = user_data
     supabase = get_supabase(token)
-    
+
     try:
+        _verificar_acceso_curso(supabase, user, course_id)
         step_resp = supabase.table("learning_path_steps").select("*").eq("id", step_id).eq("curso_id", course_id).maybe_single().execute()
         if not step_resp.data:
             raise HTTPException(status_code=404, detail="Unidad no encontrada")
-        
-        # Intentar marcar como completado en progreso_unidades
+
         tabla_existe = True
         try:
             existing = supabase.table("progreso_unidades").select("*").eq("perfil_id", user.id).eq("step_id", step_id).maybe_single().execute()
-            
+
             if existing and existing.data:
                 supabase.table("progreso_unidades").update({
                     "completado": True,
@@ -229,14 +284,13 @@ async def complete_step(course_id: int, step_id: int, user_data = Depends(get_cu
                 tabla_existe = False
             else:
                 raise
-        
-        # Verificar si todas las unidades están completadas (solo si tabla existe)
+
         if tabla_existe:
             steps_resp = supabase.table("learning_path_steps").select("id").eq("curso_id", course_id).execute()
             all_step_ids = [s["id"] for s in steps_resp.data]
-            
+
             completed_resp = supabase.table("progreso_unidades").select("*").eq("perfil_id", user.id).eq("completado", True).in_("step_id", all_step_ids).execute()
-            
+
             if len(completed_resp.data) >= len(all_step_ids):
                 supabase.table("progreso_cursos").update({
                     "status": "completed",
@@ -246,15 +300,17 @@ async def complete_step(course_id: int, step_id: int, user_data = Depends(get_cu
                 supabase.table("progreso_cursos").update({
                     "status": "in_progress"
                 }).eq("perfil_id", user.id).eq("curso_id", course_id).execute()
-        
+
         return {
             "success": True,
             "message": "Unidad marcada como completada",
             "warning": "El progreso no se persistirá en base de datos hasta que se ejecute la migración SQL." if not tabla_existe else None
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error completing step {step_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error completing step {step_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error interno al completar la unidad.")
 
 
 CURSO_PLANCHA_SUBDIR = {
@@ -266,13 +322,43 @@ CURSO_PLANCHA_SUBDIR = {
     50: "calculo diferencial",
 }
 
+@router.post("/cursos/{curso_id}/completar")
+async def completar_curso(curso_id: int, user_data = Depends(get_current_user)):
+    user, token = user_data
+    supabase = get_supabase(token)
+
+    prereq_resp = supabase.table("curso_prerrequisitos").select("curso_id, prerrequisito_id").execute()
+    prereq_map: Dict[int, List[int]] = {}
+    for p in prereq_resp.data or []:
+        prereq_map.setdefault(p["curso_id"], []).append(p["prerrequisito_id"])
+
+    chain = resolve_prereq_chain(curso_id, prereq_map)
+    cursos_a_completar = {curso_id, *chain}
+
+    progreso_items = [
+        {
+            "perfil_id": user.id,
+            "curso_id": cid,
+            "status": "completed",
+        }
+        for cid in cursos_a_completar
+    ]
+
+    if progreso_items:
+        supabase.table("progreso_cursos").upsert(
+            progreso_items,
+            on_conflict="perfil_id, curso_id"
+        ).execute()
+
+    return {"status": "success", "message": "Curso marcado como completado exitosamente"}
+
+
 @router.get("/curso/{course_id}/plancha/{filename}")
 async def download_plancha(course_id: int, filename: str):
     subdir = CURSO_PLANCHA_SUBDIR.get(course_id, "geometria analitica")
     plancha_path = PLANCHAS_DIR / subdir / filename
 
     if not plancha_path.exists():
-        # Intento case-insensitive: buscar en el directorio
         parent = PLANCHAS_DIR / subdir
         if parent.exists():
             match = next((f for f in parent.iterdir() if f.name.lower() == filename.lower()), None)

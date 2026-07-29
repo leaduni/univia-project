@@ -1,15 +1,15 @@
-// Prototype-aligned dashboard with metrics, courses, resources sidebar
+// Dashboard principal: saludo, métricas, cursos activos y panel lateral
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { AlertCircle, FileText } from "lucide-react"
+import { AlertCircle } from "lucide-react"
 import { StatsCards } from "./stats-cards"
 import { ContinueLearning, type CursoActivo } from "./dashboard/continue-learning"
-import { RightSidebar } from "./right-sidebar"
+import { SidebarWidgets } from "./dashboard/sidebar-widgets"
+import { RecentResources } from "./dashboard/recent-resources"
 import { AIRecommendationBanner } from "./dashboard/ai-recommendation-banner"
 import { useAuth } from "./providers/auth-context"
 import { apiService } from "@/lib/api-service"
-import { RECURSOS_DATA } from "@/lib/mockData"
 import { calcularRacha, mensajeRacha } from "@/lib/racha"
 import type { DashboardMetricas } from "./stats-cards"
 
@@ -21,15 +21,6 @@ interface Logro {
   unlocked: boolean
   unlocked_at: string | null
 }
-
-const RESOURCE_GRADIENTS = [
-  "linear-gradient(135deg, #d93340, #a6249d)",
-  "linear-gradient(135deg, #a6249d, #7957f1)",
-  "linear-gradient(135deg, #f97316, #d93340)",
-  "linear-gradient(135deg, #a0218b, #ff86ff)",
-  "linear-gradient(135deg, #d93340, #7957f1)",
-  "linear-gradient(135deg, #a6249d, #d93340)",
-]
 
 export function Dashboard() {
   const { user } = useAuth()
@@ -173,42 +164,13 @@ export function Dashboard() {
             </section>
           </div>
 
-          {/* Right Sidebar */}
+          {/* Panel lateral */}
           <div className="lg:col-span-4">
-            <RightSidebar stats={stats} achievements={logros} isLoading={isLoading} />
+            <SidebarWidgets stats={stats} logros={logros} isLoading={isLoading} />
           </div>
         </div>
 
-        {/* Resources Section */}
-        <section className="mt-10">
-          <h2 className="font-heading text-lg font-semibold text-foreground mb-4">
-            Recursos nuevos en tus cursos
-          </h2>
-          <div className="flex gap-4 overflow-x-auto pb-2">
-            {RECURSOS_DATA.slice(0, 6).map((r, i) => (
-              <div
-                key={r.id}
-                className="shrink-0 w-64 bg-card border border-border rounded-xl overflow-hidden hover:border-accent/40 transition-colors"
-              >
-                <div
-                  className="relative h-16 overflow-hidden"
-                  style={{ background: RESOURCE_GRADIENTS[i % RESOURCE_GRADIENTS.length] }}
-                >
-                  <div className="absolute -right-1 -bottom-1 opacity-10 text-primary-foreground pointer-events-none">
-                    <FileText className="w-14 h-14 stroke-[1.5]" />
-                  </div>
-                </div>
-                <div className="p-4">
-                  <span className="text-xs text-muted-foreground font-mono">{r.code}</span>
-                  <h4 className="text-sm font-medium text-foreground mt-1 truncate">{r.title}</h4>
-                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                    {r.type} · {r.semester} · {r.downloads.toLocaleString()} descargas
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+        <RecentResources />
 
         <footer className="border-t border-border pt-6 mt-16 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-muted-foreground">

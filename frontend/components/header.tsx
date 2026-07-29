@@ -1,9 +1,11 @@
 // Barra superior: buscador, notificaciones y menú de usuario
 "use client"
 
-import { useState } from "react"
 import Link from "next/link"
-import { Search, Menu, Bell, User, LogOut } from "lucide-react"
+import { usePathname } from "next/navigation"
+import { Menu, Bell, User, LogOut } from "lucide-react"
+import { HeaderSearch } from "./header-search"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -28,9 +30,16 @@ function iniciales(nombre?: string): string {
   return (partes[0][0] + (partes[1]?.[0] ?? "")).toUpperCase()
 }
 
+/** Accesos directos del mockup, además del sidebar. */
+const ACCESOS = [
+  { label: "Mi aprendizaje", href: "/" },
+  { label: "Mi malla", href: "/malla" },
+  { label: "Recursos", href: "/recursos" },
+]
+
 export function Header({ onMenuClick }: HeaderProps) {
   const { user, signOut } = useAuth()
-  const [busqueda, setBusqueda] = useState("")
+  const pathname = usePathname()
 
   const nombre = user?.nombre_completo || "Estudiante"
 
@@ -48,29 +57,36 @@ export function Header({ onMenuClick }: HeaderProps) {
             <Menu className="w-5 h-5" />
           </Button>
 
-          <div className="relative flex-1 max-w-xl hidden md:flex items-center">
-            <label htmlFor="buscador-cursos" className="sr-only">
-              Buscar un curso
-            </label>
-            <input
-              id="buscador-cursos"
-              type="search"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="¿Qué curso quieres reforzar hoy?"
-              className="w-full py-2.5 pl-5 pr-12 rounded-full bg-input border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all"
-            />
-            <button
-              type="button"
-              aria-label="Buscar"
-              className="absolute right-1.5 p-2 rounded-full gradient-login-btn text-primary-foreground transition-opacity shadow-md shadow-accent/20"
-            >
-              <Search className="w-4 h-4" />
-            </button>
-          </div>
+          <HeaderSearch />
         </div>
 
         <div className="flex items-center gap-2 md:gap-4">
+          {/* Accesos directos. Duplican al sidebar a propósito: el mockup los
+              pide arriba, y en pantallas donde el sidebar va colapsado son la
+              única navegación con texto. */}
+          <nav className="hidden lg:flex items-center gap-1" aria-label="Accesos rápidos">
+            {ACCESOS.map((acceso) => {
+              const activo =
+                pathname === acceso.href ||
+                (acceso.href !== "/" && pathname?.startsWith(acceso.href))
+              return (
+                <Link
+                  key={acceso.href}
+                  href={acceso.href}
+                  aria-current={activo ? "page" : undefined}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap",
+                    activo
+                      ? "bg-accent/15 text-accent"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                  )}
+                >
+                  {acceso.label}
+                </Link>
+              )
+            })}
+          </nav>
+
           {/* Sin punto de "no leídas": no hay fuente de notificaciones todavía
               y un indicador siempre encendido deja de significar algo. */}
           <Button variant="ghost" size="icon" aria-label="Notificaciones">

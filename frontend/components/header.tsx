@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Menu, Bell, User, LogOut } from "lucide-react"
 import { HeaderSearch } from "./header-search"
+import { ExplorarMenu } from "./explorar-menu"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -85,6 +86,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                 </Link>
               )
             })}
+            <ExplorarMenu />
           </nav>
 
           {/* Sin punto de "no leídas": no hay fuente de notificaciones todavía

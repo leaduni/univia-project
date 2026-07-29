@@ -36,6 +36,30 @@ export const MSG_PASSWORD_VACIA = "La contraseña es obligatoria."
 export const MSG_IDENTIFICADOR_INVALIDO =
   "Ingresa tu correo institucional (@uni.pe) o tu código universitario de 8 números y 1 letra (ej. 20210001K)."
 
+/** Nombres y apellidos (RF-PRF-02). Espejo de `validar_nombre_completo`. */
+export const NOMBRE_MIN_LENGTH = 3
+export const NOMBRE_MAX_LENGTH = 120
+
+export const MSG_NOMBRE_VACIO = "Escribe tus nombres y apellidos."
+export const MSG_NOMBRE_CORTO = `El nombre debe tener al menos ${NOMBRE_MIN_LENGTH} caracteres.`
+export const MSG_NOMBRE_LARGO = `El nombre no puede superar los ${NOMBRE_MAX_LENGTH} caracteres.`
+export const MSG_NOMBRE_CON_DIGITOS = "El nombre no puede contener números."
+
+/**
+ * Devuelve el mensaje del primer problema, o null si el nombre es válido.
+ *
+ * No se restringen tildes ni apellidos compuestos, igual que en el backend:
+ * filtrar por alfabeto latino estricto deja fuera nombres válidos.
+ */
+export const validarNombre = (valor: string): string | null => {
+  const limpio = (valor ?? "").trim().split(/\s+/).join(" ")
+  if (!limpio) return MSG_NOMBRE_VACIO
+  if (limpio.length < NOMBRE_MIN_LENGTH) return MSG_NOMBRE_CORTO
+  if (limpio.length > NOMBRE_MAX_LENGTH) return MSG_NOMBRE_LARGO
+  if (/[0-9]/.test(limpio)) return MSG_NOMBRE_CON_DIGITOS
+  return null
+}
+
 export const esEmailInstitucional = (valor: string): boolean =>
   EMAIL_PATTERN.test(valor.trim())
 

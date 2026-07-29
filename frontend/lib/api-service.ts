@@ -12,13 +12,24 @@ async function getAuthToken() {
 
 async function fetchWithAuth(url: string, options: RequestInit = {}, customToken?: string) {
     const token = customToken || await getAuthToken();
-    console.log(`Fetch with Auth: ${url}, Token present: ${!!token}`);
     const headers = {
         ...options.headers,
         'Authorization': token ? `Bearer ${token}` : '',
     };
 
     return fetch(url, { ...options, headers });
+}
+
+/**
+ * Mensaje legible del cuerpo de un error del backend.
+ *
+ * La API responde de dos formas: `{errors: [{field, message}]}` cuando la
+ * validación falla en un campo concreto, y `{detail: "..."}` en el resto.
+ * El mensaje del campo va primero porque es el que le dice al estudiante
+ * qué corregir.
+ */
+function extraerMensajeError(body: any): string | null {
+    return body?.errors?.[0]?.message || body?.detail || null;
 }
 
 export const apiService = {
@@ -33,6 +44,42 @@ export const apiService = {
             console.error("API Error (getMalla):", error);
             throw error;
         }
+    },
+
+    /**
+     * Actualiza los datos personales del estudiante (RF-PRF-02).
+     * Solo el nombre: el correo y el código no son editables.
+     */
+    async actualizarPerfil(nombreCompleto: string) {
+        const response = await fetchWithAuth(`${API_URL}/usuarios/perfil`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre_completo: nombreCompleto }),
+        });
+
+        const body = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(extraerMensajeError(body) || 'No se pudieron guardar tus datos.');
+        }
+        return body;
+    },
+
+    /** Cambia la contraseña desde el perfil (RF-PRF-03). */
+    async cambiarPassword(passwordActual: string, passwordNueva: string) {
+        const response = await fetchWithAuth(`${API_URL}/usuarios/password`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                password_actual: passwordActual,
+                password_nueva: passwordNueva,
+            }),
+        });
+
+        const body = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(extraerMensajeError(body) || 'No se pudo actualizar tu contraseña.');
+        }
+        return body;
     },
 
     /**

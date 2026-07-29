@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AiInsightCard } from "@/components/ui/ai-insight-card"
 import { apiService } from "@/lib/api-service"
+import { EVENTO_PREFERENCIAS, verRecomendacionesIA } from "@/lib/preferencias"
 
 interface CursoSugerido {
   id: number | string
@@ -34,6 +35,22 @@ export function AIRecommendationBanner() {
   const router = useRouter()
   const [diagnostico, setDiagnostico] = useState<Diagnostico | null>(null)
   const [cargando, setCargando] = useState(true)
+  // Arranca en true para no parpadear: si el estudiante lo apagó, el efecto
+  // lo corrige antes de que llegue la respuesta del backend.
+  const [habilitado, setHabilitado] = useState(true)
+
+  useEffect(() => {
+    const sincronizar = () => setHabilitado(verRecomendacionesIA())
+    sincronizar()
+
+    // El evento propio cubre esta pestaña; `storage`, las demás.
+    window.addEventListener(EVENTO_PREFERENCIAS, sincronizar)
+    window.addEventListener("storage", sincronizar)
+    return () => {
+      window.removeEventListener(EVENTO_PREFERENCIAS, sincronizar)
+      window.removeEventListener("storage", sincronizar)
+    }
+  }, [])
 
   useEffect(() => {
     let activo = true
@@ -57,6 +74,8 @@ export function AIRecommendationBanner() {
       activo = false
     }
   }, [])
+
+  if (!habilitado) return null
 
   if (cargando) {
     return (

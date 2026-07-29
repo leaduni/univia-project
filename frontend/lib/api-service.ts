@@ -36,6 +36,26 @@ export const apiService = {
     },
 
     /**
+     * Actividad del estudiante con filtros (RF-21, RF-22).
+     * @param periodo 7d | 30d | 90d | semestre | todo
+     */
+    async getActividad(periodo: string = '30d', cursoId?: number) {
+        try {
+            const params = new URLSearchParams({ periodo });
+            if (cursoId !== undefined) params.set('curso_id', String(cursoId));
+
+            const response = await fetchWithAuth(`${API_URL}/dashboard/actividad?${params}`);
+            if (!response.ok) {
+                throw new Error('No se pudo cargar tu actividad.');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error("API Error (getActividad):", error);
+            throw error;
+        }
+    },
+
+    /**
      * Avance de carrera sobre el total de créditos del plan (RF-07).
      * Es la cifra oficial: no la recalcules a partir de la malla.
      */

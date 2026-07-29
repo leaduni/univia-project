@@ -10,15 +10,8 @@ import { AIRecommendation } from "./ai-recommendation"
 import { useAuth } from "./providers/auth-context"
 import { apiService } from "@/lib/api-service"
 import { RECURSOS_DATA } from "@/lib/mockData"
-
-interface DashboardStats {
-  cursosCompletados: number
-  cursosEnProgreso: number
-  totalCursos: number
-  porcentajeProgreso: number
-  promedioPonderado: number
-  horasEstudio: number
-}
+import { calcularRacha, mensajeRacha } from "@/lib/racha"
+import type { DashboardMetricas } from "./stats-cards"
 
 interface Logro {
   id: string | number
@@ -50,9 +43,10 @@ const RESOURCE_GRADIENTS = [
 
 export function Dashboard() {
   const { user } = useAuth()
-  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [stats, setStats] = useState<DashboardMetricas | null>(null)
   const [logros, setLogros] = useState<Logro[]>([])
   const [currentCourses, setCurrentCourses] = useState<(Curso & { progreso: number })[]>([])
+  const [racha, setRacha] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const isMounted = useRef(true)
@@ -70,18 +64,44 @@ export function Dashboard() {
     setError(null)
 
     try {
-      const [summaryResult, mallaResult] = await Promise.allSettled([
-        apiService.getDashboardSummary(),
-        apiService.getMalla(),
-      ])
+      // Cuatro fuentes independientes, en paralelo y con allSettled: si la
+      // actividad falla, el resto del dashboard igual se muestra.
+      const [summaryResult, mallaResult, avanceResult, actividadResult] =
+        await Promise.allSettled([
+          apiService.getDashboardSummary(),
+          apiService.getMalla(),
+          apiService.getAvanceCarrera(),
+          apiService.getActividad("90d"),
+        ])
 
       if (!isMounted.current) return
 
       let errorCount = 0
 
+      // El avance manda sobre el summary: es el cálculo oficial en créditos
+      // (RF-07). La actividad aporta las evaluaciones rendidas.
+      const avance = avanceResult.status === "fulfilled" ? avanceResult.value : null
+      const actividad = actividadResult.status === "fulfilled" ? actividadResult.value : null
+
+      if (actividadResult.status === "fulfilled") {
+        setRacha(calcularRacha(actividad?.actividad_por_dia ?? []))
+      }
+
       if (summaryResult.status === "fulfilled") {
-        const { stats, logros } = summaryResult.value as { stats: DashboardStats; logros: Logro[] }
-        setStats(stats)
+        const { stats: resumen, logros } = summaryResult.value as {
+          stats: any
+          logros: Logro[]
+        }
+        setStats({
+          cursosCompletados: avance?.cursos_aprobados ?? resumen?.cursosCompletados ?? 0,
+          cursosEnProgreso: avance?.cursos_en_curso ?? resumen?.cursosEnProgreso ?? 0,
+          totalCursos: avance?.cursos_totales ?? resumen?.totalCursos ?? 0,
+          porcentajeProgreso: avance?.porcentaje_avance ?? resumen?.porcentajeProgreso ?? 0,
+          creditosAprobados: avance?.creditos_aprobados,
+          creditosTotales: avance?.creditos_totales,
+          evaluacionesRendidas: actividad?.resumen?.evaluaciones_rendidas ?? 0,
+          evaluacionesAprobadas: actividad?.resumen?.evaluaciones_aprobadas ?? 0,
+        })
         setLogros(logros)
       } else {
         console.error("Error en Resumen Académico:", summaryResult.reason)
@@ -116,19 +136,21 @@ export function Dashboard() {
     }
   }
 
-  const displayName = user?.nombre_completo || "Estudiante"
+  // Solo el primer nombre: "Hola, Juan Carlos Pérez Ramírez 👋" no saluda a
+  // nadie, y el nombre completo ya está en el menú de usuario.
+  const primerNombre = (user?.nombre_completo || "Estudiante").trim().split(/\s+/)[0]
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#0b0c16" }}>
+    <div className="min-h-screen bg-background">
       <div className="max-w-[1400px] mx-auto p-6 md:p-10">
-        {/* Hero + Metrics Row */}
+        {/* Saludo + métricas */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center mb-8">
           <div className="lg:col-span-5 space-y-1">
-            <h1 className="text-2xl lg:text-3xl font-extrabold text-white flex items-center gap-2">
-              Hola, {displayName} <span className="animate-bounce">👋</span>
+            <h1 className="font-heading text-2xl lg:text-3xl font-bold text-foreground flex items-center gap-2">
+              Hola, {primerNombre} <span aria-hidden="true">👋</span>
             </h1>
-            <p className="text-sm text-slate-300 leading-relaxed">
-              Llevas <span className="font-bold text-white">0 días</span> de racha estudiando. Sigue así, la constancia gana ciclos.
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {isLoading ? "Revisando tu actividad..." : mensajeRacha(racha)}
             </p>
           </div>
           <div className="lg:col-span-7">
@@ -156,7 +178,9 @@ export function Dashboard() {
           <div className="lg:col-span-8 space-y-6">
             <AIRecommendation />
             <section>
-              <h2 className="text-lg font-semibold text-white mb-4">Continúa donde te quedaste</h2>
+              <h2 className="font-heading text-lg font-semibold text-foreground mb-4">
+                Continúa donde te quedaste
+              </h2>
               <CurrentCoursesSection courses={currentCourses} isLoading={isLoading} />
             </section>
           </div>
@@ -169,22 +193,27 @@ export function Dashboard() {
 
         {/* Resources Section */}
         <section className="mt-10">
-          <h2 className="text-lg font-semibold text-white mb-4">Recursos nuevos en tus cursos</h2>
+          <h2 className="font-heading text-lg font-semibold text-foreground mb-4">
+            Recursos nuevos en tus cursos
+          </h2>
           <div className="flex gap-4 overflow-x-auto pb-2">
             {RECURSOS_DATA.slice(0, 6).map((r, i) => (
               <div
                 key={r.id}
-                className="flex-shrink-0 w-64 bg-[#151428] border border-[#262444] rounded-xl overflow-hidden hover:border-white/20 transition-colors"
+                className="shrink-0 w-64 bg-card border border-border rounded-xl overflow-hidden hover:border-accent/40 transition-colors"
               >
-                <div className="relative h-16 overflow-hidden" style={{ background: RESOURCE_GRADIENTS[i % RESOURCE_GRADIENTS.length] }}>
-                  <div className="absolute -right-1 -bottom-1 opacity-10 text-white pointer-events-none">
+                <div
+                  className="relative h-16 overflow-hidden"
+                  style={{ background: RESOURCE_GRADIENTS[i % RESOURCE_GRADIENTS.length] }}
+                >
+                  <div className="absolute -right-1 -bottom-1 opacity-10 text-primary-foreground pointer-events-none">
                     <FileText className="w-14 h-14 stroke-[1.5]" />
                   </div>
                 </div>
                 <div className="p-4">
-                  <span className="text-xs text-white/40 font-mono">{r.code}</span>
-                  <h4 className="text-sm font-medium text-white mt-1 truncate">{r.title}</h4>
-                  <p className="text-xs text-white/40 mt-1 line-clamp-2">
+                  <span className="text-xs text-muted-foreground font-mono">{r.code}</span>
+                  <h4 className="text-sm font-medium text-foreground mt-1 truncate">{r.title}</h4>
+                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                     {r.type} · {r.semester} · {r.downloads.toLocaleString()} descargas
                   </p>
                 </div>
@@ -193,10 +222,13 @@ export function Dashboard() {
           </div>
         </section>
 
-        {/* Footer */}
-        <footer className="border-t border-[#1d1b38] pt-6 mt-16 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-white/40">UniVia · Un proyecto de LEAD UNI para la comunidad UNI</p>
-          <p className="text-xs text-white/30 uppercase tracking-widest">LEARN. EXPLORE. ASPIRE. DISCOVER.</p>
+        <footer className="border-t border-border pt-6 mt-16 flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-sm text-muted-foreground">
+            UniVia · Un proyecto de LEAD UNI para la comunidad UNI
+          </p>
+          <p className="text-xs text-muted-foreground/70 uppercase tracking-widest">
+            Learn. Explore. Aspire. Discover.
+          </p>
         </footer>
       </div>
     </div>

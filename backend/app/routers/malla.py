@@ -4,6 +4,7 @@ from typing import Dict, List, Set
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.auth_utils import get_current_user
+from app.core.avance import cargar_avance
 from app.core.database import get_supabase
 from app.core.exceptions import raise_field_error
 from app.core.prereqs import check_course_status, direct_prereq_info
@@ -83,6 +84,27 @@ def _cargar_prerrequisitos(supabase, curso_ids: List[str]) -> Dict[str, List[str
     for fila in filas:
         prereq_map.setdefault(str(fila["curso_id"]), []).append(str(fila["prerrequisito_id"]))
     return prereq_map
+
+
+@router.get("/avance")
+async def get_avance_carrera(user_data=Depends(get_current_user)) -> dict:
+    """Avance de carrera sobre el total de créditos del plan (RF-07).
+
+    Endpoint compartido: la malla, el dashboard y el perfil deben leer el
+    avance de aquí en lugar de recalcularlo, que es como terminaron
+    conviviendo dos porcentajes distintos para el mismo estudiante.
+    """
+    user, token = user_data
+    supabase = get_supabase(token)
+
+    carrera_id = _obtener_carrera_del_perfil(supabase, user)
+
+    try:
+        avance = cargar_avance(supabase, user.id, carrera_id)
+    except Exception:
+        raise HTTPException(status_code=500, detail="No se pudo calcular tu avance de carrera.")
+
+    return {"carrera_id": carrera_id, **avance.to_dict()}
 
 
 def _acumular_en_resumen(resumen: ResumenCiclo, estado: str, creditos: int) -> None:

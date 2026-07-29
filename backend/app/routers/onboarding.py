@@ -1,5 +1,6 @@
 import logging
 from fastapi import APIRouter, HTTPException, Depends, Query
+from app.core.avance import calcular_avance
 from app.core.database import get_supabase
 from app.core.auth_utils import get_current_user
 from app.core.exceptions import raise_field_error
@@ -358,11 +359,9 @@ def calcular_resumen_academico(supabase, user, perfil: dict) -> dict:
             if cid in cursos_dict
         ]
 
-    creditos_totales = sum(c["credits"] or 0 for c in cursos_dict.values())
-    creditos_aprobados = sum(
-        cursos_dict[cid]["credits"] or 0 for cid in aprobados if cid in cursos_dict
-    )
-    porcentaje = round(creditos_aprobados / creditos_totales * 100, 1) if creditos_totales else 0.0
+    # El avance se calcula en core/avance (RF-07), no aquí: es la misma cifra
+    # que muestran el dashboard y la malla, y debe salir de una sola fórmula.
+    avance = calcular_avance(cursos_dict, progreso_map)
 
     return {
         "carrera": {"id": carrera["id"], "codigo": carrera["codigo"], "name": carrera["name"]},
@@ -370,9 +369,9 @@ def calcular_resumen_academico(supabase, user, perfil: dict) -> dict:
         "cursos_aprobados": resumir(aprobados),
         "cursos_en_curso": resumir(en_curso),
         "cursos_disponibles": resumir(disponibles),
-        "creditos_aprobados": creditos_aprobados,
-        "creditos_totales": creditos_totales,
-        "porcentaje_avance": porcentaje,
+        "creditos_aprobados": avance.creditos_aprobados,
+        "creditos_totales": avance.creditos_totales,
+        "porcentaje_avance": avance.porcentaje_avance,
     }
 
 

@@ -1,8 +1,13 @@
+import logging
+
 from fastapi import APIRouter, HTTPException, Depends
+from app.core.avance import AvanceCarrera, cargar_avance
 from app.core.database import get_supabase
 from app.core.auth_utils import get_current_user
 from typing import Dict, List, Any, Optional
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dashboard", tags=["Academic Dashboard"])
 
@@ -27,19 +32,23 @@ class DashboardSummary(BaseModel):
     logros: List[Achievement]
 
 def _calcular_stats(user, supabase) -> Dict[str, Any]:
-    """
-    Calcula métricas académicas usando el esquema exacto de UNIVIA-PROJECT.
-    Tablas: perfiles, cursos, progreso_cursos.
+    """Métricas académicas del dashboard.
+
+    El avance sale de core/avance (RF-07) y no se recalcula aquí: antes este
+    endpoint lo medía por cantidad de cursos mientras el resumen del
+    onboarding lo medía por créditos, y el mismo estudiante veía dos
+    porcentajes distintos según la pantalla.
     """
     try:
         profile_resp = (
             supabase.table("perfiles")
             .select("carrera_id")
             .eq("id", user.id)
-            .single()
+            .maybe_single()
             .execute()
         )
-        carrera_id = profile_resp.data.get("carrera_id") if profile_resp.data else None
+        perfil = getattr(profile_resp, "data", None) if profile_resp else None
+        carrera_id = perfil.get("carrera_id") if perfil else None
 
         progreso_resp = (
             supabase.table("progreso_cursos")
@@ -47,36 +56,27 @@ def _calcular_stats(user, supabase) -> Dict[str, Any]:
             .eq("perfil_id", user.id)
             .execute()
         )
-        progreso_data = progreso_resp.data or []
+        progreso_data = getattr(progreso_resp, "data", None) or []
 
+        avance = (
+            cargar_avance(supabase, user.id, carrera_id)
+            if carrera_id
+            else AvanceCarrera()
+        )
 
-        total_cursos = 0
-        if carrera_id:
-            cursos_resp = (
-                supabase.table("cursos")
-                .select("id", count="exact")
-                .eq("carrera_id", carrera_id)
-                .execute()
-            )
-            total_cursos = cursos_resp.count if cursos_resp.count is not None else 0
-
-        completados = sum(1 for p in progreso_data if p.get("status") == "completed")
-        en_progreso = sum(1 for p in progreso_data if p.get("status") == "in_progress")
-        porcentaje = (completados / total_cursos * 100) if total_cursos > 0 else 0
-        
         notas = [p.get("nota") for p in progreso_data if p.get("nota") is not None]
         promedio = sum(notas) / len(notas) if notas else 0.0
 
         return {
-            "cursosCompletados": completados,
-            "cursosEnProgreso": en_progreso,
-            "totalCursos": total_cursos,
-            "porcentajeProgreso": round(porcentaje, 1),
+            "cursosCompletados": avance.cursos_aprobados,
+            "cursosEnProgreso": avance.cursos_en_curso,
+            "totalCursos": avance.cursos_totales,
+            "porcentajeProgreso": avance.porcentaje_avance,
             "promedioPonderado": round(promedio, 2),
-            "horasEstudio": 120, # Placeholder hasta tener tabla de tracking
+            "horasEstudio": 120,  # Placeholder hasta tener tabla de tracking
         }
     except Exception as e:
-        print(f"[DEBUG] Error en _calcular_stats: {str(e)}")
+        logger.error(f"Error calculando stats de {user.id}: {e}")
         return {
             "cursosCompletados": 0,
             "cursosEnProgreso": 0,

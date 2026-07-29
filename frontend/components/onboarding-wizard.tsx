@@ -9,13 +9,15 @@ import { CompletionStep } from "./onboarding/completion-step"
 import type { OnboardingData } from "@/types/onboarding"
 import { useAuth } from "./providers/auth-context"
 import { apiService } from "@/lib/api-service"
-import { BookOpen, Zap, Sparkles } from "lucide-react"
+import { BookOpen, Zap, Sparkles, Loader2 } from "lucide-react"
+import { BrandLogo } from "@/app/auth/brand-logo"
+import { OnboardingProgress } from "./onboarding/onboarding-progress"
 
 const STEPS = ["Carrera", "Semestre", "Cursos", "Confirmación"]
 
 export function OnboardingWizard() {
   const router = useRouter()
-  const { refreshProfile } = useAuth()
+  const { refreshProfile, signOut } = useAuth()
   const [step, setStep] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -74,68 +76,50 @@ export function OnboardingWizard() {
     }
   }
 
-  return (
-    <div className="min-h-screen bg-[#0b0a16] flex flex-col relative overflow-hidden">
-      {/* Dark mesh atmosphere */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: "radial-gradient(circle at 20% 20%, rgba(236,72,153,0.06) 0%, rgba(139,92,246,0.04) 45%, rgba(11,10,22,1) 70%)" }}
-      />
+  /**
+   * El dashboard rebota a quien no terminó el onboarding (ver
+   * `dashboard-layout`), así que "omitir" no puede llevar a la app: sería un
+   * ida y vuelta infinito. Lo único honesto es cerrar la sesión y dejar el
+   * onboarding para el próximo ingreso.
+   */
+  const handleOmitir = async () => {
+    await signOut()
+    router.replace("/auth/login")
+  }
 
-      {/* Header + Stepper Combined */}
+  return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col relative overflow-hidden">
+      {/* Halos de marca, muy tenues, para que el fondo no quede plano */}
+      <div className="absolute -top-32 -left-32 w-[28rem] h-[28rem] bg-accent/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-32 -right-32 w-[28rem] h-[28rem] bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Cabecera + avance */}
       <div className="relative z-10 max-w-4xl mx-auto w-full pt-8 pb-6 px-4">
-        {/* Top Bar */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-2.5">
-            <img src="/Logo_LEAD_UNI.png" alt="LEAD UNI" className="w-7 h-7 object-contain" />
-            <span className="text-xl font-extrabold bg-gradient-to-r from-[#f43f5e] via-[#ec4899] to-[#a855f7] bg-clip-text text-transparent">
-              UniVia
-            </span>
-          </div>
-          <button className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
+        <div className="flex items-center justify-between gap-4 mb-8">
+          <BrandLogo className="py-0" />
+          <button
+            type="button"
+            onClick={handleOmitir}
+            className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          >
             Omitir por ahora
           </button>
         </div>
 
-        {/* Combined Stepper */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-400 px-1">
-            {STEPS.map((stepName, idx) => (
-              <span
-                key={idx}
-                className={idx === step ? "text-[#ec4899] font-bold" : ""}
-              >
-                {idx === 0 ? `1. ${stepName}` : `${idx + 1}. ${stepName}`}
-              </span>
-            ))}
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            {STEPS.map((_, idx) => (
-              <div
-                key={idx}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  idx <= step
-                    ? "bg-gradient-to-r from-[#ec4899] to-[#a855f7] shadow-sm shadow-pink-500/30"
-                    : "bg-[#1e1b3a]"
-                }`}
-              />
-            ))}
-          </div>
-        </div>
+        <OnboardingProgress currentStep={step} steps={STEPS} />
       </div>
 
-      {/* Main Content */}
+      {/* Contenido */}
       <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8 md:py-12">
         <div className="w-full max-w-4xl">
           {loading ? (
-            <div className="flex flex-col items-center justify-center space-y-6 py-16">
-              <div className="relative w-16 h-16">
-                <div className="absolute inset-0 bg-gradient-to-r from-[#ec4899] to-[#a855f7] rounded-full animate-spin" />
-                <div className="absolute inset-2 bg-[#0b0a16] rounded-full" />
-              </div>
-              <div className="text-center">
-                <p className="text-slate-300 font-bold text-lg animate-pulse">Cargando tu malla académica...</p>
-                <p className="text-slate-500 text-sm mt-2">Esto solo toma unos segundos</p>
+            <div className="flex flex-col items-center justify-center space-y-5 py-16">
+              <Loader2 className="w-10 h-10 animate-spin text-accent" />
+              <div className="text-center space-y-1">
+                <p className="font-heading text-lg font-bold text-foreground">
+                  Cargando tu malla académica...
+                </p>
+                <p className="text-sm text-muted-foreground">Esto solo toma unos segundos</p>
               </div>
             </div>
           ) : (

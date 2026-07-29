@@ -13,7 +13,10 @@ import { BookOpen, Zap, Sparkles, Loader2 } from "lucide-react"
 import { BrandLogo } from "@/app/auth/brand-logo"
 import { OnboardingProgress } from "./onboarding/onboarding-progress"
 
-const STEPS = ["Carrera", "Semestre", "Cursos", "Confirmación"]
+const STEPS = ["Carrera", "Ciclo", "Cursos", "Confirmación"]
+
+/** Usado solo si el backend no informa la duración del plan. */
+const CICLOS_POR_DEFECTO = 10
 
 export function OnboardingWizard() {
   const router = useRouter()
@@ -29,8 +32,12 @@ export function OnboardingWizard() {
     cursosInscritos: [],
   })
 
-  const selectedCareerName =
-    onboardingMeta.careers.find((c) => c.id === data.career)?.name || "Tu carrera"
+  const selectedCareer = onboardingMeta.careers.find((c) => c.id === data.career)
+  const selectedCareerName = selectedCareer?.name || "Tu carrera"
+
+  // El tope de ciclos es el del plan de la carrera elegida. Antes la grilla
+  // estaba fija en 8, así que quien iba en 9no o 10mo no podía declararlo.
+  const maxCiclos = selectedCareer?.duracion_ciclos || CICLOS_POR_DEFECTO
 
   useEffect(() => {
     const fetchOnboardingMeta = async () => {
@@ -124,7 +131,14 @@ export function OnboardingWizard() {
           ) : (
             <div className="animate-in fade-in zoom-in-95 duration-500">
               {step === 0 && <CareerStep data={data} onNext={handleNext} careers={onboardingMeta.careers} />}
-              {step === 1 && <SemesterStep data={data} onNext={handleNext} onBack={handleBack} />}
+              {step === 1 && (
+                <SemesterStep
+                  data={data}
+                  onNext={handleNext}
+                  onBack={handleBack}
+                  maxCiclos={maxCiclos}
+                />
+              )}
               {step === 2 && (
                 <CurrentEnrollmentStep
                   data={data}

@@ -7,7 +7,13 @@ from app.core.auth_utils import get_current_user
 from app.core.database import get_supabase
 from app.core.exceptions import raise_field_error
 from app.core.prereqs import check_course_status
-from app.schemas.malla import CicloDetail, CourseDetail, PrerrequisitoInfo, StatusCurso
+from app.schemas.malla import (
+    CicloDetail,
+    CourseDetail,
+    PrerrequisitoInfo,
+    ResumenCiclo,
+    StatusCurso,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +85,26 @@ def _cargar_prerrequisitos(supabase, curso_ids: List[str]) -> Dict[str, List[str
     return prereq_map
 
 
+def _acumular_en_resumen(resumen: ResumenCiclo, estado: str, creditos: int) -> None:
+    """Suma un curso al conteo del ciclo.
+
+    Cada pantalla que muestra la malla necesita el mismo conteo ('4 de 6
+    aprobados'); calcularlo una vez aquí evita que cada una lo repita con su
+    propia interpretación de los estados.
+    """
+    resumen.total += 1
+
+    if estado == "completed":
+        resumen.aprobados += 1
+        resumen.creditos_aprobados += creditos
+    elif estado == "in_progress":
+        resumen.en_curso += 1
+    elif estado == "locked":
+        resumen.bloqueados += 1
+    else:
+        resumen.disponibles += 1
+
+
 @router.get("/", response_model=List[CicloDetail])
 async def get_malla(user_data=Depends(get_current_user)) -> List[CicloDetail]:
     """Malla curricular completa de la carrera del estudiante (RF-04).
@@ -114,7 +140,7 @@ async def get_malla(user_data=Depends(get_current_user)) -> List[CicloDetail]:
     try:
         progreso_resp = (
             supabase.table("progreso_cursos")
-            .select("curso_id, status")
+            .select("curso_id, status, nota, fecha_completado")
             .eq("perfil_id", user.id)
             .execute()
         )
@@ -123,8 +149,12 @@ async def get_malla(user_data=Depends(get_current_user)) -> List[CicloDetail]:
         logger.error(f"Error cargando progreso de {user.id}: {e}")
         raise HTTPException(status_code=500, detail="No se pudo cargar tu avance académico.")
 
-    progreso_map: Dict[str, str] = {str(p["curso_id"]): p["status"] for p in progreso_raw}
-    completados: Set[str] = {cid for cid, s in progreso_map.items() if s == "completed"}
+    # El historial completo, no solo el estado: la nota y la fecha son parte de
+    # lo que el estudiante espera ver en un curso ya aprobado.
+    historial: Dict[str, dict] = {str(p["curso_id"]): p for p in progreso_raw}
+    completados: Set[str] = {
+        cid for cid, p in historial.items() if p.get("status") == "completed"
+    }
 
     malla: Dict[int, CicloDetail] = {}
 
@@ -141,21 +171,23 @@ async def get_malla(user_data=Depends(get_current_user)) -> List[CicloDetail]:
                 ciclo=f"Ciclo {ciclo_num}",
                 ciclo_num=ciclo_num,
                 credits=0,
+                resumen=ResumenCiclo(),
                 courses=[],
             )
 
         curso_id = str(curso_raw["id"])
-        db_status = progreso_map.get(curso_id)
+        registro = historial.get(curso_id) or {}
 
         estado, prereq_info, prereqs_ok = check_course_status(
             curso_id=curso_id,
-            db_status=db_status,
+            db_status=registro.get("status"),
             completed_courses=completados,
             prereq_map=prereq_map,
             cursos_dict=cursos_dict,
         )
 
         creditos = curso_raw.get("credits") or 0
+        nota = registro.get("nota")
 
         malla[ciclo_num].courses.append(
             CourseDetail(
@@ -166,10 +198,15 @@ async def get_malla(user_data=Depends(get_current_user)) -> List[CicloDetail]:
                 status=StatusCurso(estado),
                 description=curso_raw.get("description"),
                 progreso=100 if estado == "completed" else 0,
+                nota=float(nota) if nota is not None else None,
+                fecha_completado=registro.get("fecha_completado"),
                 prerequisitos=[PrerrequisitoInfo(**p) for p in prereq_info],
                 prerequisitos_cumplidos=prereqs_ok,
             )
         )
-        malla[ciclo_num].credits += creditos
+
+        ciclo_detail = malla[ciclo_num]
+        ciclo_detail.credits += creditos
+        _acumular_en_resumen(ciclo_detail.resumen, estado, creditos)
 
     return [malla[ciclo] for ciclo in sorted(malla)]

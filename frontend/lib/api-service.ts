@@ -35,21 +35,19 @@ export const apiService = {
         }
     },
 
-    async updateCourseStatus(courseId: number, status: string) {
+    /**
+     * Avance de carrera sobre el total de créditos del plan (RF-07).
+     * Es la cifra oficial: no la recalcules a partir de la malla.
+     */
+    async getAvanceCarrera() {
         try {
-            const response = await fetchWithAuth(`${API_URL}/malla-curricular/update-status`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ course_id: courseId, status }),
-            });
+            const response = await fetchWithAuth(`${API_URL}/malla/avance`);
             if (!response.ok) {
-                throw new Error(`Error updating course status: ${response.statusText}`);
+                throw new Error('No se pudo cargar tu avance de carrera.');
             }
             return await response.json();
         } catch (error) {
-            console.error("API Error (updateCourseStatus):", error);
+            console.error("API Error (getAvanceCarrera):", error);
             throw error;
         }
     },

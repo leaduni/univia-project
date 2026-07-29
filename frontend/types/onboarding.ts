@@ -4,6 +4,8 @@ export interface OnboardingData {
   career: number
   semester: number
   cursosInscritos: number[]
+  /** Créditos de los cursos elegidos. Solo para el resumen final. */
+  creditosInscritos?: number
 }
 
 /** Espejo de `FacultadItem`. */

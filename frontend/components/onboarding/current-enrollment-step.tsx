@@ -206,7 +206,10 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id }: Curr
 
   const handleContinue = () => {
     if (selected.size >= 1) {
-      onNext({ cursosInscritos: Array.from(selected) })
+      onNext({
+        cursosInscritos: Array.from(selected),
+        creditosInscritos: creditosSeleccionados,
+      })
     }
   }
 

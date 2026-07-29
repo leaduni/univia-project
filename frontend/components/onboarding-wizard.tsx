@@ -23,6 +23,7 @@ export function OnboardingWizard() {
   const { refreshProfile, signOut } = useAuth()
   const [step, setStep] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [onboardingMeta, setOnboardingMeta] = useState<{ careers: Carrera[] }>({ careers: [] })
 
@@ -65,6 +66,7 @@ export function OnboardingWizard() {
 
   const handleComplete = async () => {
     setIsSubmitting(true)
+    setSubmitError(null)
     try {
       const payload = {
         carrera_id: data.career,
@@ -76,7 +78,11 @@ export function OnboardingWizard() {
       router.push("/")
     } catch (error: any) {
       console.error("Error completing onboarding:", error)
-      alert("Hubo un error al guardar tu progreso: " + (error.message || "Error desconocido"))
+      // Se muestra dentro del paso final: un alert() del navegador tapa la
+      // pantalla y no deja leer qué dato hay que corregir.
+      setSubmitError(
+        error.message || "No pudimos guardar tu perfil. Inténtalo de nuevo en un momento."
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -147,7 +153,18 @@ export function OnboardingWizard() {
                   carrera_id={data.career}
                 />
               )}
-              {step === 3 && <CompletionStep data={data} onBack={handleBack} onComplete={handleComplete} isSubmitting={isSubmitting} careerName={selectedCareerName} />}
+              {step === 3 && (
+                <CompletionStep
+                  data={data}
+                  onBack={handleBack}
+                  onComplete={handleComplete}
+                  isSubmitting={isSubmitting}
+                  careerName={selectedCareerName}
+                  facultadName={selectedCareer?.facultad?.nombre}
+                  maxCiclos={maxCiclos}
+                  submitError={submitError}
+                />
+              )}
             </div>
           )}
         </div>

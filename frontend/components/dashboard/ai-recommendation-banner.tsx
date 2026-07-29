@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { AiInsightCard } from "@/components/ui/ai-insight-card"
 import { apiService } from "@/lib/api-service"
 import { EVENTO_PREFERENCIAS, verRecomendacionesIA } from "@/lib/preferencias"
+import { useAuth } from "@/components/providers/auth-context"
 
 interface CursoSugerido {
   id: number | string
@@ -33,6 +34,7 @@ const ETIQUETA_NIVEL: Record<string, string> = {
 
 export function AIRecommendationBanner() {
   const router = useRouter()
+  const { session } = useAuth()
   const [diagnostico, setDiagnostico] = useState<Diagnostico | null>(null)
   const [cargando, setCargando] = useState(true)
   // Arranca en true para no parpadear: si el estudiante lo apagó, el efecto
@@ -55,6 +57,12 @@ export function AIRecommendationBanner() {
   useEffect(() => {
     let activo = true
 
+    // Sin sesión no hay token: la petición respondería 401.
+    if (!session) {
+      setCargando(false)
+      return
+    }
+
     apiService
       .getTestNivel()
       .then((data) => {
@@ -73,7 +81,7 @@ export function AIRecommendationBanner() {
     return () => {
       activo = false
     }
-  }, [])
+  }, [session])
 
   if (!habilitado) return null
 

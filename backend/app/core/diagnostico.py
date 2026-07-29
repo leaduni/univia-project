@@ -8,7 +8,7 @@ Todo aquí es cálculo puro sobre datos ya leídos, sin tocar Supabase, para
 poder probarlo con casos concretos.
 """
 
-from typing import Dict, List, Mapping, Sequence
+from typing import Dict, List, Mapping, Optional, Sequence
 
 from app.core.avance import ESTADO_APROBADO, ESTADO_EN_CURSO, AvanceCarrera
 
@@ -84,7 +84,7 @@ def generar_diagnostico(
         promedio: promedio ponderado ya calculado.
     """
 
-    def describir(curso_id, extra: dict = None) -> dict:
+    def describir(curso_id, extra: Optional[dict] = None) -> dict:
         curso = cursos.get(curso_id) or {}
         base = {
             "id": curso_id,
@@ -145,6 +145,11 @@ def generar_diagnostico(
     )
     sugeridos = sugeridos[:MAX_SUGERENCIAS]
 
+    # El curso que nombra el mensaje. Se decide aquí y no en el frontend: si
+    # cada consumidor eligiera el suyo, el botón podría llevar a un curso
+    # distinto del que el texto le está recomendando.
+    destacado = atrasados[0] if atrasados else (sugeridos[0] if sugeridos else None)
+
     return {
         "nivel": nivel,
         "ciclo_actual": ciclo_actual,
@@ -156,14 +161,15 @@ def generar_diagnostico(
         "fortalezas": fortalezas,
         "a_reforzar": a_reforzar,
         "recomendacion": {
-            "mensaje": _mensaje_recomendacion(nivel, atrasados, sugeridos, a_reforzar),
+            "mensaje": _mensaje_recomendacion(atrasados, sugeridos, a_reforzar),
+            "curso_destacado": destacado,
             "cursos_sugeridos": sugeridos,
         },
     }
 
 
 def _mensaje_recomendacion(
-    nivel: str, atrasados: Sequence, sugeridos: Sequence, a_reforzar: Sequence
+    atrasados: Sequence, sugeridos: Sequence, a_reforzar: Sequence
 ) -> str:
     """Una sola frase con lo más accionable, en el orden en que importa."""
     if atrasados:

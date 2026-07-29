@@ -23,7 +23,7 @@ interface Logro {
 }
 
 export function Dashboard() {
-  const { user } = useAuth()
+  const { user, session } = useAuth()
   const [stats, setStats] = useState<DashboardMetricas | null>(null)
   const [logros, setLogros] = useState<Logro[]>([])
   const [cursosActivos, setCursosActivos] = useState<CursoActivo[]>([])
@@ -34,11 +34,17 @@ export function Dashboard() {
 
   useEffect(() => {
     isMounted.current = true
-    loadDashboardData()
+    // No disparar llamadas API sin sesión activa: sin token, todas
+    // responderían 401 y generarían errores en la consola.
+    if (session) {
+      loadDashboardData()
+    } else {
+      setIsLoading(false)
+    }
     return () => {
       isMounted.current = false
     }
-  }, [])
+  }, [session])
 
   async function loadDashboardData() {
     setIsLoading(true)

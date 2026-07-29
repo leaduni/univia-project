@@ -19,7 +19,7 @@ from app.core.auth_utils import get_current_user
 from app.core.diagnostico import generar_diagnostico
 from app.core.exceptions import raise_field_error
 from app.core.prereqs import resolve_prereq_chain
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Set
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -254,6 +254,118 @@ async def get_actividad(
             _avance_por_curso(supabase, user, carrera_id, curso_id) if carrera_id else []
         ),
     }
+
+
+@router.get("/cursos-activos")
+async def get_cursos_activos(user_data=Depends(get_current_user)) -> dict:
+    """Cursos en curso con su avance real y el tema donde se quedó.
+
+    Alimenta 'Continúa donde te quedaste'. Existe como agregado porque la
+    alternativa era pedir `/curso/{id}/learning-path` una vez por curso: hasta
+    12 peticiones para pintar una sección, cada una trayendo timeline
+    completo, banco de exámenes e insights que la tarjeta no usa.
+
+    El porcentaje se calcula sobre `progreso_unidades`, la misma fuente que el
+    detalle de curso (RF-11), para que ambas pantallas no discrepen.
+    """
+    user, token = user_data
+    supabase = get_supabase(token)
+
+    try:
+        progreso_resp = (
+            supabase.table("progreso_cursos")
+            .select("curso_id")
+            .eq("perfil_id", user.id)
+            .eq("status", "in_progress")
+            .execute()
+        )
+        curso_ids = [p["curso_id"] for p in (getattr(progreso_resp, "data", None) or [])]
+    except Exception as e:
+        logger.error(f"Error cargando cursos activos de {user.id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudieron cargar tus cursos activos.")
+
+    if not curso_ids:
+        return {"cursos": []}
+
+    try:
+        cursos_resp = (
+            supabase.table("cursos")
+            .select("id, code, name, credits, ciclo")
+            .in_("id", curso_ids)
+            .execute()
+        )
+        cursos = {c["id"]: c for c in (getattr(cursos_resp, "data", None) or [])}
+
+        steps_resp = (
+            supabase.table("learning_path_steps")
+            .select("id, curso_id, title, order_index")
+            .in_("curso_id", curso_ids)
+            .order("order_index")
+            .execute()
+        )
+        steps = getattr(steps_resp, "data", None) or []
+    except Exception as e:
+        logger.error(f"Error cargando temas de cursos activos de {user.id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudieron cargar tus cursos activos.")
+
+    completadas: Set[int] = set()
+    if steps:
+        try:
+            unidades_resp = (
+                supabase.table("progreso_unidades")
+                .select("step_id, completado")
+                .eq("perfil_id", user.id)
+                .in_("step_id", [s["id"] for s in steps])
+                .execute()
+            )
+            completadas = {
+                u["step_id"]
+                for u in (getattr(unidades_resp, "data", None) or [])
+                if u.get("completado")
+            }
+        except Exception as e:
+            # La tabla puede no existir en algunos entornos; sin ella el avance
+            # dentro del curso es 0 pero la sección sigue siendo útil.
+            if "PGRST205" in str(e) or "Could not find the table" in str(e):
+                logger.warning("Tabla 'progreso_unidades' no existe; avance por curso en 0.")
+            else:
+                logger.error(f"Error cargando progreso de unidades de {user.id}: {e}")
+
+    temas_por_curso: Dict[Any, List[dict]] = {}
+    for step in steps:
+        temas_por_curso.setdefault(step["curso_id"], []).append(step)
+
+    resultado = []
+    for curso_id in curso_ids:
+        curso = cursos.get(curso_id)
+        if not curso:
+            continue
+
+        temas = sorted(
+            temas_por_curso.get(curso_id, []),
+            key=lambda s: s.get("order_index") or 0,
+        )
+        total = len(temas)
+        hechos = sum(1 for t in temas if t["id"] in completadas)
+
+        # Dónde retomar: el primer tema sin completar, en orden.
+        siguiente = next((t for t in temas if t["id"] not in completadas), None)
+
+        resultado.append({
+            "id": curso_id,
+            "code": curso.get("code"),
+            "name": curso.get("name"),
+            "credits": curso.get("credits") or 0,
+            "ciclo": curso.get("ciclo"),
+            "progreso": round(hechos / total * 100) if total else 0,
+            "temas_completados": hechos,
+            "temas_totales": total,
+            # None cuando el curso no tiene ruta cargada o ya la terminó.
+            "siguiente_tema": siguiente.get("title") if siguiente else None,
+        })
+
+    resultado.sort(key=lambda c: (-c["progreso"], c["code"] or ""))
+    return {"cursos": resultado}
 
 
 @router.get("/test-nivel")

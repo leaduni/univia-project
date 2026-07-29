@@ -6,6 +6,7 @@ import Link from "next/link"
 import { FileText, FlaskConical, Notebook, Video } from "lucide-react"
 import { apiService } from "@/lib/api-service"
 import { RECURSOS_DATA } from "@/lib/mockData"
+import { useAuth } from "@/components/providers/auth-context"
 import type { Recurso } from "@/types/recurso"
 
 const MAX_TARJETAS = 6
@@ -28,12 +29,22 @@ const ICONO_POR_TIPO: Record<string, any> = {
 }
 
 export function RecentResources() {
+  const { session } = useAuth()
   const [recursos, setRecursos] = useState<Recurso[]>([])
   const [esEjemplo, setEsEjemplo] = useState(false)
   const [cargando, setCargando] = useState(true)
 
   useEffect(() => {
     let activo = true
+
+    // Sin sesión no hay token: ir directo al fallback de datos de ejemplo
+    // en vez de lanzar un fetch que devolvería 401 o 404.
+    if (!session) {
+      setRecursos(RECURSOS_DATA.slice(0, MAX_TARJETAS) as Recurso[])
+      setEsEjemplo(true)
+      setCargando(false)
+      return
+    }
 
     apiService
       .getRecursos({})
@@ -63,7 +74,7 @@ export function RecentResources() {
     return () => {
       activo = false
     }
-  }, [])
+  }, [session])
 
   return (
     <section className="mt-10">

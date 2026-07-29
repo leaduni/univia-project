@@ -10,6 +10,7 @@ from app.core.validators import (
     normalizar_email,
     validar_codigo_estudiante,
     validar_email_institucional,
+    validar_nombre_completo,
     validar_password,
 )
 
@@ -99,19 +100,21 @@ class LoginRequest(BaseModel):
 
 
 class PerfilUpdate(BaseModel):
-    email: str | None = None
-    codigo_estudiante: str | None = None
-    nombre_completo: str | None = None
+    """Datos personales editables por el estudiante (RF-PRF-02).
 
-    @field_validator("email")
-    @classmethod
-    def validar_email(cls, v: str | None) -> str | None:
-        return validar_email_institucional(v) if v is not None else v
+    Solo nombres y apellidos, a propósito. El correo institucional y el código
+    universitario identifican al estudiante ante la UNI: no son preferencias
+    suyas y cambiarlos rompería la unicidad que valida el registro (RF-EST-02)
+    y el login por código (RF-01). Antes este modelo los aceptaba, así que un
+    PUT bien formado podía reescribirlos.
+    """
 
-    @field_validator("codigo_estudiante")
+    nombre_completo: str
+
+    @field_validator("nombre_completo")
     @classmethod
-    def validar_codigo(cls, v: str | None) -> str | None:
-        return validar_codigo_estudiante(v) if v is not None else v
+    def validar_nombre(cls, v: str) -> str:
+        return validar_nombre_completo(v)
 
 
 class SolicitudRecuperacion(BaseModel):

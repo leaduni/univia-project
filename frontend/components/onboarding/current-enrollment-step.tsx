@@ -1,9 +1,21 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { ChevronRight, ChevronLeft, ChevronDown, CheckCircle2, Lock, Loader2, Circle, ArrowRight } from "lucide-react"
+import {
+  ChevronRight,
+  ChevronLeft,
+  ChevronDown,
+  CheckCircle2,
+  Lock,
+  Loader2,
+  Circle,
+  ArrowRight,
+  AlertCircle,
+  Info,
+} from "lucide-react"
 import type { OnboardingData } from "@/types/onboarding"
 import { apiService } from "@/lib/api-service"
+import { aRomano, MAX_CURSOS_INSCRITOS } from "@/lib/ciclos"
 
 interface CurrentEnrollmentStepProps {
   data: OnboardingData
@@ -12,6 +24,14 @@ interface CurrentEnrollmentStepProps {
   carrera_id: number
 }
 
+/** Espejo de `PrerrequisitoFaltante` del backend. */
+interface PrerrequisitoFaltante {
+  id: number
+  code: string
+  name: string
+}
+
+/** Espejo de `CursoPrereqItem` del backend. */
 interface CursoItem {
   id: number
   code: string
@@ -21,6 +41,7 @@ interface CursoItem {
   carrera_id: number
   prerrequisito_ids: number[]
   status: string
+  prerrequisitos_faltantes?: PrerrequisitoFaltante[]
 }
 
 interface CicloGroup {
@@ -79,6 +100,9 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id }: Curr
   const [cursos, setCursos] = useState<CursoItem[]>([])
   const [loading, setLoading] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  // Curso bloqueado sobre el que se pidió explicación. Un `title` no sirve:
+  // en móvil no hay hover y el estudiante se queda sin saber por qué no puede.
+  const [motivoVisible, setMotivoVisible] = useState<number | null>(null)
 
   useEffect(() => {
     if (!carrera_id || carrera_id <= 0) return
@@ -121,7 +145,7 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id }: Curr
     for (const c of cursos) {
       if (!groups[c.ciclo]) {
         groups[c.ciclo] = {
-          ciclo: `Ciclo ${c.ciclo}`,
+          ciclo: `Ciclo ${aRomano(c.ciclo)}`,
           cicloNum: c.ciclo,
           credits: 0,
           courses: [],
@@ -159,14 +183,25 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id }: Curr
     return conflicts
   }, [selected, prereqMap])
 
+  const creditosSeleccionados = useMemo(
+    () => cursos.filter((c) => selected.has(c.id)).reduce((total, c) => total + c.credits, 0),
+    [cursos, selected]
+  )
+
+  const topeAlcanzado = selected.size >= MAX_CURSOS_INSCRITOS
+
   const handleToggleCourse = (courseId: number) => {
     const newSelected = new Set(selected)
     if (newSelected.has(courseId)) {
       newSelected.delete(courseId)
     } else {
+      // El backend rechaza más de 12 cursos: cortarlo aquí evita que el
+      // estudiante arme toda su inscripción y recién falle al enviarla.
+      if (topeAlcanzado) return
       newSelected.add(courseId)
     }
     setSelected(newSelected)
+    setMotivoVisible(null)
   }
 
   const handleContinue = () => {
@@ -190,20 +225,28 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id }: Curr
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center space-y-4 py-16">
-        <Loader2 className="w-8 h-8 animate-spin text-pink-400" />
-        <p className="text-slate-400">Cargando cursos de la carrera...</p>
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+        <p className="text-muted-foreground">Cargando cursos de la carrera...</p>
       </div>
     )
   }
 
   if (fetchError) {
     return (
-      <div className="text-center space-y-4 py-16">
-        <p className="text-rose-400 font-medium">Error al cargar los cursos</p>
-        <p className="text-slate-400 text-sm">{fetchError}</p>
+      <div className="flex flex-col items-center text-center gap-4 py-16">
+        <div className="p-4 rounded-full bg-destructive/10 border border-destructive/30">
+          <AlertCircle className="w-7 h-7 text-destructive" />
+        </div>
+        <div className="space-y-1">
+          <h2 className="font-heading text-lg font-bold text-foreground">
+            No pudimos cargar los cursos
+          </h2>
+          <p className="text-sm text-muted-foreground max-w-sm">{fetchError}</p>
+        </div>
         <button
+          type="button"
           onClick={() => window.location.reload()}
-          className="px-5 py-2.5 rounded-xl border border-[#3b3475] bg-[#1d1a3b] text-sm font-semibold text-white hover:bg-[#282452] transition-all shadow-md"
+          className="px-6 py-2.5 rounded-xl text-sm font-semibold text-foreground bg-card border border-border hover:bg-muted transition-colors"
         >
           Reintentar
         </button>
@@ -214,112 +257,144 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id }: Curr
   return (
     <div className="space-y-6">
       <div className="space-y-1.5 mb-6">
-        <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight flex items-center gap-2">
-          Inscripci&oacute;n Actual
+        <h1 className="font-heading text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+          ¿Qué cursos llevas este ciclo?
         </h1>
-        <p className="text-sm text-slate-300">
-          Selecciona los cursos que cursar&aacute;s este semestre. Los cursos ya aprobados o en curso aparecen marcados y no requieren acci&oacute;n.
+        <p className="text-sm text-muted-foreground">
+          Marca los cursos en los que estás matriculado. Los aprobados y los que ya
+          llevas aparecen marcados y no necesitas tocarlos.
         </p>
       </div>
 
-      <div className="max-w-3xl mx-auto max-h-[500px] overflow-y-auto pr-4 space-y-3">
+      <div className="max-w-3xl mx-auto max-h-[500px] overflow-y-auto pr-2 space-y-3">
         {curriculum.map((cicloData) => {
           const isExpanded = expanded.has(cicloData.ciclo)
           return (
-            <div key={cicloData.ciclo} className="rounded-xl border border-[#232045] overflow-hidden">
+            <div key={cicloData.ciclo} className="rounded-xl border border-border overflow-hidden">
               <button
+                type="button"
                 onClick={() => toggleCiclo(cicloData.ciclo)}
-                className="w-full flex items-center justify-between p-4 bg-[#14132a]/80 hover:bg-[#1a1738] transition-colors"
+                aria-expanded={isExpanded}
+                className="w-full flex items-center justify-between p-4 bg-card hover:bg-muted transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <h3 className="font-semibold text-white">{cicloData.ciclo}</h3>
-                  <span className="text-xs font-medium px-2 py-1 rounded-full bg-[#1e1b3a] text-slate-400">
-                    {cicloData.credits} cr&eacute;ditos
+                  <h3 className="font-heading font-semibold text-foreground">{cicloData.ciclo}</h3>
+                  <span className="text-xs font-medium px-2 py-1 rounded-full bg-muted text-muted-foreground">
+                    {cicloData.credits} créditos
                   </span>
                 </div>
                 {isExpanded ? (
-                  <ChevronDown className="w-5 h-5 text-slate-400" />
+                  <ChevronDown className="w-5 h-5 text-muted-foreground" />
                 ) : (
-                  <ChevronRight className="w-5 h-5 text-slate-400" />
+                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
                 )}
               </button>
 
               {isExpanded && (
-                <div className="p-4 pt-0 grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {cicloData.courses.map((course) => {
-                    const isAvailable = course.status === "available"
-                    const isCompleted = course.status === "completed"
-                    const isInProgress = course.status === "in_progress"
-                    const isLocked = course.status === "locked"
-                    const isSelected = selected.has(course.id)
-                    const isConflicted = conflictSet.has(course.id) && !isSelected
-                    const isDisabled = !isAvailable || isConflicted
+                <div className="p-4 pt-3 space-y-3">
+                  {/* Píldoras: los cursos de un ciclo se leen de un vistazo,
+                      sin la altura de una tarjeta por curso. */}
+                  <div className="flex flex-wrap gap-2">
+                    {cicloData.courses.map((course) => {
+                      const isAvailable = course.status === "available"
+                      const isCompleted = course.status === "completed"
+                      const isInProgress = course.status === "in_progress"
+                      const isLocked = course.status === "locked"
+                      const isSelected = selected.has(course.id)
+                      const isConflicted = conflictSet.has(course.id) && !isSelected
+                      const bloqueadoPorTope = topeAlcanzado && !isSelected && isAvailable
+                      const seleccionable = isAvailable && !isConflicted && !bloqueadoPorTope
 
-                    return (
-                      <button
-                        key={course.id}
-                        onClick={() => isAvailable && !isConflicted && handleToggleCourse(course.id)}
-                        disabled={isDisabled}
-                        className={`p-4 rounded-xl border-2 transition-all text-left group relative overflow-hidden backdrop-blur-sm ${
-                          isCompleted
-                            ? "border-emerald-700/40 bg-emerald-950/20"
-                            : isInProgress
-                              ? "border-fuchsia-700/40 bg-fuchsia-950/20"
-                              : isSelected
-                                ? "border-[#ec4899] bg-gradient-to-br from-[#ec4899]/15 to-[#a855f7]/5 shadow-lg shadow-pink-500/20"
-                                : isConflicted || isLocked
-                                  ? "border-[#232045]/40 bg-[#121124]/40 cursor-not-allowed opacity-60"
-                                  : "border-[#232045] bg-[#121124]/60 hover:border-[#ec4899]/50 hover:shadow-md"
-                        }`}
-                      >
-                        <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
-                        <div className="relative flex items-start gap-3">
-                          <div className="flex-shrink-0 pt-1">
+                      const estilo = isCompleted
+                        ? "border-accent/30 bg-accent/10 text-accent"
+                        : isInProgress
+                          ? "border-primary/40 bg-primary/10 text-foreground"
+                          : isSelected
+                            ? "border-accent bg-accent/15 text-foreground ring-1 ring-accent"
+                            : isConflicted || isLocked || bloqueadoPorTope
+                              ? "border-border/50 bg-card/40 text-muted-foreground"
+                              : "border-border bg-card text-foreground hover:border-accent/50"
+
+                      return (
+                        <button
+                          key={course.id}
+                          type="button"
+                          onClick={() => {
+                            if (seleccionable) handleToggleCourse(course.id)
+                            // Un curso bloqueado explica por qué lo está en vez
+                            // de quedarse mudo.
+                            else if (isLocked || isConflicted) {
+                              setMotivoVisible(motivoVisible === course.id ? null : course.id)
+                            }
+                          }}
+                          aria-pressed={isSelected}
+                          title={`${course.code} · ${course.name} · ${course.credits} créditos`}
+                          className={`inline-flex items-center gap-2 pl-3 pr-3.5 py-2 rounded-full border text-left transition-all duration-200 ${estilo} ${
+                            seleccionable || isLocked || isConflicted ? "" : "cursor-not-allowed"
+                          }`}
+                        >
+                          <span className="shrink-0">
                             {isCompleted ? (
-                              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                              <CheckCircle2 className="w-4 h-4" />
                             ) : isInProgress ? (
-                              <Circle className="w-5 h-5 text-fuchsia-400 fill-fuchsia-700" />
+                              <Circle className="w-4 h-4 fill-primary text-primary" />
                             ) : isSelected ? (
-                              <CheckCircle2 className="w-5 h-5 text-[#ec4899]" />
+                              <CheckCircle2 className="w-4 h-4 text-accent" />
                             ) : isConflicted || isLocked ? (
-                              <Lock className="w-5 h-5 text-slate-500" />
+                              <Lock className="w-4 h-4" />
                             ) : (
-                              <div className="w-5 h-5 rounded-full border-2 border-slate-500 group-hover:border-[#ec4899]/50 transition-colors" />
+                              <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/60" />
                             )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-xs text-slate-400 font-medium">{course.code}</p>
-                              {isCompleted && (
-                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-900/40 text-emerald-300">
-                                  Aprobado
+                          </span>
+                          <span className="text-xs font-semibold tracking-wide">{course.code}</span>
+                          <span className="text-xs max-w-[14rem] truncate">{course.name}</span>
+                          {isCompleted && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wider opacity-80">
+                              Aprobado
+                            </span>
+                          )}
+                          {isInProgress && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+                              En curso
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Explicación del bloqueo, con los prerrequisitos que el
+                      backend ya calcula (RF-EST-03). */}
+                  {cicloData.courses
+                    .filter((c) => c.id === motivoVisible)
+                    .map((course) => {
+                      const faltantes = course.prerrequisitos_faltantes ?? []
+                      return (
+                        <div
+                          key={`motivo-${course.id}`}
+                          className="flex items-start gap-2.5 p-3 rounded-xl bg-muted/60 border border-border text-xs text-muted-foreground"
+                        >
+                          <Info className="w-4 h-4 text-accent shrink-0 mt-0.5" />
+                          <p className="leading-relaxed">
+                            <span className="font-semibold text-foreground">{course.name}</span>{" "}
+                            {faltantes.length > 0 ? (
+                              <>
+                                está bloqueado porque te falta aprobar:{" "}
+                                <span className="text-foreground">
+                                  {faltantes.map((p) => `${p.code} ${p.name}`).join(", ")}
                                 </span>
-                              )}
-                              {isInProgress && (
-                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-fuchsia-900/40 text-fuchsia-300">
-                                  En Curso
-                                </span>
-                              )}
-                            </div>
-                            <p className={`font-semibold transition-colors text-sm truncate ${
-                              isCompleted
-                                ? "text-emerald-300"
-                                : isInProgress
-                                  ? "text-fuchsia-300"
-                                  : isSelected
-                                    ? "text-[#ec4899]"
-                                    : isConflicted || isLocked
-                                      ? "text-slate-500"
-                                      : "text-white group-hover:text-[#ec4899]"
-                            }`}>
-                              {course.name}
-                            </p>
-                            <p className="text-xs text-slate-400 mt-1">{course.credits} cr&eacute;ditos</p>
-                          </div>
+                                .
+                              </>
+                            ) : (
+                              <>
+                                no se puede llevar junto con otro curso que ya
+                                seleccionaste, porque uno es prerrequisito del otro.
+                              </>
+                            )}
+                          </p>
                         </div>
-                      </button>
-                    )
-                  })}
+                      )
+                    })}
                 </div>
               )}
             </div>
@@ -327,37 +402,43 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id }: Curr
         })}
       </div>
 
-      <div className="p-4 rounded-2xl bg-[#14132a]/90 border border-[#27244a] backdrop-blur-md flex flex-wrap items-center justify-between gap-3 mb-6">
+      <div className="max-w-3xl mx-auto p-4 rounded-2xl bg-card border border-border flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-300">Cursos a inscribir:</span>
-          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#ec4899]/20 text-[#ec4899] border border-[#ec4899]/40">
+          <span className="text-xs font-semibold text-muted-foreground">Cursos a inscribir:</span>
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-accent/15 text-accent border border-accent/40">
             {selected.size}
           </span>
-        </div>
-        {conflictSet.size > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-400">Cursos bloqueados por prerrequisito:</span>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
-              {conflictSet.size}
+          {creditosSeleccionados > 0 && (
+            <span className="text-xs text-muted-foreground">
+              · {creditosSeleccionados} créditos
             </span>
-          </div>
+          )}
+        </div>
+        {topeAlcanzado && (
+          <span className="text-xs text-muted-foreground">
+            Llegaste al máximo de {MAX_CURSOS_INSCRITOS} cursos.
+          </span>
         )}
         {!isValidEnrollment && (
-          <span className="text-xs text-yellow-400">Debes seleccionar al menos 1 curso para continuar</span>
+          <span className="text-xs text-muted-foreground">
+            Marca al menos 1 curso para continuar.
+          </span>
         )}
       </div>
 
       <div className="flex justify-between items-center pt-4 max-w-3xl mx-auto w-full">
         <button
+          type="button"
           onClick={onBack}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#3b3475] bg-[#1d1a3b] text-sm font-semibold text-white hover:bg-[#282452] hover:border-[#ec4899] transition-all shadow-md"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-border bg-card text-sm font-semibold text-foreground hover:bg-muted hover:border-accent/40 transition-all"
         >
-          <ChevronLeft className="w-4 h-4" /> Atr&aacute;s
+          <ChevronLeft className="w-4 h-4" /> Atrás
         </button>
         <button
+          type="button"
           onClick={handleContinue}
           disabled={!isValidEnrollment || cursos.length === 0}
-          className="px-8 py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-[#ec4899] via-[#8b5cf6] to-[#a855f7] hover:opacity-90 disabled:opacity-40 transition-all shadow-lg shadow-pink-500/20 flex items-center gap-2"
+          className="px-8 py-3 rounded-xl font-semibold text-sm text-primary-foreground gradient-login-btn disabled:opacity-40 disabled:pointer-events-none transition-all shadow-lg shadow-accent/20 active:scale-[0.99] flex items-center gap-2"
         >
           <span>Continuar</span>
           <ArrowRight className="w-4 h-4" />

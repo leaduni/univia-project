@@ -3,14 +3,7 @@
 import { useState } from "react"
 import { ChevronLeft, ArrowRight } from "lucide-react"
 import type { OnboardingData } from "@/types/onboarding"
-
-const ROMANOS = [
-  "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X",
-  "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX",
-]
-
-/** En la UNI los ciclos se nombran en números romanos, no "Semestre 3". */
-const aRomano = (n: number): string => ROMANOS[n - 1] ?? String(n)
+import { aRomano } from "@/lib/ciclos"
 
 interface SemesterStepProps {
   data: OnboardingData

@@ -30,6 +30,11 @@ class CourseDetail(BaseModel):
 
 
 class CicloDetail(BaseModel):
+    # Etiqueta lista para mostrar ("Ciclo 3").
     ciclo: str
+    # El número en crudo. Sin este campo el frontend tenía que hacer
+    # ciclo.split(" ")[1] para recuperarlo, y eso se rompe apenas cambie el
+    # texto de la etiqueta o se traduzca.
+    ciclo_num: int
     credits: int
     courses: List[CourseDetail]

@@ -1,117 +1,175 @@
+import logging
+from typing import Dict, List, Set
+
 from fastapi import APIRouter, Depends, HTTPException
-from app.core.database import get_supabase
+
 from app.core.auth_utils import get_current_user
+from app.core.database import get_supabase
+from app.core.exceptions import raise_field_error
 from app.core.prereqs import check_course_status
 from app.schemas.malla import CicloDetail, CourseDetail, PrerrequisitoInfo, StatusCurso
-from typing import List, Dict, Set
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/malla", tags=["Academic Curriculum"])
 
 
-@router.get("/", response_model=List[CicloDetail])
-async def get_malla(user_data=Depends(get_current_user)) -> List[CicloDetail]:
-    user, token = user_data
-    supabase = get_supabase(token)
+def _obtener_carrera_del_perfil(supabase, user) -> int:
+    """Carrera del estudiante, o corta si todavía no completó el onboarding.
 
+    Antes esto devolvía una malla vacía, que el frontend no podía distinguir
+    de 'tu carrera no tiene cursos cargados'. Un error explícito le permite
+    mandar al estudiante a terminar su onboarding.
+    """
     try:
-        # 1. Obtener carrera del usuario
-        profile_resp = (
+        resp = (
             supabase.table("perfiles")
             .select("carrera_id")
             .eq("id", user.id)
-            .single()
+            .maybe_single()
             .execute()
         )
-        carrera_id = profile_resp.data.get("carrera_id") if profile_resp.data else None
+        perfil = getattr(resp, "data", None) if resp else None
+    except Exception as e:
+        logger.error(f"Error consultando perfil {user.id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo verificar tu perfil.")
 
-        if not carrera_id:
-            return []
+    if not perfil:
+        raise_field_error(
+            "perfil", "No encontramos tu perfil. Vuelve a iniciar sesión.", status_code=400
+        )
 
-        # 2. Obtener todos los cursos de la carrera
+    carrera_id = perfil.get("carrera_id")
+    if not carrera_id:
+        raise_field_error(
+            "carrera_id",
+            "Aún no eliges tu carrera. Completa tu onboarding para ver tu malla.",
+            status_code=400,
+        )
+
+    return carrera_id
+
+
+def _cargar_prerrequisitos(supabase, curso_ids: List[str]) -> Dict[str, List[str]]:
+    """Mapa curso -> prerrequisitos, restringido a los cursos de la carrera.
+
+    El filtro va en la consulta y no en memoria: la tabla es global y traerla
+    entera para descartar la mayoría no escala cuando entren más carreras.
+    """
+    if not curso_ids:
+        return {}
+
+    try:
+        resp = (
+            supabase.table("curso_prerrequisitos")
+            .select("curso_id, prerrequisito_id")
+            .in_("curso_id", curso_ids)
+            .execute()
+        )
+        filas = getattr(resp, "data", None) or []
+    except Exception as e:
+        # Sin prerrequisitos la malla sigue siendo útil: todo aparece como
+        # disponible. Es preferible a no mostrar nada.
+        logger.error(f"Error cargando prerrequisitos de la malla: {e}")
+        return {}
+
+    prereq_map: Dict[str, List[str]] = {}
+    for fila in filas:
+        prereq_map.setdefault(str(fila["curso_id"]), []).append(str(fila["prerrequisito_id"]))
+    return prereq_map
+
+
+@router.get("/", response_model=List[CicloDetail])
+async def get_malla(user_data=Depends(get_current_user)) -> List[CicloDetail]:
+    """Malla curricular completa de la carrera del estudiante (RF-04).
+
+    Devuelve los cursos agrupados por ciclo, en orden, con el estado de cada
+    uno para este estudiante y los créditos acumulados por ciclo.
+    """
+    user, token = user_data
+    supabase = get_supabase(token)
+
+    carrera_id = _obtener_carrera_del_perfil(supabase, user)
+
+    try:
         cursos_resp = (
             supabase.table("cursos")
-            .select("*")
+            .select("id, code, name, credits, ciclo, description")
             .eq("carrera_id", carrera_id)
+            .order("ciclo")
+            .order("code")
             .execute()
         )
-        if not cursos_resp.data:
-            return []
+        cursos_raw = getattr(cursos_resp, "data", None) or []
+    except Exception as e:
+        logger.error(f"Error cargando cursos de la carrera {carrera_id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo cargar tu malla curricular.")
 
-        # 3. Construir dict de cursos para lookup O(1)
-        cursos_dict: Dict[str, dict] = {
-            str(c["id"]): c for c in cursos_resp.data
-        }
-        curso_ids_en_carrera = set(cursos_dict.keys())
+    if not cursos_raw:
+        return []
 
-        # 4. Obtener prerrequisitos (solo de cursos en esta carrera)
-        prereq_resp = supabase.table("curso_prerrequisitos").select("*").execute()
-        prereq_map: Dict[str, List[str]] = {}
-        for p in prereq_resp.data or []:
-            cid = str(p["curso_id"])
-            pid = str(p["prerrequisito_id"])
-            if cid in curso_ids_en_carrera:
-                prereq_map.setdefault(cid, []).append(pid)
+    cursos_dict: Dict[str, dict] = {str(c["id"]): c for c in cursos_raw}
+    prereq_map = _cargar_prerrequisitos(supabase, list(cursos_dict))
 
-        # 5. Obtener progreso del usuario (usar str keys para consistencia)
-        progreso_resp = supabase.table("progreso_cursos") \
-            .select("curso_id, status") \
-            .eq("perfil_id", user.id) \
+    try:
+        progreso_resp = (
+            supabase.table("progreso_cursos")
+            .select("curso_id, status")
+            .eq("perfil_id", user.id)
             .execute()
+        )
+        progreso_raw = getattr(progreso_resp, "data", None) or []
+    except Exception as e:
+        logger.error(f"Error cargando progreso de {user.id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo cargar tu avance académico.")
 
-        progreso_data: Dict[str, str] = {}
-        for p in progreso_resp.data or []:
-            progreso_data[str(p["curso_id"])] = p["status"]
+    progreso_map: Dict[str, str] = {str(p["curso_id"]): p["status"] for p in progreso_raw}
+    completados: Set[str] = {cid for cid, s in progreso_map.items() if s == "completed"}
 
-        completed_courses: Set[str] = {
-            str(p["curso_id"]) for p in (progreso_resp.data or []) if p["status"] == "completed"
-        }
+    malla: Dict[int, CicloDetail] = {}
 
-        # 6. Construir malla por ciclos
-        malla_dict: Dict[int, CicloDetail] = {}
+    for curso_raw in cursos_raw:
+        ciclo_num = curso_raw.get("ciclo")
+        if ciclo_num is None:
+            # Un curso sin ciclo no pertenece a ningún punto de la malla; se
+            # omite en vez de inventarle una ubicación.
+            logger.warning(f"Curso {curso_raw.get('code')} sin ciclo asignado; se omite.")
+            continue
 
-        for curso_raw in cursos_resp.data or []:
-            ciclo_num = curso_raw.get("ciclo")
-            if ciclo_num is None:
-                continue
-
-            if ciclo_num not in malla_dict:
-                malla_dict[ciclo_num] = CicloDetail(
-                    ciclo=f"Ciclo {ciclo_num}",
-                    credits=0,
-                    courses=[],
-                )
-
-            curso_id_str = str(curso_raw["id"])
-            db_status = progreso_data.get(curso_id_str)
-            progreso_val = 100 if db_status == "completed" else 0
-
-            final_status, prereq_raw, prereqs_ok = check_course_status(
-                curso_id=curso_id_str,
-                db_status=db_status,
-                completed_courses=completed_courses,
-                prereq_map=prereq_map,
-                cursos_dict=cursos_dict,
+        if ciclo_num not in malla:
+            malla[ciclo_num] = CicloDetail(
+                ciclo=f"Ciclo {ciclo_num}",
+                ciclo_num=ciclo_num,
+                credits=0,
+                courses=[],
             )
 
-            course_detail = CourseDetail(
-                id=curso_id_str,
+        curso_id = str(curso_raw["id"])
+        db_status = progreso_map.get(curso_id)
+
+        estado, prereq_info, prereqs_ok = check_course_status(
+            curso_id=curso_id,
+            db_status=db_status,
+            completed_courses=completados,
+            prereq_map=prereq_map,
+            cursos_dict=cursos_dict,
+        )
+
+        creditos = curso_raw.get("credits") or 0
+
+        malla[ciclo_num].courses.append(
+            CourseDetail(
+                id=curso_id,
                 code=curso_raw["code"],
                 name=curso_raw["name"],
-                credits=curso_raw["credits"],
-                status=StatusCurso(final_status),
+                credits=creditos,
+                status=StatusCurso(estado),
                 description=curso_raw.get("description"),
-                progreso=progreso_val,
-                prerequisitos=[PrerrequisitoInfo(**p) for p in prereq_raw],
+                progreso=100 if estado == "completed" else 0,
+                prerequisitos=[PrerrequisitoInfo(**p) for p in prereq_info],
                 prerequisitos_cumplidos=prereqs_ok,
             )
+        )
+        malla[ciclo_num].credits += creditos
 
-            malla_dict[ciclo_num].courses.append(course_detail)
-            malla_dict[ciclo_num].credits += curso_raw["credits"]
-
-        return [malla_dict[c] for c in sorted(malla_dict.keys())]
-
-    except Exception:
-        import traceback
-        print("========== ERROR MALLA ==========")
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail="Error al construir la malla curricular.")
+    return [malla[ciclo] for ciclo in sorted(malla)]

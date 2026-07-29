@@ -2,6 +2,7 @@ import logging
 import os
 
 from fastapi import APIRouter, Depends, HTTPException
+from app.core.actividad import TIPO_LOGIN, registrar_evento
 from app.core.database import get_supabase, get_admin_client
 from app.core.auth_utils import get_current_user
 from app.core.exceptions import raise_field_error
@@ -148,6 +149,10 @@ async def login(data: LoginRequest):
         }
 
     carrera, plan_estudios = _cargar_carrera_y_plan(token, perfil.get("carrera_id"))
+
+    # Deja rastro del inicio de sesión para las estadísticas de actividad
+    # (RF-21). Es best-effort: si falla, el login continúa igual.
+    registrar_evento(get_supabase(token), user.id, TIPO_LOGIN)
 
     return {
         "status": "success",

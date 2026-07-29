@@ -11,7 +11,7 @@ RF-07 fija la regla: el avance se mide sobre el total de créditos del plan.
 """
 
 import logging
-from typing import Dict, Iterable, Mapping, Optional, Set
+from typing import Mapping
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +103,43 @@ def calcular_avance(
         )
 
     return avance
+
+
+def promedio_ponderado(cursos: Mapping, progreso: Mapping) -> float:
+    """Promedio ponderado por créditos de los cursos aprobados.
+
+    'Ponderado' significa que un curso de 5 créditos pesa cinco veces más que
+    uno de 1; un promedio simple de notas no es el promedio ponderado y da una
+    cifra distinta a la del récord académico del estudiante.
+
+    Args:
+        cursos: {curso_id: {"credits": int, ...}}
+        progreso: {curso_id: {"status": str, "nota": float|None}}
+
+    Returns:
+        Promedio en la escala en que estén guardadas las notas (0-20 en la
+        UNI), o 0.0 si todavía no hay ninguna nota registrada.
+    """
+    suma_pesos = 0.0
+    suma_creditos = 0
+
+    for curso_id, registro in progreso.items():
+        if (registro or {}).get("status") != ESTADO_APROBADO:
+            continue
+        nota = registro.get("nota")
+        if nota is None:
+            # Un curso aprobado sin nota registrada no puede promediarse; se
+            # excluye en vez de contarlo como cero y hundir el promedio.
+            continue
+        creditos = (cursos.get(curso_id) or {}).get("credits") or 0
+        if creditos <= 0:
+            continue
+        suma_pesos += float(nota) * creditos
+        suma_creditos += creditos
+
+    if not suma_creditos:
+        return 0.0
+    return round(suma_pesos / suma_creditos, 2)
 
 
 def cargar_avance(supabase, perfil_id, carrera_id) -> AvanceCarrera:

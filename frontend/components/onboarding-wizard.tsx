@@ -6,7 +6,7 @@ import { CareerStep } from "./onboarding/career-step"
 import { SemesterStep } from "./onboarding/semester-step"
 import { CurrentEnrollmentStep } from "./onboarding/current-enrollment-step"
 import { CompletionStep } from "./onboarding/completion-step"
-import type { OnboardingData } from "@/types/onboarding"
+import type { Carrera, OnboardingData, OnboardingDataResponse } from "@/types/onboarding"
 import { useAuth } from "./providers/auth-context"
 import { apiService } from "@/lib/api-service"
 import { BookOpen, Zap, Sparkles, Loader2 } from "lucide-react"
@@ -21,7 +21,7 @@ export function OnboardingWizard() {
   const [step, setStep] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [onboardingMeta, setOnboardingMeta] = useState<{ careers: any[] }>({ careers: [] })
+  const [onboardingMeta, setOnboardingMeta] = useState<{ careers: Carrera[] }>({ careers: [] })
 
   const [data, setData] = useState<OnboardingData>({
     career: 0,
@@ -29,16 +29,15 @@ export function OnboardingWizard() {
     cursosInscritos: [],
   })
 
-  const selectedCareerName = onboardingMeta.careers.find((c: any) => c.id === data.career)?.name || "Tu carrera"
+  const selectedCareerName =
+    onboardingMeta.careers.find((c) => c.id === data.career)?.name || "Tu carrera"
 
   useEffect(() => {
     const fetchOnboardingMeta = async () => {
       try {
         setLoading(true)
-        const result = await apiService.getOnboardingData()
-        if (result) {
-          setOnboardingMeta({ careers: result.carreras || result.careers || [] })
-        }
+        const result: OnboardingDataResponse = await apiService.getOnboardingData()
+        setOnboardingMeta({ careers: result?.carreras ?? [] })
       } catch (error) {
         console.error("Error fetching onboarding meta:", error)
       } finally {

@@ -36,6 +36,23 @@ export const apiService = {
     },
 
     /**
+     * Diagnóstico académico y ruta sugerida (RF-19, RF-20).
+     * Se deriva del récord del estudiante, no de un cuestionario.
+     */
+    async getTestNivel() {
+        try {
+            const response = await fetchWithAuth(`${API_URL}/dashboard/test-nivel`);
+            if (!response.ok) {
+                throw new Error('No se pudo cargar tu diagnóstico académico.');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error("API Error (getTestNivel):", error);
+            throw error;
+        }
+    },
+
+    /**
      * Actividad del estudiante con filtros (RF-21, RF-22).
      * @param periodo 7d | 30d | 90d | semestre | todo
      */

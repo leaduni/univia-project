@@ -6,7 +6,7 @@ import { AlertCircle, FileText } from "lucide-react"
 import { StatsCards } from "./stats-cards"
 import { CurrentCoursesSection } from "./current-courses-section"
 import { RightSidebar } from "./right-sidebar"
-import { AIRecommendation } from "./ai-recommendation"
+import { AIRecommendationBanner } from "./dashboard/ai-recommendation-banner"
 import { useAuth } from "./providers/auth-context"
 import { apiService } from "@/lib/api-service"
 import { RECURSOS_DATA } from "@/lib/mockData"
@@ -176,7 +176,7 @@ export function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-8 space-y-6">
-            <AIRecommendation />
+            <AIRecommendationBanner />
             <section>
               <h2 className="font-heading text-lg font-semibold text-foreground mb-4">
                 Continúa donde te quedaste

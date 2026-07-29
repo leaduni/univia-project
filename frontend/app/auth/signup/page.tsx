@@ -3,9 +3,9 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import Image from "next/image"
 import { CheckCircle2, ArrowRight, ChevronRight, Eye, EyeOff, Loader2 } from "lucide-react"
 import { AuthErrorBanner } from "@/app/auth/auth-error-banner"
+import { BrandLogo } from "@/app/auth/brand-logo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form"
@@ -14,12 +14,32 @@ import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { apiService } from "@/lib/api-service"
 import { useRouter } from "next/navigation"
+import {
+  CODIGO_PATTERN,
+  EMAIL_PATTERN,
+  MSG_CODIGO_INVALIDO,
+  MSG_EMAIL_INVALIDO,
+  MSG_PASSWORD_CORTA,
+  MSG_PASSWORD_LARGA,
+  MSG_PASSWORD_SIN_LETRA,
+  MSG_PASSWORD_SIN_NUMERO,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  tieneLetra,
+  tieneNumero,
+} from "@/lib/validaciones"
 
+// Las reglas espejan las del backend (lib/validaciones.ts) para que el error
+// aparezca mientras el estudiante escribe y no recién al enviar el formulario.
 const signupSchema = z.object({
   fullName: z.string().min(5, "El nombre debe tener al menos 5 caracteres"),
-  studentCode: z.string().min(8, "El código UNI debe tener al menos 8 caracteres"),
-  email: z.string().email("Ingresa un correo institucional válido (@uni.pe)"),
-  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
+  studentCode: z.string().regex(CODIGO_PATTERN, MSG_CODIGO_INVALIDO),
+  email: z.string().regex(EMAIL_PATTERN, MSG_EMAIL_INVALIDO),
+  password: z.string()
+    .min(PASSWORD_MIN_LENGTH, MSG_PASSWORD_CORTA)
+    .max(PASSWORD_MAX_LENGTH, MSG_PASSWORD_LARGA)
+    .refine(tieneLetra, MSG_PASSWORD_SIN_LETRA)
+    .refine(tieneNumero, MSG_PASSWORD_SIN_NUMERO),
   confirmPassword: z.string(),
   acceptTerms: z.boolean().refine(val => val === true, "Debes aceptar los términos y condiciones"),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -88,25 +108,25 @@ export default function SignupPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0B0C14] p-6">
+      <div className="min-h-screen flex items-center justify-center bg-background p-6">
         <div className="max-w-md w-full text-center animate-in fade-in zoom-in-95 duration-500">
           <div className="mb-8 flex justify-center">
             <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-rose-500 via-purple-500 to-violet-500 rounded-full blur-2xl opacity-30 animate-pulse" />
+              <div className="absolute inset-0 gradient-brand rounded-full blur-2xl opacity-30 animate-pulse" />
               <div className="relative p-6 rounded-full bg-emerald-500/10 border-2 border-emerald-500/30">
                 <CheckCircle2 className="w-16 h-16 text-emerald-400 animate-bounce" />
               </div>
             </div>
           </div>
-          <h1 className="text-4xl font-bold text-white mb-3">¡Cuenta Creada!</h1>
-          <p className="text-gray-400 mb-8 leading-relaxed text-lg">
-            Bienvenido a la comunidad de <span className="font-bold text-white">LEAD UNI</span>. Tu expediente académico está listo.
+          <h1 className="font-heading text-4xl font-bold text-foreground mb-3">¡Cuenta Creada!</h1>
+          <p className="text-muted-foreground mb-8 leading-relaxed text-lg">
+            Bienvenido a la comunidad de <span className="font-bold text-foreground">LEAD UNI</span>. Tu expediente académico está listo.
           </p>
           <div className="space-y-3">
-            <div className="w-full h-1 bg-gray-800 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-rose-500 via-purple-500 to-violet-500 animate-pulse" />
+            <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
+              <div className="h-full gradient-brand animate-pulse" />
             </div>
-            <p className="text-sm text-gray-500 font-bold">Redirigiendo al portal de acceso...</p>
+            <p className="text-sm text-muted-foreground font-bold">Redirigiendo al portal de acceso...</p>
           </div>
         </div>
       </div>
@@ -114,65 +134,53 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#0B0C14] grid grid-cols-1 lg:grid-cols-12 text-gray-100 font-sans selection:bg-violet-500/30 selection:text-white">
+    <div className="min-h-screen w-full bg-background grid grid-cols-1 lg:grid-cols-12 text-foreground font-sans selection:bg-accent/30 selection:text-foreground">
       {/* SECCIÓN IZQUIERDA: HERO / BRANDING */}
-      <div className="hidden lg:flex lg:col-span-5 flex-col justify-between bg-[#0E0F1D] border-r border-[#1E2030] p-8 xl:p-12 2xl:p-16 3xl:p-24 relative overflow-hidden min-h-screen">
-        <div className="absolute -top-24 -left-24 w-96 h-96 2xl:w-[500px] 2xl:h-[500px] bg-purple-600/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-96 h-96 2xl:w-[500px] 2xl:h-[500px] bg-rose-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="hidden lg:flex lg:col-span-5 flex-col justify-between bg-card border-r border-border p-8 xl:p-12 2xl:p-16 3xl:p-24 relative overflow-hidden min-h-screen">
+        <div className="absolute -top-24 -left-24 w-96 h-96 2xl:w-[500px] 2xl:h-[500px] bg-accent/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 2xl:w-[500px] 2xl:h-[500px] bg-primary/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="flex items-center gap-3 z-10 py-2">
-          <Image
-            src="/Logo_LEAD_UNI.png"
-            alt="LEAD UNI"
-            width={48}
-            height={48}
-            priority
-            className="w-12 h-12 xl:w-14 xl:h-14 2xl:w-16 2xl:h-16 object-contain drop-shadow-[0_4px_16px_rgba(244,63,94,0.4)]"
-          />
-          <span className="font-extrabold tracking-wider text-white text-lg xl:text-xl 2xl:text-2xl uppercase font-sans select-none">
-            LEAD UNI
-          </span>
-        </div>
+        <BrandLogo />
 
         <div className="z-10 my-auto max-w-md space-y-6">
-          <h1 className="text-3xl xl:text-4xl 2xl:text-5xl 3xl:text-6xl font-bold tracking-tight leading-tight text-white">
+          <h1 className="font-heading text-3xl xl:text-4xl 2xl:text-5xl 3xl:text-6xl font-bold tracking-tight leading-tight text-foreground">
             Únete a la<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 via-purple-400 to-violet-400">
+            <span className="gradient-brand-text">
               Revolución Académica.
             </span>
           </h1>
-          <p className="text-gray-400 text-sm xl:text-base 2xl:text-lg leading-relaxed">
+          <p className="text-muted-foreground text-sm xl:text-base 2xl:text-lg leading-relaxed">
             Acceso a herramientas inteligentes que transformarán tu trayectoria universitaria en una experiencia de aprendizaje personalizada.
           </p>
           <div className="space-y-3 pt-2">
-            <div className="flex items-center gap-3 p-3 2xl:p-4 bg-[#161826] border border-[#2A2D42] rounded-xl">
-              <div className="p-2 rounded-lg bg-rose-500/10 text-rose-400 text-lg">📚</div>
+            <div className="flex items-center gap-3 p-3 2xl:p-4 bg-card border border-border rounded-xl">
+              <div className="p-2 rounded-lg bg-primary/10 text-primary text-lg">📚</div>
               <div>
-                <p className="text-xs 2xl:text-sm font-semibold text-gray-200">Malla Curricular Inteligente</p>
-                <p className="text-[11px] 2xl:text-xs text-gray-400">Visualiza tu progreso y planifica tu ciclo.</p>
+                <p className="text-xs 2xl:text-sm font-semibold text-foreground">Malla Curricular Inteligente</p>
+                <p className="text-[11px] 2xl:text-xs text-muted-foreground">Visualiza tu progreso y planifica tu ciclo.</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-3 2xl:p-4 bg-[#161826] border border-[#2A2D42] rounded-xl">
-              <div className="p-2 rounded-lg bg-violet-500/10 text-violet-400 text-lg">🤖</div>
+            <div className="flex items-center gap-3 p-3 2xl:p-4 bg-card border border-border rounded-xl">
+              <div className="p-2 rounded-lg bg-accent/10 text-accent text-lg">🤖</div>
               <div>
-                <p className="text-xs 2xl:text-sm font-semibold text-gray-200">Evaluaciones adaptativas con IA</p>
-                <p className="text-[11px] 2xl:text-xs text-gray-400">Practica con exámenes alineados a tu syllabus.</p>
+                <p className="text-xs 2xl:text-sm font-semibold text-foreground">Evaluaciones adaptativas con IA</p>
+                <p className="text-[11px] 2xl:text-xs text-muted-foreground">Practica con exámenes alineados a tu syllabus.</p>
               </div>
             </div>
           </div>
         </div>
 
-        <p className="text-xs text-gray-600 z-10">
+        <p className="text-xs text-muted-foreground/70 z-10">
           © 2026 LEAD UNI — Plataforma de Gestión Académica Superior.
         </p>
       </div>
 
       {/* SECCIÓN DERECHA: FORMULARIO DE REGISTRO */}
-      <div className="col-span-1 lg:col-span-7 bg-[#0B0C14] flex flex-col justify-center items-center p-6 sm:p-12 xl:p-16 2xl:p-24 min-h-screen">
+      <div className="col-span-1 lg:col-span-7 bg-background flex flex-col justify-center items-center p-6 sm:p-12 xl:p-16 2xl:p-24 min-h-screen">
         <div className="w-full max-w-md xl:max-w-lg 2xl:max-w-xl space-y-6 2xl:space-y-8">
           <div className="space-y-2">
-            <h2 className="text-2xl xl:text-3xl 2xl:text-4xl font-bold tracking-tight text-white">Regístrate</h2>
-            <p className="text-sm xl:text-base 2xl:text-lg text-gray-400">
+            <h2 className="font-heading text-2xl xl:text-3xl 2xl:text-4xl font-bold tracking-tight text-foreground">Regístrate</h2>
+            <p className="text-sm xl:text-base 2xl:text-lg text-muted-foreground">
               Completa tus datos para acceder a UniVia y transformar tu experiencia.
             </p>
           </div>
@@ -186,17 +194,17 @@ export default function SignupPage() {
                 name="fullName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="block text-xs 2xl:text-sm font-medium text-gray-400 uppercase tracking-wider">
+                    <FormLabel className="block text-xs 2xl:text-sm font-medium text-muted-foreground uppercase tracking-wider">
                       Nombre Completo
                     </FormLabel>
                     <FormControl>
                       <Input
                         placeholder="Juan Carlos Pérez García"
-                        className="w-full px-4 py-2.5 2xl:py-4 bg-[#1E2030] border border-[#2A2D42] rounded-xl text-sm 2xl:text-base text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all duration-200 h-auto"
+                        className="w-full px-4 py-2.5 2xl:py-4 bg-input border border-border rounded-xl text-sm 2xl:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 h-auto"
                         {...field}
                       />
                     </FormControl>
-                    <FormMessage className="text-xs text-red-400" />
+                    <FormMessage className="text-xs text-destructive" />
                   </FormItem>
                 )}
               />
@@ -207,17 +215,17 @@ export default function SignupPage() {
                   name="studentCode"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="block text-xs 2xl:text-sm font-medium text-gray-400 uppercase tracking-wider">
+                      <FormLabel className="block text-xs 2xl:text-sm font-medium text-muted-foreground uppercase tracking-wider">
                         Código UNI
                       </FormLabel>
                       <FormControl>
                         <Input
                           placeholder="20241000"
-                          className="w-full px-4 py-2.5 2xl:py-4 bg-[#1E2030] border border-[#2A2D42] rounded-xl text-sm 2xl:text-base text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all duration-200 h-auto"
+                          className="w-full px-4 py-2.5 2xl:py-4 bg-input border border-border rounded-xl text-sm 2xl:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 h-auto"
                           {...field}
                         />
                       </FormControl>
-                      <FormMessage className="text-xs text-red-400" />
+                      <FormMessage className="text-xs text-destructive" />
                     </FormItem>
                   )}
                 />
@@ -227,18 +235,18 @@ export default function SignupPage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="block text-xs 2xl:text-sm font-medium text-gray-400 uppercase tracking-wider">
+                      <FormLabel className="block text-xs 2xl:text-sm font-medium text-muted-foreground uppercase tracking-wider">
                         Correo Institucional
                       </FormLabel>
                       <FormControl>
                         <Input
                           type="email"
                           placeholder="nombre@uni.pe"
-                          className="w-full px-4 py-2.5 2xl:py-4 bg-[#1E2030] border border-[#2A2D42] rounded-xl text-sm 2xl:text-base text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all duration-200 h-auto"
+                          className="w-full px-4 py-2.5 2xl:py-4 bg-input border border-border rounded-xl text-sm 2xl:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 h-auto"
                           {...field}
                         />
                       </FormControl>
-                      <FormMessage className="text-xs text-red-400" />
+                      <FormMessage className="text-xs text-destructive" />
                     </FormItem>
                   )}
                 />
@@ -250,7 +258,7 @@ export default function SignupPage() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="block text-xs 2xl:text-sm font-medium text-gray-400 uppercase tracking-wider">
+                      <FormLabel className="block text-xs 2xl:text-sm font-medium text-muted-foreground uppercase tracking-wider">
                         Contraseña
                       </FormLabel>
                       <FormControl>
@@ -258,20 +266,20 @@ export default function SignupPage() {
                           <Input
                             type={showPassword ? "text" : "password"}
                             placeholder="••••••••"
-                            className="w-full px-4 py-2.5 2xl:py-4 bg-[#1E2030] border border-[#2A2D42] rounded-xl text-sm 2xl:text-base text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all duration-200 pr-10 h-auto"
+                            className="w-full px-4 py-2.5 2xl:py-4 bg-input border border-border rounded-xl text-sm 2xl:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 pr-10 h-auto"
                             {...field}
                           />
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                             aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                           >
                             {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </button>
                         </div>
                       </FormControl>
-                      <FormMessage className="text-xs text-red-400" />
+                      <FormMessage className="text-xs text-destructive" />
                     </FormItem>
                   )}
                 />
@@ -281,7 +289,7 @@ export default function SignupPage() {
                   name="confirmPassword"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="block text-xs 2xl:text-sm font-medium text-gray-400 uppercase tracking-wider">
+                      <FormLabel className="block text-xs 2xl:text-sm font-medium text-muted-foreground uppercase tracking-wider">
                         Confirmar Contraseña
                       </FormLabel>
                       <FormControl>
@@ -289,20 +297,20 @@ export default function SignupPage() {
                           <Input
                             type={showConfirmPassword ? "text" : "password"}
                             placeholder="••••••••"
-                            className="w-full px-4 py-2.5 2xl:py-4 bg-[#1E2030] border border-[#2A2D42] rounded-xl text-sm 2xl:text-base text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all duration-200 pr-10 h-auto"
+                            className="w-full px-4 py-2.5 2xl:py-4 bg-input border border-border rounded-xl text-sm 2xl:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 pr-10 h-auto"
                             {...field}
                           />
                           <button
                             type="button"
                             onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                             aria-label={showConfirmPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                           >
                             {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </button>
                         </div>
                       </FormControl>
-                      <FormMessage className="text-xs text-red-400" />
+                      <FormMessage className="text-xs text-destructive" />
                     </FormItem>
                   )}
                 />
@@ -316,7 +324,7 @@ export default function SignupPage() {
                     <FormControl>
                       <input
                         type="checkbox"
-                        className="mt-1 rounded border-[#2A2D42] bg-[#1E2030] text-violet-600 focus:ring-violet-500 focus:ring-offset-0 cursor-pointer"
+                        className="mt-1 rounded border-border bg-input text-accent focus:ring-ring focus:ring-offset-0 cursor-pointer"
                         checked={field.value}
                         onChange={field.onChange}
                         onBlur={field.onBlur}
@@ -325,10 +333,10 @@ export default function SignupPage() {
                       />
                     </FormControl>
                     <div className="flex-1">
-                      <label className="text-xs 2xl:text-sm text-gray-400 cursor-pointer leading-relaxed">
-                        Acepto los <a href="#" className="text-violet-400 underline">términos y condiciones</a> y la <a href="#" className="text-violet-400 underline">política de privacidad</a> de LEAD UNI.
+                      <label className="text-xs 2xl:text-sm text-muted-foreground cursor-pointer leading-relaxed">
+                        Acepto los <a href="#" className="text-accent underline">términos y condiciones</a> y la <a href="#" className="text-accent underline">política de privacidad</a> de LEAD UNI.
                       </label>
-                      <FormMessage className="text-xs text-red-400 mt-1" />
+                      <FormMessage className="text-xs text-destructive mt-1" />
                     </div>
                   </FormItem>
                 )}
@@ -337,7 +345,7 @@ export default function SignupPage() {
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3.5 2xl:py-4 px-4 bg-gradient-to-r from-rose-600 via-purple-600 to-violet-600 hover:opacity-95 text-white font-semibold rounded-xl text-sm 2xl:text-base transition-all duration-200 shadow-lg shadow-purple-900/20 active:scale-[0.99] mt-2 h-auto"
+                className="w-full py-3.5 2xl:py-4 px-4 gradient-login-btn text-foreground font-semibold rounded-xl text-sm 2xl:text-base transition-all duration-200 shadow-lg shadow-accent/20 active:scale-[0.99] mt-2 h-auto"
               >
                 {isLoading ? (
                   <><Loader2 className="w-4 h-4 animate-spin mr-2" />Creando cuenta...</>
@@ -348,9 +356,9 @@ export default function SignupPage() {
             </form>
           </Form>
 
-          <div className="text-center text-xs 2xl:text-sm text-gray-400 pt-2">
+          <div className="text-center text-xs 2xl:text-sm text-muted-foreground pt-2">
             ¿Ya tienes cuenta?{" "}
-            <Link className="text-violet-400 hover:text-violet-300 font-medium transition-colors" href="/auth/login">
+            <Link className="text-accent hover:text-accent/80 font-medium transition-colors" href="/auth/login">
               Inicia sesión aquí →
             </Link>
           </div>

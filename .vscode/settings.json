@@ -1,0 +1,22 @@
+{
+  // El venv vive en backend/, no en la raíz del repositorio.
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/venv/Scripts/python.exe",
+
+  // Los módulos del backend se importan como 'app.*', así que la raíz de
+  // resolución es backend/, no la raíz del repo (que es donde se abre VS Code).
+  "python.analysis.extraPaths": ["${workspaceFolder}/backend"],
+  "python.autoComplete.extraPaths": ["${workspaceFolder}/backend"],
+
+  "python.terminal.activateEnvironment": true,
+
+  // Ruido innecesario en el explorador y en las búsquedas.
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true
+  },
+  "search.exclude": {
+    "**/backend/venv": true,
+    "**/node_modules": true,
+    "**/.next": true
+  }
+}

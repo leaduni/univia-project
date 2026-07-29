@@ -2,6 +2,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Search, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,14 +14,22 @@ import { apiService } from "@/lib/api-service"
 import type { Recurso } from "@/types/recurso"
 
 export function RecursosBiblioteca() {
+  // Permite llegar filtrado desde otra pantalla (ej. 'Banco de exámenes' del
+  // menú Explorar abre /recursos?tipo=Examen). Sin esto, ese enlace abriría la
+  // biblioteca completa y el estudiante tendría que filtrar a mano.
+  const searchParams = useSearchParams()
+  const tipoInicial = searchParams.get("tipo")
+
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState<"recent" | "downloaded" | "rated">("recent")
-  const [showFilters, setShowFilters] = useState(false)
+  const [showFilters, setShowFilters] = useState(Boolean(tipoInicial))
   const [recursosData, setRecursosData] = useState<Recurso[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   // Filter states
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([])
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(
+    tipoInicial ? [tipoInicial] : [],
+  )
   const [selectedCiclos, setSelectedCiclos] = useState<string[]>([])
   const [selectedFacultad, setSelectedFacultad] = useState<string>("")
   const [selectedYears, setSelectedYears] = useState<string[]>([])

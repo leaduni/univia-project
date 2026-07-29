@@ -1,4 +1,4 @@
-// Onboarding progress indicator with step labels
+// Indicador de avance del onboarding: "Paso X de N" + barra con degradado
 "use client"
 
 interface OnboardingProgressProps {
@@ -6,33 +6,58 @@ interface OnboardingProgressProps {
   steps: string[]
 }
 
+/**
+ * Una sola barra continua en lugar de un segmento por paso.
+ *
+ * El diseño anterior pintaba cuatro barras sueltas, lo que se lee como cuatro
+ * cosas distintas y no como un avance. Aquí el degradado de marca crece de
+ * izquierda a derecha, que es lo que la gente ya entiende como progreso.
+ */
 export function OnboardingProgress({ currentStep, steps }: OnboardingProgressProps) {
+  const total = steps.length
+  const pasoActual = Math.min(currentStep + 1, total)
+  const porcentaje = (pasoActual / total) * 100
+
   return (
-    <div className="space-y-2">
-      {/* Progress Bar */}
-      <div className="flex gap-2">
-        {steps.map((_, index) => (
-          <div
-            key={index}
-            className={`flex-1 h-2 rounded-full transition-all duration-300 ${
-              index <= currentStep ? "bg-accent" : "bg-border"
-            }`}
-          />
-        ))}
+    <div className="space-y-2.5">
+      <div className="flex items-baseline justify-between gap-4">
+        <p className="font-heading text-sm font-semibold text-foreground">
+          {steps[currentStep]}
+        </p>
+        <p className="text-xs font-medium text-muted-foreground shrink-0">
+          Paso {pasoActual} de {total}
+        </p>
       </div>
 
-      {/* Step Labels */}
-      <div className="grid grid-cols-4 gap-2">
-        {steps.map((step, index) => (
-          <div
-            key={index}
-            className={`text-xs font-medium transition-colors ${
-              index <= currentStep ? "text-accent" : "text-muted-foreground"
+      <div
+        className="h-1.5 w-full rounded-full bg-muted overflow-hidden"
+        role="progressbar"
+        aria-valuenow={pasoActual}
+        aria-valuemin={1}
+        aria-valuemax={total}
+        aria-label={`Paso ${pasoActual} de ${total}: ${steps[currentStep]}`}
+      >
+        <div
+          className="progress-bar-modern-fill"
+          style={{ width: `${porcentaje}%` }}
+        />
+      </div>
+
+      {/* En pantallas anchas sí caben los nombres de los cuatro pasos. */}
+      <div className="hidden md:flex items-center justify-between gap-2 pt-0.5">
+        {steps.map((nombre, idx) => (
+          <span
+            key={nombre}
+            className={`text-xs transition-colors ${
+              idx === currentStep
+                ? "font-semibold text-foreground"
+                : idx < currentStep
+                  ? "text-muted-foreground"
+                  : "text-muted-foreground/50"
             }`}
           >
-            <div className="hidden md:block">{step}</div>
-            <div className="md:hidden">Paso {index + 1}</div>
-          </div>
+            {idx + 1}. {nombre}
+          </span>
         ))}
       </div>
     </div>

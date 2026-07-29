@@ -1,62 +1,94 @@
-// Dashboard 4-metric cards — compact (inline) or standard (gradient icons)
+// Cuatro métricas rápidas del dashboard — versión compacta o con ícono
 "use client"
-import { CheckCircle, CheckCircle2, TrendingUp, Award, BookOpen } from "lucide-react"
+import { BookOpen, CheckCircle2, ClipboardCheck, TrendingUp } from "lucide-react"
+import { cn } from "@/lib/utils"
+
+export interface DashboardMetricas {
+  cursosCompletados: number
+  cursosEnProgreso: number
+  totalCursos: number
+  porcentajeProgreso: number
+  creditosAprobados?: number
+  creditosTotales?: number
+  evaluacionesRendidas?: number
+  evaluacionesAprobadas?: number
+}
 
 interface StatsCardsProps {
-  stats: any
+  stats: DashboardMetricas | null
   isLoading: boolean
   compact?: boolean
 }
 
-const COMPACT_CONFIG = [
-  { icon: CheckCircle2, color: "text-emerald-400", label: "Cursos completados", getValue: (s: any) => `${s?.cursosCompletados ?? 0}` },
-  { icon: TrendingUp, color: "text-indigo-400", label: "Avance de carrera", getValue: (s: any) => `${s?.porcentajeProgreso ?? 0}%` },
-  { icon: BookOpen, color: "text-sky-400", label: "Cursos activos", getValue: (s: any) => `${s?.cursosEnProgreso ?? 0}` },
-  { icon: Award, color: "text-amber-400", label: "Promedio actual", getValue: (s: any) => `${s?.promedioPonderado ?? "—"}` },
-]
-
-function MetricCard({ icon: Icon, value, label, footnote, gradient, isLoading }: any) {
-  return (
-    <div className="bg-[#151428] border border-[#262444] rounded-xl p-5 flex items-start gap-4 transition-all duration-200 hover:border-white/20">
-      <div className={`flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center ${gradient}`}>
-        <Icon className="w-6 h-6 text-white" />
-      </div>
-      <div className="flex-1 min-w-0">
-        {isLoading ? (
-          <div className="h-8 w-16 bg-white/10 animate-pulse rounded mb-1" />
-        ) : (
-          <div className="text-2xl font-bold text-white">{value}</div>
-        )}
-        <div className="text-sm text-white/70">{label}</div>
-        <div className="text-xs text-white/40 mt-0.5">{footnote}</div>
-      </div>
-    </div>
-  )
+/**
+ * Las cuatro métricas del mockup. `nota` explica la cifra: un número sin
+ * contexto ("12") no dice si es mucho o poco.
+ */
+function construirMetricas(s: DashboardMetricas | null) {
+  return [
+    {
+      icono: CheckCircle2,
+      label: "Cursos completados",
+      valor: `${s?.cursosCompletados ?? 0}`,
+      nota: s?.totalCursos ? `de ${s.totalCursos} en tu plan` : "de tu carrera",
+      color: "text-accent",
+    },
+    {
+      icono: TrendingUp,
+      label: "Avance de carrera",
+      valor: `${s?.porcentajeProgreso ?? 0}%`,
+      // El avance se mide en créditos (RF-07), no en cantidad de cursos.
+      nota:
+        s?.creditosTotales != null
+          ? `${s.creditosAprobados ?? 0} de ${s.creditosTotales} créditos`
+          : "sobre los créditos del plan",
+      color: "text-primary",
+    },
+    {
+      icono: BookOpen,
+      label: "Cursos activos",
+      valor: `${s?.cursosEnProgreso ?? 0}`,
+      nota: "este ciclo",
+      color: "text-accent",
+    },
+    {
+      icono: ClipboardCheck,
+      label: "Evaluaciones rendidas",
+      valor: `${s?.evaluacionesRendidas ?? 0}`,
+      nota:
+        s?.evaluacionesRendidas
+          ? `${s.evaluacionesAprobadas ?? 0} aprobadas`
+          : "aún no rindes ninguna",
+      color: "text-primary",
+    },
+  ]
 }
 
 export function StatsCards({ stats, isLoading, compact }: StatsCardsProps) {
+  const metricas = construirMetricas(stats)
+
   if (compact) {
     return (
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {COMPACT_CONFIG.map((m, i) => {
-          const Icon = m.icon
+        {metricas.map((m) => {
+          const Icono = m.icono
           return (
             <div
-              key={i}
-              className="bg-[#14132a]/80 border border-[#27244a] p-3 rounded-2xl flex flex-col justify-between h-20 shadow-md"
+              key={m.label}
+              className="bg-card border border-border p-3 rounded-2xl flex flex-col justify-between h-20"
             >
               {isLoading ? (
                 <>
-                  <div className="h-3 w-16 bg-white/10 animate-pulse rounded" />
-                  <div className="h-5 w-10 bg-white/10 animate-pulse rounded" />
+                  <div className="h-3 w-16 bg-muted animate-pulse rounded" />
+                  <div className="h-5 w-10 bg-muted animate-pulse rounded" />
                 </>
               ) : (
                 <>
-                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
-                    <Icon className={`w-3.5 h-3.5 ${m.color}`} />
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                    <Icono className={cn("w-3.5 h-3.5 shrink-0", m.color)} />
                     <span className="truncate">{m.label}</span>
                   </div>
-                  <span className="text-xl font-black text-white">{m.getValue(stats)}</span>
+                  <span className="font-heading text-xl font-bold text-foreground">{m.valor}</span>
                 </>
               )}
             </div>
@@ -66,42 +98,30 @@ export function StatsCards({ stats, isLoading, compact }: StatsCardsProps) {
     )
   }
 
-  const metrics = [
-    {
-      value: `${stats?.cursosCompletados ?? 0}`,
-      label: "Cursos completados",
-      footnote: "De tu carrera",
-      icon: CheckCircle,
-      gradient: "gradient-course-1",
-    },
-    {
-      value: `${stats?.porcentajeProgreso ?? 0}%`,
-      label: "Avance de carrera",
-      footnote: `${stats?.cursosCompletados ?? 0} de ${stats?.totalCursos ?? "—"} créditos`,
-      icon: TrendingUp,
-      gradient: "gradient-course-2",
-    },
-    {
-      value: `${stats?.cursosEnProgreso ?? 0}`,
-      label: "Cursos activos",
-      footnote: "Este semestre",
-      icon: BookOpen,
-      gradient: "gradient-course-4",
-    },
-    {
-      value: `${stats?.promedioPonderado ?? "—"}`,
-      label: "Promedio actual",
-      footnote: "Basado en tus notas",
-      icon: Award,
-      gradient: "gradient-course-3",
-    },
-  ]
-
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {metrics.map((m, i) => (
-        <MetricCard key={i} {...m} isLoading={isLoading} />
-      ))}
+      {metricas.map((m) => {
+        const Icono = m.icono
+        return (
+          <div
+            key={m.label}
+            className="bg-card border border-border rounded-2xl p-5 flex items-start gap-4 transition-colors hover:border-accent/40"
+          >
+            <div className="shrink-0 w-12 h-12 rounded-xl gradient-brand-br flex items-center justify-center">
+              <Icono className="w-6 h-6 text-primary-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              {isLoading ? (
+                <div className="h-8 w-16 bg-muted animate-pulse rounded mb-1" />
+              ) : (
+                <div className="font-heading text-2xl font-bold text-foreground">{m.valor}</div>
+              )}
+              <div className="text-sm text-muted-foreground">{m.label}</div>
+              <div className="text-xs text-muted-foreground/70 mt-0.5">{m.nota}</div>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

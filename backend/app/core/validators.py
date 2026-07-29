@@ -50,6 +50,17 @@ MSG_PASSWORD_SIN_NUMERO = "La contraseña debe incluir al menos un número."
 MSG_PASSWORD_VACIA = "La contraseña es obligatoria."
 
 
+# --- Nombres y apellidos (RF-PRF-02) ---
+
+NOMBRE_MIN_LENGTH = 3
+NOMBRE_MAX_LENGTH = 120
+
+MSG_NOMBRE_VACIO = "Escribe tus nombres y apellidos."
+MSG_NOMBRE_CORTO = f"El nombre debe tener al menos {NOMBRE_MIN_LENGTH} caracteres."
+MSG_NOMBRE_LARGO = f"El nombre no puede superar los {NOMBRE_MAX_LENGTH} caracteres."
+MSG_NOMBRE_CON_DIGITOS = "El nombre no puede contener números."
+
+
 def normalizar_email(valor: str) -> str:
     """Normaliza un correo para comparación y almacenamiento."""
     return valor.strip().lower()
@@ -90,6 +101,35 @@ def validar_codigo_estudiante(valor: str) -> str:
     if not es_codigo_estudiante(valor):
         raise ValueError(MSG_CODIGO_INVALIDO)
     return normalizar_codigo(valor)
+
+
+def validar_nombre_completo(valor: str) -> str:
+    """Valida y normaliza nombres y apellidos (RF-PRF-02).
+
+    Colapsa los espacios repetidos: 'Juan   Pérez' y 'Juan Pérez' son la misma
+    persona y guardarlos distinto ensucia búsquedas y comparaciones.
+
+    No se restringen tildes, apellidos compuestos ni apóstrofos: filtrar por
+    alfabeto latino estricto deja fuera nombres válidos.
+
+    Raises:
+        ValueError: si el nombre está vacío, es muy corto/largo o trae números.
+    """
+    if valor is None:
+        raise ValueError(MSG_NOMBRE_VACIO)
+
+    limpio = " ".join(valor.split())
+
+    if not limpio:
+        raise ValueError(MSG_NOMBRE_VACIO)
+    if len(limpio) < NOMBRE_MIN_LENGTH:
+        raise ValueError(MSG_NOMBRE_CORTO)
+    if len(limpio) > NOMBRE_MAX_LENGTH:
+        raise ValueError(MSG_NOMBRE_LARGO)
+    if any(c.isdigit() for c in limpio):
+        raise ValueError(MSG_NOMBRE_CON_DIGITOS)
+
+    return limpio
 
 
 def validar_password(valor: str) -> str:

@@ -1,0 +1,26 @@
+# Configuración de Pyrefly (analizador de Python del editor).
+#
+# Sin este archivo, Pyrefly intenta adivinar dónde están las dependencias y
+# falla, marcando en rojo imports que en realidad funcionan bien. Pasa porque
+# el editor se abre en la raíz del repositorio, pero el proyecto de Python vive
+# en backend/ y su entorno virtual en backend/venv.
+#
+# Las rutas son relativas a este archivo.
+
+# Código propio que Pyrefly debe analizar.
+project_includes = ["backend/app"]
+
+# Raíz de los imports de primer nivel: los módulos se importan como 'app.core...',
+# así que hay que buscarlos desde backend/, no desde la raíz del repo.
+search_path = ["backend"]
+
+# Entorno virtual del que salen fastapi, pydantic, supabase, etc.
+python_interpreter = "backend/venv/Scripts/python.exe"
+
+# No analizar dependencias ni artefactos de build.
+project_excludes = [
+    "**/venv/**",
+    "**/__pycache__/**",
+    "**/node_modules/**",
+    "**/.next/**",
+]

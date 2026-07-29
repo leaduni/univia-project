@@ -1,8 +1,12 @@
-// App header with search bar, notifications, and user menu
+// Barra superior: buscador, notificaciones y menú de usuario
 "use client"
 
-import { useState } from "react"
-import { Search, Menu, Bell, Settings } from "lucide-react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { Menu, Bell, User, LogOut } from "lucide-react"
+import { HeaderSearch } from "./header-search"
+import { ExplorarMenu } from "./explorar-menu"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -11,84 +15,124 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 import { useAuth } from "@/components/providers/auth-context"
-import { User, LogOut } from "lucide-react"
 
 interface HeaderProps {
   onMenuClick: () => void
 }
 
-export function Header({ onMenuClick }: HeaderProps) {
-  const [searchFocus, setSearchFocus] = useState(false)
-  const { user, signOut } = useAuth()
+/** Iniciales del estudiante para el avatar. */
+function iniciales(nombre?: string): string {
+  if (!nombre) return "U"
+  const partes = nombre.trim().split(/\s+/).filter(Boolean)
+  if (!partes.length) return "U"
+  return (partes[0][0] + (partes[1]?.[0] ?? "")).toUpperCase()
+}
 
-  const userFullInitial = user?.nombre_completo?.split(" ").map((n: string) => n[0]).join("").slice(0, 2) || "U"
+/** Accesos directos del mockup, además del sidebar. */
+const ACCESOS = [
+  { label: "Mi aprendizaje", href: "/" },
+  { label: "Mi malla", href: "/malla" },
+  { label: "Recursos", href: "/recursos" },
+]
+
+export function Header({ onMenuClick }: HeaderProps) {
+  const { user, signOut } = useAuth()
+  const pathname = usePathname()
+
+  const nombre = user?.nombre_completo || "Estudiante"
 
   return (
-    <header className="bg-[#0b0c16]/80 backdrop-blur-md border-b border-[#1d1b38] sticky top-0 z-40">
+    <header className="bg-sidebar/80 backdrop-blur-md border-b border-sidebar-border sticky top-0 z-40">
       <div className="flex items-center justify-between px-6 py-4 gap-4">
-        {/* Left: Menu & Search */}
         <div className="flex items-center gap-4 flex-1">
-          <Button variant="ghost" size="icon" onClick={onMenuClick} className="md:hidden">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onMenuClick}
+            aria-label="Abrir o cerrar el menú"
+            className="md:hidden"
+          >
             <Menu className="w-5 h-5" />
           </Button>
 
-          {/* Search Bar — pill with neon button */}
-          <div className="relative flex-1 max-w-xl hidden md:flex items-center">
-            <input
-              type="text"
-              placeholder="¿Qué curso quieres reforzar hoy?"
-              className="w-full py-2.5 pl-5 pr-12 rounded-full bg-[#151428] border border-[#2d2959] text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#ec4899] transition-all"
-              onFocus={() => setSearchFocus(true)}
-              onBlur={() => setSearchFocus(false)}
-            />
-            <button
-              type="button"
-              aria-label="Buscar"
-              className="absolute right-1.5 p-2 rounded-full bg-gradient-to-r from-[#ec4899] to-[#a855f7] text-white hover:opacity-90 transition-opacity shadow-md shadow-pink-500/20"
-            >
-              <Search className="w-4 h-4" />
-            </button>
-          </div>
+          <HeaderSearch />
         </div>
 
-        {/* Right: Actions & Profile */}
         <div className="flex items-center gap-2 md:gap-4">
-          <Button variant="ghost" size="icon" className="relative">
+          {/* Accesos directos. Duplican al sidebar a propósito: el mockup los
+              pide arriba, y en pantallas donde el sidebar va colapsado son la
+              única navegación con texto. */}
+          <nav className="hidden lg:flex items-center gap-1" aria-label="Accesos rápidos">
+            {ACCESOS.map((acceso) => {
+              const activo =
+                pathname === acceso.href ||
+                (acceso.href !== "/" && pathname?.startsWith(acceso.href))
+              return (
+                <Link
+                  key={acceso.href}
+                  href={acceso.href}
+                  aria-current={activo ? "page" : undefined}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap",
+                    activo
+                      ? "bg-accent/15 text-accent"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                  )}
+                >
+                  {acceso.label}
+                </Link>
+              )
+            })}
+            <ExplorarMenu />
+          </nav>
+
+          {/* Sin punto de "no leídas": no hay fuente de notificaciones todavía
+              y un indicador siempre encendido deja de significar algo. */}
+          <Button variant="ghost" size="icon" aria-label="Notificaciones">
             <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
           </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full"
+                aria-label={`Menú de ${nombre}`}
+              >
                 <Avatar className="w-8 h-8">
-                  <AvatarImage src={user?.foto_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id || 'default'}`} />
-                  <AvatarFallback>{userFullInitial}</AvatarFallback>
+                  <AvatarFallback className="gradient-brand-br text-primary-foreground text-xs font-semibold">
+                    {iniciales(user?.nombre_completo)}
+                  </AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent align="end" className="w-60">
               <div className="flex items-center gap-2 p-2">
                 <Avatar className="w-10 h-10">
-                  <AvatarImage src={user?.foto_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id || 'default'}`} />
-                  <AvatarFallback>{userFullInitial}</AvatarFallback>
+                  <AvatarFallback className="gradient-brand-br text-primary-foreground text-sm font-semibold">
+                    {iniciales(user?.nombre_completo)}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{user?.nombre_completo || "Usuario"}</p>
+                  <p className="text-sm font-medium text-foreground truncate">{nombre}</p>
                   <p className="text-xs text-muted-foreground truncate">{user?.email || ""}</p>
+                  {user?.codigo_estudiante && (
+                    <p className="text-xs text-muted-foreground/70 truncate">
+                      {user.codigo_estudiante}
+                    </p>
+                  )}
                 </div>
               </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <User className="w-4 h-4 mr-2" />
-                Mi Perfil
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Settings className="w-4 h-4 mr-2" />
-                Configuración
+              <DropdownMenuItem asChild className="cursor-pointer">
+                <Link href="/perfil">
+                  <User className="w-4 h-4 mr-2" />
+                  Mi perfil
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -96,7 +140,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                 onClick={() => signOut()}
               >
                 <LogOut className="w-4 h-4 mr-2" />
-                Cerrar Sesión
+                Cerrar sesión
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

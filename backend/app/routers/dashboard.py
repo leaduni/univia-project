@@ -1,8 +1,28 @@
-from fastapi import APIRouter, HTTPException, Depends
+import logging
+
+from fastapi import APIRouter, HTTPException, Depends, Query
+from app.core.actividad import (
+    PERIODO_POR_DEFECTO,
+    PERIODOS,
+    actividad_por_dia,
+    consultar_eventos,
+    resumir_eventos,
+)
+from app.core.avance import (
+    AvanceCarrera,
+    calcular_avance,
+    cargar_avance,
+    promedio_ponderado,
+)
 from app.core.database import get_supabase
 from app.core.auth_utils import get_current_user
-from typing import Dict, List, Any, Optional
+from app.core.diagnostico import generar_diagnostico
+from app.core.exceptions import raise_field_error
+from app.core.prereqs import resolve_prereq_chain
+from typing import Dict, List, Any, Optional, Set
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dashboard", tags=["Academic Dashboard"])
 
@@ -27,56 +47,62 @@ class DashboardSummary(BaseModel):
     logros: List[Achievement]
 
 def _calcular_stats(user, supabase) -> Dict[str, Any]:
-    """
-    Calcula métricas académicas usando el esquema exacto de UNIVIA-PROJECT.
-    Tablas: perfiles, cursos, progreso_cursos.
+    """Métricas académicas del dashboard.
+
+    El avance sale de core/avance (RF-07) y no se recalcula aquí: antes este
+    endpoint lo medía por cantidad de cursos mientras el resumen del
+    onboarding lo medía por créditos, y el mismo estudiante veía dos
+    porcentajes distintos según la pantalla.
     """
     try:
         profile_resp = (
             supabase.table("perfiles")
             .select("carrera_id")
             .eq("id", user.id)
-            .single()
+            .maybe_single()
             .execute()
         )
-        carrera_id = profile_resp.data.get("carrera_id") if profile_resp.data else None
+        perfil = getattr(profile_resp, "data", None) if profile_resp else None
+        carrera_id = perfil.get("carrera_id") if perfil else None
 
-        progreso_resp = (
-            supabase.table("progreso_cursos")
-            .select("status, nota")
-            .eq("perfil_id", user.id)
-            .execute()
-        )
-        progreso_data = progreso_resp.data or []
+        avance = AvanceCarrera()
+        promedio = 0.0
 
-
-        total_cursos = 0
         if carrera_id:
+            avance = cargar_avance(supabase, user.id, carrera_id)
+
+            # El promedio ponderado necesita los créditos de cada curso, no
+            # solo las notas: antes esto promediaba a secas y un curso de 5
+            # créditos pesaba igual que uno de 1.
             cursos_resp = (
                 supabase.table("cursos")
-                .select("id", count="exact")
+                .select("id, credits")
                 .eq("carrera_id", carrera_id)
                 .execute()
             )
-            total_cursos = cursos_resp.count if cursos_resp.count is not None else 0
+            cursos = {c["id"]: c for c in (getattr(cursos_resp, "data", None) or [])}
 
-        completados = sum(1 for p in progreso_data if p.get("status") == "completed")
-        en_progreso = sum(1 for p in progreso_data if p.get("status") == "in_progress")
-        porcentaje = (completados / total_cursos * 100) if total_cursos > 0 else 0
-        
-        notas = [p.get("nota") for p in progreso_data if p.get("nota") is not None]
-        promedio = sum(notas) / len(notas) if notas else 0.0
+            progreso_resp = (
+                supabase.table("progreso_cursos")
+                .select("curso_id, status, nota")
+                .eq("perfil_id", user.id)
+                .execute()
+            )
+            progreso = {
+                p["curso_id"]: p for p in (getattr(progreso_resp, "data", None) or [])
+            }
+            promedio = promedio_ponderado(cursos, progreso)
 
         return {
-            "cursosCompletados": completados,
-            "cursosEnProgreso": en_progreso,
-            "totalCursos": total_cursos,
-            "porcentajeProgreso": round(porcentaje, 1),
-            "promedioPonderado": round(promedio, 2),
-            "horasEstudio": 120, # Placeholder hasta tener tabla de tracking
+            "cursosCompletados": avance.cursos_aprobados,
+            "cursosEnProgreso": avance.cursos_en_curso,
+            "totalCursos": avance.cursos_totales,
+            "porcentajeProgreso": avance.porcentaje_avance,
+            "promedioPonderado": promedio,
+            "horasEstudio": 120,  # Placeholder hasta tener tabla de tracking
         }
     except Exception as e:
-        print(f"[DEBUG] Error en _calcular_stats: {str(e)}")
+        logger.error(f"Error calculando stats de {user.id}: {e}")
         return {
             "cursosCompletados": 0,
             "cursosEnProgreso": 0,
@@ -127,3 +153,312 @@ async def get_dashboard_summary(user_data = Depends(get_current_user)):
         "stats": _calcular_stats(user, supabase),
         "logros": _obtener_logros(user, supabase)
     }
+
+
+def _avance_por_curso(supabase, user, carrera_id, curso_id: Optional[int]) -> List[Dict[str, Any]]:
+    """Avance del estudiante curso por curso (RF-21).
+
+    A diferencia de las otras métricas de actividad, esta no depende de
+    `eventos_actividad`: sale del progreso que ya existe.
+    """
+    try:
+        cursos_resp = (
+            supabase.table("cursos")
+            .select("id, code, name, credits, ciclo")
+            .eq("carrera_id", carrera_id)
+            .execute()
+        )
+        cursos = {c["id"]: c for c in (getattr(cursos_resp, "data", None) or [])}
+
+        progreso_q = (
+            supabase.table("progreso_cursos")
+            .select("curso_id, status, nota, fecha_completado")
+            .eq("perfil_id", user.id)
+        )
+        if curso_id is not None:
+            progreso_q = progreso_q.eq("curso_id", curso_id)
+        progreso = getattr(progreso_q.execute(), "data", None) or []
+    except Exception as e:
+        logger.error(f"Error cargando avance por curso de {user.id}: {e}")
+        return []
+
+    filas = []
+    for registro in progreso:
+        cid = registro.get("curso_id")
+        curso = cursos.get(cid)
+        if not curso:
+            # Progreso de otra carrera (cambio de carrera mal migrado).
+            continue
+        estado = registro.get("status")
+        filas.append({
+            "curso_id": cid,
+            "code": curso.get("code"),
+            "name": curso.get("name"),
+            "credits": curso.get("credits") or 0,
+            "ciclo": curso.get("ciclo"),
+            "status": estado,
+            "nota": float(registro["nota"]) if registro.get("nota") is not None else None,
+            "fecha_completado": registro.get("fecha_completado"),
+            # Binario, igual que en la malla: el avance por unidades es RF-11.
+            "progreso": 100 if estado == "completed" else 0,
+        })
+
+    filas.sort(key=lambda f: (f["ciclo"] if f["ciclo"] is not None else 99, f["code"] or ""))
+    return filas
+
+
+@router.get("/actividad")
+async def get_actividad(
+    user_data=Depends(get_current_user),
+    periodo: str = Query(PERIODO_POR_DEFECTO, description="7d | 30d | 90d | semestre | todo"),
+    curso_id: Optional[int] = Query(None, description="Limita las métricas a un curso"),
+) -> dict:
+    """Estadísticas de actividad del estudiante (RF-21) con filtros (RF-22).
+
+    El filtro por periodo y por curso se aplica en la consulta, no después:
+    traer todo el historial para descartarlo en memoria no escala.
+    """
+    user, token = user_data
+    supabase = get_supabase(token)
+
+    if periodo not in PERIODOS:
+        raise_field_error(
+            "periodo",
+            f"Periodo no válido. Usa uno de: {', '.join(PERIODOS)}.",
+            status_code=400,
+        )
+
+    try:
+        perfil_resp = (
+            supabase.table("perfiles")
+            .select("carrera_id")
+            .eq("id", user.id)
+            .maybe_single()
+            .execute()
+        )
+        perfil = getattr(perfil_resp, "data", None) if perfil_resp else None
+    except Exception as e:
+        logger.error(f"Error consultando perfil {user.id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo verificar tu perfil.")
+
+    carrera_id = (perfil or {}).get("carrera_id")
+
+    eventos = consultar_eventos(supabase, user.id, periodo=periodo, curso_id=curso_id)
+
+    return {
+        "periodo": periodo,
+        "curso_id": curso_id,
+        "resumen": resumir_eventos(eventos),
+        "actividad_por_dia": actividad_por_dia(eventos),
+        "avance_por_curso": (
+            _avance_por_curso(supabase, user, carrera_id, curso_id) if carrera_id else []
+        ),
+    }
+
+
+@router.get("/cursos-activos")
+async def get_cursos_activos(user_data=Depends(get_current_user)) -> dict:
+    """Cursos en curso con su avance real y el tema donde se quedó.
+
+    Alimenta 'Continúa donde te quedaste'. Existe como agregado porque la
+    alternativa era pedir `/curso/{id}/learning-path` una vez por curso: hasta
+    12 peticiones para pintar una sección, cada una trayendo timeline
+    completo, banco de exámenes e insights que la tarjeta no usa.
+
+    El porcentaje se calcula sobre `progreso_unidades`, la misma fuente que el
+    detalle de curso (RF-11), para que ambas pantallas no discrepen.
+    """
+    user, token = user_data
+    supabase = get_supabase(token)
+
+    try:
+        progreso_resp = (
+            supabase.table("progreso_cursos")
+            .select("curso_id")
+            .eq("perfil_id", user.id)
+            .eq("status", "in_progress")
+            .execute()
+        )
+        curso_ids = [p["curso_id"] for p in (getattr(progreso_resp, "data", None) or [])]
+    except Exception as e:
+        logger.error(f"Error cargando cursos activos de {user.id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudieron cargar tus cursos activos.")
+
+    if not curso_ids:
+        return {"cursos": []}
+
+    try:
+        cursos_resp = (
+            supabase.table("cursos")
+            .select("id, code, name, credits, ciclo")
+            .in_("id", curso_ids)
+            .execute()
+        )
+        cursos = {c["id"]: c for c in (getattr(cursos_resp, "data", None) or [])}
+
+        steps_resp = (
+            supabase.table("learning_path_steps")
+            .select("id, curso_id, title, order_index")
+            .in_("curso_id", curso_ids)
+            .order("order_index")
+            .execute()
+        )
+        steps = getattr(steps_resp, "data", None) or []
+    except Exception as e:
+        logger.error(f"Error cargando temas de cursos activos de {user.id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudieron cargar tus cursos activos.")
+
+    completadas: Set[int] = set()
+    if steps:
+        try:
+            unidades_resp = (
+                supabase.table("progreso_unidades")
+                .select("step_id, completado")
+                .eq("perfil_id", user.id)
+                .in_("step_id", [s["id"] for s in steps])
+                .execute()
+            )
+            completadas = {
+                u["step_id"]
+                for u in (getattr(unidades_resp, "data", None) or [])
+                if u.get("completado")
+            }
+        except Exception as e:
+            # La tabla puede no existir en algunos entornos; sin ella el avance
+            # dentro del curso es 0 pero la sección sigue siendo útil.
+            if "PGRST205" in str(e) or "Could not find the table" in str(e):
+                logger.warning("Tabla 'progreso_unidades' no existe; avance por curso en 0.")
+            else:
+                logger.error(f"Error cargando progreso de unidades de {user.id}: {e}")
+
+    temas_por_curso: Dict[Any, List[dict]] = {}
+    for step in steps:
+        temas_por_curso.setdefault(step["curso_id"], []).append(step)
+
+    resultado = []
+    for curso_id in curso_ids:
+        curso = cursos.get(curso_id)
+        if not curso:
+            continue
+
+        temas = sorted(
+            temas_por_curso.get(curso_id, []),
+            key=lambda s: s.get("order_index") or 0,
+        )
+        total = len(temas)
+        hechos = sum(1 for t in temas if t["id"] in completadas)
+
+        # Dónde retomar: el primer tema sin completar, en orden.
+        siguiente = next((t for t in temas if t["id"] not in completadas), None)
+
+        resultado.append({
+            "id": curso_id,
+            "code": curso.get("code"),
+            "name": curso.get("name"),
+            "credits": curso.get("credits") or 0,
+            "ciclo": curso.get("ciclo"),
+            "progreso": round(hechos / total * 100) if total else 0,
+            "temas_completados": hechos,
+            "temas_totales": total,
+            # None cuando el curso no tiene ruta cargada o ya la terminó.
+            "siguiente_tema": siguiente.get("title") if siguiente else None,
+        })
+
+    resultado.sort(key=lambda c: (-c["progreso"], c["code"] or ""))
+    return {"cursos": resultado}
+
+
+@router.get("/test-nivel")
+async def get_test_nivel(user_data=Depends(get_current_user)) -> dict:
+    """Test de nivel inicial y ruta sugerida (RF-19, RF-20).
+
+    El diagnóstico se deriva del récord que el estudiante ya declaró en el
+    onboarding: qué aprobó, con qué nota y en qué ciclo va. No se le piden
+    respuestas para deducir algo que la plataforma ya tiene.
+    """
+    user, token = user_data
+    supabase = get_supabase(token)
+
+    try:
+        perfil_resp = (
+            supabase.table("perfiles")
+            .select("carrera_id, ciclo_actual")
+            .eq("id", user.id)
+            .maybe_single()
+            .execute()
+        )
+        perfil = getattr(perfil_resp, "data", None) if perfil_resp else None
+    except Exception as e:
+        logger.error(f"Error consultando perfil {user.id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo verificar tu perfil.")
+
+    if not perfil:
+        raise_field_error(
+            "perfil", "No encontramos tu perfil. Vuelve a iniciar sesión.", status_code=400
+        )
+
+    carrera_id = perfil.get("carrera_id")
+    if not carrera_id:
+        raise_field_error(
+            "carrera_id",
+            "Necesitas completar tu onboarding para obtener tu diagnóstico.",
+            status_code=400,
+        )
+
+    try:
+        cursos_resp = (
+            supabase.table("cursos")
+            .select("id, code, name, credits, ciclo")
+            .eq("carrera_id", carrera_id)
+            .execute()
+        )
+        cursos = {c["id"]: c for c in (getattr(cursos_resp, "data", None) or [])}
+
+        progreso_resp = (
+            supabase.table("progreso_cursos")
+            .select("curso_id, status, nota")
+            .eq("perfil_id", user.id)
+            .execute()
+        )
+        progreso = {
+            p["curso_id"]: p for p in (getattr(progreso_resp, "data", None) or [])
+        }
+
+        prereq_resp = (
+            supabase.table("curso_prerrequisitos")
+            .select("curso_id, prerrequisito_id")
+            .in_("curso_id", list(cursos))
+            .execute()
+        )
+        prereq_filas = getattr(prereq_resp, "data", None) or []
+    except Exception as e:
+        logger.error(f"Error cargando datos del diagnóstico de {user.id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo generar tu diagnóstico.")
+
+    prereq_map: Dict[Any, List[Any]] = {}
+    for fila in prereq_filas:
+        prereq_map.setdefault(fila["curso_id"], []).append(fila["prerrequisito_id"])
+
+    aprobados = {cid for cid, p in progreso.items() if p.get("status") == "completed"}
+
+    # Disponible = aún no lo lleva y tiene toda su cadena de prerrequisitos
+    # aprobada. Misma regla que usa la malla, para no dar dos respuestas
+    # distintas a '¿qué puedo llevar?'.
+    disponibles = [
+        cid
+        for cid in cursos
+        if cid not in progreso
+        and all(pid in aprobados for pid in resolve_prereq_chain(cid, prereq_map))
+    ]
+
+    estados = {cid: p.get("status") for cid, p in progreso.items()}
+
+    return generar_diagnostico(
+        cursos=cursos,
+        progreso=progreso,
+        prereq_map=prereq_map,
+        disponibles=disponibles,
+        ciclo_actual=perfil.get("ciclo_actual") or 1,
+        avance=calcular_avance(cursos, estados),
+        promedio=promedio_ponderado(cursos, progreso),
+    )

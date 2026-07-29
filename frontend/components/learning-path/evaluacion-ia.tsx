@@ -457,7 +457,7 @@ export function EvaluacionIA({
                 {getModulosDisponibles().map((modulo, idx) => (
                   <button
                     key={idx}
-                    onClick={() => { if (!modulo.disabled) { setSelectedModulo(modulo); setSelectedTopic(null); } }}
+                    onClick={() => { if (!modulo.disabled) { setSelectedModulo(modulo); } }}
                     disabled={modulo.disabled}
                     className={`p-4 rounded-lg border-2 text-left transition-all ${
                       modulo.disabled

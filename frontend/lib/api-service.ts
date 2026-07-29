@@ -12,13 +12,24 @@ async function getAuthToken() {
 
 async function fetchWithAuth(url: string, options: RequestInit = {}, customToken?: string) {
     const token = customToken || await getAuthToken();
-    console.log(`Fetch with Auth: ${url}, Token present: ${!!token}`);
     const headers = {
         ...options.headers,
         'Authorization': token ? `Bearer ${token}` : '',
     };
 
     return fetch(url, { ...options, headers });
+}
+
+/**
+ * Mensaje legible del cuerpo de un error del backend.
+ *
+ * La API responde de dos formas: `{errors: [{field, message}]}` cuando la
+ * validación falla en un campo concreto, y `{detail: "..."}` en el resto.
+ * El mensaje del campo va primero porque es el que le dice al estudiante
+ * qué corregir.
+ */
+function extraerMensajeError(body: any): string | null {
+    return body?.errors?.[0]?.message || body?.detail || null;
 }
 
 export const apiService = {
@@ -35,21 +46,109 @@ export const apiService = {
         }
     },
 
-    async updateCourseStatus(courseId: number, status: string) {
+    /**
+     * Actualiza los datos personales del estudiante (RF-PRF-02).
+     * Solo el nombre: el correo y el código no son editables.
+     */
+    async actualizarPerfil(nombreCompleto: string) {
+        const response = await fetchWithAuth(`${API_URL}/usuarios/perfil`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre_completo: nombreCompleto }),
+        });
+
+        const body = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(extraerMensajeError(body) || 'No se pudieron guardar tus datos.');
+        }
+        return body;
+    },
+
+    /** Cambia la contraseña desde el perfil (RF-PRF-03). */
+    async cambiarPassword(passwordActual: string, passwordNueva: string) {
+        const response = await fetchWithAuth(`${API_URL}/usuarios/password`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                password_actual: passwordActual,
+                password_nueva: passwordNueva,
+            }),
+        });
+
+        const body = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(extraerMensajeError(body) || 'No se pudo actualizar tu contraseña.');
+        }
+        return body;
+    },
+
+    /**
+     * Cursos en curso con su avance real y el tema donde se quedó.
+     * Un solo llamado en vez de un /learning-path por curso.
+     */
+    async getCursosActivos() {
         try {
-            const response = await fetchWithAuth(`${API_URL}/malla-curricular/update-status`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ course_id: courseId, status }),
-            });
+            const response = await fetchWithAuth(`${API_URL}/dashboard/cursos-activos`);
             if (!response.ok) {
-                throw new Error(`Error updating course status: ${response.statusText}`);
+                throw new Error('No se pudieron cargar tus cursos activos.');
             }
             return await response.json();
         } catch (error) {
-            console.error("API Error (updateCourseStatus):", error);
+            console.error("API Error (getCursosActivos):", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Diagnóstico académico y ruta sugerida (RF-19, RF-20).
+     * Se deriva del récord del estudiante, no de un cuestionario.
+     */
+    async getTestNivel() {
+        try {
+            const response = await fetchWithAuth(`${API_URL}/dashboard/test-nivel`);
+            if (!response.ok) {
+                throw new Error('No se pudo cargar tu diagnóstico académico.');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error("API Error (getTestNivel):", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Actividad del estudiante con filtros (RF-21, RF-22).
+     * @param periodo 7d | 30d | 90d | semestre | todo
+     */
+    async getActividad(periodo: string = '30d', cursoId?: number) {
+        try {
+            const params = new URLSearchParams({ periodo });
+            if (cursoId !== undefined) params.set('curso_id', String(cursoId));
+
+            const response = await fetchWithAuth(`${API_URL}/dashboard/actividad?${params}`);
+            if (!response.ok) {
+                throw new Error('No se pudo cargar tu actividad.');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error("API Error (getActividad):", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Avance de carrera sobre el total de créditos del plan (RF-07).
+     * Es la cifra oficial: no la recalcules a partir de la malla.
+     */
+    async getAvanceCarrera() {
+        try {
+            const response = await fetchWithAuth(`${API_URL}/malla/avance`);
+            if (!response.ok) {
+                throw new Error('No se pudo cargar tu avance de carrera.');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error("API Error (getAvanceCarrera):", error);
             throw error;
         }
     },
@@ -254,33 +353,110 @@ export const apiService = {
         }
     },
 
-    async login(credentials: { email: string; password: string }) {
+    /**
+     * Inicia sesión contra el backend (RF-01), que acepta correo institucional
+     * o código universitario. Antes esto llamaba a Supabase directamente, lo
+     * que hacía imposible entrar con el código.
+     */
+    async login(credentials: { identificador: string; password: string }) {
         try {
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email: credentials.email,
-                password: credentials.password,
+            const response = await fetch(`${API_URL}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(credentials),
             });
 
-            if (error) throw error;
-            if (!data.session) throw new Error("No session created after login");
+            const body = await response.json().catch(() => ({}));
 
-            console.log("Login successful, fetching profile...");
+            if (!response.ok) {
+                const mensaje = body?.errors?.[0]?.message
+                    || body?.detail
+                    || "No pudimos validar tus credenciales.";
+                throw new Error(mensaje);
+            }
 
-            const profile = await this.getProfile(data.session.access_token);
+            // El resto de la app obtiene el token desde el cliente de Supabase
+            // (fetchWithAuth -> getSession). Como la sesión la creó el backend,
+            // hay que cargarla aquí o toda petición posterior saldría sin token.
+            const { error: sessionError } = await supabase.auth.setSession({
+                access_token: body.access_token,
+                refresh_token: body.refresh_token,
+            });
+            if (sessionError) {
+                throw new Error("No se pudo iniciar la sesión en el navegador.");
+            }
 
             if (typeof window !== 'undefined') {
-                localStorage.setItem('user', JSON.stringify(profile));
-                localStorage.setItem('token', data.session.access_token);
+                localStorage.setItem('user', JSON.stringify(body.usuario));
+                localStorage.setItem('token', body.access_token);
             }
 
             return {
-                user: profile,
-                token: data.session.access_token,
-                supabaseUser: data.user
+                user: body.usuario,
+                token: body.access_token,
+                carrera: body.carrera,
+                planEstudios: body.plan_estudios,
+                onboardingCompletado: body.onboarding_completado,
             };
         } catch (error: any) {
-            console.error("Supabase Auth Error (login):", error);
+            console.error("API Error (login):", error);
             throw new Error(error.message || "Login failed");
+        }
+    },
+
+    /**
+     * Pide el correo de recuperación de contraseña (RF-03).
+     *
+     * El backend responde lo mismo exista o no la cuenta, para no revelar qué
+     * correos están registrados. La UI debe mostrar ese mensaje tal cual.
+     */
+    async solicitarRecuperacion(email: string) {
+        try {
+            const response = await fetch(`${API_URL}/auth/recuperar-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email }),
+            });
+
+            const body = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(
+                    body?.errors?.[0]?.message || "No pudimos procesar tu solicitud."
+                );
+            }
+
+            return body;
+        } catch (error: any) {
+            console.error("API Error (solicitarRecuperacion):", error);
+            throw new Error(error.message || "No pudimos procesar tu solicitud.");
+        }
+    },
+
+    /**
+     * Guarda la contraseña nueva (RF-03). Requiere la sesión temporal que
+     * Supabase crea al abrir el enlace del correo.
+     */
+    async restablecerPassword(passwordNueva: string) {
+        try {
+            const response = await fetchWithAuth(`${API_URL}/auth/restablecer-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password_nueva: passwordNueva }),
+            });
+
+            const body = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(
+                    body?.errors?.[0]?.message || "No se pudo actualizar la contraseña."
+                );
+            }
+
+            return body;
+        } catch (error: any) {
+            console.error("API Error (restablecerPassword):", error);
+            throw new Error(error.message || "No se pudo actualizar la contraseña.");
         }
     },
 

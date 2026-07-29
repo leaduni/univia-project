@@ -1,10 +1,13 @@
-from typing import List, Dict, Set, Optional, Tuple, Union
+from typing import Container, List, Mapping, Optional, Sequence, Tuple, TypeVar
 
 
-ID = Union[int, str]
+# Los IDs de curso llegan como int (onboarding) o como str (malla), pero cada
+# llamada usa un solo tipo de forma consistente. Un TypeVar acotado modela eso;
+# un Union no, porque Dict y Set son invariantes y rechazarían ambos usos.
+ID = TypeVar("ID", int, str)
 
 
-def resolve_prereq_chain(curso_id: ID, prereq_map: Dict[ID, List[ID]]) -> List[ID]:
+def resolve_prereq_chain(curso_id: ID, prereq_map: Mapping[ID, Sequence[ID]]) -> List[ID]:
     """
     Obtiene la lista COMPLETA de todos los prerrequisitos transitivos
     (directos e indirectos) para un curso usando BFS.
@@ -18,7 +21,7 @@ def resolve_prereq_chain(curso_id: ID, prereq_map: Dict[ID, List[ID]]) -> List[I
     Returns:
         Lista plana con todos los IDs de prerrequisitos en orden BFS.
     """
-    visited: Set[ID] = set()
+    visited: set[ID] = set()
     queue: List[ID] = [curso_id]
     all_prereqs: List[ID] = []
 
@@ -33,12 +36,41 @@ def resolve_prereq_chain(curso_id: ID, prereq_map: Dict[ID, List[ID]]) -> List[I
     return all_prereqs
 
 
+def direct_prereq_info(
+    curso_id: ID,
+    prereq_map: Mapping[ID, Sequence[ID]],
+    cursos_dict: Mapping[ID, dict],
+    completed_courses: Container[ID],
+) -> List[dict]:
+    """Prerrequisitos DIRECTOS de un curso, con su código, nombre y si están aprobados.
+
+    Distinto de `resolve_prereq_chain`, que devuelve además los indirectos.
+    Esa cadena completa es la correcta para decidir si un curso se bloquea,
+    pero no para mostrarla: la malla de un curso de ciclo 8 listaría media
+    carrera como 'sus prerrequisitos'. Para leer la malla, lo que importa es
+    de qué cursos cuelga directamente (RF-06).
+
+    Returns:
+        [{id, code, name, completado}, ...] en el orden en que están definidos.
+    """
+    info: List[dict] = []
+    for pid in prereq_map.get(curso_id, []):
+        curso = cursos_dict.get(pid) or {}
+        info.append({
+            "id": pid,
+            "code": curso.get("code", ""),
+            "name": curso.get("name", ""),
+            "completado": pid in completed_courses,
+        })
+    return info
+
+
 def check_course_status(
     curso_id: ID,
     db_status: Optional[str],
-    completed_courses: Set[ID],
-    prereq_map: Dict[ID, List[ID]],
-    cursos_dict: Dict[ID, dict],
+    completed_courses: Container[ID],
+    prereq_map: Mapping[ID, Sequence[ID]],
+    cursos_dict: Mapping[ID, dict],
 ) -> Tuple[str, List[dict], bool]:
     """
     Determina el estado final de un curso evaluando la cadena transitiva

@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react"
 import { AlertCircle, FileText } from "lucide-react"
 import { StatsCards } from "./stats-cards"
-import { CurrentCoursesSection } from "./current-courses-section"
+import { ContinueLearning, type CursoActivo } from "./dashboard/continue-learning"
 import { RightSidebar } from "./right-sidebar"
 import { AIRecommendationBanner } from "./dashboard/ai-recommendation-banner"
 import { useAuth } from "./providers/auth-context"
@@ -22,16 +22,6 @@ interface Logro {
   unlocked_at: string | null
 }
 
-interface Curso {
-  id: string
-  code: string
-  name: string
-  credits: number
-  status: "available" | "in_progress" | "completed" | "locked"
-  description?: string
-  progreso: number
-}
-
 const RESOURCE_GRADIENTS = [
   "linear-gradient(135deg, #d93340, #a6249d)",
   "linear-gradient(135deg, #a6249d, #7957f1)",
@@ -45,7 +35,7 @@ export function Dashboard() {
   const { user } = useAuth()
   const [stats, setStats] = useState<DashboardMetricas | null>(null)
   const [logros, setLogros] = useState<Logro[]>([])
-  const [currentCourses, setCurrentCourses] = useState<(Curso & { progreso: number })[]>([])
+  const [cursosActivos, setCursosActivos] = useState<CursoActivo[]>([])
   const [racha, setRacha] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -64,12 +54,17 @@ export function Dashboard() {
     setError(null)
 
     try {
-      // Cuatro fuentes independientes, en paralelo y con allSettled: si la
-      // actividad falla, el resto del dashboard igual se muestra.
-      const [summaryResult, mallaResult, avanceResult, actividadResult] =
+      // Fuentes independientes, en paralelo y con allSettled: si una falla,
+      // el resto del dashboard igual se muestra.
+      //
+      // Ya no se pide la malla completa: solo servía para filtrar los cursos
+      // en progreso, y traía todos los ciclos con sus prerrequisitos para
+      // usar una fracción. `cursos-activos` devuelve justo eso, ya con el
+      // avance real de cada curso.
+      const [summaryResult, activosResult, avanceResult, actividadResult] =
         await Promise.allSettled([
           apiService.getDashboardSummary(),
-          apiService.getMalla(),
+          apiService.getCursosActivos(),
           apiService.getAvanceCarrera(),
           apiService.getActividad("90d"),
         ])
@@ -108,17 +103,10 @@ export function Dashboard() {
         errorCount++
       }
 
-      if (mallaResult.status === "fulfilled") {
-        const malla: any[] = (mallaResult.value as any[]) ?? []
-        const activos = malla.flatMap((ciclo: any) => {
-          const listaCursos = ciclo.courses || ciclo.cursos || []
-          return listaCursos
-            .filter((curso: any) => curso.status === "in_progress")
-            .map((curso: any) => ({ ...curso, progreso: curso.progreso ?? 0 }))
-        })
-        setCurrentCourses(activos)
+      if (activosResult.status === "fulfilled") {
+        setCursosActivos((activosResult.value as any)?.cursos ?? [])
       } else {
-        console.error("Error en Malla Curricular:", mallaResult.reason)
+        console.error("Error en Cursos Activos:", activosResult.reason)
         errorCount++
       }
 
@@ -181,7 +169,7 @@ export function Dashboard() {
               <h2 className="font-heading text-lg font-semibold text-foreground mb-4">
                 Continúa donde te quedaste
               </h2>
-              <CurrentCoursesSection courses={currentCourses} isLoading={isLoading} />
+              <ContinueLearning cursos={cursosActivos} isLoading={isLoading} />
             </section>
           </div>
 

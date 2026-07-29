@@ -36,6 +36,23 @@ export const apiService = {
     },
 
     /**
+     * Cursos en curso con su avance real y el tema donde se quedó.
+     * Un solo llamado en vez de un /learning-path por curso.
+     */
+    async getCursosActivos() {
+        try {
+            const response = await fetchWithAuth(`${API_URL}/dashboard/cursos-activos`);
+            if (!response.ok) {
+                throw new Error('No se pudieron cargar tus cursos activos.');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error("API Error (getCursosActivos):", error);
+            throw error;
+        }
+    },
+
+    /**
      * Diagnóstico académico y ruta sugerida (RF-19, RF-20).
      * Se deriva del récord del estudiante, no de un cuestionario.
      */

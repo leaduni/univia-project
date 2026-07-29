@@ -9,7 +9,7 @@ import { CompletionStep } from "./onboarding/completion-step"
 import type { Carrera, OnboardingData, OnboardingDataResponse } from "@/types/onboarding"
 import { useAuth } from "./providers/auth-context"
 import { apiService } from "@/lib/api-service"
-import { BookOpen, Zap, Sparkles, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { BrandLogo } from "@/app/auth/brand-logo"
 import { OnboardingProgress } from "./onboarding/onboarding-progress"
 
@@ -170,38 +170,18 @@ export function OnboardingWizard() {
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="relative z-10 border-t border-[#1e1b3a] mt-auto">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="flex items-center gap-3 p-3 rounded-2xl bg-[#121124]/60 border border-[#232045] backdrop-blur-md">
-              <div className="p-2 rounded-lg bg-[#211d45] text-purple-300">
-                <BookOpen className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-white">Expediente Completo</p>
-                <p className="text-[11px] text-slate-400">Acceso a tu malla curricular</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded-2xl bg-[#121124]/60 border border-[#232045] backdrop-blur-md">
-              <div className="p-2 rounded-lg bg-[#331c2b] text-pink-300">
-                <Zap className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-white">Configuraci&oacute;n R&aacute;pida</p>
-                <p className="text-[11px] text-slate-400">Solo 4 pasos para comenzar</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded-2xl bg-[#121124]/60 border border-[#232045] backdrop-blur-md">
-              <div className="p-2 rounded-lg bg-[#1a233d] text-sky-300">
-                <Sparkles className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-white">Experiencia Premium</p>
-                <p className="text-[11px] text-slate-400">Dise&ntilde;ado por LEAD UNI</p>
-              </div>
-            </div>
-          </div>
+      {/* Pie discreto. Antes había tres tarjetas glassmorphism con promesas de
+          producto ("Experiencia Premium") que competían con los botones del
+          paso: en el onboarding lo único que importa es avanzar. */}
+      <div className="relative z-10 border-t border-border mt-auto">
+        <div className="max-w-4xl mx-auto px-4 py-5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center">
+          <p className="text-xs text-muted-foreground">
+            Puedes cambiar estos datos después desde tu perfil.
+          </p>
+          <span className="text-xs text-muted-foreground/50" aria-hidden="true">·</span>
+          <p className="text-xs text-muted-foreground/70">
+            Un proyecto de ayuda social de LEAD UNI.
+          </p>
         </div>
       </div>
     </div>

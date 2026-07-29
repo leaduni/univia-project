@@ -10,6 +10,7 @@ import { CambiarPasswordForm } from "@/components/perfil/cambiar-password-form"
 import { PreferenciasCard } from "@/components/perfil/preferencias-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { apiService } from "@/lib/api-service"
 import { aRomano } from "@/lib/ciclos"
 import { calcularRacha } from "@/lib/racha"
@@ -240,13 +241,24 @@ export default function PerfilPage() {
           )}
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Información académica */}
-          <div className="bg-card border border-border p-6 rounded-3xl">
-            <h2 className="font-heading text-lg font-bold text-foreground mb-4">
+        {/* Patrón Tabs + Card documentado en
+            documentacion/frontend/patrones-compartidos.md */}
+        <Tabs defaultValue="academico" className="gap-4">
+          <TabsList className="h-auto p-1">
+            <TabsTrigger value="academico" className="px-4 py-2">
               Información académica
-            </h2>
-            <div className="text-sm">
+            </TabsTrigger>
+            <TabsTrigger value="seguridad" className="px-4 py-2">
+              Seguridad
+            </TabsTrigger>
+            <TabsTrigger value="preferencias" className="px-4 py-2">
+              Preferencias
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="academico">
+            <div className="bg-card border border-border p-6 rounded-2xl">
+              <div className="text-sm">
               <Dato etiqueta="Carrera" valor={carrera?.name ?? "No asignada"} />
               <Dato etiqueta="Facultad" valor={carrera?.facultad?.nombre ?? "—"} />
               <Dato
@@ -270,39 +282,42 @@ export default function PerfilPage() {
                 valor={avance ? `${avance.porcentaje_avance}%` : "—"}
               />
               <Dato
-                etiqueta="Promedio ponderado"
-                valor={
-                  diagnostico?.promedio_ponderado
-                    ? diagnostico.promedio_ponderado.toFixed(2)
-                    : "Sin notas registradas"
-                }
-              />
-            </div>
-          </div>
+                  etiqueta="Promedio ponderado"
+                  valor={
+                    diagnostico?.promedio_ponderado
+                      ? diagnostico.promedio_ponderado.toFixed(2)
+                      : "Sin notas registradas"
+                  }
+                />
+              </div>
 
-          {/* Gestión, seguridad y preferencias */}
-          <div className="bg-card border border-border p-6 rounded-3xl space-y-6">
-            <div>
-              <h2 className="font-heading text-lg font-bold text-foreground mb-2">
-                Gestión académica
-              </h2>
-              <p className="text-xs text-muted-foreground leading-relaxed mb-4">
-                ¿Cambiaste de ciclo o aprobaste cursos nuevos? Actualiza tu situación para
-                recalcular tu malla y tu ruta.
-              </p>
-              <Button
-                variant="brand"
-                onClick={() => router.push("/onboarding")}
-                className="w-full"
-              >
-                Actualizar situación académica
-              </Button>
+              <div className="mt-6 pt-6 border-t border-border">
+                <h3 className="font-heading text-sm font-bold text-foreground mb-2">
+                  Gestión académica
+                </h3>
+                <p className="text-xs text-muted-foreground leading-relaxed mb-4">
+                  ¿Cambiaste de ciclo o aprobaste cursos nuevos? Actualiza tu situación para
+                  recalcular tu malla y tu ruta.
+                </p>
+                <Button variant="brand" size="sm" onClick={() => router.push("/onboarding")}>
+                  Actualizar situación académica
+                </Button>
+              </div>
             </div>
+          </TabsContent>
 
-            <CambiarPasswordForm />
-            <PreferenciasCard />
-          </div>
-        </div>
+          <TabsContent value="seguridad">
+            <div className="bg-card border border-border p-6 rounded-2xl">
+              <CambiarPasswordForm />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="preferencias">
+            <div className="bg-card border border-border p-6 rounded-2xl">
+              <PreferenciasCard />
+            </div>
+          </TabsContent>
+        </Tabs>
 
         <div>
           <Button

@@ -36,6 +36,35 @@ def resolve_prereq_chain(curso_id: ID, prereq_map: Mapping[ID, Sequence[ID]]) ->
     return all_prereqs
 
 
+def direct_prereq_info(
+    curso_id: ID,
+    prereq_map: Mapping[ID, Sequence[ID]],
+    cursos_dict: Mapping[ID, dict],
+    completed_courses: Container[ID],
+) -> List[dict]:
+    """Prerrequisitos DIRECTOS de un curso, con su código, nombre y si están aprobados.
+
+    Distinto de `resolve_prereq_chain`, que devuelve además los indirectos.
+    Esa cadena completa es la correcta para decidir si un curso se bloquea,
+    pero no para mostrarla: la malla de un curso de ciclo 8 listaría media
+    carrera como 'sus prerrequisitos'. Para leer la malla, lo que importa es
+    de qué cursos cuelga directamente (RF-06).
+
+    Returns:
+        [{id, code, name, completado}, ...] en el orden en que están definidos.
+    """
+    info: List[dict] = []
+    for pid in prereq_map.get(curso_id, []):
+        curso = cursos_dict.get(pid) or {}
+        info.append({
+            "id": pid,
+            "code": curso.get("code", ""),
+            "name": curso.get("name", ""),
+            "completado": pid in completed_courses,
+        })
+    return info
+
+
 def check_course_status(
     curso_id: ID,
     db_status: Optional[str],

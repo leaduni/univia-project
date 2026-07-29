@@ -31,7 +31,13 @@ class CourseDetail(BaseModel):
     # progreso_cursos; un curso que nunca llevó los deja en None.
     nota: Optional[float] = None
     fecha_completado: Optional[str] = None
+    # Prerrequisitos DIRECTOS: de qué cursos cuelga este (RF-06). Es lo que se
+    # muestra en la malla.
     prerequisitos: List[PrerrequisitoInfo] = []
+    # De toda la cadena (directos e indirectos), los que aún no aprueba. Es lo
+    # que explica el candado y puede incluir cursos que no están en la lista
+    # de arriba.
+    prerequisitos_faltantes: List[PrerrequisitoInfo] = []
     prerequisitos_cumplidos: bool = True
 
 

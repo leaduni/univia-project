@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.core.auth_utils import get_current_user
 from app.core.database import get_supabase
 from app.core.exceptions import raise_field_error
-from app.core.prereqs import check_course_status
+from app.core.prereqs import check_course_status, direct_prereq_info
 from app.schemas.malla import (
     CicloDetail,
     CourseDetail,
@@ -178,13 +178,17 @@ async def get_malla(user_data=Depends(get_current_user)) -> List[CicloDetail]:
         curso_id = str(curso_raw["id"])
         registro = historial.get(curso_id) or {}
 
-        estado, prereq_info, prereqs_ok = check_course_status(
+        # La cadena completa decide si el curso se bloquea...
+        estado, cadena_info, prereqs_ok = check_course_status(
             curso_id=curso_id,
             db_status=registro.get("status"),
             completed_courses=completados,
             prereq_map=prereq_map,
             cursos_dict=cursos_dict,
         )
+        # ...pero lo que se muestra en la malla son los directos (RF-06).
+        directos = direct_prereq_info(curso_id, prereq_map, cursos_dict, completados)
+        faltantes = [p for p in cadena_info if not p["completado"]]
 
         creditos = curso_raw.get("credits") or 0
         nota = registro.get("nota")
@@ -200,7 +204,8 @@ async def get_malla(user_data=Depends(get_current_user)) -> List[CicloDetail]:
                 progreso=100 if estado == "completed" else 0,
                 nota=float(nota) if nota is not None else None,
                 fecha_completado=registro.get("fecha_completado"),
-                prerequisitos=[PrerrequisitoInfo(**p) for p in prereq_info],
+                prerequisitos=[PrerrequisitoInfo(**p) for p in directos],
+                prerequisitos_faltantes=[PrerrequisitoInfo(**p) for p in faltantes],
                 prerequisitos_cumplidos=prereqs_ok,
             )
         )

@@ -9,14 +9,32 @@ import type { Recurso } from "@/types/recurso"
 
 interface RecursoCardProps {
   recurso: Recurso
+  // Permite a quien use la tarjeta (ej. el banco de exámenes de un curso)
+  // sobreescribir la descarga para recursos que no vienen de Drive, como las
+  // planchas locales de Geometría Analítica.
+  onDownload?: () => void
 }
 
-export function RecursoCard({ recurso }: RecursoCardProps) {
+export function RecursoCard({ recurso, onDownload }: RecursoCardProps) {
   const typeColors: Record<string, string> = {
     Examen: "bg-red-500/15 text-red-400 border-red-500/30",
-    Práctica: "bg-primary/15 text-primary border-primary/30",
+    Practica: "bg-primary/15 text-primary border-primary/30",
+    Silabo: "bg-sky-500/15 text-sky-400 border-sky-500/30",
+    PDF: "bg-slate-500/15 text-slate-400 border-slate-500/30",
+    Compendio: "bg-violet-500/15 text-violet-400 border-violet-500/30",
     Libro: "bg-amber-500/15 text-amber-400 border-amber-500/30",
     Apunte: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+    Video: "bg-pink-500/15 text-pink-400 border-pink-500/30",
+  }
+
+  const puedeAbrir = Boolean(onDownload || recurso.url_drive)
+
+  const abrir = () => {
+    if (onDownload) {
+      onDownload()
+    } else if (recurso.url_drive) {
+      window.open(recurso.url_drive, "_blank", "noopener,noreferrer")
+    }
   }
 
   return (
@@ -24,18 +42,20 @@ export function RecursoCard({ recurso }: RecursoCardProps) {
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-base line-clamp-2 text-foreground">{recurso.title}</CardTitle>
-            <CardDescription className="text-xs mt-1">{recurso.code}</CardDescription>
+            <CardTitle className="text-base line-clamp-2 text-foreground">{recurso.titulo}</CardTitle>
+            <CardDescription className="text-xs mt-1">
+              {recurso.codigo_curso || recurso.nombre_curso || "—"}
+            </CardDescription>
           </div>
-          <Badge className={typeColors[recurso.type]} variant="secondary">
-            {recurso.type}
+          <Badge className={typeColors[recurso.tipo]} variant="secondary">
+            {recurso.tipo}
           </Badge>
         </div>
       </CardHeader>
 
       <CardContent className="space-y-3 flex-1 flex flex-col">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{recurso.semester}</span>
+          <span>{recurso.year ?? "—"}</span>
           <span className="flex items-center gap-1">
             <Star className="w-3 h-3 fill-current" />
             {recurso.rating.toFixed(1)}
@@ -44,7 +64,7 @@ export function RecursoCard({ recurso }: RecursoCardProps) {
 
         <div>
           <Badge variant="outline" className="bg-secondary text-foreground">
-            Ciclo {recurso.ciclo}
+            Ciclo {recurso.ciclo ?? "—"}
           </Badge>
         </div>
 
@@ -56,7 +76,8 @@ export function RecursoCard({ recurso }: RecursoCardProps) {
               size="sm"
               variant="outline"
               className="gap-1 h-8 text-xs bg-transparent border-border"
-              disabled={!recurso.preview}
+              disabled={!puedeAbrir}
+              onClick={abrir}
             >
               <Eye className="w-3 h-3" />
               Previsualizar
@@ -64,12 +85,14 @@ export function RecursoCard({ recurso }: RecursoCardProps) {
             <Button
               size="sm"
               className="gap-1 h-8 text-xs gradient-brand-hover text-white border-0"
+              disabled={!puedeAbrir}
+              onClick={abrir}
             >
               <Download className="w-3 h-3" />
               Descargar
             </Button>
           </div>
-          {recurso.hasSolucionario && (
+          {recurso.has_solucionario && (
             <Button size="sm" variant="secondary" className="w-full gap-1 h-8 text-xs">
               <FileCheck className="w-3 h-3" />
               Ver Solucionario

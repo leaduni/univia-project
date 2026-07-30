@@ -155,23 +155,6 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
             else:
                 raise
 
-        exams_resp = supabase.table("recursos").select("*").eq("curso_id", course_id).eq("tipo", "examen").execute()
-        exam_bank = [
-            {
-                "id": str(r.get("id", "")),
-                "title": r.get("titulo", "Sin título"),
-                "type": "practice",
-                "year": 2024,
-                "difficulty": "medium",
-                "questions": 0,
-                "duration": 0,
-                "downloads": 0,
-                "hasAnswers": False,
-            }
-            for r in (exams_resp.data or [])
-            if r.get("titulo")
-        ]
-
         course_status = (
             progreso_resp.data.get("status")
             if progreso_resp and progreso_resp.data
@@ -239,8 +222,7 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
                 "progress": progress_pct
             },
             "timeline": timeline_steps,
-            "ai_insights": ai_insights,
-            "exam_bank": exam_bank
+            "ai_insights": ai_insights
         }
     except HTTPException:
         raise

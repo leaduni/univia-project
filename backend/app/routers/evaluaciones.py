@@ -680,7 +680,18 @@ def _sanitizar_latex_str(s: str) -> str:
     s = re.sub(r'\\begin\{[BpV]?matrix\}', '', s)
     s = re.sub(r'\\end\{[BpV]?matrix\}', '', s)
 
-    # 4. \rfloor / \lfloor / \rceil / \lceil sueltos (venían de la matriz) -> nada
+    # 4a. \left\lfloor / \left\lceil / \left\rfloor / \left\rceil -> \left|
+    #     \right\lfloor / \right\rfloor / etc. -> \right|
+    #     El modelo a veces confunde piso/techo con valor absoluto. Si viene
+    #     precedido de \left o \right, NO se puede borrar el token sin más:
+    #     \left y \right exigen un delimitador inmediatamente después/antes,
+    #     y dejarlos sueltos rompe KaTeX. Se convierte a barra de valor
+    #     absoluto, que sí es un delimitador válido para \left/\right.
+    s = re.sub(r'\\left\s*\\[lr](?:floor|ceil)', r'\\left|', s)
+    s = re.sub(r'\\right\s*\\[lr](?:floor|ceil)', r'\\right|', s)
+
+    # 4b. \rfloor / \lfloor / \rceil / \lceil sueltos que sobrevivieron (típicamente
+    #     restos de una matriz eliminada en el paso 3, sin \left/\right delante) -> nada
     s = re.sub(r'\\[lr](?:floor|ceil)', '', s)
 
     # 5. \backslash suelto (el modelo lo usaba como separador de conjunto) -> \mid

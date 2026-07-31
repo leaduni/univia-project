@@ -55,13 +55,25 @@ export function RecursosBiblioteca() {
     return () => clearTimeout(timeoutId)
   }, [searchQuery])
 
+  // Facultades y años reales presentes en los datos recibidos (no hay endpoint propio para esto).
+  const facultadesDisponibles = useMemo(
+    () => Array.from(new Set(recursosData.map((r) => r.facultad_nombre).filter(Boolean))) as string[],
+    [recursosData],
+  )
+  const aniosDisponibles = useMemo(
+    () =>
+      Array.from(new Set(recursosData.map((r) => r.year).filter((y): y is number => Boolean(y))))
+        .sort((a, b) => b - a),
+    [recursosData],
+  )
+
   // Filter and sort logic (Client side filtering for secondary filters)
   const filteredRecursos = useMemo(() => {
     let filtered = recursosData
 
     // Type filter
     if (selectedTypes.length > 0) {
-      filtered = filtered.filter((r) => selectedTypes.includes(r.type))
+      filtered = filtered.filter((r) => selectedTypes.includes(r.tipo))
     }
 
     // Ciclo filter
@@ -71,7 +83,7 @@ export function RecursosBiblioteca() {
 
     // Facultad filter
     if (selectedFacultad && selectedFacultad !== 'all') {
-      filtered = filtered.filter((r) => r.facultad === selectedFacultad)
+      filtered = filtered.filter((r) => r.facultad_nombre === selectedFacultad)
     }
 
     // Year filter
@@ -86,7 +98,7 @@ export function RecursosBiblioteca() {
     } else if (sortBy === "rated") {
       sorted.sort((a, b) => b.rating - a.rating)
     } else {
-      sorted.reverse() // Recent (reverse order of insertion)
+      sorted.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))
     }
 
     return sorted
@@ -157,6 +169,8 @@ export function RecursosBiblioteca() {
             selectedCiclos={selectedCiclos}
             selectedFacultad={selectedFacultad}
             selectedYears={selectedYears}
+            facultades={facultadesDisponibles}
+            years={aniosDisponibles}
             onToggleType={toggleType}
             onToggleCiclo={toggleCiclo}
             onSelectFacultad={setSelectedFacultad}
@@ -175,6 +189,8 @@ export function RecursosBiblioteca() {
               selectedCiclos={selectedCiclos}
               selectedFacultad={selectedFacultad}
               selectedYears={selectedYears}
+              facultades={facultadesDisponibles}
+              years={aniosDisponibles}
               onToggleType={toggleType}
               onToggleCiclo={toggleCiclo}
               onSelectFacultad={setSelectedFacultad}
@@ -186,7 +202,9 @@ export function RecursosBiblioteca() {
         {/* Results Grid */}
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-7xl mx-auto">
-            {filteredRecursos.length > 0 ? (
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground">Cargando recursos...</p>
+            ) : filteredRecursos.length > 0 ? (
               <>
                 <p className="text-sm text-muted-foreground mb-6">{filteredRecursos.length} resultados encontrados</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -210,6 +228,8 @@ interface FilterSidebarProps {
   selectedCiclos: string[]
   selectedFacultad: string
   selectedYears: string[]
+  facultades: string[]
+  years: number[]
   onToggleType: (type: string) => void
   onToggleCiclo: (ciclo: string) => void
   onSelectFacultad: (facultad: string) => void
@@ -221,15 +241,15 @@ function FilterSidebar({
   selectedCiclos,
   selectedFacultad,
   selectedYears,
+  facultades,
+  years,
   onToggleType,
   onToggleCiclo,
   onSelectFacultad,
   onToggleYear,
 }: FilterSidebarProps) {
-  const documentTypes = ["Examen", "Práctica", "Libro", "Apunte"]
+  const documentTypes = ["Examen", "Practica", "Silabo", "PDF", "Compendio", "Libro", "Apunte", "Video"]
   const ciclos = Array.from({ length: 10 }, (_, i) => (i + 1).toString())
-  const facultades = ["Ingeniería", "Ciencias", "Humanidades", "Administración"]
-  const years = Array.from({ length: 6 }, (_, i) => (2025 - i).toString())
 
   return (
     <div className="space-y-6">
@@ -297,8 +317,8 @@ function FilterSidebar({
             <div key={year} className="flex items-center gap-2">
               <Checkbox
                 id={`year-${year}`}
-                checked={selectedYears.includes(year)}
-                onCheckedChange={() => onToggleYear(year)}
+                checked={selectedYears.includes(year.toString())}
+                onCheckedChange={() => onToggleYear(year.toString())}
               />
               <label htmlFor={`year-${year}`} className="text-sm cursor-pointer">
                 {year}

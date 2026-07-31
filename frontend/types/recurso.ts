@@ -1,15 +1,18 @@
 // Resource/exam-related TypeScript type definitions
 export interface Recurso {
-  id: string
-  title: string
-  code: string
-  semester: string
-  type: "Examen" | "Práctica" | "Libro" | "Apunte"
-  ciclo: number
-  facultad: string
-  year: number
+  id: number
+  titulo: string
+  tipo: "Examen" | "Practica" | "Silabo" | "PDF" | "Compendio" | "Libro" | "Apunte" | "Video"
+  curso_id: number | null
+  codigo_curso: string | null
+  nombre_curso: string | null
+  ciclo: number | null
+  year: number | null
   downloads: number
   rating: number
-  preview: boolean
-  hasSolucionario: boolean
+  preview_url: string | null
+  has_solucionario: boolean
+  url_drive: string | null
+  facultad_nombre: string | null
+  created_at: string
 }

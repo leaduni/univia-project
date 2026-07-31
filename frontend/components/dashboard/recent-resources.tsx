@@ -22,7 +22,7 @@ const CABECERAS = [
 
 const ICONO_POR_TIPO: Record<string, any> = {
   Examen: FileText,
-  Práctica: FlaskConical,
+  Practica: FlaskConical,
   Apunte: Notebook,
   Libro: Notebook,
   Video: Video,
@@ -108,7 +108,7 @@ export function RecentResources() {
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-2">
           {recursos.map((recurso, i) => {
-            const Icono = ICONO_POR_TIPO[recurso.type] ?? FileText
+            const Icono = ICONO_POR_TIPO[recurso.tipo] ?? FileText
             return (
               <article
                 key={recurso.id}
@@ -122,13 +122,14 @@ export function RecentResources() {
                   </div>
                 </div>
                 <div className="p-4">
-                  <span className="text-xs text-muted-foreground font-mono">{recurso.code}</span>
+                  <span className="text-xs text-muted-foreground font-mono">
+                    {recurso.codigo_curso ?? recurso.nombre_curso ?? "—"}
+                  </span>
                   <h3 className="text-sm font-medium text-foreground mt-1 truncate">
-                    {recurso.title}
+                    {recurso.titulo}
                   </h3>
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                    {recurso.type}
-                    {recurso.semester ? ` · ${recurso.semester}` : ""}
+                    {recurso.tipo}
                     {typeof recurso.downloads === "number"
                       ? ` · ${recurso.downloads.toLocaleString()} descargas`
                       : ""}

@@ -30,6 +30,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
   const [showCompleteModal, setShowCompleteModal] = useState(false)
   const [completing, setCompleting] = useState(false)
   const [completeSuccess, setCompleteSuccess] = useState(false)
+  const [examCount, setExamCount] = useState(0)
 
   useEffect(() => {
     const fetchLearningPath = async () => {
@@ -110,7 +111,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
     )
   }
 
-  const { curso, timeline, ai_insights, exam_bank } = data
+  const { curso, timeline, ai_insights } = data
 
   const parseTopics = (topics: any): string[] => {
     if (Array.isArray(topics)) return topics
@@ -243,7 +244,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
         <div className="p-4 rounded-2xl bg-[#121124]/60 border border-[#232045] flex items-center gap-3">
           <FileText className="w-5 h-5 text-indigo-400" />
           <div>
-            <p className="text-sm font-bold text-white">{exam_bank?.length || 15} recursos</p>
+            <p className="text-sm font-bold text-white">{examCount || 15} recursos</p>
             <p className="text-xs text-slate-400">Ex&aacute;menes, pr&aacute;cticas y clases</p>
           </div>
         </div>
@@ -287,7 +288,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
             />
           )}
           {activeTab === "exams" && (
-            <ExamBank courseId={courseId} exams={exam_bank} />
+            <ExamBank courseId={courseId} onCountChange={setExamCount} />
           )}
           {activeTab === "evaluacion" && (
             <EvaluacionIA

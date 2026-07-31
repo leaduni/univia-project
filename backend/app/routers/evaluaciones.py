@@ -5,10 +5,11 @@ import asyncio
 import logging
 import traceback
 import sys
+import random
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Union, AsyncGenerator
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -53,7 +54,7 @@ class ConfiguracionEvaluacion(BaseModel):
     curso_id: int
     modulo: str
     temas: List[str]
-    num_preguntas: int = 5
+    num_preguntas: int = Field(default=4, ge=3, le=6)
     observaciones: Optional[str] = None
     tipo_evaluacion: str = "mixta"
 
@@ -74,6 +75,8 @@ class Pregunta(BaseModel):
     explicacion: Optional[str] = None
     codigo_base: Optional[str] = None
     caso_de_ejemplo: Optional[CasoDeEjemplo] = None
+    origen: str = "ia"
+    fuente_detalle: Optional[str] = None
 
 class Evaluacion(BaseModel):
     """Evaluación completa generada"""
@@ -123,11 +126,14 @@ def obtener_nombre_curso(curso_id: int) -> Optional[str]:
         print(f"Error al obtener el nombre del curso {curso_id}: {e}")
     return None
 
-def recuperar_contexto_semantico(tema_consulta: str, curso_id: int) -> List[str]:
+def recuperar_contexto_semantico(tema_consulta: str, curso_id: int) -> List[Dict[str, Any]]:
     """Usa el SyllabusRetriever del módulo RAG para buscar los fragmentos más relevantes del curso.
 
     Recupera el contexto filtrando por NOMBRE de curso (no por curso_id), de modo que
     un mismo compendio/examen sirva a todas las variantes del curso por carrera.
+
+    Devuelve lista de dicts con al menos 'contenido', más metadatos del fragmento
+    (recurso_id, curso_nombre, etc.) para trazabilidad de origen.
     """
     retriever = get_retriever()
     if not retriever:
@@ -138,17 +144,63 @@ def recuperar_contexto_semantico(tema_consulta: str, curso_id: int) -> List[str]
         print(f"No se pudo resolver el nombre del curso {curso_id}; se omite el filtro por nombre.")
 
     try:
+        # Recuperar pool ampliado (hasta 15) y elegir muestra aleatoria
         resultados = retriever.buscar_contexto_por_nombre(
             tema_consulta,
             curso_nombre=curso_nombre,
-            limit=4,
+            limit=15,
             umbral_similitud=0.1,
         )
-        return [item["contenido"] for item in resultados]
+        if len(resultados) > 5:
+            resultados = random.sample(resultados, k=5)
+        return resultados
 
     except Exception as e:
         print(f"Error al recuperar contexto: {e}")
         return []
+
+# Categorías de enfoque agnósticas al curso: sirven igual para Cálculo,
+# Álgebra, Física, Química, Economía, etc. Se asignan por índice para forzar
+# diversidad ESTRUCTURAL (no solo pedirla como sugerencia que el modelo puede
+# ignorar), tanto en el prompt de una sola llamada como en las llamadas
+# paralelas independientes del modo streaming.
+ENFOQUES_PREGUNTA = [
+    "aplicación numérica directa: datos concretos que llevan a un valor final",
+    "problema de demostración o verificación lógica de una propiedad o condición",
+    "problema de optimización o valores extremos (máximo, mínimo, óptimo)",
+    "comparación entre dos escenarios o configuraciones distintas",
+    "problema inverso: se da el resultado y se pide reconstruir un dato de partida",
+    "interpretación de un modelo o resultado en un contexto aplicado",
+]
+
+
+def _enfoque_para_indice(idx: int) -> str:
+    """Devuelve el enfoque asignado a la pregunta idx (0-based), rotando la lista."""
+    return ENFOQUES_PREGUNTA[idx % len(ENFOQUES_PREGUNTA)]
+
+
+def DIVERSIDAD_POR_INDICE_BLOQUE(num_preguntas: int) -> str:
+    """Bloque de prompt que asigna un enfoque obligatorio y distinto a cada
+    pregunta por su número de orden, para el modo de una sola llamada JSON.
+
+    Pedir "diversidad" de forma genérica no es suficiente: el modelo puede
+    igual repetir la misma plantilla narrativa cambiando solo nombres de
+    variables (el caso "cuadrado ABCD" / "cuadrado EFGH" reportado). Asignar
+    un enfoque concreto y distinto a cada número de pregunta lo obliga por
+    construcción, no por sugerencia.
+    """
+    lineas = [
+        f"- Pregunta {i + 1}: enfoque obligatorio = {_enfoque_para_indice(i)}."
+        for i in range(num_preguntas)
+    ]
+    return (
+        "\nASIGNACIÓN OBLIGATORIA DE ENFOQUE POR PREGUNTA (evita plantillas repetidas):\n"
+        + "\n".join(lineas)
+        + "\nCada pregunta DEBE usar un contexto/escenario distinto de las demás "
+        "(no reutilices el mismo tipo de figura, situación o nombres de variables "
+        "cambiando solo las letras).\n"
+    )
+
 
 def generar_prompt_teorico(config: ConfiguracionEvaluacion, contexto_recuperado: List[str] = None) -> str:
     """Genera el prompt para un curso teórico."""
@@ -174,7 +226,8 @@ RESTRICCIÓN DE TEMA (OBLIGATORIA E INNEGOCIABLE):
 
     contexto_bloque = ""
     if contexto_recuperado and len(contexto_recuperado) > 0:
-        contexto_str = "\n\n---\n".join(contexto_recuperado)
+        contenidos = [c.get("contenido", "") for c in contexto_recuperado]
+        contexto_str = "\n\n---\n".join(contenidos)
         contexto_bloque = f"""
 ### EJERCICIOS REALES DE EXAMENES UNI - REFERENCIA OBLIGATORIA ###
 {contexto_str}
@@ -200,6 +253,8 @@ Cada pregunta DEBE cumplir TODOS estos requisitos:
 4. CONTEXTO GEOMÉTRICO COMPLEJO: usar configuraciones como triángulos/cuadriláteros con puntos definidos por intersecciones, divisiones de segmentos en razón dada, proyecciones, ángulos entre rectas, distancias punto-recta.
 5. DISTRACTORES TRAMPA: las 4 opciones deben ser resultados numéricos donde los 3 incorrectos corresponden a errores de cálculo específicos (signo cambiado, componente equivocada, confusión de índice, error de sustitución).
 6. PROHIBIDO ABSOLUTAMENTE: "halla la pendiente de y=mx+b", "dados dos puntos halla la recta", definiciones, fórmulas directas. Si una pregunta se puede resolver en 1 paso, DESÉCHALA.
+7. Genera un conjunto de N preguntas estrictamente ÚNICAS y DISTINTAS entre sí. Está prohibido repetir el mismo ejercicio o generar variantes triviales del mismo problema dentro del mismo lote.
+{DIVERSIDAD_POR_INDICE_BLOQUE(config.num_preguntas)}
 
 FORMATO LaTeX — KaTeX COMPATIBLE ÚNICAMENTE:
 COMANDOS PERMITIDOS: \frac, \vec, \mathbf, \overline, \left(, \right), \mid, \mathbb, \sqrt, \cdot, \times, \alpha, \beta, \theta, \pi, \perp, \parallel, \in, \mathbb{{R}}, \leq, \geq, \neq, \pm
@@ -208,9 +263,10 @@ COMANDOS PROHIBIDOS (rompen KaTeX): \begin, \end, \matrix, \Bmatrix, \bigg, \Big
 - Prosa FUERA de $...$: CORRECTO: "La recta $L_1$ pasa por $A=(2,3)$" / INCORRECTO: "$L_1 \text{{pasa por}} A$"
 - Segmentos: $\overline{{AC}}$ (no \bar{{AC}})
 - Vectores: $\vec{{v}}$ o $\mathbf{{v}}$ (no \textbf)
-- Fracciones: $\frac{{p}}{{q}}$ (no \dfrac)
+- Fracciones: $\frac{{p}}{{q}}$ (no \dfrac). Queda estrictamente prohibido usar corchetes en lugar de llaves en fracciones (usa siempre \frac{{a}}{{b}}).
 - Módulos: $|\vec{{v}}| = 3$
 - Coordenadas: $A = (2, 1)$
+- Formatea toda expresión matemática en notación KaTeX válida delimitada ÚNICAMENTE por $ para expresiones inline (ej. $f(x) = \sin(x)$) o $$ para ecuaciones centradas en bloque.
 
 RESPONDE ÚNICAMENTE con este JSON:
 {{
@@ -221,12 +277,53 @@ RESPONDE ÚNICAMENTE con este JSON:
       "tipo": "unica|multiple|verdadero_falso",
       "opciones": ["opción A", "opción B", "opción C", "opción D"],
       "respuesta_correcta": 0,
-      "explicacion": "solución paso a paso detallada"
+      "explicacion": "**Paso 1: Planteamiento e Identificación de Datos.**\nIdentifica las variables, coordenadas, fórmulas clave y condiciones del problema. Explica qué información se extrae del enunciado.\n\n**Paso 2: Desarrollo algebraico detallado.**\nMuestra cada operación y transformación paso a paso usando LaTeX. Incluye sustituciones numéricas, simplificaciones y cálculos intermedios.\n\n**Paso 3: Conclusión y Respuesta Final.**\nPresenta el resultado numérico o vectorial final e indica cuál opción es la correcta."
     }}
   ]
 }}
 
 REGLAS JSON: "unica" → respuesta_correcta es índice 0-3. "multiple" → lista [0,2]. "verdadero_falso" → opciones ["Verdadero","Falso"].
+REGLA DE AISLAMIENTO DE OPCIONES (CRÍTICO):
+1. Si el contexto RAG contiene una página con varios ejercicios, debes elegir ÚNICAMENTE UN ejercicio.
+2. El arreglo 'opciones' DEBE CONTENER EXACTAMENTE 4 ELEMENTOS.
+3. Queda ESTRICTAMENTE PROHIBIDO concatenar opciones de otros ejercicios vecinos.
+4. NO incluyas letras de prefijo como 'A)', 'a.', '1.' dentro del texto de la opción. Pon solo la expresión o respuesta directas.
+
+INSTRUCCIONES UNIVERSALES DE FORMATO Y ESTRUCTURA (MULTICURSO):
+
+1. SINTAXIS LATEX EN TODO EL EXAMEN:
+   - Cualquier fórmula matemática, expresión algebraica, ecuación, integral, matriz o vector en 'questionText', 'options' y 'explanation' DEBE IR DENTRO DE SIGNOS DE DÓLAR $...$.
+   - EJEMPLOS CORRECTOS: "Calcule $\int_0^1 x^2 dx$", "Determine el valor de $k$", "Ajuste el modelo $Y = \beta_0 + \beta_1 X$".
+   - PROHIBIDO escribir comandos LaTeX (\frac, \sqrt, \int, \vec, \matrix) sin delimitadores $...$.
+   - Usa estrictamente $...$ para matemáticas en línea y $$...$$ para bloques independientes.
+   - NUNCA uses triple dólar ($$$) ni pegues palabras de texto plano a comandos LaTeX (ejemplo correcto: "Halle $\vec{QS}$", incorrecto: "Halle\vec{QS}").
+   - Asegúrate de cerrar todos los delimitadores matemáticos abiertos antes de finalizar cada respuesta.
+
+2. COHERENCIA COMPLETA ENTRE PREGUNTA Y OPCIONES:
+   - Si la pregunta pide determinar $N$ variables, elementos o componentes, CADA opción en 'options' DEBE proporcionar la solución completa para los $N$ elementos solicitados.
+   - PROHIBIDO etiquetar problemas de cálculo complejo como "Verdadero o Falso".
+
+3. DIVERSIDAD ESTRICTA DE ENUNCIADOS Y PLANTILLAS (PROHIBIDO MONOTONÍA):
+   - Queda ESTRICTAMENTE PROHIBIDO repetir la misma plantilla, contexto o estructura narrativa en más de UNA pregunta del examen.
+   - Cada pregunta del examen DEBE explorar un subtema o aplicación distinta dentro del temario/curso solicitado.
+   - Alterna entre: problemas teóricos de demostración/concepto, problemas de aplicación directa, problemas numéricos y problemas de interpretación de modelos.
+
+INSTRUCCIÓN PARA EL CAMPO 'explicacion':
+El campo 'explicacion' DEBE seguir estrictamente esta estructura Markdown con doble salto de línea entre pasos:
+
+### Paso 1: Planteamiento e Identificación de Datos
+[Explicación con fórmulas en $...$]
+
+### Paso 2: Desarrollo algebraico detallado
+[Explicación paso a paso con fórmulas en $...$]
+
+### Paso 3: Conclusión
+[Respuesta final clara]
+
+REGLA ESTRICTA: Queda PROHIBIDO mencionar 'opción 0', 'opción 1', 'opción A', etc. Menciona únicamente el valor o vector solución final.
+
+REGLA CRÍTICA PARA LA SOLUCIÓN (explicacion):
+CADA variable, fórmula o comando LaTeX (\vec, \sqrt, \frac, \text, etc.) DEBE estar estrictamente envuelto entre signos de dólar ($ ... $). Separa siempre con un espacio en blanco los delimitadores de las palabras en español. Ejemplo CORRECTO: "La recta $L_1$ pasa por $A=(2,3)$". Ejemplo INCORRECTO: "La recta$L_1$pasa por$A$". NUNCA generes comandos LaTeX sueltos sin delimitador $.
 """
     return prompt
 
@@ -244,7 +341,8 @@ Genera {config.num_preguntas} retos de programación de nivel 'Senior Universita
         prompt += f"\nRequerimientos adicionales del cliente (lenguaje, etc.):\n{config.observaciones}\n"
     
     if contexto_recuperado and len(contexto_recuperado) > 0:
-        contexto_str = "\n\n---\n".join(contexto_recuperado)
+        contenidos = [c.get("contenido", "") for c in contexto_recuperado]
+        contexto_str = "\n\n---\n".join(contenidos)
         prompt += f"""
 Contexto (Ejemplos de problemas o material de referencia):
 A continuación tienes material de referencia para que el estilo, nivel de dificultad y tipo de reto se parezca al material del curso:
@@ -293,6 +391,246 @@ REGLAS ESTRICTAS PARA LA GENERACIÓN DEL JSON:
     
     return prompt
 
+def reparar_escapes_json_latex(raw_text: str) -> str:
+    """Restaura comandos LaTeX dañados por interpretación de secuencias de escape JSON/Python.
+
+    Corrige caracteres de control que Python/JSON introdujo al interpretar
+    backslashes de comandos LaTeX como escapes de string.
+    """
+    raw_text = _fix_json_latex_escapes(raw_text)
+
+    # Re-escapar TODOS los comandos LaTeX comunes desescapados
+    latex_cmds = (
+        r'frac|vec|text|cdot|perp|hat|over|comp|proy|left|right|'
+        r'implies|sqrt|quad|qquad|times|theta|alpha|beta|gamma|'
+        r'delta|lambda|sigma|omega|sum|int|lim|overline|cap|cup|'
+        r'varphi|nabla|angle|perp|simeq|cong|approx|equiv|sim|'
+        r'Rightarrow|Leftrightarrow|rightarrow|leftrightarrow|'
+        r'mathbb|mathbf|mathcal|mathscr|'
+        r'subset|supset|subseteq|supseteq|'
+        r'partial|nabla|prod|coprod|bigcap|bigcup|'
+        r'binom|choose|'
+        r'dots|cdots|vdots|ddots'
+    )
+    raw_text = re.sub(fr'(?<!\\)\b({latex_cmds})\b', r'\\\1', raw_text)
+
+    return raw_text
+
+
+def _fix_json_latex_escapes(text: str) -> str:
+    """Corrige escapes de control Python/JSON que corroen comandos LaTeX.
+
+    Convierte caracteres de control invisibles (formfeed, vertical-tab,
+    backspace, bell) de vuelta a sus secuencias \\f, \\v, \\b, \\a,
+    y restaura \\r, \\t que se comieron comandos como \\right y \\text.
+    """
+    if not text:
+        return text
+    text = text.replace('\x0c', '\\f')    # \f -> \frac, \varphi, \forall
+    text = text.replace('\x0b', '\\v')    # \v -> \vec, \vee, \nabla
+    text = text.replace('\x07', '\\a')    # \a -> \alpha, \angle
+    text = text.replace('\x08', '\\b')    # \b -> \beta, \bar
+    text = re.sub(r'\r(?=ight|oot|enorm|angle|floor|ceil)', r'\\r', text)
+    text = re.sub(r'\t(?=ext|imes|heta|au|riangle|ilde|o$)', r'\\t', text)
+    return text
+
+
+# ─── ÚNICA FUNCIÓN CENTRALIZADA DE SANITIZACIÓN LaTeX ────────────────
+# Reemplaza a TODAS las anteriores: _sanitizar_latex_str, sanitize_latex_string,
+# _sanitizar_latex_dict, _ensure_math_delimiters, _wrap_math_runs_in_text,
+# reparar_cadena_latex. Un solo pase determinista, sin re-aplicación.
+
+_LATEX_COMMON_CMDS = (
+    r'vec|frac|sqrt|perp|cdot|implies|int|sum|lim|partial|infty|'
+    r'alpha|beta|theta|gamma|delta|lambda|sigma|omega|'
+    r'times|overline|hat|left|right|'
+    r'mathbf|mathbb|mathcal|mathscr|'
+    r'rightarrow|leftrightarrow|Rightarrow|Leftrightarrow|'
+    r'simeq|cong|approx|equiv|sim|'
+    r'subset|supset|subseteq|supseteq|'
+    r'cap|cup|nabla|varphi|angle|'
+    r'prod|coprod|bigcap|bigcup|'
+    r'binom|choose|'
+    r'dots|cdots|vdots|ddots'
+)
+
+# Comandos para ENVOLVER en $...$: incluye \text y \operatorname, que NO deben
+# usarse en el paso de restauración de barras (evita corromper la palabra "text").
+_LATEX_WRAP_CMDS = _LATEX_COMMON_CMDS + r'|text|operatorname'
+
+def _wrap_unwrapped_latex(text: str) -> str:
+    """Envuelve en $...$ los comandos LaTeX que quedaron fuera de bloques
+    matemáticos y normaliza los delimitadores de dólar en un único pase
+    protegido por placeholders:
+
+    - NO toca lo que ya está dentro de $...$ o $$...$$ (splitting).
+    - Evita el doble envolvimiento con lookbehind (?<!\\$).
+    - Limpia triple $$$ y pares vacíos ($ $, $$) fuera de bloques.
+    - Separa con un espacio defensivo los bloques en línea contiguos
+      ($a$$b$ -> $a$ $b$) para que Markdown no los confunda con $$...$$.
+    """
+    if '\\' not in text and '$' not in text:
+        return text
+
+    # 1. Extraer bloques matemáticos existentes y reemplazar con placeholders
+    #    ($[^$\s]...$ exige contenido no vacío: `$$` suelto NO se protege)
+    blocks = []
+    def _save(m):
+        blocks.append(m.group(0))
+        return f'\x00MATH{len(blocks)-1}\x00'
+
+    text = re.sub(r'\$\$[^$]*\$\$', _save, text)
+    text = re.sub(r'\$[^$\s][^$]*\$', _save, text)
+
+    # 2. En el texto restante (sin bloques), limpiar delimitadores corruptos
+    text = re.sub(r'\$\$\$', '$$', text)
+    text = re.sub(r'\$\s*\$', '', text)
+
+    # 3. Envolver comandos LaTeX sueltos en $...$
+    #    (?<!\$) evita re-procesar $ recién insertados (corrupción tipo $$\vec{...}).
+    if '\\' in text:
+        # 3a. Comandos con argumentos {..} y/o sub/superíndices: \frac{1}{2}, \vec{v}, \operatorname{proy}_{AB}
+        text = re.sub(
+            fr'(?<!\$)\\(?:{_LATEX_WRAP_CMDS})\{{[^{{}}]+\}}(?:\{{[^{{}}]+\}})?(?:(?:[_\^])(?:\{{[^{{}}]*}}|[^\s])?)*',
+            r'$\g<0>$', text
+        )
+        # 3b. Comandos con sub/superíndices sin llaves o desnudos: \int_0^1, \lim_{x\to0}, \partial
+        text = re.sub(
+            fr'(?<!\$)\\(?:{_LATEX_WRAP_CMDS})(?:(?:[_\^])(?:\{{[^{{}}]*}}|[^\s])?)*[^\s.,;:!?)]*',
+            r'$\g<0>$', text
+        )
+
+    # 4. Restaurar bloques
+    for i, b in enumerate(blocks):
+        text = text.replace(f'\x00MATH{i}\x00', b)
+
+    # 5. Espacio defensivo entre bloques en línea contiguos ($a$$b$ → $a$ $b$).
+    #    Se protegen los $$...$$ para que el patrón no los rompa (un bloque $$
+    #    contiene un '$...$' interno que de otro modo sería capturado).
+    display_blocks = []
+    def _save_disp(m):
+        display_blocks.append(m.group(0))
+        return f'\x00DISPLY{len(display_blocks)-1}\x00'
+    text = re.sub(r'\$\$[^$]*\$\$', _save_disp, text)
+    text = re.sub(r'(\$[^$]+\$)(?=\$[^$]+\$)', r'\1 ', text)
+    for i, b in enumerate(display_blocks):
+        text = text.replace(f'\x00DISPLY{i}\x00', b)
+
+    return text
+
+
+def sanitize_latex_string(text: str) -> str:
+    """Única función de normalización de LaTeX. Aplica correcciones
+    deterministas en un solo pase, sin re-aplicar ni llamar a otros
+    sanitizadores.
+
+    Cubre:
+    - Decodificación \\uXXXX
+    - Reparación de escapes Python corruptos (\x0c→\\f, etc.)
+    - Corrección de patrones LaTeX malformados comunes
+    - Envolvimiento de comandos sueltos en $...$ (sin tocar los ya envueltos)
+    - Limpieza de parásitos (Rpta., triple $, vacíos, etc.)
+    """
+    if not text:
+        return ""
+
+    # 1. Decodificar \\uXXXX escapes unicode literales
+    text = re.sub(r'\\u([0-9a-fA-F]{4})', lambda m: chr(int(m.group(1), 16)), text)
+
+    # 2. Restaurar barras en comandos dañados por escapes de control Python
+    text = text.replace('\x0c', '\\f')
+    text = text.replace('\x0b', '\\v')
+    text = text.replace('\x07', '\\a')
+    text = text.replace('\x08', '\\b')
+
+    # 3. Corregir patrones comunes malformados
+    text = re.sub(r'\\frac\[([^\]]*)\]\[([^\]]*)\]', r'\\frac{\1}{\2}', text)
+    text = re.sub(r'\\left\$', r'\\left(', text)
+    text = re.sub(r'\\right\$', r'\\right)', text)
+    text = re.sub(r'\\left\)', r'\\left(', text)
+    text = re.sub(r'\\right\)', r'\\right)', text)
+
+    # 4. Eliminar \big/\Big/\bigg/\Bigg (rompen KaTeX)
+    text = re.sub(r'\\[Bb]i(?:g{1,2})[lr]?', '', text)
+
+    # 5. Eliminar envoltorios de matriz malformados
+    text = re.sub(r'\\begin\{[BpV]?matrix\}', '', text)
+    text = re.sub(r'\\end\{[BpV]?matrix\}', '', text)
+    text = re.sub(r'\\[lr](?:floor|ceil)', '', text)
+
+    # 6. \text{, } y \text{ } sobrantes
+    text = re.sub(r'\\text\{,\s*\}', ', ', text)
+    text = re.sub(r'\\text\{\s*\}', ' ', text)
+
+    # 7. Limpiar $ inyectados dentro de llaves LaTeX: \vec{$v$} → \vec{v}
+    text = re.sub(r'\\([a-zA-Z]+)\{\$([^$]+)\$\}', r'\\\1{\2}', text)
+
+    # 8. $$ antes de \right) → quitarlo
+    text = re.sub(r'\$\$\\right\)', '\\right)', text)
+
+    # 9. Restaurar barra en comandos que la perdieron
+    text = re.sub(
+        fr'(?<!\\)({_LATEX_COMMON_CMDS})(?![a-zA-Z])',
+        r'\\\1', text
+    )
+
+    # 9b. Reemplazar operadores de proyección no estándar por \operatorname
+    # (el LLM puede generar \proy, \comp, proy_, comp_ que no son nativos de LaTeX)
+    text = re.sub(r'\\proy(?:{\s*([^}]+)\s*})?', r'\\operatorname{proy}_{\1}', text)
+    text = re.sub(r'(?<!\\)proy_(?![a-zA-Z])', r'\\operatorname{proy}_', text)
+    text = re.sub(r'\\comp(?:{\s*([^}]+)\s*})?', r'\\operatorname{comp}_{\1}', text)
+    text = re.sub(r'(?<!\\)comp_(?![a-zA-Z])', r'\\operatorname{comp}_', text)
+
+    # 10. Envolver comandos LaTeX sueltos en $...$ y normalizar delimitadores
+    #     (limpia $$$, pares vacíos y separa bloques contiguos con espacio defensivo)
+    text = _wrap_unwrapped_latex(text)
+
+    # 11. Remover parásitos comunes (Rpta., guillemets, trailing asteriscos)
+    text = text.replace('\u00ab', '').replace('\u00bb', '')
+    text = re.sub(r'\s+\(?\s*Rpta\.?\s*:?\s*[A-Za-z0-9)\)\.\-]+\)?\s*$', '', text)
+    text = re.sub(r'\s*\*+\s*$', '', text)
+
+    return text
+
+
+def _sanitize_latex_dict(obj: Any) -> Any:
+    """Aplica sanitize_latex_string recursivamente a todos los strings de un
+    objeto anidado (dict, list, str)."""
+    if isinstance(obj, str):
+        return sanitize_latex_string(obj)
+    if isinstance(obj, dict):
+        return {k: _sanitize_latex_dict(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_latex_dict(v) for v in obj]
+    return obj
+
+
+def sanitizar_pregunta_alucinada(pregunta_dict: dict) -> dict:
+    """Corrige alucinaciones numéricas en preguntas sintéticas (ej. 'valor de 2')."""
+    q_text = pregunta_dict.get("pregunta", "") or pregunta_dict.get("contexto_markdown", "")
+
+    if re.search(r'determine el valor de \d+\b|valor de \d+ es', q_text, re.IGNORECASE):
+        q_text = re.sub(
+            r'determine el valor de \d+\b',
+            r'determine el valor del parámetro $k$',
+            q_text,
+            flags=re.IGNORECASE,
+        )
+        if "pregunta" in pregunta_dict:
+            pregunta_dict["pregunta"] = q_text
+        else:
+            pregunta_dict["contexto_markdown"] = q_text
+
+        opciones = pregunta_dict.get("opciones", [])
+        if opciones:
+            pregunta_dict["opciones"] = [
+                re.sub(r'El valor de \d+ es', r'El valor de $k$ es', o, flags=re.IGNORECASE)
+                for o in opciones
+            ]
+
+    return pregunta_dict
+
+
 def parse_llm_json_response(raw_response: str) -> dict:
     """Limpia bloques de código markdown, repara escapes inválidos (LaTeX)
     y extrae un diccionario JSON válido de la respuesta del modelo."""
@@ -300,6 +638,9 @@ def parse_llm_json_response(raw_response: str) -> dict:
     if not raw_response or not raw_response.strip():
         logger.error("[JSON_PARSER] El texto recibido está completamente vacío.")
         raise ValueError("La respuesta del modelo de IA está vacía.")
+
+    # 0. Reparar escapes LaTeX corruptos antes de cualquier parseo
+    raw_response = reparar_escapes_json_latex(raw_response)
 
     # 1. Eliminar bloques de código markdown ```json ... ```
     cleaned = re.sub(r"^```(?:json)?\s*", "", raw_response.strip(), flags=re.MULTILINE)
@@ -330,27 +671,21 @@ def parse_llm_json_response(raw_response: str) -> dict:
         if ch == '\\':
             nxt = json_text[i + 1] if i + 1 < len(json_text) else ''
             if nxt == '"' or nxt == '\\' or nxt == '/':
-                # Escapes siempre válidos
                 result.append(ch); result.append(nxt); i += 2
             elif nxt in 'bfnrt':
-                # \b \f \n \r \t son válidos SOLO si no hay más letras después
-                # (si hay → es comando LaTeX como \beta, \frac, \rightarrow…)
                 after = json_text[i + 2] if i + 2 < len(json_text) else ''
                 if after.isalpha():
-                    result.append('\\\\'); i += 1  # LaTeX cmd → escapar backslash
+                    result.append('\\\\'); i += 1
                 else:
                     result.append(ch); result.append(nxt); i += 2
             elif nxt == 'u' and i + 5 < len(json_text) and re.match(r'[0-9a-fA-F]{4}', json_text[i+2:i+6]):
-                # \uXXXX válido
                 result.append(json_text[i:i+6]); i += 6
             else:
-                # Cualquier otra cosa (\vec, \perp, \alpha, \p, \s…) → escapar backslash
                 result.append('\\\\'); i += 1
         elif ch == '"':
             in_string = False
             result.append(ch); i += 1
         elif ord(ch) < 0x20:
-            # Carácter de control literal dentro del string → escapar
             if ch == '\n': result.append('\\n')
             elif ch == '\r': result.append('\\r')
             elif ch == '\t': result.append('\\t')
@@ -365,12 +700,11 @@ def parse_llm_json_response(raw_response: str) -> dict:
     try:
         data = json.loads(sanitized)
         logger.info(f"[JSON_PARSER] Éxito al parsear JSON: {len(data.get('preguntas', []))} preguntas extraídas.")
-        return data
+        return _sanitize_latex_dict(data)
     except json.JSONDecodeError as e:
         logger.error(f"[JSON_PARSER ERROR] No se pudo parsear el JSON.")
         logger.error(f"[JSON_PARSER TEXTO CRUDO QUE FALLÓ]:\n>>>\n{raw_response}\n<<<")
         logger.error(f"[JSON_PARSER TEXTO TRAS LIMPIEZA]:\n>>>\n{sanitized}\n<<<")
-        # Último recurso: buscar cualquier {…} o […] en el texto limpio
         json_match = re.search(r"(\{.*\}|\[.*\])", sanitized, re.DOTALL)
         if json_match:
             try:
@@ -380,6 +714,117 @@ def parse_llm_json_response(raw_response: str) -> dict:
             except json.JSONDecodeError:
                 pass
         raise ValueError(f"No se pudo extraer un JSON válido de la respuesta de la IA: {str(e)}")
+
+def _deduplicar_preguntas(preguntas: List[Pregunta]) -> List[Pregunta]:
+    """Elimina preguntas duplicadas por enunciado normalizado."""
+    vistos = set()
+    resultado = []
+    for p in preguntas:
+        texto = (p.pregunta or p.contexto_markdown or "").strip().lower()
+        normalizado = re.sub(r'\s+', ' ', texto) if texto else ""
+        if normalizado not in vistos:
+            vistos.add(normalizado)
+            resultado.append(p)
+    if len(resultado) < len(preguntas):
+        logger.info(f"[DEDUP] Eliminadas {len(preguntas) - len(resultado)} preguntas duplicadas.")
+    return resultado
+
+
+def _limpiar_prefijo_opcion(texto: str) -> str:
+    """Elimina prefijos como 'A)', 'a.', '1.', 'A)' del inicio de una opción."""
+    return re.sub(r'^[A-Za-z0-9]+[\)\.]\s*', '', texto).strip()
+
+
+def _tipo_valor(texto: str) -> str:
+    """Clasifica el tipo de valor de una opción: 'numero', 'vector', 'expresion', 'otro'."""
+    t = texto.strip()
+    if re.search(r'\([\d\.\-]+', t):
+        return 'vector'
+    if re.match(r'^-?\d+(?:[\.,]\d+)?$', t):
+        return 'numero'
+    if re.match(r'^-?\d+/\d+$', t):
+        return 'numero'
+    return 'expresion'
+
+
+def _limpiar_opciones(preguntas: List[Pregunta]) -> List[Pregunta]:
+    """Limpia y normaliza las opciones de cada pregunta."""
+    resultado = []
+    for p in preguntas:
+        if not p.opciones or p.tipo == "codigo":
+            resultado.append(p)
+            continue
+
+        opciones = [_limpiar_prefijo_opcion(o) for o in p.opciones]
+        opciones = [o for o in opciones if o]
+
+        if len(opciones) == 4 or (p.tipo == "verdadero_falso" and len(opciones) == 2):
+            p.opciones = opciones
+            resultado.append(p)
+            continue
+
+        if p.tipo == "verdadero_falso":
+            if len(opciones) >= 2:
+                p.opciones = opciones[:2]
+                resultado.append(p)
+            continue
+
+        if len(opciones) < 4:
+            logger.warning(f"[OPCIONES] Pregunta {p.id} descartada: solo {len(opciones)} opciones.")
+            continue
+
+        rc = p.respuesta_correcta
+        if isinstance(rc, list):
+            idx_correcta = rc[0] if rc else 0
+        else:
+            idx_correcta = int(rc) if rc is not None else 0
+
+        opcion_correcta = opciones[idx_correcta] if idx_correcta < len(opciones) else opciones[0]
+        tipo_correcta = _tipo_valor(opcion_correcta)
+
+        distractores = [o for i, o in enumerate(opciones) if i != idx_correcta]
+        if tipo_correcta != 'otro':
+            distractores_filtrados = [o for o in distractores if _tipo_valor(o) == tipo_correcta]
+            if len(distractores_filtrados) >= 3:
+                distractores = distractores_filtrados
+            elif len(distractores_filtrados) >= 2:
+                mezcla = distractores_filtrados + [o for o in distractores if _tipo_valor(o) != tipo_correcta]
+                distractores = mezcla[:3]
+
+        nuevas_opciones = [opcion_correcta] + distractores[:3]
+        p.opciones = nuevas_opciones
+        p.respuesta_correcta = 0
+        resultado.append(p)
+
+    return resultado
+
+
+def _asignar_origen(preguntas: List[Pregunta], contexto: List[Dict[str, Any]]) -> List[Pregunta]:
+    """Asigna origen y fuente_detalle a cada pregunta según disponibilidad de contexto RAG."""
+    if contexto and len(contexto) > 0:
+        fuente = "Material de referencia del curso"
+        for item in contexto:
+            if item.get("curso_nombre"):
+                fuente = f"Compendio de {item['curso_nombre']}"
+                break
+
+        n = len(preguntas)
+        num_sinteticas = min(2, max(1, n // 3))
+        for i, p in enumerate(preguntas):
+            if i < n - num_sinteticas:
+                p.origen = "compendio"
+                p.fuente_detalle = fuente
+            else:
+                p.origen = "ia"
+                p.fuente_detalle = "Generado sintéticamente por IA con nivel UNI"
+    else:
+        for p in preguntas:
+            p.origen = "ia"
+            p.fuente_detalle = "Generado sintéticamente por IA"
+    return preguntas
+
+
+# ─── ENDPOINTS ────────────────────────────────────────────────────────
 
 @router.post("/evaluaciones/generar", response_model=Evaluacion)
 async def generar_evaluacion(config: ConfiguracionEvaluacion):
@@ -392,8 +837,6 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion):
         raise HTTPException(status_code=500, detail="API Key de OpenAI no configurada")
 
     try:
-        # 1. Recuperar contexto semántico (RAG)
-        # Si hay un solo tema, buscar directamente por ese tema para máxima precisión
         if len(config.temas) == 1:
             tema_completo = config.temas[0]
         else:
@@ -404,14 +847,12 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion):
         print(f"RAG: Se recuperaron {len(contexto)} fragmentos del PDF.")
         print("="*50 + "\n")
 
-        # Decidir qué prompt usar según el tipo de curso
         if config.curso_id in CURSOS_PROGRAMACION_IDS:
             print(f"DEBUG: Activando flujo de PROGRAMACIÓN para curso {config.curso_id}")
             prompt = generar_prompt_programacion(config, contexto)
         else:
             prompt = generar_prompt_teorico(config, contexto)
 
-        # Generar contenido con OpenAI (streaming)
         stream = openai_client.chat.completions.create(
             model=OPENAI_MODEL,
             max_tokens=16000,
@@ -427,13 +868,55 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion):
                         "PROHIBIDO ABSOLUTO (rompen KaTeX): \\begin, \\end, \\matrix, \\Bmatrix, \\bigg, \\Big, \\rfloor, \\lfloor, \\textbf, \\bar, \\dfrac, \\text. "
                         "Rectas vectoriales: '$(2,1) + t(3,n),\\ t \\in \\mathbb{R}$' — NUNCA \\begin{Bmatrix}. "
                         "Prosa FUERA de $...$: escribe texto normal entre expresiones math. "
+                        "Formatea toda expresión matemática en notación KaTeX válida delimitada ÚNICAMENTE por $ para expresiones inline "
+                        "(ej. $f(x) = \\sin(x)$) o $$ para ecuaciones centradas en bloque. "
+                        "Queda estrictamente prohibido usar corchetes en lugar de llaves en fracciones (usa siempre \\frac{a}{b}). "
+                        "Genera un conjunto de N preguntas estrictamente ÚNICAS y DISTINTAS entre sí. "
+                        "Está prohibido repetir el mismo ejercicio o generar variantes triviales del mismo problema dentro del mismo lote. "
+                        "INSTRUCCIONES UNIVERSALES DE FORMATO Y ESTRUCTURA (MULTICURSO): "
+                        "1. SINTAXIS LATEX EN TODO EL EXAMEN: Cualquier fórmula matemática, expresión algebraica, "
+                        "ecuación, integral, matriz o vector DEBE IR DENTRO DE $...$. "
+                        "CORRECTO: \"Calcule $\\int_0^1 x^2 dx$\" / \"Determine el valor de $k$\". "
+                        "PROHIBIDO escribir \\frac, \\sqrt, \\int, \\vec, \\matrix sin $...$. "
+                        "Usa estrictamente $...$ para matemáticas en línea y $$...$$ para bloques independientes. "
+                        "NUNCA uses triple dólar ($$$) ni pegues palabras de texto plano a comandos LaTeX "
+                        "(ejemplo correcto: 'Halle $\\vec{QS}$', incorrecto: 'Halle\\vec{QS}'). "
+                        "Asegúrate de cerrar todos los delimitadores matemáticos abiertos antes de finalizar cada respuesta. "
+                        "2. COHERENCIA COMPLETA ENTRE PREGUNTA Y OPCIONES: Si la pregunta pide N variables, "
+                        "CADA opción DEBE dar la solución completa. "
+                        "PROHIBIDO etiquetar problemas de cálculo complejo como verdadero/falso. "
+                        "3. DIVERSIDAD ESTRICTA DE ENUNCIADOS Y PLANTILLAS: Queda PROHIBIDO repetir la misma "
+                        "plantilla en más de UNA pregunta. Cada pregunta DEBE explorar un subtema distinto. "
+                        "Alterna entre problemas teóricos, de aplicación directa, numéricos y de interpretación. " 
+                        "REGLA DE AISLAMIENTO DE OPCIONES (CRÍTICO): "
+                        "1. Si el contexto RAG contiene una página con varios ejercicios, debes elegir ÚNICAMENTE UN ejercicio. "
+                        "2. El arreglo 'opciones' DEBE CONTENER EXACTAMENTE 4 ELEMENTOS. "
+                        "3. Queda ESTRICTAMENTE PROHIBIDO concatenar opciones de otros ejercicios vecinos. "
+                        "4. NO incluyas letras de prefijo como 'A)', 'a.', '1.' dentro del texto de la opción. Pon solo la expresión o respuesta directas. "
+                        "El campo 'explicacion' DEBE seguir estrictamente esta estructura Markdown con doble salto de línea entre pasos:\n"
+                        "\n"
+                        "### Paso 1: Planteamiento e Identificación de Datos\n"
+                        "[Explicación con fórmulas en $...$]\n"
+                        "\n"
+                        "### Paso 2: Desarrollo algebraico detallado\n"
+                        "[Explicación paso a paso con fórmulas en $...$]\n"
+                        "\n"
+                        "### Paso 3: Conclusión\n"
+                        "[Respuesta final clara]\n"
+                        "\n"
+                        "REGLA CRÍTICA PARA LA SOLUCIÓN (explicacion): CADA variable, fórmula o comando LaTeX "
+                        "(\\vec, \\sqrt, \\frac, \\text, etc.) DEBE estar estrictamente envuelto entre signos de dólar ($ ... $). "
+                        "Separa siempre con un espacio en blanco los delimitadores de las palabras en español. "
+                        "CORRECTO: 'La recta $L_1$ pasa por $A=(2,3)$'. INCORRECTO: 'La recta$L_1$pasa por$A$'. "
+                        "NUNCA generes comandos LaTeX sueltos sin delimitador $. "
+                        "REGLA ESTRICTA: Queda PROHIBIDO mencionar 'opción 0', 'opción 1', 'opción A', etc. Menciona únicamente el valor o vector solución final. "
                         "Responde ÚNICAMENTE con JSON válido, sin texto adicional."
                     )
                 },
                 {"role": "user", "content": prompt}
             ],
             response_format={"type": "json_object"},
-            temperature=0.3,
+            temperature=0.4,
         )
 
         raw_content = ""
@@ -442,10 +925,8 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion):
             if delta:
                 raw_content += delta
 
-        # Limpiar y parsear la respuesta
         data = parse_llm_json_response(raw_content)
         
-        # Validar que tenemos preguntas
         if "preguntas" not in data or not data["preguntas"]:
             raise ValueError("No se generaron preguntas válidas")
             
@@ -458,10 +939,17 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion):
                 if not isinstance(p.get("output_markdown"), str):
                     raise ValueError(f"Falta output_markdown en la pregunta {p.get('id')}")
         
-        # Construir la evaluación
-        preguntas = [Pregunta(**p) for p in data["preguntas"]]
+        preguntas = [
+            Pregunta(**sanitizar_pregunta_backend(sanitizar_pregunta_alucinada(p)))
+            for p in data["preguntas"]
+        ]
+        preguntas = _asignar_origen(preguntas, contexto)
+        preguntas = _deduplicar_preguntas(preguntas)
+        preguntas = _limpiar_opciones(preguntas)
         
-        # Calcular tiempo estimado (2 minutos por pregunta teórica, 5 por código)
+        if not preguntas:
+            raise ValueError("No se generaron preguntas válidas tras la deduplicación.")
+        
         tiempo_estimado = 0
         for p in preguntas:
             if p.tipo == 'codigo':
@@ -501,7 +989,47 @@ SYSTEM_MSG_TEORICO = (
     "LaTeX KaTeX ÚNICAMENTE: \\frac, \\vec, \\mathbf, \\overline, \\left(, \\right), \\mid, \\mathbb, \\sqrt, \\alpha, \\beta, \\theta, \\perp, \\in, \\neg, \\to, \\equiv, \\lor, \\land, \\leftrightarrow, \\Delta. "
     "PROHIBIDO ABSOLUTO (rompen KaTeX): \\begin, \\end, \\matrix, \\Bmatrix, \\bigg, \\Big, \\rfloor, \\lfloor, \\textbf, \\bar, \\dfrac, \\text. "
     "Rectas vectoriales: '$(2,1) + t(3,n),\\ t \\in \\mathbb{R}$' — NUNCA \\begin{Bmatrix}. "
-    "Prosa FUERA de $...$: 'La recta $L_1$ pasa por $A=(2,3)$' — NUNCA '$L_1 \\text{pasa por} A$'. "
+    "Prosa FUERA DE $...$: 'La recta $L_1$ pasa por $A=(2,3)$' — NUNCA '$L_1 \\text{pasa por} A$'. "
+    "Formatea toda expresión matemática en notación KaTeX válida delimitada ÚNICAMENTE por $ para expresiones inline "
+    "(ej. $f(x) = \\sin(x)$) o $$ para ecuaciones centradas en bloque. "
+    "Queda estrictamente prohibido usar corchetes en lugar de llaves en fracciones (usa siempre \\frac{a}{b}). "
+    "Genera un conjunto de N preguntas estrictamente ÚNICAS y DISTINTAS entre sí. "
+    "Está prohibido repetir el mismo ejercicio o generar variantes triviales del mismo problema dentro del mismo lote. "
+    "INSTRUCCIONES UNIVERSALES DE FORMATO Y ESTRUCTURA (MULTICURSO): "
+    "1. SINTAXIS LATEX EN TODO EL EXAMEN: Cualquier fórmula matemática, expresión algebraica, ecuación, "
+    "integral, matriz o vector DEBE IR DENTRO DE $...$. CORRECTO: \"Calcule $\\int_0^1 x^2 dx$\" / \"Determine el valor de $k$\". "
+    "PROHIBIDO escribir \\frac, \\sqrt, \\int, \\vec, \\matrix sin $...$. "
+    "Usa estrictamente $...$ para matemáticas en línea y $$...$$ para bloques independientes. "
+    "NUNCA uses triple dólar ($$$) ni pegues palabras de texto plano a comandos LaTeX "
+    "(ejemplo correcto: 'Halle $\\vec{QS}$', incorrecto: 'Halle\\vec{QS}'). "
+    "Asegúrate de cerrar todos los delimitadores matemáticos abiertos antes de finalizar cada respuesta. "
+    "2. COHERENCIA COMPLETA: Si la pregunta pide N variables, CADA opción DEBE dar la solución completa. "
+    "PROHIBIDO etiquetar problemas de cálculo complejo como verdadero/falso. "
+    "3. DIVERSIDAD ESTRICTA: Queda PROHIBIDO repetir la misma plantilla en más de UNA pregunta. "
+    "Cada pregunta DEBE explorar un subtema distinto. "
+    "Alterna entre problemas teóricos, de aplicación directa, numéricos y de interpretación. " 
+    "REGLA DE AISLAMIENTO DE OPCIONES (CRÍTICO): "
+    "1. Si el contexto RAG contiene una página con varios ejercicios, debes elegir ÚNICAMENTE UN ejercicio. "
+    "2. El arreglo 'opciones' DEBE CONTENER EXACTAMENTE 4 ELEMENTOS. "
+    "3. Queda ESTRICTAMENTE PROHIBIDO concatenar opciones de otros ejercicios vecinos. "
+    "4. NO incluyas letras de prefijo como 'A)', 'a.', '1.' dentro del texto de la opción. Pon solo la expresión o respuesta directas. "
+    "El campo 'explicacion' DEBE seguir estrictamente esta estructura Markdown con doble salto de línea entre pasos:\n"
+    "\n"
+    "### Paso 1: Planteamiento e Identificación de Datos\n"
+    "[Explicación con fórmulas en $...$]\n"
+    "\n"
+    "### Paso 2: Desarrollo algebraico detallado\n"
+    "[Explicación paso a paso con fórmulas en $...$]\n"
+    "\n"
+    "### Paso 3: Conclusión\n"
+    "[Respuesta final clara]\n"
+    "\n"
+    "REGLA CRÍTICA PARA LA SOLUCIÓN (explicacion): CADA variable, fórmula o comando LaTeX "
+    "(\\vec, \\sqrt, \\frac, \\text, etc.) DEBE estar estrictamente envuelto entre signos de dólar ($ ... $). "
+    "Separa siempre con un espacio en blanco los delimitadores de las palabras en español. "
+    "CORRECTO: 'La recta $L_1$ pasa por $A=(2,3)$'. INCORRECTO: 'La recta$L_1$pasa por$A$'. "
+    "NUNCA generes comandos LaTeX sueltos sin delimitador $. "
+    "REGLA ESTRICTA: Queda PROHIBIDO mencionar 'opción 0', 'opción 1', 'opción A', etc. Menciona únicamente el valor o vector solución final. "
     "Responde SIEMPRE en el formato de texto plano con marcadores @@...@@ que se te indica. NUNCA uses JSON."
 )
 
@@ -516,7 +1044,6 @@ def _prompt_una_pregunta_teorica(
         "unica": "única respuesta correcta",
         "verdadero_falso": "verdadero o falso",
     }
-    # Para tipo mixta, rota entre los tipos
     tipos_rota = ["unica", "unica", "multiple", "unica", "verdadero_falso"]
     tipo_real = tipo if tipo != "mixta" else tipos_rota[idx % len(tipos_rota)]
     tipo_desc = tipos_map.get(tipo_real, "única respuesta correcta")
@@ -533,6 +1060,12 @@ def _prompt_una_pregunta_teorica(
 TEMA: {temas_str}
 TIPO DE PREGUNTA: {tipo_desc}
 NÚMERO DE PREGUNTA: {idx + 1}
+
+ENFOQUE OBLIGATORIO PARA ESTA PREGUNTA (debe ser distinto al de las demás
+preguntas del examen, que se generan en paralelo): {_enfoque_para_indice(idx)}.
+No reutilices el mismo tipo de figura, situación o nombres de variables que
+usarías para un enfoque distinto (ej. evita repetir "sea el cuadrado ABCD..."
+con solo las letras cambiadas).
 
 ### ESTÁNDAR DE DIFICULTAD OBLIGATORIO ###
 - Mínimo 4 datos numéricos concretos en el enunciado.
@@ -570,149 +1103,42 @@ El LaTeX va tal cual, con un solo backslash, sin escapar nada.
 @@CORRECTA@@
 {correcta_instr}
 @@EXPLICACION@@
-(solución paso a paso)
+### Paso 1: Planteamiento e Identificación de Datos
+Explica qué datos da el problema y qué fórmulas se usarán con $...$ cuando corresponda.
+
+### Paso 2: Desarrollo algebraico detallado
+Muestra cada operación paso a paso con $...$ LaTeX. Incluye sustituciones y cálculos.
+
+### Paso 3: Conclusión
+Indica el resultado final. PROHIBIDO mencionar 'opción 0', 'opción 1', etc. Solo el valor solución.
 @@FIN@@
 
 REGLAS: pon exactamente 4 marcadores @@OPCION@@ (o 2 si es verdadero/falso). No añadas texto fuera de los marcadores.
+REGLA DE AISLAMIENTO DE OPCIONES (CRÍTICO):
+1. Si el contexto RAG tiene varios ejercicios, elige ÚNICAMENTE UNO.
+2. Debes escribir EXACTAMENTE 4 opciones (o 2 para verdadero/falso).
+3. ESTRICTAMENTE PROHIBIDO mezclar opciones de otros ejercicios.
+4. NO uses prefijos como 'A)', 'a.', '1.' en las opciones. Solo la expresión o respuesta directa.
 """
     return prompt, tipo_real
 
 
-def _wrap_math_runs_in_text(text: str) -> str:
-    """
-    Dentro de un segmento sin $...$, encuentra comandos LaTeX sueltos
-    y envuelve el span matemático circundante en $...$.
-    Solo expande hacia letras SUELTAS de 1 carácter (variables p, q, M, N...);
-    las palabras de 2+ letras (prose español) detienen la expansión.
-    """
-    if not re.search(r'\\[a-zA-Z]', text):
-        return text
-
-    n = len(text)
-    mask = bytearray(n)  # 1 = dentro de región matemática
-
-    # Sembrar: marcar todos los \comando
-    for m in re.finditer(r'\\[a-zA-Z]+', text):
-        for i in range(m.start(), m.end()):
-            mask[i] = 1
-
-    # Expandir iterativamente la región matemática
-    for _ in range(n + 1):
-        changed = False
-        for i in range(n):
-            if mask[i] or text[i] == '\n':
-                continue
-            adj = (i > 0 and mask[i - 1]) or (i < n - 1 and mask[i + 1])
-            if not adj:
-                continue
-            c = text[i]
-            if c in '[](){}^_+=-.,!|~<>*/ \t':
-                mask[i] = 1; changed = True
-            elif c.isdigit():
-                mask[i] = 1; changed = True
-            elif c.isalpha():
-                # Detectar la palabra completa (isalpha es unicode-aware: incluye á,é,ñ...)
-                ws = i
-                while ws > 0 and text[ws - 1].isalpha():
-                    ws -= 1
-                we = i + 1
-                while we < n and text[we].isalpha():
-                    we += 1
-                # Solo letra sola = átomo matemático (p, q, M, N, t...)
-                if we - ws == 1:
-                    mask[i] = 1; changed = True
-        if not changed:
-            break
-
-    # Construir resultado: envolver cada span continuo en $...$
-    result = []
-    i = 0
-    while i < n:
-        if not mask[i]:
-            result.append(text[i])
-            i += 1
-        else:
-            j = i
-            while j < n and mask[j]:
-                j += 1
-            span = text[i:j]
-            inner = span.strip()
-            before = span[:len(span) - len(span.lstrip())]
-            after = span[len(span.rstrip()):]
-            if inner:
-                result.append(before)
-                result.append(f'${inner}$')
-                result.append(after)
-            else:
-                result.append(span)
-            i = j
-    return ''.join(result)
-
-
-def _ensure_math_delimiters(s: str) -> str:
-    """
-    Garantiza que todos los comandos LaTeX estén dentro de $...$.
-    Divide por bloques $...$ existentes y procesa solo los segmentos externos.
-    """
-    if '\\' not in s:
-        return s
-    parts = re.split(r'(\$[^$\n]+\$)', s)
-    out = []
-    for part in parts:
-        if part.startswith('$') and part.endswith('$') and len(part) >= 2:
-            out.append(part)
-        else:
-            out.append(_wrap_math_runs_in_text(part))
-    return ''.join(out)
-
-
-def _sanitizar_latex_str(s: str) -> str:
-    """Convierte LaTeX malformado en KaTeX válido de forma determinista."""
-    # 1. Caracteres de control (colisión \b \t \f \r con LaTeX)
-    s = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', s)
-
-    # 2. Elimina la familia \big/\Big/\bigg/\Bigg (+ sufijos l/r) que el modelo
-    #    usa mal antes de \text, \{, \backslash y rompe KaTeX.
-    s = re.sub(r'\\[Bb]i(?:g{1,2})[lr]?', '', s)
-
-    # 3. Matrices malformadas: \begin{Bmatrix}(a,b)+t(c,d) ... -> (a,b)+t(c,d)
-    #    Quita los envoltorios de matriz que el modelo no cierra bien.
-    s = re.sub(r'\\begin\{[BpV]?matrix\}', '', s)
-    s = re.sub(r'\\end\{[BpV]?matrix\}', '', s)
-
-    # 4. \rfloor / \lfloor / \rceil / \lceil sueltos (venían de la matriz) -> nada
-    s = re.sub(r'\\[lr](?:floor|ceil)', '', s)
-
-    # 5. \backslash suelto (el modelo lo usaba como separador de conjunto) -> \mid
-    s = re.sub(r'\\backslash', r'\\mid', s)
-
-    # 6. \text{, } y \text{ } sobrantes -> puntuación normal
-    s = re.sub(r'\\text\{,\s*\}', ', ', s)
-    s = re.sub(r'\\text\{\s*\}', ' ', s)
-
-    # 7. Limpia dobles espacios y $ vacíos que puedan quedar
-    s = re.sub(r'\$\s*\$', '', s)
-
-    # 8. Envuelve comandos LaTeX que quedaron fuera de $...$ en $...$
-    s = _ensure_math_delimiters(s)
-
-    return s
-
-
-def _sanitizar_latex_dict(obj: Any) -> Any:
-    """Aplica _sanitizar_latex_str recursivamente a todos los strings de un dict/lista."""
-    if isinstance(obj, str):
-        return _sanitizar_latex_str(obj)
-    if isinstance(obj, dict):
-        return {k: _sanitizar_latex_dict(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_sanitizar_latex_dict(v) for v in obj]
-    return obj
+def sanitizar_pregunta_backend(p: dict) -> dict:
+    """Solo valida coherencia tipo/opciones. El LaTeX ya se sanitizó UNA
+    VEZ en parse_llm_json_response / _parsear_pregunta_delimitada — no se
+    reaplica aquí (evita doble-envolvimiento y $ desbalanceados)."""
+    opciones = p.get("opciones") or p.get("options")
+    tipo = str(p.get("tipo") or p.get("questionType") or "").lower()
+    num_opts = len(opciones) if opciones else 0
+    if num_opts > 2 and tipo in ("verdadero_falso", "true_false"):
+        p["tipo"] = "unica"
+        p["questionType"] = "multiple_choice"
+    return p
 
 
 def _parsear_pregunta_delimitada(texto: str, idx: int, tipo_real: str) -> dict:
     """Parsea la respuesta con marcadores @@...@@. No usa JSON: el LaTeX pasa intacto."""
-    # Divide por marcadores: ['prefacio', 'PREGUNTA', 'contenido', 'OPCION', '...', ...]
+    texto = reparar_escapes_json_latex(texto)
     partes = re.split(r'@@(\w+)@@', texto)
 
     pregunta_txt = ""
@@ -736,7 +1162,6 @@ def _parsear_pregunta_delimitada(texto: str, idx: int, tipo_real: str) -> dict:
     if not pregunta_txt or len(opciones) < 2:
         raise ValueError(f"Respuesta incompleta: pregunta={bool(pregunta_txt)}, opciones={len(opciones)}")
 
-    # Interpreta la respuesta correcta según el tipo
     numeros = re.findall(r'\d+', correcta_raw)
     if tipo_real == "multiple":
         respuesta_correcta: Any = [int(n) for n in numeros] if numeros else [0]
@@ -751,7 +1176,7 @@ def _parsear_pregunta_delimitada(texto: str, idx: int, tipo_real: str) -> dict:
         "respuesta_correcta": respuesta_correcta,
         "explicacion": explicacion,
     }
-    return _sanitizar_latex_dict(data)
+    return _sanitize_latex_dict(data)
 
 
 async def _generar_una_pregunta(idx: int, prompt: str, tipo_real: str) -> dict:
@@ -795,19 +1220,16 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion):
         raise HTTPException(status_code=500, detail="API Key de OpenAI no configurada")
 
     try:
-        # --- PASO 2: RAG / Recuperación de Contexto Semántico ---
         logger.info("PASO 2: Buscando contexto semántico / sílabo (RAG)...")
-
         es_programacion = config.curso_id in CURSOS_PROGRAMACION_IDS
-
         tema_completo = config.temas[0] if len(config.temas) == 1 else f"{config.modulo}: {', '.join(config.temas)}"
         contexto = recuperar_contexto_semantico(tema_completo, config.curso_id)
-
         temas_str = config.temas[0] if len(config.temas) == 1 else ', '.join(config.temas)
 
         contexto_bloque = ""
         if contexto:
-            contexto_str = "\n\n---\n".join(contexto)
+            contenidos = [c.get("contenido", "") for c in contexto]
+            contexto_str = "\n\n---\n".join(contenidos)
             contexto_bloque = (
                 f"### EJERCICIOS REALES DE EXÁMENES UNI — REFERENCIA OBLIGATORIA ###\n"
                 f"{contexto_str}\n"
@@ -818,7 +1240,6 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion):
         else:
             logger.warning("PASO 2 ALERTA: No se recuperó contexto RAG. Continuando sin él...")
 
-        # --- PASO 3: Verificación de OpenAI ---
         logger.info("PASO 3: Verificando cliente OpenAI...")
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
@@ -839,46 +1260,47 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion):
         logger.info("PASO 4: Iniciando streaming SSE event_generator...")
         try:
             if es_programacion:
-                # --- PASO 5: Llamada a OpenAI (Programación) ---
                 logger.info("PASO 5: Invocando API de OpenAI (flujo programación)...")
-
                 cfg1 = ConfiguracionEvaluacion(
-                    curso_id=config.curso_id,
-                    modulo=config.modulo,
-                    temas=config.temas,
-                    num_preguntas=config.num_preguntas,
-                    observaciones=config.observaciones,
+                    curso_id=config.curso_id, modulo=config.modulo, temas=config.temas,
+                    num_preguntas=config.num_preguntas, observaciones=config.observaciones,
                     tipo_evaluacion=config.tipo_evaluacion,
                 )
                 prompt_prog = generar_prompt_programacion(cfg1, contexto)
-
                 loop = asyncio.get_running_loop()
                 def _call_prog():
                     resp = openai_client.chat.completions.create(
-                        model=OPENAI_MODEL,
-                        max_tokens=6000,
+                        model=OPENAI_MODEL, max_tokens=6000,
                         messages=[
                             {"role": "system", "content": "Eres un arquitecto de software senior. Responde ÚNICAMENTE con JSON válido."},
                             {"role": "user", "content": prompt_prog},
                         ],
-                        response_format={"type": "json_object"},
-                        temperature=0.3,
+                        response_format={"type": "json_object"}, temperature=0.4,
                     )
                     return resp.choices[0].message.content
 
                 raw = await loop.run_in_executor(None, _call_prog)
                 logger.info(f"PASO 5 COMPLETADO: Respuesta cruda recibida ({len(raw)} caracteres).")
-
-                # --- PASO 6: Parseo de JSON ---
                 logger.info("PASO 6: Parseando JSON de respuesta...")
                 data = parse_llm_json_response(raw)
                 logger.info(f"PASO 6 COMPLETADO: {len(data.get('preguntas', []))} preguntas parseadas.")
+
+                preguntas = [
+                    Pregunta(**sanitizar_pregunta_backend(sanitizar_pregunta_alucinada(p)))
+                    for p in data.get("preguntas", [])
+                ]
+                preguntas = _asignar_origen(preguntas, contexto)
+                preguntas = _deduplicar_preguntas(preguntas)
+                preguntas = _limpiar_opciones(preguntas)
+
+                if preguntas:
+                    preguntas_dicts = [p.model_dump() for p in preguntas]
+                    data["preguntas"] = preguntas_dicts
+
                 yield f"data: {json.dumps({'done': True, 'result': data})}\n\n"
                 return
 
-            # --- PASO 5 (teórico): N llamadas paralelas ---
             logger.info(f"PASO 5: Generando {config.num_preguntas} preguntas teóricas en paralelo...")
-
             prompts_tipos = [
                 _prompt_una_pregunta_teorica(i, temas_str, config.tipo_evaluacion, contexto_bloque)
                 for i in range(config.num_preguntas)
@@ -891,6 +1313,7 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion):
             for coro in asyncio.as_completed(tareas):
                 try:
                     pregunta = await coro
+                    pregunta = sanitizar_pregunta_backend(sanitizar_pregunta_alucinada(pregunta))
                     idx = pregunta.get("id", 1) - 1
                     preguntas[idx] = pregunta
                     logger.info(f"PASO 5 PROGRESO: Pregunta {idx + 1}/{config.num_preguntas} generada.")
@@ -906,6 +1329,15 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion):
                 logger.error("PASO 5 ERROR: No se pudo generar ninguna pregunta.")
                 yield f"data: {json.dumps({'error': 'No se pudo generar ninguna pregunta'})}\n\n"
                 return
+
+            preguntas_obj = [
+                Pregunta(**sanitizar_pregunta_backend(sanitizar_pregunta_alucinada(p)))
+                for p in preguntas_ok
+            ]
+            preguntas_obj = _asignar_origen(preguntas_obj, contexto)
+            preguntas_obj = _deduplicar_preguntas(preguntas_obj)
+            preguntas_obj = _limpiar_opciones(preguntas_obj)
+            preguntas_ok = [p.model_dump() for p in preguntas_obj]
 
             logger.info(f"PASO 5 COMPLETADO: {len(preguntas_ok)}/{config.num_preguntas} preguntas generadas "
                         f"({total_errores} errores).")
@@ -944,7 +1376,6 @@ async def evaluar_respuestas(
     respuestas_correctas = 0
     detalles = []
     
-    # Crear un mapa de preguntas para acceso rápido
     preguntas_map = {p.id: p for p in evaluacion.preguntas}
     
     for respuesta in envio.respuestas:
@@ -978,7 +1409,6 @@ async def evaluar_respuestas(
     total = len(envio.respuestas)
     porcentaje = (respuestas_correctas / total * 100) if total > 0 else 0
     
-    # Generar retroalimentación con IA
     retroalimentacion = await generar_retroalimentacion(
         evaluacion, detalles, porcentaje
     )
@@ -1006,7 +1436,6 @@ async def generar_retroalimentacion(
     if not openai_client:
         return "Retroalimentación no disponible"
 
-    # Identificar temas con dificultad
     temas_dificultad = []
     for detalle in detalles:
         if not detalle["es_correcta"]:

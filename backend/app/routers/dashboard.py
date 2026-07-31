@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException, Depends, Query
@@ -26,6 +27,26 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dashboard", tags=["Academic Dashboard"])
 
+
+async def _run(fn):
+    """Ejecuta una llamada bloqueante de Supabase en un hilo aparte.
+
+    El cliente supabase-py es síncrono: cada `.execute()` bloquea el hilo que
+    lo ejecuta. Moverlo a un hilo aparte con to_thread libera el event loop
+    de FastAPI mientras espera la respuesta de red, así el servidor puede
+    atender otras peticiones (otra pestaña, otro usuario) mientras tanto.
+
+    IMPORTANTE: no se deben lanzar varias llamadas de este tipo en paralelo
+    (asyncio.gather) cuando comparten la misma instancia de `supabase`: el
+    cliente usa una única conexión HTTP/2 por debajo, y golpearla desde
+    varios hilos a la vez la corrompe (aparece como
+    `ConnectionTerminated error_code:9`, intermitente). Por eso las llamadas
+    siguen despachándose una por una, cada una liberando el event loop
+    mientras espera su turno de red.
+    """
+    return await asyncio.to_thread(fn)
+
+
 class AcademicStats(BaseModel):
     cursosCompletados: int
     cursosEnProgreso: int
@@ -46,7 +67,7 @@ class DashboardSummary(BaseModel):
     stats: AcademicStats
     logros: List[Achievement]
 
-def _calcular_stats(user, supabase) -> Dict[str, Any]:
+async def _calcular_stats(user, supabase) -> Dict[str, Any]:
     """Métricas académicas del dashboard.
 
     El avance sale de core/avance (RF-07) y no se recalcula aquí: antes este
@@ -55,8 +76,8 @@ def _calcular_stats(user, supabase) -> Dict[str, Any]:
     porcentajes distintos según la pantalla.
     """
     try:
-        profile_resp = (
-            supabase.table("perfiles")
+        profile_resp = await _run(
+            lambda: supabase.table("perfiles")
             .select("carrera_id")
             .eq("id", user.id)
             .maybe_single()
@@ -69,25 +90,24 @@ def _calcular_stats(user, supabase) -> Dict[str, Any]:
         promedio = 0.0
 
         if carrera_id:
-            avance = cargar_avance(supabase, user.id, carrera_id)
-
-            # El promedio ponderado necesita los créditos de cada curso, no
-            # solo las notas: antes esto promediaba a secas y un curso de 5
-            # créditos pesaba igual que uno de 1.
-            cursos_resp = (
-                supabase.table("cursos")
+            avance = await _run(lambda: cargar_avance(supabase, user.id, carrera_id))
+            cursos_resp = await _run(
+                lambda: supabase.table("cursos")
                 .select("id, credits")
                 .eq("carrera_id", carrera_id)
                 .execute()
             )
-            cursos = {c["id"]: c for c in (getattr(cursos_resp, "data", None) or [])}
-
-            progreso_resp = (
-                supabase.table("progreso_cursos")
+            progreso_resp = await _run(
+                lambda: supabase.table("progreso_cursos")
                 .select("curso_id, status, nota")
                 .eq("perfil_id", user.id)
                 .execute()
             )
+
+            # El promedio ponderado necesita los créditos de cada curso, no
+            # solo las notas: antes esto promediaba a secas y un curso de 5
+            # créditos pesaba igual que uno de 1.
+            cursos = {c["id"]: c for c in (getattr(cursos_resp, "data", None) or [])}
             progreso = {
                 p["curso_id"]: p for p in (getattr(progreso_resp, "data", None) or [])
             }
@@ -113,20 +133,19 @@ def _calcular_stats(user, supabase) -> Dict[str, Any]:
         }
 
 
-def _obtener_logros(user, supabase) -> List[Dict[str, Any]]:
+async def _obtener_logros(user, supabase) -> List[Dict[str, Any]]:
     """
     Sincroniza logros usando las tablas: logros y logros_usuarios.
     """
     try:
-        logros_resp = supabase.table("logros").select("*").execute()
-        
-        unlocked_resp = (
-            supabase.table("logros_usuarios")
+        logros_resp = await _run(lambda: supabase.table("logros").select("*").execute())
+        unlocked_resp = await _run(
+            lambda: supabase.table("logros_usuarios")
             .select("logro_id, unlocked_at")
             .eq("perfil_id", user.id)
             .execute()
         )
-        
+
         unlocked_map = {item["logro_id"]: item["unlocked_at"] for item in (unlocked_resp.data or [])}
 
         resultado = []
@@ -149,35 +168,41 @@ def _obtener_logros(user, supabase) -> List[Dict[str, Any]]:
 async def get_dashboard_summary(user_data = Depends(get_current_user)):
     user, token = user_data
     supabase = get_supabase(token)
+    stats = await _calcular_stats(user, supabase)
+    logros = await _obtener_logros(user, supabase)
     return {
-        "stats": _calcular_stats(user, supabase),
-        "logros": _obtener_logros(user, supabase)
+        "stats": stats,
+        "logros": logros,
     }
 
 
-def _avance_por_curso(supabase, user, carrera_id, curso_id: Optional[int]) -> List[Dict[str, Any]]:
+async def _avance_por_curso(supabase, user, carrera_id, curso_id: Optional[int]) -> List[Dict[str, Any]]:
     """Avance del estudiante curso por curso (RF-21).
 
     A diferencia de las otras métricas de actividad, esta no depende de
     `eventos_actividad`: sale del progreso que ya existe.
     """
     try:
-        cursos_resp = (
-            supabase.table("cursos")
+        cursos_resp = await _run(
+            lambda: supabase.table("cursos")
             .select("id, code, name, credits, ciclo")
             .eq("carrera_id", carrera_id)
             .execute()
         )
         cursos = {c["id"]: c for c in (getattr(cursos_resp, "data", None) or [])}
 
-        progreso_q = (
-            supabase.table("progreso_cursos")
-            .select("curso_id, status, nota, fecha_completado")
-            .eq("perfil_id", user.id)
-        )
-        if curso_id is not None:
-            progreso_q = progreso_q.eq("curso_id", curso_id)
-        progreso = getattr(progreso_q.execute(), "data", None) or []
+        def _progreso_query():
+            q = (
+                supabase.table("progreso_cursos")
+                .select("curso_id, status, nota, fecha_completado")
+                .eq("perfil_id", user.id)
+            )
+            if curso_id is not None:
+                q = q.eq("curso_id", curso_id)
+            return q.execute()
+
+        progreso_resp = await _run(_progreso_query)
+        progreso = getattr(progreso_resp, "data", None) or []
     except Exception as e:
         logger.error(f"Error cargando avance por curso de {user.id}: {e}")
         return []
@@ -229,8 +254,8 @@ async def get_actividad(
         )
 
     try:
-        perfil_resp = (
-            supabase.table("perfiles")
+        perfil_resp = await _run(
+            lambda: supabase.table("perfiles")
             .select("carrera_id")
             .eq("id", user.id)
             .maybe_single()
@@ -243,16 +268,19 @@ async def get_actividad(
 
     carrera_id = (perfil or {}).get("carrera_id")
 
-    eventos = consultar_eventos(supabase, user.id, periodo=periodo, curso_id=curso_id)
+    eventos = await _run(
+        lambda: consultar_eventos(supabase, user.id, periodo=periodo, curso_id=curso_id)
+    )
+    avance_por_curso = (
+        await _avance_por_curso(supabase, user, carrera_id, curso_id) if carrera_id else []
+    )
 
     return {
         "periodo": periodo,
         "curso_id": curso_id,
         "resumen": resumir_eventos(eventos),
         "actividad_por_dia": actividad_por_dia(eventos),
-        "avance_por_curso": (
-            _avance_por_curso(supabase, user, carrera_id, curso_id) if carrera_id else []
-        ),
+        "avance_por_curso": avance_por_curso,
     }
 
 
@@ -272,8 +300,8 @@ async def get_cursos_activos(user_data=Depends(get_current_user)) -> dict:
     supabase = get_supabase(token)
 
     try:
-        progreso_resp = (
-            supabase.table("progreso_cursos")
+        progreso_resp = await _run(
+            lambda: supabase.table("progreso_cursos")
             .select("curso_id")
             .eq("perfil_id", user.id)
             .eq("status", "in_progress")
@@ -288,21 +316,20 @@ async def get_cursos_activos(user_data=Depends(get_current_user)) -> dict:
         return {"cursos": []}
 
     try:
-        cursos_resp = (
-            supabase.table("cursos")
+        cursos_resp = await _run(
+            lambda: supabase.table("cursos")
             .select("id, code, name, credits, ciclo")
             .in_("id", curso_ids)
             .execute()
         )
-        cursos = {c["id"]: c for c in (getattr(cursos_resp, "data", None) or [])}
-
-        steps_resp = (
-            supabase.table("learning_path_steps")
+        steps_resp = await _run(
+            lambda: supabase.table("learning_path_steps")
             .select("id, curso_id, title, order_index")
             .in_("curso_id", curso_ids)
             .order("order_index")
             .execute()
         )
+        cursos = {c["id"]: c for c in (getattr(cursos_resp, "data", None) or [])}
         steps = getattr(steps_resp, "data", None) or []
     except Exception as e:
         logger.error(f"Error cargando temas de cursos activos de {user.id}: {e}")
@@ -311,8 +338,8 @@ async def get_cursos_activos(user_data=Depends(get_current_user)) -> dict:
     completadas: Set[int] = set()
     if steps:
         try:
-            unidades_resp = (
-                supabase.table("progreso_unidades")
+            unidades_resp = await _run(
+                lambda: supabase.table("progreso_unidades")
                 .select("step_id, completado")
                 .eq("perfil_id", user.id)
                 .in_("step_id", [s["id"] for s in steps])
@@ -380,8 +407,8 @@ async def get_test_nivel(user_data=Depends(get_current_user)) -> dict:
     supabase = get_supabase(token)
 
     try:
-        perfil_resp = (
-            supabase.table("perfiles")
+        perfil_resp = await _run(
+            lambda: supabase.table("perfiles")
             .select("carrera_id, ciclo_actual")
             .eq("id", user.id)
             .maybe_single()
@@ -406,26 +433,25 @@ async def get_test_nivel(user_data=Depends(get_current_user)) -> dict:
         )
 
     try:
-        cursos_resp = (
-            supabase.table("cursos")
+        cursos_resp = await _run(
+            lambda: supabase.table("cursos")
             .select("id, code, name, credits, ciclo")
             .eq("carrera_id", carrera_id)
             .execute()
         )
-        cursos = {c["id"]: c for c in (getattr(cursos_resp, "data", None) or [])}
-
-        progreso_resp = (
-            supabase.table("progreso_cursos")
+        progreso_resp = await _run(
+            lambda: supabase.table("progreso_cursos")
             .select("curso_id, status, nota")
             .eq("perfil_id", user.id)
             .execute()
         )
+        cursos = {c["id"]: c for c in (getattr(cursos_resp, "data", None) or [])}
         progreso = {
             p["curso_id"]: p for p in (getattr(progreso_resp, "data", None) or [])
         }
 
-        prereq_resp = (
-            supabase.table("curso_prerrequisitos")
+        prereq_resp = await _run(
+            lambda: supabase.table("curso_prerrequisitos")
             .select("curso_id, prerrequisito_id")
             .in_("curso_id", list(cursos))
             .execute()

@@ -4,7 +4,6 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-// @ts-expect-error KaTeX CSS import for styling
 import 'katex/dist/katex.min.css';
 
 interface MarkdownRendererProps {

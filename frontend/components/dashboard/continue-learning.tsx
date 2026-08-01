@@ -1,8 +1,9 @@
-// Sección "Continúa donde te quedaste" del dashboard
+// Sección "Continúa donde te quedaste" del dashboard con marcas de agua dinámicas
 "use client"
 
 import { useRouter } from "next/navigation"
-import { Atom, BarChart3, BookOpen, GitBranch, Sigma } from "lucide-react"
+import Link from "next/link"
+import { Atom, BarChart3, BookOpen, Code, GraduationCap, Sigma } from "lucide-react"
 import { aRomano } from "@/lib/ciclos"
 
 export interface CursoActivo {
@@ -22,20 +23,28 @@ interface ContinueLearningProps {
   isLoading: boolean
 }
 
-// Degradados de marca para la cabecera de cada tarjeta. Son decorativos: el
-// estado real lo comunican el badge y la barra de avance.
-const CABECERAS = [
-  "gradient-brand",
-  "gradient-purple",
-  "gradient-brand-br",
-  "gradient-icon",
+// Degradados deterministas de cabecera por posición/curso
+const CABECERA_GRADIENTS = [
+  "linear-gradient(135deg, #d93340 0%, #7957f1 100%)",
+  "linear-gradient(135deg, #d93340 0%, #a6249d 100%)",
+  "linear-gradient(135deg, #a6249d 0%, #7957f1 100%)",
+  "linear-gradient(135deg, #e69333 0%, #a6249d 100%)",
 ]
 
-const MARCAS_AGUA = [Sigma, Atom, GitBranch, BarChart3]
+// Helper para seleccionar la marca de agua según nombre/código de materia
+function getCourseIcon(name: string, code: string) {
+  const str = `${name || ""} ${code || ""}`.toLowerCase()
+  if (/(matem|cálcul|calcul|álgebr|algebr|geom|vector|matri)/.test(str)) return Sigma
+  if (/(físic|fisic|electr|quím|quim|circu|termo)/.test(str)) return Atom
+  if (/(estadís|estadis|probab|datos)/.test(str)) return BarChart3
+  if (/(prog|algor|sistem|comput|cod|soft|redes)/.test(str)) return Code
+  return GraduationCap
+}
 
 function TarjetaCurso({ curso, index }: { curso: CursoActivo; index: number }) {
   const router = useRouter()
-  const Marca = MARCAS_AGUA[index % MARCAS_AGUA.length]
+  const Marca = getCourseIcon(curso.name, curso.code)
+  const thumbGradient = CABECERA_GRADIENTS[index % CABECERA_GRADIENTS.length]
 
   const abrir = () => router.push(`/curso/${curso.id}`)
 
@@ -51,65 +60,77 @@ function TarjetaCurso({ curso, index }: { curso: CursoActivo; index: number }) {
         }
       }}
       aria-label={`${curso.name}, ${curso.progreso}% completado`}
-      className="group cursor-pointer rounded-2xl overflow-hidden bg-card border border-border flex flex-col transition-all duration-300 hover:-translate-y-1 hover:border-accent hover:shadow-lg hover:shadow-accent/10 active:scale-[0.99]"
+      className="group cursor-pointer rounded-2xl bg-[#232532] border border-[#3f424d] overflow-hidden flex flex-col transition-all duration-200 hover:-translate-y-0.5 hover:border-[#7957f1] hover:shadow-xl active:scale-[0.99]"
     >
+      {/* Thumbnail (Header 118px) */}
       <div
-        className={`relative h-32 p-4 flex flex-col justify-between overflow-hidden ${
-          CABECERAS[index % CABECERAS.length]
-        }`}
+        className="relative h-[118px] p-4 flex flex-col justify-between overflow-hidden"
+        style={{ background: thumbGradient }}
       >
-        <div className="absolute -right-2 -bottom-2 opacity-20 text-primary-foreground pointer-events-none">
-          <Marca className="w-28 h-28 stroke-[1.5]" />
+        {/* Capa de brillo radial */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_18%,rgba(255,255,255,0.28),transparent_58%)]" />
+        {/* Capa de oscurecimiento inferior */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#141623]/80 via-transparent to-transparent" />
+
+        {/* Marca de Agua Dinámica (Posicionada abajo a la derecha) */}
+        <div className="absolute right-3 bottom-1 text-white/20 pointer-events-none">
+          <Marca className="w-16 h-16 stroke-[1.4] transition-transform duration-300 group-hover:scale-110" />
         </div>
+
+        {/* Fila superior: Código de curso + Badge En curso */}
         <div className="flex justify-between items-center gap-2 z-10">
-          <span className="text-xs font-bold text-primary-foreground/90 tracking-wider">
+          <span className="font-poppins font-bold text-[11px] text-white/90 tracking-wider">
             {curso.code}
           </span>
-          <span className="px-2.5 py-1 rounded-full text-xs bg-background/40 backdrop-blur-md text-primary-foreground font-medium border border-primary-foreground/10 flex items-center gap-1.5 shrink-0">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary-foreground" />
+          <span className="text-[10.5px] px-2.5 py-0.5 rounded-md bg-[#141623]/60 backdrop-blur-md text-white font-medium border border-white/10 flex items-center gap-1.5 shrink-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             En curso
           </span>
         </div>
-        <h3 className="font-heading text-lg font-bold text-primary-foreground z-10 leading-snug">
+
+        {/* Nombre del curso */}
+        <h3 className="font-poppins font-semibold text-[15px] text-white z-10 leading-snug line-clamp-1 group-hover:text-white/90">
           {curso.name}
         </h3>
       </div>
 
-      <div className="p-4 flex flex-col justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
-          {curso.ciclo ? `Ciclo ${aRomano(curso.ciclo)}` : "Sin ciclo"} · {curso.credits} créditos
-        </p>
+      {/* Cuerpo inferior con metadatos y barra de progreso */}
+      <div className="p-4 flex flex-col justify-between gap-2.5 flex-1">
+        <div className="flex justify-between items-center text-[11.5px] text-[#e9e9ed]/50">
+          <span>{curso.ciclo ? `Ciclo ${aRomano(curso.ciclo)}` : "Sin ciclo"}</span>
+          <span>{curso.credits} créditos</span>
+        </div>
 
-        {/* Si el curso no tiene ruta cargada no se inventa un "sigue con...". */}
-        <p className="text-xs text-foreground line-clamp-1">
+        {/* Siguiente tema */}
+        <p className="text-[11.5px] text-[#e9e9ed]/70 line-clamp-1">
           {curso.siguiente_tema ? (
             <>
-              <span className="text-muted-foreground">Sigue:</span> {curso.siguiente_tema}
+              <span className="text-[#e9e9ed]/45">Sigue:</span> {curso.siguiente_tema}
             </>
           ) : curso.temas_totales > 0 ? (
-            <span className="text-muted-foreground">Completaste todos los temas</span>
+            <span className="text-emerald-400/90 font-medium">Completaste todos los temas</span>
           ) : (
-            <span className="text-muted-foreground">Aún sin ruta de aprendizaje</span>
+            <span className="text-[#e9e9ed]/45">Aún sin ruta de aprendizaje</span>
           )}
         </p>
 
-        <div className="flex items-center gap-3 pt-1">
-          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+        {/* Barra de Progreso */}
+        <div className="space-y-1 pt-1 mt-auto">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-[#e9e9ed]/50">
+              {curso.temas_totales > 0
+                ? `${curso.temas_completados} de ${curso.temas_totales} temas`
+                : "Progreso"}
+            </span>
+            <span className="font-poppins font-bold text-[#e9e9ed]">{curso.progreso}%</span>
+          </div>
+          <div className="h-1.5 w-full bg-[#2e3142] rounded-full overflow-hidden">
             <div
-              className="progress-bar-modern-fill"
+              className="h-full rounded-full bg-gradient-to-r from-[#a6249d] to-[#7957f1] transition-all duration-500"
               style={{ width: `${Math.min(curso.progreso, 100)}%` }}
             />
           </div>
-          <span className="text-xs text-muted-foreground font-medium shrink-0">
-            {curso.progreso}%
-          </span>
         </div>
-
-        {curso.temas_totales > 0 && (
-          <p className="text-[11px] text-muted-foreground/70">
-            {curso.temas_completados} de {curso.temas_totales} temas
-          </p>
-        )}
       </div>
     </div>
   )
@@ -120,7 +141,7 @@ export function ContinueLearning({ cursos, isLoading }: ContinueLearningProps) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {[1, 2].map((i) => (
-          <div key={i} className="h-56 bg-card animate-pulse rounded-2xl border border-border" />
+          <div key={i} className="h-56 bg-[#232532] animate-pulse rounded-2xl border border-[#3f424d]" />
         ))}
       </div>
     )
@@ -128,14 +149,14 @@ export function ContinueLearning({ cursos, isLoading }: ContinueLearningProps) {
 
   if (!cursos?.length) {
     return (
-      <div className="p-10 text-center bg-card rounded-2xl border border-dashed border-border">
-        <div className="p-3 rounded-lg gradient-brand-br inline-flex mb-4">
-          <BookOpen className="w-6 h-6 text-primary-foreground" />
+      <div className="p-8 text-center bg-[#232532] rounded-2xl border border-dashed border-[#3f424d]">
+        <div className="p-3 rounded-xl bg-gradient-to-br from-[#a6249d] to-[#7957f1] inline-flex mb-3 shadow-md">
+          <BookOpen className="w-6 h-6 text-white" />
         </div>
-        <p className="text-muted-foreground font-medium">
+        <p className="text-[#e9e9ed] font-poppins font-semibold text-base">
           No tienes cursos activos en este momento.
         </p>
-        <p className="text-xs text-muted-foreground/70 mt-2">
+        <p className="text-xs text-[#e9e9ed]/60 mt-1">
           Aparecerán aquí cuando registres los cursos de tu ciclo.
         </p>
       </div>
@@ -143,10 +164,20 @@ export function ContinueLearning({ cursos, isLoading }: ContinueLearningProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {cursos.map((curso, index) => (
-        <TarjetaCurso key={curso.id} curso={curso} index={index} />
-      ))}
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-poppins font-semibold text-[19px] text-[#e9e9ed]">
+          Continúa donde te quedaste
+        </h2>
+        <Link href="/malla" className="text-xs font-semibold text-primary hover:underline transition-colors">
+          Ver mi malla →
+        </Link>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {cursos.map((curso, index) => (
+          <TarjetaCurso key={curso.id} curso={curso} index={index} />
+        ))}
+      </div>
     </div>
   )
 }

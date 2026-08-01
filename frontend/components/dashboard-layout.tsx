@@ -14,10 +14,35 @@ interface DashboardLayoutProps {
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [isCollapsed, setIsCollapsed] = useState(true)
   const [isRedirecting, setIsRedirecting] = useState(false)
   const { user, session, isLoading: isAuthLoading } = useAuth()
   const router = useRouter()
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("univia_sidebar_collapsed")
+      if (saved !== null) {
+        setIsCollapsed(saved === "true")
+      } else {
+        setIsCollapsed(true)
+      }
+    } catch (err) {
+      console.error("Error reading sidebar preference:", err)
+    }
+  }, [])
+
+  const handleToggle = () => {
+    setIsCollapsed((prev) => {
+      const nextState = !prev
+      try {
+        localStorage.setItem("univia_sidebar_collapsed", String(nextState))
+      } catch (err) {
+        console.error("Error saving sidebar preference:", err)
+      }
+      return nextState
+    })
+  }
 
   useEffect(() => {
     if (isAuthLoading) return
@@ -57,14 +82,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Barra lateral */}
-      <Sidebar open={sidebarOpen} />
+    <div className="flex h-screen bg-[#161826] text-[#e9e9ed] overflow-hidden">
+      {/* Barra lateral colapsable */}
+      <Sidebar open={!isCollapsed} onToggle={handleToggle} />
 
-      {/* Contenido principal */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header onMenuClick={() => setSidebarOpen((open) => !open)} />
-        <main className="flex-1 overflow-auto bg-background">{children}</main>
+      {/* Contenido principal con transición suave */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden transition-all duration-300 ease-in-out bg-[#161826]">
+        <Header onMenuClick={handleToggle} />
+        <main className="flex-1 overflow-auto bg-[#161826]">{children}</main>
       </div>
     </div>
   )

@@ -3,11 +3,9 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
-import { Search, Filter } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
 import { RecursoCard } from "./recursos/recurso-card"
 import { RecursosEmptyState } from "./recursos/empty-state"
 import { apiService } from "@/lib/api-service"
@@ -22,7 +20,6 @@ export function RecursosBiblioteca() {
 
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState<"recent" | "downloaded" | "rated">("recent")
-  const [showFilters, setShowFilters] = useState(Boolean(tipoInicial))
   const [recursosData, setRecursosData] = useState<Recurso[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -38,8 +35,6 @@ export function RecursosBiblioteca() {
     const fetchRecursos = async () => {
       try {
         setIsLoading(true)
-        // We'll filter on the client side for types/ciclos/years for now to keep it responsive,
-        // or we could refetch on every filter change.
         const data = await apiService.getRecursos({
           search: searchQuery
         })
@@ -66,6 +61,13 @@ export function RecursosBiblioteca() {
         .sort((a, b) => b - a),
     [recursosData],
   )
+
+  const aniosOpciones = useMemo(() => {
+    const defaultYears = ["2026", "2025", "2020", "2018", "2014", "2013", "2011", "2006"]
+    const dynamicYears = aniosDisponibles.map((y) => y.toString())
+    const set = new Set([...defaultYears, ...dynamicYears])
+    return Array.from(set).sort((a, b) => Number(b) - Number(a))
+  }, [aniosDisponibles])
 
   // Filter and sort logic (Client side filtering for secondary filters)
   const filteredRecursos = useMemo(() => {
@@ -112,223 +114,188 @@ export function RecursosBiblioteca() {
     setSelectedTypes((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]))
   }
 
-  const toggleCiclo = (ciclo: string) => {
-    setSelectedCiclos((prev) => (prev.includes(ciclo) ? prev.filter((c) => c !== ciclo) : [...prev, ciclo]))
-  }
-
-  const toggleYear = (year: string) => {
-    setSelectedYears((prev) => (prev.includes(year) ? prev.filter((y) => y !== year) : [...prev, year]))
-  }
+  const categoryChips = [
+    { id: "all", label: "Todos" },
+    { id: "Examen", label: "Exámenes" },
+    { id: "Practica", label: "Prácticas" },
+    { id: "Silabo", label: "Sílabos" },
+    { id: "Compendio", label: "Compendios" },
+    { id: "Libro", label: "Libros" },
+    { id: "Apunte", label: "Apuntes" },
+    { id: "Video", label: "Videos" },
+  ]
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Search Header */}
-      <div className="bg-card border-b border-border sticky top-0 z-30">
-        <div className="p-4 md:p-8 max-w-7xl mx-auto">
-          <div className="mb-4">
-            <h1 className="text-3xl font-bold text-foreground mb-2">Biblioteca Central de Recursos</h1>
-            <p className="text-muted-foreground">Repositorio global de materiales académicos de la universidad</p>
+    <div className="min-h-screen bg-[#161826] text-foreground">
+      {/* Header & Main Search Section */}
+      <div className="bg-[#161826]/80 border-b border-[#3f424d]/60 sticky top-0 z-30 backdrop-blur-md">
+        <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-4">
+          {/* Page Header */}
+          <div>
+            <h1 className="font-poppins font-semibold text-3xl text-foreground tracking-tight mb-1">
+              Banco de exámenes y recursos
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              Repositorio global de materiales académicos de la universidad
+            </p>
           </div>
 
-          {/* Search Bar */}
-          <div className="flex gap-2 mb-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          {/* Barra de búsqueda y selectores de filtro superior */}
+          <div className="flex gap-3 mb-2 flex-wrap xl:flex-nowrap items-center">
+            {/* Input de búsqueda */}
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4 pointer-events-none" />
               <Input
                 placeholder="Buscar por curso, código o tema..."
-                className="pl-10"
+                className="h-11 pl-10 pr-4 rounded-xl bg-[#232532] border border-[#3f424d]/60 text-sm focus-visible:ring-2 focus-visible:ring-primary/50 placeholder:text-muted-foreground/50 w-full"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Button variant="outline" size="icon" onClick={() => setShowFilters(!showFilters)} className="md:hidden">
-              <Filter className="w-4 h-4" />
-            </Button>
-          </div>
 
-          {/* Sort Dropdown */}
-          <div className="flex justify-end">
-            <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
-              <SelectTrigger className="w-full md:w-48">
-                <SelectValue placeholder="Ordenar por..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="recent">Más Reciente</SelectItem>
-                <SelectItem value="downloaded">Más Descargado</SelectItem>
-                <SelectItem value="rated">Mejor Calificado</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex">
-        {/* Filter Sidebar - Desktop */}
-        <div
-          className={`hidden md:flex md:w-64 lg:w-72 border-r border-border p-6 bg-secondary/30 sticky top-24 h-[calc(100vh-120px)] overflow-y-auto flex-col gap-6`}
-        >
-          <FilterSidebar
-            selectedTypes={selectedTypes}
-            selectedCiclos={selectedCiclos}
-            selectedFacultad={selectedFacultad}
-            selectedYears={selectedYears}
-            facultades={facultadesDisponibles}
-            years={aniosDisponibles}
-            onToggleType={toggleType}
-            onToggleCiclo={toggleCiclo}
-            onSelectFacultad={setSelectedFacultad}
-            onToggleYear={toggleYear}
-          />
-        </div>
-
-        {/* Mobile Filter Sidebar */}
-        {showFilters && (
-          <div className="md:hidden fixed inset-0 z-40 bg-background p-4 overflow-y-auto">
-            <Button variant="ghost" className="mb-4" onClick={() => setShowFilters(false)}>
-              ✕ Cerrar Filtros
-            </Button>
-            <FilterSidebar
-              selectedTypes={selectedTypes}
-              selectedCiclos={selectedCiclos}
-              selectedFacultad={selectedFacultad}
-              selectedYears={selectedYears}
-              facultades={facultadesDisponibles}
-              years={aniosDisponibles}
-              onToggleType={toggleType}
-              onToggleCiclo={toggleCiclo}
-              onSelectFacultad={setSelectedFacultad}
-              onToggleYear={toggleYear}
-            />
-          </div>
-        )}
-
-        {/* Results Grid */}
-        <div className="flex-1 p-4 md:p-8">
-          <div className="max-w-7xl mx-auto">
-            {isLoading ? (
-              <p className="text-sm text-muted-foreground">Cargando recursos...</p>
-            ) : filteredRecursos.length > 0 ? (
-              <>
-                <p className="text-sm text-muted-foreground mb-6">{filteredRecursos.length} resultados encontrados</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredRecursos.map((recurso) => (
-                    <RecursoCard key={recurso.id} recurso={recurso} />
+            {/* Select Facultad */}
+            <div className="w-full sm:w-48">
+              <Select value={selectedFacultad || "all"} onValueChange={setSelectedFacultad}>
+                <SelectTrigger className="h-11 rounded-xl bg-[#232532] border border-[#3f424d]/60 text-sm">
+                  <SelectValue placeholder="Facultad" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las facultades</SelectItem>
+                  {facultadesDisponibles.map((fac) => (
+                    <SelectItem key={fac} value={fac}>
+                      {fac}
+                    </SelectItem>
                   ))}
-                </div>
-              </>
-            ) : (
-              <RecursosEmptyState />
-            )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Select Ciclo */}
+            <div className="w-full sm:w-40">
+              <Select
+                value={selectedCiclos[0] ?? "all"}
+                onValueChange={(val) => setSelectedCiclos(val === "all" ? [] : [val])}
+              >
+                <SelectTrigger className="h-11 rounded-xl bg-[#232532] border border-[#3f424d]/60 text-sm">
+                  <SelectValue placeholder="Ciclo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los ciclos</SelectItem>
+                  {Array.from({ length: 10 }, (_, i) => (i + 1).toString()).map((ciclo) => (
+                    <SelectItem key={ciclo} value={ciclo}>
+                      Ciclo {ciclo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Select Año */}
+            <div className="w-full sm:w-36">
+              <Select
+                value={selectedYears[0] ?? "all"}
+                onValueChange={(val) => setSelectedYears(val === "all" ? [] : [val])}
+              >
+                <SelectTrigger className="h-11 rounded-xl bg-[#232532] border border-[#3f424d]/60 text-sm">
+                  <SelectValue placeholder="Año" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los años</SelectItem>
+                  {aniosOpciones.map((year) => (
+                    <SelectItem key={year} value={year}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Select Ordenamiento */}
+            <div className="w-full sm:w-44">
+              <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
+                <SelectTrigger className="h-11 rounded-xl bg-[#232532] border border-[#3f424d]/60 text-sm">
+                  <SelectValue placeholder="Ordenar por..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recent">Más Reciente</SelectItem>
+                  <SelectItem value="downloaded">Más Descargado</SelectItem>
+                  <SelectItem value="rated">Mejor Calificado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Chips de Categoría y Contador de Resultados */}
+          <div className="flex items-center justify-between pt-1 flex-wrap gap-3">
+            {/* Chips de Categorías */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full scrollbar-none">
+              {categoryChips.map((chip) => {
+                const isActive =
+                  chip.id === "all" ? selectedTypes.length === 0 : selectedTypes.includes(chip.id)
+                return (
+                  <button
+                    key={chip.id}
+                    onClick={() => {
+                      if (chip.id === "all") {
+                        setSelectedTypes([])
+                      } else {
+                        toggleType(chip.id)
+                      }
+                    }}
+                    className={`h-9 px-4 rounded-full text-sm font-medium transition-all shrink-0 ${
+                      isActive
+                        ? "bg-primary text-primary-foreground shadow-sm font-semibold"
+                        : "bg-[#232532] text-muted-foreground border border-[#3f424d]/60 hover:border-primary/50 hover:text-foreground"
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Contador de resultados */}
+            <span className="text-xs text-muted-foreground font-medium shrink-0">
+              {filteredRecursos.length} recursos
+            </span>
           </div>
         </div>
       </div>
-    </div>
-  )
-}
 
-interface FilterSidebarProps {
-  selectedTypes: string[]
-  selectedCiclos: string[]
-  selectedFacultad: string
-  selectedYears: string[]
-  facultades: string[]
-  years: number[]
-  onToggleType: (type: string) => void
-  onToggleCiclo: (ciclo: string) => void
-  onSelectFacultad: (facultad: string) => void
-  onToggleYear: (year: string) => void
-}
-
-function FilterSidebar({
-  selectedTypes,
-  selectedCiclos,
-  selectedFacultad,
-  selectedYears,
-  facultades,
-  years,
-  onToggleType,
-  onToggleCiclo,
-  onSelectFacultad,
-  onToggleYear,
-}: FilterSidebarProps) {
-  const documentTypes = ["Examen", "Practica", "Silabo", "PDF", "Compendio", "Libro", "Apunte", "Video"]
-  const ciclos = Array.from({ length: 10 }, (_, i) => (i + 1).toString())
-
-  return (
-    <div className="space-y-6">
-      {/* Tipo de Documento */}
-      <div>
-        <h3 className="font-semibold text-foreground mb-3">Tipo de Documento</h3>
-        <div className="space-y-2">
-          {documentTypes.map((type) => (
-            <div key={type} className="flex items-center gap-2">
-              <Checkbox
-                id={`type-${type}`}
-                checked={selectedTypes.includes(type)}
-                onCheckedChange={() => onToggleType(type)}
-              />
-              <label htmlFor={`type-${type}`} className="text-sm cursor-pointer">
-                {type}
-              </label>
+      {/* Results Content Area (100% width grid) */}
+      <div className="w-full p-4 md:p-8">
+        <div className="max-w-7xl mx-auto">
+          {isLoading ? (
+            /* Grid de Skeletons */
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {Array.from({ length: 8 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className="flex flex-col rounded-2xl bg-[#232532] border border-[#3f424d]/60 overflow-hidden h-[340px] animate-pulse"
+                >
+                  <div className="h-44 bg-muted/40" />
+                  <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <div className="h-4 bg-muted/40 rounded w-3/4" />
+                      <div className="h-3 bg-muted/30 rounded w-1/2" />
+                    </div>
+                    <div className="flex justify-between items-center pt-3 border-t border-[#3f424d]/40">
+                      <div className="h-3 bg-muted/30 rounded w-1/3" />
+                      <div className="h-8 bg-muted/40 rounded w-24" />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Ciclo */}
-      <div>
-        <h3 className="font-semibold text-foreground mb-3">Ciclo</h3>
-        <div className="space-y-2">
-          {ciclos.map((ciclo) => (
-            <div key={ciclo} className="flex items-center gap-2">
-              <Checkbox
-                id={`ciclo-${ciclo}`}
-                checked={selectedCiclos.includes(ciclo)}
-                onCheckedChange={() => onToggleCiclo(ciclo)}
-              />
-              <label htmlFor={`ciclo-${ciclo}`} className="text-sm cursor-pointer">
-                Ciclo {ciclo}
-              </label>
+          ) : filteredRecursos.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {filteredRecursos.map((recurso) => (
+                <RecursoCard key={recurso.id} recurso={recurso} />
+              ))}
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Facultad */}
-      <div>
-        <h3 className="font-semibold text-foreground mb-3">Facultad</h3>
-        <Select value={selectedFacultad} onValueChange={onSelectFacultad}>
-          <SelectTrigger>
-            <SelectValue placeholder="Seleccionar facultad" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas</SelectItem>
-            {facultades.map((fac) => (
-              <SelectItem key={fac} value={fac}>
-                {fac}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Año */}
-      <div>
-        <h3 className="font-semibold text-foreground mb-3">Año</h3>
-        <div className="space-y-2">
-          {years.map((year) => (
-            <div key={year} className="flex items-center gap-2">
-              <Checkbox
-                id={`year-${year}`}
-                checked={selectedYears.includes(year.toString())}
-                onCheckedChange={() => onToggleYear(year.toString())}
-              />
-              <label htmlFor={`year-${year}`} className="text-sm cursor-pointer">
-                {year}
-              </label>
-            </div>
-          ))}
+          ) : (
+            <RecursosEmptyState />
+          )}
         </div>
       </div>
     </div>

@@ -168,7 +168,13 @@ export function Dashboard() {
               Hola, {primerNombre} <span aria-hidden="true">👋</span>
             </h1>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              {showSkeleton ? "Revisando tu actividad..." : mensajeRacha(racha)}
+              {showSkeleton ? (
+                "Revisando tu actividad..."
+              ) : (
+                <>
+                  Llevas <b className="text-[#d2cefd] font-bold">{racha} días</b> de racha estudiando. Sigue así, la constancia gana ciclos.
+                </>
+              )}
             </p>
           </div>
           <div className="lg:col-span-7">
@@ -196,9 +202,6 @@ export function Dashboard() {
           <div className="lg:col-span-8 space-y-6">
             <AIRecommendationBanner />
             <section>
-              <h2 className="font-heading text-lg font-semibold text-foreground mb-4">
-                Continúa donde te quedaste
-              </h2>
               <ContinueLearning cursos={cursosActivos} isLoading={showSkeleton} />
             </section>
           </div>

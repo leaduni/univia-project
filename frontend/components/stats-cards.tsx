@@ -1,6 +1,6 @@
 // Cuatro métricas rápidas del dashboard — versión compacta o con ícono
 "use client"
-import { BookOpen, CheckCircle2, ClipboardCheck, TrendingUp } from "lucide-react"
+import { BookOpen, CheckCircle, FileText, TrendingUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export interface DashboardMetricas {
@@ -27,39 +27,38 @@ interface StatsCardsProps {
 function construirMetricas(s: DashboardMetricas | null) {
   return [
     {
-      icono: CheckCircle2,
+      icono: CheckCircle,
       label: "Cursos completados",
       valor: `${s?.cursosCompletados ?? 0}`,
-      nota: s?.totalCursos ? `de ${s.totalCursos} en tu plan` : "de tu carrera",
-      color: "text-accent",
+      nota: s?.totalCursos ? `de ${s.totalCursos} en plan` : "carrera",
+      color: "#67c765",
     },
     {
       icono: TrendingUp,
       label: "Avance de carrera",
       valor: `${s?.porcentajeProgreso ?? 0}%`,
-      // El avance se mide en créditos (RF-07), no en cantidad de cursos.
       nota:
         s?.creditosTotales != null
-          ? `${s.creditosAprobados ?? 0} de ${s.creditosTotales} créditos`
-          : "sobre los créditos del plan",
-      color: "text-primary",
+          ? `${s.creditosAprobados ?? 0}/${s.creditosTotales} crs`
+          : "créditos",
+      color: "#b5abfc",
     },
     {
       icono: BookOpen,
       label: "Cursos activos",
       valor: `${s?.cursosEnProgreso ?? 0}`,
       nota: "este ciclo",
-      color: "text-accent",
+      color: "#7cb8e4",
     },
     {
-      icono: ClipboardCheck,
+      icono: FileText,
       label: "Evaluaciones rendidas",
       valor: `${s?.evaluacionesRendidas ?? 0}`,
       nota:
         s?.evaluacionesRendidas
-          ? `${s.evaluacionesAprobadas ?? 0} aprobadas`
-          : "aún no rindes ninguna",
-      color: "text-primary",
+          ? `${s.evaluacionesAprobadas ?? 0} ok`
+          : "0 rendidas",
+      color: "#f0b269",
     },
   ]
 }
@@ -75,20 +74,23 @@ export function StatsCards({ stats, isLoading, compact }: StatsCardsProps) {
           return (
             <div
               key={m.label}
-              className="bg-card border border-border p-3 rounded-2xl flex flex-col justify-between h-20"
+              className="bg-[#232532]/80 border border-[#3f424d]/60 rounded-xl p-3.5 flex flex-col justify-between min-h-[86px] transition-all duration-200 hover:border-[#7957f1]/40"
             >
               {isLoading ? (
                 <>
                   <div className="h-3 w-16 bg-muted animate-pulse rounded" />
-                  <div className="h-5 w-10 bg-muted animate-pulse rounded" />
+                  <div className="h-6 w-10 bg-muted animate-pulse rounded mt-2" />
                 </>
               ) : (
                 <>
-                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-                    <Icono className={cn("w-3.5 h-3.5 shrink-0", m.color)} />
+                  <div className="flex items-center gap-1.5 text-[11.5px] font-medium text-[#e9e9ed]/55">
+                    <Icono className="w-3.5 h-3.5 shrink-0" style={{ color: m.color }} />
                     <span className="truncate">{m.label}</span>
                   </div>
-                  <span className="font-heading text-xl font-bold text-foreground">{m.valor}</span>
+                  <div className="mt-1 flex items-baseline justify-between gap-1">
+                    <span className="font-poppins font-bold text-2xl text-[#e9e9ed]">{m.valor}</span>
+                    <span className="text-[10px] text-[#e9e9ed]/45 truncate">{m.nota}</span>
+                  </div>
                 </>
               )}
             </div>
@@ -105,19 +107,25 @@ export function StatsCards({ stats, isLoading, compact }: StatsCardsProps) {
         return (
           <div
             key={m.label}
-            className="bg-card border border-border rounded-2xl p-5 flex items-start gap-4 transition-colors hover:border-accent/40"
+            className="bg-[#232532]/80 border border-[#3f424d]/60 rounded-xl p-4 flex items-start gap-3.5 transition-all duration-200 hover:border-[#7957f1]/50"
           >
-            <div className="shrink-0 w-12 h-12 rounded-xl gradient-brand-br flex items-center justify-center">
-              <Icono className="w-6 h-6 text-primary-foreground" />
+            <div
+              className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-[#161826]"
+              style={{ color: m.color }}
+            >
+              <Icono className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
               {isLoading ? (
-                <div className="h-8 w-16 bg-muted animate-pulse rounded mb-1" />
+                <div className="h-7 w-16 bg-muted animate-pulse rounded mb-1" />
               ) : (
-                <div className="font-heading text-2xl font-bold text-foreground">{m.valor}</div>
+                <div className="font-poppins text-2xl font-bold text-[#e9e9ed]">{m.valor}</div>
               )}
-              <div className="text-sm text-muted-foreground">{m.label}</div>
-              <div className="text-xs text-muted-foreground/70 mt-0.5">{m.nota}</div>
+              <div className="text-xs text-[#e9e9ed]/70 font-medium flex items-center gap-1.5">
+                <Icono className="w-3.5 h-3.5 shrink-0" style={{ color: m.color }} />
+                <span>{m.label}</span>
+              </div>
+              <div className="text-[11px] text-[#e9e9ed]/45 mt-0.5">{m.nota}</div>
             </div>
           </div>
         )

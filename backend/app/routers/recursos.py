@@ -85,8 +85,18 @@ async def get_recursos(
                     )
                     facultades_map = {f["id"]: f for f in (facultades_resp.data or [])}
 
-        resultado = []
-        for r in recursos_data:
+        # El mismo documento de Drive (drive_file_id) se ingiere una vez por
+        # curso (ingestar_recursos_drive.py, on_conflict drive_file_id+curso_id),
+        # así que un PDF compartido por varias carreras existe como N filas.
+        # En la biblioteca debe mostrarse una sola tarjeta por documento, con sus
+        # cursos como especialidades. Ordenamos por created_at desc antes de
+        # agrupar: la primera fila de cada grupo es la principal y define el orden.
+        filas_ordenadas = sorted(
+            recursos_data, key=lambda r: str(r.get("created_at") or ""), reverse=True
+        )
+
+        grupos: dict = {}
+        for r in filas_ordenadas:
             # curso siempre existe: la query ya excluyó curso_id NULL.
             curso = cursos_map.get(r.get("curso_id")) or {}
             codigo_curso_r = curso.get("code")
@@ -95,7 +105,7 @@ async def get_recursos(
             facultad_obj = facultades_map.get(carrera.get("facultad_id")) if carrera else None
             facultad_nombre = facultad_obj.get("nombre") if facultad_obj else None
 
-            resultado.append({
+            item = {
                 "id": r["id"],
                 "titulo": r.get("titulo"),
                 "tipo": r.get("tipo"),
@@ -108,27 +118,107 @@ async def get_recursos(
                 "rating": r.get("rating") or 0.0,
                 "preview_url": r.get("preview_url"),
                 "has_solucionario": r.get("has_solucionario") or False,
+                "url_solucionario": r.get("url_solucionario"),
+                "drive_id_solucionario": r.get("drive_id_solucionario"),
                 "url_drive": r.get("url_drive"),
                 "facultad_nombre": facultad_nombre,
                 "created_at": r.get("created_at"),
-            })
+                "drive_file_id": r.get("drive_file_id"),
+            }
+            especialidad = {
+                "curso_id": item["curso_id"],
+                "codigo_curso": item["codigo_curso"],
+                "nombre_curso": item["nombre_curso"],
+                "facultad_nombre": item["facultad_nombre"],
+            }
 
+            # Recursos sin drive_file_id (ej. compendios de cargar_compendio.py)
+            # no se agrupan: cada fila es su propio documento.
+            clave = item.get("drive_file_id") or f"id:{item['id']}"
+            if clave in grupos:
+                grupos[clave]["especialidades"].append(especialidad)
+            else:
+                grupos[clave] = {**item, "especialidades": [especialidad]}
+
+        # Agrupamiento dinámico de solucionarios con su documento principal (por nomenclatura o BD).
+        # Unifica "FS1 Tipler_Solucionario" en la tarjeta principal "FS1 Tipler".
+        import re
+
+        def normalizar_nombre_base(titulo: str) -> tuple[str, bool]:
+            """Retorna (titulo_normalizado, es_solucionario)."""
+            t = (titulo or "").strip()
+            es_sol = bool(re.search(r"(?:^|[\s_/\-\(\[\{])(solucionario|resuelto)(?:[\s_/\-\)\]\}]|$)", t, re.IGNORECASE))
+            if es_sol:
+                base = re.sub(r"(?i)(?:[\s_/\-]*\b(solucionario|resuelto)\b[\s_/\-]*|^\s*(solucionario|resuelto)\s*[\-:_]*\s*)", " ", t).strip()
+                base = re.sub(r"\s+", " ", base)
+                return base, True
+            return t, False
+
+        base_map = {}
+        for k, g in grupos.items():
+            base_name, is_sol = normalizar_nombre_base(g.get("titulo") or "")
+            clean_key = base_name.lower()
+            if not is_sol and clean_key:
+                base_map[clean_key] = k
+
+        claves_a_remover = set()
+        for k, g in list(grupos.items()):
+            base_name, is_sol = normalizar_nombre_base(g.get("titulo") or "")
+            clean_key = base_name.lower()
+
+            if is_sol:
+                target_key = base_map.get(clean_key)
+                if not target_key:
+                    for b_key, b_k in base_map.items():
+                        if b_key in clean_key or clean_key in b_key:
+                            target_key = b_k
+                            break
+
+                if target_key and target_key != k:
+                    principal = grupos[target_key]
+                    principal["has_solucionario"] = True
+                    principal["url_solucionario"] = principal.get("url_solucionario") or g.get("url_drive")
+                    principal["drive_id_solucionario"] = principal.get("drive_id_solucionario") or g.get("drive_file_id")
+
+                    esp_existentes = {(e["curso_id"], e["codigo_curso"]) for e in principal["especialidades"]}
+                    for esp in g.get("especialidades", []):
+                        if (esp["curso_id"], esp["codigo_curso"]) not in esp_existentes:
+                            principal["especialidades"].append(esp)
+                            esp_existentes.add((esp["curso_id"], esp["codigo_curso"]))
+
+                    claves_a_remover.add(k)
+
+        for k in claves_a_remover:
+            grupos.pop(k, None)
+
+        # Los post-filtros operan sobre el documento agrupado: una tarjeta
+        # sobrevive si CUALQUIERA de sus cursos coincide con el filtro.
         if codigo_curso:
             needle = codigo_curso.lower()
-            resultado = [r for r in resultado if needle in str(r["codigo_curso"] or "").lower()]
+            grupos = {
+                k: g for k, g in grupos.items()
+                if any(needle in str(e["codigo_curso"] or "").lower() for e in g["especialidades"])
+            }
 
         if facultad and facultad.lower() != "all":
-            resultado = [r for r in resultado if r["facultad_nombre"] == facultad]
+            grupos = {
+                k: g for k, g in grupos.items()
+                if any(e["facultad_nombre"] == facultad for e in g["especialidades"])
+            }
 
         if search:
             needle = search.lower()
-            resultado = [
-                r for r in resultado
-                if needle in str(r["titulo"] or "").lower()
-                or needle in str(r["codigo_curso"] or "").lower()
-                or needle in str(r["nombre_curso"] or "").lower()
-            ]
+            grupos = {
+                k: g for k, g in grupos.items()
+                if needle in str(g["titulo"] or "").lower()
+                or any(
+                    needle in str(e["codigo_curso"] or "").lower()
+                    or needle in str(e["nombre_curso"] or "").lower()
+                    for e in g["especialidades"]
+                )
+            }
 
+        resultado = list(grupos.values())
         resultado.sort(key=lambda r: str(r["created_at"] or ""), reverse=True)
         return resultado
     except Exception as e:

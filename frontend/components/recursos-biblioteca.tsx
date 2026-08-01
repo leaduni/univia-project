@@ -83,7 +83,11 @@ export function RecursosBiblioteca() {
 
     // Facultad filter
     if (selectedFacultad && selectedFacultad !== 'all') {
-      filtered = filtered.filter((r) => r.facultad_nombre === selectedFacultad)
+      filtered = filtered.filter(
+        (r) =>
+          r.facultad_nombre === selectedFacultad ||
+          r.especialidades?.some((e) => e.facultad_nombre === selectedFacultad),
+      )
     }
 
     // Year filter

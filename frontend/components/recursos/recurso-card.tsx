@@ -29,9 +29,42 @@ export function RecursoCard({ recurso, onDownload }: RecursoCardProps) {
 
   const puedeAbrir = Boolean(onDownload || recurso.url_drive)
 
-  const abrir = () => {
+  const urlSolucionario =
+    recurso.url_solucionario ||
+    (recurso.drive_id_solucionario
+      ? `https://drive.google.com/file/d/${recurso.drive_id_solucionario}/view`
+      : null)
+
+  const tieneSolucionario = Boolean(
+    recurso.has_solucionario || recurso.url_solucionario || recurso.drive_id_solucionario
+  )
+
+  const previsualizar = () => {
     if (onDownload) {
       onDownload()
+    } else if (recurso.url_drive) {
+      window.open(recurso.url_drive, "_blank", "noopener,noreferrer")
+    }
+  }
+
+  const abrirSolucionario = () => {
+    if (urlSolucionario) {
+      window.open(urlSolucionario, "_blank", "noopener,noreferrer")
+    } else if (recurso.url_drive) {
+      window.open(recurso.url_drive, "_blank", "noopener,noreferrer")
+    }
+  }
+
+  const descargar = () => {
+    if (onDownload) {
+      onDownload()
+      return
+    }
+
+    const fileId = (recurso as any).drive_file_id
+    if (fileId) {
+      // Fuerza el inicio de descarga automática del archivo desde Google Drive
+      window.open(`https://drive.google.com/uc?export=download&id=${fileId}`, "_blank")
     } else if (recurso.url_drive) {
       window.open(recurso.url_drive, "_blank", "noopener,noreferrer")
     }
@@ -46,6 +79,19 @@ export function RecursoCard({ recurso, onDownload }: RecursoCardProps) {
             <CardDescription className="text-xs mt-1">
               {recurso.codigo_curso || recurso.nombre_curso || "—"}
             </CardDescription>
+            {(recurso.especialidades?.length ?? 0) > 1 && (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {recurso.especialidades!.map((esp, index) => (
+                  <Badge
+                    key={esp.codigo_curso ?? esp.curso_id ?? index}
+                    variant="outline"
+                    className="text-[10px] font-normal bg-secondary/60 text-muted-foreground"
+                  >
+                    {[esp.codigo_curso, esp.nombre_curso].filter(Boolean).join(" · ")}
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
           <Badge className={typeColors[recurso.tipo]} variant="secondary">
             {recurso.tipo}
@@ -71,13 +117,25 @@ export function RecursoCard({ recurso, onDownload }: RecursoCardProps) {
         <div className="text-xs text-muted-foreground">{recurso.downloads.toLocaleString()} descargas</div>
 
         <div className="space-y-2 mt-auto pt-2">
+          {tieneSolucionario && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="w-full gap-1.5 h-8 text-xs bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/30 font-medium"
+              disabled={!urlSolucionario && !recurso.url_drive}
+              onClick={abrirSolucionario}
+            >
+              <FileCheck className="w-3.5 h-3.5" />
+              Ver Solucionario
+            </Button>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <Button
               size="sm"
               variant="outline"
               className="gap-1 h-8 text-xs bg-transparent border-border"
               disabled={!puedeAbrir}
-              onClick={abrir}
+              onClick={previsualizar}
             >
               <Eye className="w-3 h-3" />
               Previsualizar
@@ -86,18 +144,12 @@ export function RecursoCard({ recurso, onDownload }: RecursoCardProps) {
               size="sm"
               className="gap-1 h-8 text-xs gradient-brand-hover text-white border-0"
               disabled={!puedeAbrir}
-              onClick={abrir}
+              onClick={descargar}
             >
               <Download className="w-3 h-3" />
               Descargar
             </Button>
           </div>
-          {recurso.has_solucionario && (
-            <Button size="sm" variant="secondary" className="w-full gap-1 h-8 text-xs">
-              <FileCheck className="w-3 h-3" />
-              Ver Solucionario
-            </Button>
-          )}
         </div>
       </CardContent>
     </Card>

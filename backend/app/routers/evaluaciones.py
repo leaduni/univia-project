@@ -296,7 +296,7 @@ INSTRUCCIONES UNIVERSALES DE FORMATO Y ESTRUCTURA (MULTICURSO):
    - EJEMPLOS CORRECTOS: "Calcule $\int_0^1 x^2 dx$", "Determine el valor de $k$", "Ajuste el modelo $Y = \beta_0 + \beta_1 X$".
    - PROHIBIDO escribir comandos LaTeX (\frac, \sqrt, \int, \vec, \matrix) sin delimitadores $...$.
    - Usa estrictamente $...$ para matemáticas en línea y $$...$$ para bloques independientes.
-   - NUNCA uses triple dólar ($$$) ni pegues palabras de texto plano a comandos LaTeX (ejemplo correcto: "Halle $\vec{QS}$", incorrecto: "Halle\vec{QS}").
+   - NUNCA uses triple dólar ($$$) ni pegues palabras de texto plano a comandos LaTeX (ejemplo correcto: "Halle $\vec{{QS}}$", incorrecto: "Halle\vec{{QS}}").
    - Asegúrate de cerrar todos los delimitadores matemáticos abiertos antes de finalizar cada respuesta.
 
 2. COHERENCIA COMPLETA ENTRE PREGUNTA Y OPCIONES:

@@ -1,4 +1,11 @@
 // Resource/exam-related TypeScript type definitions
+export interface EspecialidadRecurso {
+  curso_id: number | null
+  codigo_curso: string | null
+  nombre_curso: string | null
+  facultad_nombre?: string | null
+}
+
 export interface Recurso {
   id: number
   titulo: string
@@ -12,7 +19,10 @@ export interface Recurso {
   rating: number
   preview_url: string | null
   has_solucionario: boolean
+  url_solucionario?: string | null
+  drive_id_solucionario?: string | null
   url_drive: string | null
   facultad_nombre: string | null
   created_at: string
+  especialidades?: EspecialidadRecurso[]
 }

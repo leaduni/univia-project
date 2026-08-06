@@ -74,9 +74,8 @@ function AiInsightCard({
       {actionLabel && onAction && (
         <div className="pt-1">
           <Button
-            variant="brand"
-            size="sm"
             onClick={onAction}
+            className="bg-gradient-to-r from-[#d93340] via-[#a6249d] to-[#7957f1] px-4 py-2 rounded-lg text-xs font-semibold text-white shadow-md hover:brightness-110 h-auto border-0"
           >
             {actionLabel}
           </Button>

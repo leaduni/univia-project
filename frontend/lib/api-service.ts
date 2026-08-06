@@ -263,12 +263,15 @@ export const apiService = {
         }
     },
 
-    async getRecursos(filters: { tipo?: string; ciclo?: number; codigo_curso?: string; search?: string } = {}) {
+    async getRecursos(filters: { tipo?: string; ciclo?: number; curso_id?: number; codigo_curso?: string; year?: number; facultad?: string; search?: string } = {}) {
         try {
             const params = new URLSearchParams();
             if (filters.tipo && filters.tipo !== 'all') params.append('tipo', filters.tipo);
             if (filters.ciclo) params.append('ciclo', filters.ciclo.toString());
+            if (filters.curso_id) params.append('curso_id', filters.curso_id.toString());
             if (filters.codigo_curso) params.append('codigo_curso', filters.codigo_curso);
+            if (filters.year) params.append('year', filters.year.toString());
+            if (filters.facultad && filters.facultad !== 'all') params.append('facultad', filters.facultad);
             if (filters.search) params.append('search', filters.search);
 
             const response = await fetchWithAuth(`${API_URL}/recursos?${params.toString()}`);

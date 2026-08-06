@@ -15,7 +15,8 @@ import {
   RotateCcw,
   Clock,
   Loader2,
-  Lock
+  Lock,
+  BookOpen
 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import MarkdownRenderer from "@/components/ui/markdown-renderer"
@@ -40,6 +41,8 @@ interface Pregunta {
   contexto_markdown?: string;
   input_markdown?: string;
   output_markdown?: string;
+  origen?: string;
+  fuente_detalle?: string;
 }
 
 interface Evaluacion {
@@ -80,14 +83,14 @@ export function EvaluacionIA({
   const [step, setStep] = useState<"config" | "loading" | "evaluacion" | "resultados">("config")
   const [selectedModulo, setSelectedModulo] = useState<ModuloInfo | null>(null)
   const LIMITES_POR_CURSO: Record<string, { min: number; max: number }> = {
-    "11": { min: 3, max: 4 }, // Geometría Analítica (Sistemas)
-    "31": { min: 3, max: 4 }, // Geometría Analítica (Software)
-    "54": { min: 3, max: 4 }, // Geometría Analítica (Industrial)
-    "12": { min: 3, max: 4 }, // Cálculo Diferencial (Sistemas)
-    "32": { min: 3, max: 4 }, // Cálculo Diferencial (Software)
-    "50": { min: 3, max: 4 }, // Cálculo Diferencial (Industrial)
+    "11": { min: 3, max: 6 }, // Geometría Analítica (Sistemas)
+    "31": { min: 3, max: 6 }, // Geometría Analítica (Software)
+    "54": { min: 3, max: 6 }, // Geometría Analítica (Industrial)
+    "12": { min: 3, max: 6 }, // Cálculo Diferencial (Sistemas)
+    "32": { min: 3, max: 6 }, // Cálculo Diferencial (Software)
+    "50": { min: 3, max: 6 }, // Cálculo Diferencial (Industrial)
   }
-  const limites = LIMITES_POR_CURSO[courseId] ?? { min: 3, max: 5 }
+  const limites = LIMITES_POR_CURSO[courseId] ?? { min: 3, max: 6 }
   const [numPreguntas, setNumPreguntas] = useState(limites.min)
   const [observaciones, setObservaciones] = useState("")
   const [evaluacion, setEvaluacion] = useState<Evaluacion | null>(null)
@@ -415,6 +418,8 @@ export function EvaluacionIA({
         contextoMarkdown: d.contexto_markdown,
         inputMarkdown: d.input_markdown,
         outputMarkdown: d.output_markdown,
+        origen: d.origen,
+        fuente_detalle: d.fuente_detalle,
       })),
     };
   };
@@ -628,6 +633,22 @@ export function EvaluacionIA({
                       {pregunta.tipo === "unica" && "Selección única"}
                       {pregunta.tipo === "verdadero_falso" && "Verdadero o Falso"}
                     </CardDescription>
+                  )}
+                  {pregunta.origen === "compendio" ? (
+                    <span
+                      title={pregunta.fuente_detalle || "Examen pasado"}
+                      className="ml-11 mt-1.5 inline-flex items-center gap-1.5 bg-purple-950/60 text-purple-300 border border-purple-500/30 px-2.5 py-1 rounded-full text-xs font-medium"
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      Examen Pasado
+                    </span>
+                  ) : (
+                    <span
+                      className="ml-11 mt-1.5 inline-flex items-center gap-1.5 bg-slate-800 text-slate-300 border border-slate-700 px-2.5 py-1 rounded-full text-xs font-medium"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      Sintetizado por IA
+                    </span>
                   )}
                 </CardHeader>
                 <CardContent className={pregunta.tipo === 'codigo' ? "p-0" : "ml-11 space-y-4"}>

@@ -1,7 +1,7 @@
 // Dashboard principal: saludo, métricas, cursos activos y panel lateral
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { AlertCircle } from "lucide-react"
 import { StatsCards } from "./stats-cards"
 import { ContinueLearning, type CursoActivo } from "./dashboard/continue-learning"
@@ -28,26 +28,34 @@ export function Dashboard() {
   const [logros, setLogros] = useState<Logro[]>([])
   const [cursosActivos, setCursosActivos] = useState<CursoActivo[]>([])
   const [racha, setRacha] = useState(0)
+  // isLoading: solo la primera carga (sin datos previos que mostrar).
+  // isRefreshing: recargas posteriores (ej. Supabase renueva el token al
+  // volver a la pestaña) — los datos ya cargados se quedan en pantalla.
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const isMounted = useRef(true)
+  const hasLoadedOnce = useRef(false)
+  const isFetchingRef = useRef(false)
 
-  useEffect(() => {
-    isMounted.current = true
-    // No disparar llamadas API sin sesión activa: sin token, todas
-    // responderían 401 y generarían errores en la consola.
-    if (session) {
-      loadDashboardData()
+  // Antes el efecto dependía del objeto `session` completo. Supabase emite
+  // un evento (con un objeto `session` nuevo, aunque sea el mismo usuario)
+  // cada vez que renueva el token — típicamente al volver a la pestaña — así
+  // que cada cambio de foco disparaba una recarga completa del dashboard y
+  // los datos parpadeaban/desaparecían mientras volvían a llegar. Ahora solo
+  // se dispara cuando cambia el usuario autenticado (login/logout real).
+  const userId = user?.id ?? null
+  const hasSession = !!session
+
+  const loadDashboardData = useCallback(async () => {
+    if (isFetchingRef.current) return
+    isFetchingRef.current = true
+
+    if (hasLoadedOnce.current) {
+      setIsRefreshing(true)
     } else {
-      setIsLoading(false)
+      setIsLoading(true)
     }
-    return () => {
-      isMounted.current = false
-    }
-  }, [session])
-
-  async function loadDashboardData() {
-    setIsLoading(true)
     setError(null)
 
     try {
@@ -114,16 +122,41 @@ export function Dashboard() {
             : "Sincronización parcial: Algunos datos académicos no están actualizados.",
         )
       }
+
+      hasLoadedOnce.current = true
     } catch (err) {
       setError("Error crítico en la carga de datos del portal.")
     } finally {
-      if (isMounted.current) setIsLoading(false)
+      isFetchingRef.current = false
+      if (isMounted.current) {
+        setIsLoading(false)
+        setIsRefreshing(false)
+      }
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    isMounted.current = true
+    // No disparar llamadas API sin sesión activa: sin token, todas
+    // responderían 401 y generarían errores en la consola.
+    if (hasSession) {
+      loadDashboardData()
+    } else {
+      setIsLoading(false)
+    }
+    return () => {
+      isMounted.current = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasSession, userId])
 
   // Solo el primer nombre: "Hola, Juan Carlos Pérez Ramírez 👋" no saluda a
   // nadie, y el nombre completo ya está en el menú de usuario.
   const primerNombre = (user?.nombre_completo || "Estudiante").trim().split(/\s+/)[0]
+
+  // Skeletons solo en la primera carga. En refrescos de fondo se mantienen
+  // los datos anteriores en pantalla — nada que "desaparezca".
+  const showSkeleton = isLoading && !hasLoadedOnce.current
 
   return (
     <div className="min-h-screen bg-background">
@@ -135,11 +168,17 @@ export function Dashboard() {
               Hola, {primerNombre} <span aria-hidden="true">👋</span>
             </h1>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              {isLoading ? "Revisando tu actividad..." : mensajeRacha(racha)}
+              {showSkeleton ? (
+                "Revisando tu actividad..."
+              ) : (
+                <>
+                  Llevas <b className="text-[#d2cefd] font-bold">{racha} días</b> de racha estudiando. Sigue así, la constancia gana ciclos.
+                </>
+              )}
             </p>
           </div>
           <div className="lg:col-span-7">
-            <StatsCards stats={stats} isLoading={isLoading} compact />
+            <StatsCards stats={stats} isLoading={showSkeleton} compact />
           </div>
         </div>
 
@@ -163,16 +202,13 @@ export function Dashboard() {
           <div className="lg:col-span-8 space-y-6">
             <AIRecommendationBanner />
             <section>
-              <h2 className="font-heading text-lg font-semibold text-foreground mb-4">
-                Continúa donde te quedaste
-              </h2>
-              <ContinueLearning cursos={cursosActivos} isLoading={isLoading} />
+              <ContinueLearning cursos={cursosActivos} isLoading={showSkeleton} />
             </section>
           </div>
 
           {/* Panel lateral */}
           <div className="lg:col-span-4">
-            <SidebarWidgets stats={stats} logros={logros} isLoading={isLoading} />
+            <SidebarWidgets stats={stats} logros={logros} isLoading={showSkeleton} />
           </div>
         </div>
 

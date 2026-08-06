@@ -11,6 +11,8 @@ export interface QuestionDetail {
   contextoMarkdown?: string;
   inputMarkdown?: string;
   outputMarkdown?: string;
+  origen?: string;
+  fuente_detalle?: string;
 }
 
 export interface FeedbackData {

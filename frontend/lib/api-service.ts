@@ -32,6 +32,31 @@ function extraerMensajeError(body: any): string | null {
     return body?.errors?.[0]?.message || body?.detail || null;
 }
 
+/**
+ * Error de la API con el campo que lo originó.
+ *
+ * Varios endpoints del dashboard responden 400 con `field: "carrera_id"`
+ * cuando el estudiante todavía no eligió carrera. Antes se descartaba el
+ * cuerpo y se lanzaba un mensaje fijo, así que la pantalla no distinguía
+ * "falta tu onboarding" de "el servidor se cayó" y no podía reaccionar.
+ */
+export interface ApiError extends Error {
+    status?: number;
+    field?: string;
+    /** El estudiante aún no completó su onboarding: no es un fallo real. */
+    requiereOnboarding?: boolean;
+}
+
+async function errorDeRespuesta(response: Response, fallback: string): Promise<ApiError> {
+    const body = await response.json().catch(() => null);
+    const field = body?.errors?.[0]?.field;
+    const error = new Error(extraerMensajeError(body) || fallback) as ApiError;
+    error.status = response.status;
+    error.field = field;
+    error.requiereOnboarding = response.status === 400 && field === "carrera_id";
+    return error;
+}
+
 export const apiService = {
     async getMalla() {
         try {
@@ -107,11 +132,15 @@ export const apiService = {
         try {
             const response = await fetchWithAuth(`${API_URL}/dashboard/test-nivel`);
             if (!response.ok) {
-                throw new Error('No se pudo cargar tu diagnóstico académico.');
+                throw await errorDeRespuesta(response, 'No se pudo cargar tu diagnóstico académico.');
             }
             return await response.json();
         } catch (error) {
-            console.error("API Error (getTestNivel):", error);
+            // Un onboarding pendiente es un estado normal de la cuenta, no un
+            // fallo: quien llama decide qué mostrar sin ensuciar la consola.
+            if (!(error as ApiError)?.requiereOnboarding) {
+                console.error("API Error (getTestNivel):", error);
+            }
             throw error;
         }
     },
@@ -144,11 +173,13 @@ export const apiService = {
         try {
             const response = await fetchWithAuth(`${API_URL}/malla/avance`);
             if (!response.ok) {
-                throw new Error('No se pudo cargar tu avance de carrera.');
+                throw await errorDeRespuesta(response, 'No se pudo cargar tu avance de carrera.');
             }
             return await response.json();
         } catch (error) {
-            console.error("API Error (getAvanceCarrera):", error);
+            if (!(error as ApiError)?.requiereOnboarding) {
+                console.error("API Error (getAvanceCarrera):", error);
+            }
             throw error;
         }
     },

@@ -2,6 +2,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { AlertCircle } from "lucide-react"
 import { StatsCards } from "./stats-cards"
 import { ContinueLearning, type CursoActivo } from "./dashboard/continue-learning"
@@ -9,7 +10,7 @@ import { SidebarWidgets } from "./dashboard/sidebar-widgets"
 import { RecentResources } from "./dashboard/recent-resources"
 import { AIRecommendationBanner } from "./dashboard/ai-recommendation-banner"
 import { useAuth } from "./providers/auth-context"
-import { apiService } from "@/lib/api-service"
+import { apiService, type ApiError } from "@/lib/api-service"
 import { calcularRacha, mensajeRacha } from "@/lib/racha"
 import type { DashboardMetricas } from "./stats-cards"
 
@@ -24,6 +25,7 @@ interface Logro {
 
 export function Dashboard() {
   const { user, session } = useAuth()
+  const router = useRouter()
   const [stats, setStats] = useState<DashboardMetricas | null>(null)
   const [logros, setLogros] = useState<Logro[]>([])
   const [cursosActivos, setCursosActivos] = useState<CursoActivo[]>([])
@@ -37,6 +39,7 @@ export function Dashboard() {
   const isMounted = useRef(true)
   const hasLoadedOnce = useRef(false)
   const isFetchingRef = useRef(false)
+  const redirigiendoRef = useRef(false)
 
   // Antes el efecto dependía del objeto `session` completo. Supabase emite
   // un evento (con un objeto `session` nuevo, aunque sea el mismo usuario)
@@ -75,6 +78,21 @@ export function Dashboard() {
         ])
 
       if (!isMounted.current) return
+
+      // Sin carrera elegida el dashboard no tiene nada que mostrar: sus
+      // métricas se calculan sobre la malla de la carrera. En vez de pintar
+      // ceros y dejar errores en consola, se manda al estudiante a terminar
+      // el onboarding, que es lo único que puede hacer desde aquí.
+      const faltaOnboarding = [summaryResult, activosResult, avanceResult, actividadResult].some(
+        (r) => r.status === "rejected" && (r.reason as ApiError)?.requiereOnboarding,
+      )
+      if (faltaOnboarding) {
+        // Se mantiene el skeleton hasta que la navegación ocurra: apagar la
+        // carga aquí mostraría el dashboard vacío por un instante.
+        redirigiendoRef.current = true
+        router.replace("/onboarding")
+        return
+      }
 
       let errorCount = 0
 
@@ -128,12 +146,12 @@ export function Dashboard() {
       setError("Error crítico en la carga de datos del portal.")
     } finally {
       isFetchingRef.current = false
-      if (isMounted.current) {
+      if (isMounted.current && !redirigiendoRef.current) {
         setIsLoading(false)
         setIsRefreshing(false)
       }
     }
-  }, [])
+  }, [router])
 
   useEffect(() => {
     isMounted.current = true

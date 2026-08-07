@@ -428,11 +428,15 @@ async def register(
 
 @router.post("/auth/register-user", status_code=201)
 async def register_user(data: RegistroCompleto):
-    supabase = get_supabase()
+    # Los duplicados se consultan con el cliente admin a propósito: quien se
+    # registra todavía no tiene sesión, y con la clave anónima RLS oculta las
+    # filas de `perfiles`, así que la consulta volvía vacía siempre y ningún
+    # duplicado se detectaba antes de llegar a Supabase Auth.
+    admin = get_admin_client()
 
     # Verificar duplicado de email
     try:
-        email_check = supabase.table("perfiles").select("id").eq("email", data.email).maybe_single().execute()
+        email_check = admin.table("perfiles").select("id").eq("email", data.email).maybe_single().execute()
     except Exception:
         email_check = None
     if email_check and getattr(email_check, 'data', None):
@@ -440,7 +444,7 @@ async def register_user(data: RegistroCompleto):
 
     # Verificar duplicado de codigo_estudiante
     try:
-        codigo_check = supabase.table("perfiles").select("id").eq("codigo_estudiante", data.codigo_estudiante).maybe_single().execute()
+        codigo_check = admin.table("perfiles").select("id").eq("codigo_estudiante", data.codigo_estudiante).maybe_single().execute()
     except Exception:
         codigo_check = None
     if codigo_check and getattr(codigo_check, 'data', None):
@@ -448,7 +452,6 @@ async def register_user(data: RegistroCompleto):
 
     # Crear usuario en Supabase Auth (admin)
     try:
-        admin = get_admin_client()
         user_resp = admin.auth.admin.create_user({
             "email": data.email,
             "password": data.password,
@@ -460,6 +463,11 @@ async def register_user(data: RegistroCompleto):
         })
     except Exception as e:
         print(f"[REGISTER-USER] Error creating auth user: {str(e)}")
+        # El chequeo de duplicados de arriba solo mira `perfiles`, así que un
+        # usuario que quedó en auth.users sin perfil (registro a medias) llega
+        # hasta aquí. Es un problema del campo email, no un fallo del servidor.
+        if "already been registered" in str(e).lower() or "already registered" in str(e).lower():
+            raise_field_error("email", "Este correo institucional ya tiene una cuenta asociada.")
         raise HTTPException(status_code=500, detail=f"Error al crear el usuario de autenticación: {str(e)}")
 
     user_id = user_resp.user.id
@@ -478,6 +486,15 @@ async def register_user(data: RegistroCompleto):
         print(f"[REGISTER-USER] Profile created for user: {user_id}")
     except Exception as e:
         print(f"[REGISTER-USER] Error creating profile: {str(e)}")
+        # Sin perfil la cuenta es inservible y además bloquea el reintento: el
+        # email queda tomado en auth.users pero invisible para el chequeo de
+        # duplicados. Se deshace la creación para que el estudiante pueda
+        # volver a registrarse con los mismos datos.
+        try:
+            admin.auth.admin.delete_user(user_id)
+            print(f"[REGISTER-USER] Rolled back auth user: {user_id}")
+        except Exception as rollback_error:
+            print(f"[REGISTER-USER] Rollback failed for {user_id}: {rollback_error}")
         raise HTTPException(status_code=500, detail=f"Error al crear el perfil: {str(e)}")
 
     return {"status": "success", "message": "Registro completado exitosamente. Ya puedes iniciar sesión."}

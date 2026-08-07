@@ -91,13 +91,24 @@ export default function SignupPage() {
           nombre_completo: "fullName",
         };
         type FormFieldName = "email" | "password" | "studentCode" | "fullName" | "confirmPassword" | "acceptTerms";
+        // Los errores que no corresponden a un campo del formulario (field
+        // "general", p. ej. un fallo del servidor) se muestran tal cual en el
+        // banner: si solo se dijera "corrige los campos" sin marcar ninguno,
+        // el estudiante vería un error sin nada que corregir.
+        const sinCampo: string[] = [];
         err.validationErrors.forEach((ve: { field: string; message: string }) => {
           const formField = fieldMap[ve.field] as FormFieldName | undefined;
           if (formField) {
             form.setError(formField, { message: ve.message });
+          } else {
+            sinCampo.push(ve.message);
           }
         });
-        setError("Corrige los errores marcados en los campos.");
+        setError(
+          sinCampo.length > 0
+            ? sinCampo.join(" ")
+            : "Corrige los errores marcados en los campos."
+        );
       } else {
         setError(err.message || "Error al registrar tu cuenta. Intenta nuevamente.")
       }

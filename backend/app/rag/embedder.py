@@ -1,91 +1,229 @@
+"""
+Generador de embeddings usando Gemini Embedding v2.
+
+Hito 1.1 — Quick Wins:
+  - batch_size configurable (default 20).
+  - Backoff exponencial con jitter solo ante HTTP 429.
+  - Sin sleep fijo entre lotes exitosos.
+  - Degradación elegante: lotes fallidos se saltan, el resto continúa.
+  - Integración opcional con EmbeddingCache (Hito 1.2).
+"""
+import logging
 import os
+import random
+import time
+
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
-import time
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
+
+def _backoff_delay(attempt: int, base: float = 1.0, max_delay: float = 60.0) -> float:
+    """Delay exponencial con jitter aleatorio (0-1s)."""
+    delay = min(max_delay, base * (2 ** (attempt - 1)))
+    jitter = random.uniform(0, 1)
+    return delay + jitter
+
+
+def _es_rate_limit(error: Exception) -> bool:
+    """Detecta HTTP 429 o cuota agotada en el mensaje de error."""
+    s = str(error).lower()
+    return "429" in s or "quota" in s or "resource_exhausted" in s
+
+
 class SyllabusEmbedder:
-    def __init__(self, model_name="models/gemini-embedding-2", expected_dimensions=1536):
+    """Genera embeddings con Gemini y caché opcional."""
+
+    def __init__(
+        self,
+        model_name: str = "models/gemini-embedding-2",
+        expected_dimensions: int = 1536,
+        batch_size: int = 20,
+        max_retries: int = 5,
+        base_delay: float = 1.0,
+        max_delay: float = 60.0,
+        cache=None,
+    ):
+        """
+        Args:
+            model_name: Modelo de embedding de Gemini.
+            expected_dimensions: Dimensión del vector de salida.
+            batch_size: Chunks por lote enviados a la API (default 20).
+            max_retries: Reintentos máximos ante 429 (default 5).
+            base_delay: Delay base en segundos para backoff (default 1.0).
+            max_delay: Cota superior de espera en segundos (default 60.0).
+            cache: Instancia opcional de EmbeddingCache.
+        """
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            print("Error: No se detectó el API_KEY de Gemini. ")
+            logger.error("GEMINI_API_KEY no configurada.")
 
         self.client = genai.Client(api_key=api_key)
         self.model_name = model_name
         self.expected_dimensions = expected_dimensions
+        self.batch_size = batch_size
+        self.max_retries = max_retries
+        self.base_delay = base_delay
+        self.max_delay = max_delay
+        self.cache = cache
 
-    def embedding_generator(self, chunks: list, batch_size: int = 5) -> list:
+    def _llamar_api(self, textos: list) -> list:
+        """Llama a Gemini Embedding y devuelve los vectores."""
+        result = self.client.models.embed_content(
+            model=self.model_name,
+            contents=textos,
+            config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
+        )
+        return [e.values[: self.expected_dimensions] for e in result.embeddings]
+
+    def _procesar_lote_con_cache(self, lote: list) -> list:
+        """
+        Procesa un lote usando caché + API.
+
+        Returns:
+            Lista de dicts enriquecidos con embedding, en el mismo orden
+            que el lote de entrada. Chunks sin embedding (fallo definitivo)
+            se omiten.
+        """
+        from app.rag.embedding_cache import hash_chunk
+
+        resultados = [None] * len(lote)
+        textos_miss = []
+        indices_miss = []
+        hits_cache = 0
+
+        # 1. Consultar caché para cada chunk
+        for j, chunk in enumerate(lote):
+            h = hash_chunk(chunk["contenido"])
+            if self.cache:
+                cached = self.cache.lookup(h)
+                if cached is not None:
+                    resultado = chunk.copy()
+                    resultado["embedding"] = cached
+                    resultados[j] = resultado
+                    hits_cache += 1
+                    continue
+            # MISS: agregar a lista para API
+            textos_miss.append(chunk["contenido"])
+            indices_miss.append(j)
+
+        if hits_cache or textos_miss:
+            logger.info(
+                f"[Cache Embedding] {hits_cache} chunks recuperados de caché, "
+                f"{len(textos_miss)} enviados a Gemini API."
+            )
+
+        if not textos_miss:
+            return [r for r in resultados if r is not None]
+
+        # 2. Llamar API con backoff para los MISS
+        vectores = None
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                vectores = self._llamar_api(textos_miss)
+                break
+            except Exception as e:
+                if _es_rate_limit(e):
+                    delay = _backoff_delay(attempt, self.base_delay, self.max_delay)
+                    logger.warning(
+                        f"[Rate Limit 429] Aplicando backoff exponencial con jitter "
+                        f"(reintento {attempt}/{self.max_retries}), esperando {delay:.1f}s"
+                    )
+                    time.sleep(delay)
+                    if attempt >= self.max_retries:
+                        logger.error(
+                            f"[Rate Limit 429] Agotados {self.max_retries} reintentos. "
+                            f"Lote de {len(textos_miss)} chunks omitido."
+                        )
+                        return [r for r in resultados if r is not None]
+                else:
+                    logger.error(f"Error no recuperable en embedding: {e}")
+                    return [r for r in resultados if r is not None]
+
+        if vectores is None:
+            return [r for r in resultados if r is not None]
+
+        # 3. Ensamblar resultados y guardar en caché
+        for k, (idx, vector) in enumerate(zip(indices_miss, vectores)):
+            chunk = lote[idx].copy()
+            chunk["embedding"] = vector
+            resultados[idx] = chunk
+            if self.cache:
+                h = hash_chunk(chunk["contenido"])
+                self.cache.store(h, vector)
+
+        return [r for r in resultados if r is not None]
+
+    def embedding_generator(self, chunks: list) -> list:
+        """
+        Convierte chunks en embeddings usando Gemini + caché.
+
+        Comportamiento:
+        - Procesa en lotes de tamaño self.batch_size.
+        - Ante HTTP 200: avanza al siguiente lote SIN sleep.
+        - Ante HTTP 429: aplica backoff exponencial con jitter.
+        - Ante error no recuperable: salta el lote y continúa.
+        - Si hay caché configurado, evita llamadas redundantes.
+
+        Returns:
+            Lista de dicts {contenido, embedding}. Puede ser más corta
+            que la entrada si algunos lotes fallaron definitivamente.
+        """
         if not chunks:
-            print("Error: No se encontraron chunks para convertir. ")
+            logger.warning("No se encontraron chunks para convertir.")
             return []
 
-        print("Iniciando conversion de chunks a embeddings ... ")
+        logger.info(f"Iniciando vectorización de {len(chunks)} chunks (batch={self.batch_size}, sin pausa estática)...")
         chunks_transformados = []
 
-        for i in range(0, len(chunks), batch_size):
-            lote_actual = chunks[i: i + batch_size]
-            textos_lote = [chunk["contenido"] for chunk in lote_actual]
+        for i in range(0, len(chunks), self.batch_size):
+            lote = chunks[i : i + self.batch_size]
+            lote_num = i // self.batch_size + 1
+            total_lotes = (len(chunks) + self.batch_size - 1) // self.batch_size
 
-            print(f"Enviando lote {i//batch_size + 1} al modelo...")
+            logger.info(f"[Embedder] Procesando lote {lote_num}/{total_lotes} ({len(lote)} chunks) - Sin pausa estática.")
 
-            intentos = 0
-            max_intentos = 3
+            if self.cache:
+                procesados = self._procesar_lote_con_cache(lote)
+            else:
+                procesados = self._procesar_lote_sin_cache(lote)
 
-            while intentos < max_intentos:
-                try:
-                    result = self.client.models.embed_content(
-                        model=self.model_name,
-                        contents=textos_lote,
-                        config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
-                    )
+            chunks_transformados.extend(procesados)
 
-                    vectores = [e.values for e in result.embeddings]
-
-                    for j, vector in enumerate(vectores):
-                        vector_ajustado = vector[:self.expected_dimensions]
-                        chunk_enriquecido = lote_actual[j].copy()
-                        chunk_enriquecido["embedding"] = vector_ajustado
-                        chunks_transformados.append(chunk_enriquecido)
-
-                    break
-
-                except Exception as e:
-                    intentos += 1
-                    error_str = str(e)
-
-                    if "429" in error_str or "Quota" in error_str:
-                        espera = 5 * intentos
-                        print(f"Limite de cuota detectado. Esperando {espera} segundos (intento {intentos}/{max_intentos})")
-                        time.sleep(espera)
-
-                    else:
-                        print(f"Ocurrio un error inesperado: {e}")
-                        break
-
-            time.sleep(2)
-
-        print(f"Vectorización completada para {len(chunks_transformados)} fragmentos.")
+        logger.info(
+            f"Vectorización completada: {len(chunks_transformados)}/{len(chunks)} "
+            f"chunks con embedding."
+        )
         return chunks_transformados
 
-if __name__ == "__main__":
-    from app.rag.chunker import SyllabusChunker
+    def _procesar_lote_sin_cache(self, lote: list) -> list:
+        """Procesa un lote sin caché (fallback cuando no hay cache configurado)."""
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                vectores = self._llamar_api([c["contenido"] for c in lote])
+                resultados = []
+                for chunk, vector in zip(lote, vectores):
+                    enriquecido = chunk.copy()
+                    enriquecido["embedding"] = vector
+                    resultados.append(enriquecido)
+                return resultados
+            except Exception as e:
+                if _es_rate_limit(e):
+                    delay = _backoff_delay(attempt, self.base_delay, self.max_delay)
+                    logger.warning(
+                        f"[Rate Limit 429] Aplicando backoff exponencial con jitter "
+                        f"(reintento {attempt}/{self.max_retries}), esperando {delay:.1f}s"
+                    )
+                    time.sleep(delay)
+                    if attempt >= self.max_retries:
+                        logger.error(f"[Rate Limit 429] Lote omitido tras {self.max_retries} reintentos.")
+                        return []
+                else:
+                    logger.error(f"Error no recuperable: {e}")
+                    return []
 
-    root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    test_pdf = os.path.join(root_dir, "ingesta_silabos", "silabos", "BF101-Fisica.pdf")
-
-    chunker = SyllabusChunker()
-    chunks_generados = chunker.chunk_text(test_pdf)
-
-    if chunks_generados:
-        embedder = SyllabusEmbedder()
-        chunks_finales = embedder.embedding_generator(chunks_generados, batch_size=2)
-
-    if chunks_finales:
-        print("Contenido del primer chunk:")
-        print(chunks_finales[0]["contenido"])
-        print("\nDimensiones del vector generado:")
-        print(len(chunks_finales[0]["embedding"]))
-        print("\nPrimeros 5 números del vector:")
-        print(chunks_finales[0]["embedding"][:5])
+        return []

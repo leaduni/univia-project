@@ -274,7 +274,15 @@ export const apiService = {
             if (filters.facultad && filters.facultad !== 'all') params.append('facultad', filters.facultad);
             if (filters.search) params.append('search', filters.search);
 
-            const response = await fetchWithAuth(`${API_URL}/recursos?${params.toString()}`);
+            const token = await getAuthToken();
+            if (!token) {
+                return [];
+            }
+
+            const response = await fetchWithAuth(`${API_URL}/recursos?${params.toString()}`, {}, token);
+            if (response.status === 401) {
+                return [];
+            }
             if (!response.ok) {
                 throw new Error(`Error fetching recursos: ${response.statusText}`);
             }

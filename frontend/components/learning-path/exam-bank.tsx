@@ -9,6 +9,7 @@ import { FileText, BookOpen } from "lucide-react"
 import { apiService } from "@/lib/api-service"
 import { RecursoCard } from "@/components/recursos/recurso-card"
 import type { Recurso } from "@/types/recurso"
+import { useAuth } from "@/components/providers/auth-context"
 
 // Todas las planchas de Geometría Analítica del repositorio local (sin
 // equivalente en Drive todavía, se sirven desde ingesta_silabos/planchas).
@@ -33,6 +34,7 @@ const COURSE_IDS_GA = ["11", "31", "54"]
 const TIPOS: Recurso["tipo"][] = ["Examen", "Practica", "Silabo", "PDF", "Compendio", "Libro", "Apunte", "Video"]
 
 export function ExamBank({ courseId, onCountChange }: { courseId: string; onCountChange?: (count: number) => void }) {
+  const { session } = useAuth()
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<Recurso["tipo"] | null>(null)
   const [recursos, setRecursos] = useState<Recurso[]>([])
@@ -41,20 +43,37 @@ export function ExamBank({ courseId, onCountChange }: { courseId: string; onCoun
   const isGA = COURSE_IDS_GA.includes(courseId)
 
   useEffect(() => {
+    let activo = true
+
+    if (!session) {
+      setRecursos([])
+      setIsLoading(false)
+      return
+    }
+
     const fetchRecursos = async () => {
       try {
         setIsLoading(true)
         const cleanId = courseId.toString().startsWith("c") ? courseId.toString().substring(1) : courseId
         const data = await apiService.getRecursos({ curso_id: Number(cleanId) })
-        setRecursos(data)
+        if (activo) {
+          setRecursos(data)
+        }
       } catch (err) {
-        console.error("Error fetching recursos del curso:", err)
+        if (activo) {
+          console.error("Error fetching recursos del curso:", err)
+        }
       } finally {
-        setIsLoading(false)
+        if (activo) {
+          setIsLoading(false)
+        }
       }
     }
     fetchRecursos()
-  }, [courseId])
+    return () => {
+      activo = false
+    }
+  }, [courseId, session])
 
   const allRecursos = useMemo(() => {
     const lista = [...recursos]

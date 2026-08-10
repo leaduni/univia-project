@@ -200,7 +200,9 @@ class SyllabusExtractor:
 
         prompt = MODOS.get(modo, PROMPT_SILABO)
         texto_completo, done = self._cargar_progreso(output_path, skip_failed)
-        logger.info(f"Extrayendo '{pdf_path}' | {total} págs | modo={modo} | dpi={dpi}")
+        logger.info(f"[Extracción] Iniciando '{pdf_path}' | {total} págs | modo={modo} | dpi={dpi}")
+        if done:
+            logger.info(f"[Checkpoint] {len(done)} página(s) encontrada(s) en caché local, se saltan llamadas a Vision.")
 
         for n in range(1, total + 1):
             if n in done:
@@ -213,7 +215,7 @@ class SyllabusExtractor:
                 texto_completo += bloque
                 if output_path:
                     self._append(output_path, bloque)
-                logger.error(f"[p{n}/{total}] Error convirtiendo imagen: {e}")
+                logger.error(f"[Extracción] ERROR página {n}/{total}: {e}")
                 continue
 
             bloque = ""
@@ -225,27 +227,27 @@ class SyllabusExtractor:
 
                 if texto and not es_sospechosa(texto):
                     bloque = self._bloque_ok(n, texto)
-                    logger.info(f"[p{n}/{total}] OK ({len(texto)} chars)")
+                    logger.info(f"[Extracción] Página {n}/{total} OK ({len(texto)} caracteres)")
                 elif salvage and modo == "examenes":
-                    logger.warning(f"[p{n}/{total}] Vacío/sospechoso ({motivo}). Intentando rescate...")
+                    logger.warning(f"[Extracción] Página {n}/{total} vacía/sospechosa ({motivo}). Intentando rescate...")
                     response2 = self._llamar_gemini(PROMPT_SALVAGE, image, n)
                     texto2, motivo2 = self._get_text(response2)
                     if texto2 and not es_sospechosa(texto2):
                         bloque = self._bloque_ok(n, texto2)
-                        logger.info(f"[p{n}/{total}] Rescate OK ({len(texto2)} chars)")
+                        logger.info(f"[Extracción] Página {n}/{total} Rescate OK ({len(texto2)} caracteres)")
                     else:
                         bloque = f"\n\n<!-- === PAGINA {n} NO_LEGIBLE ({motivo2 or motivo}) === -->\n\n"
-                        logger.warning(f"[p{n}/{total}] No legible tras rescate")
+                        logger.warning(f"[Extracción] Página {n}/{total} No legible tras rescate")
                 else:
                     bloque = f"\n\n<!-- === PAGINA {n} BLOQUEADA ({motivo}) === -->\n\n"
-                    logger.warning(f"[p{n}/{total}] Bloqueada: {motivo}")
+                    logger.warning(f"[Extracción] Página {n}/{total} Bloqueada: {motivo}")
 
             except Exception as e:
                 if self._es_cuota_diaria(e):
                     cuota_diaria = True
                 else:
                     bloque = f"\n\n<!-- === PAGINA {n} FALLO: {e} === -->\n\n"
-                    logger.error(f"[p{n}/{total}] Falló definitivamente: {e}")
+                    logger.error(f"[Extracción] Página {n}/{total} Falló definitivamente: {e}")
             finally:
                 try:
                     del image
@@ -260,5 +262,241 @@ class SyllabusExtractor:
             if cuota_diaria:
                 break
 
-        logger.info(f"Extracción finalizada | {len(texto_completo)} chars totales")
+        logger.info(f"[Extracción] Finalizada | {len(texto_completo)} caracteres totales")
         return texto_completo
+
+    # ── Async extraction methods (Phase 2) ──────────────────────────
+
+    async def extract_text_async(
+        self,
+        pdf_path: str,
+        modo: str = "examenes",
+        dpi: int = 200,
+        salvage: bool = True,
+        max_concurrency: int = 8,
+        hybrid: bool = False,
+    ) -> str:
+        """
+        Extrae texto de un PDF de forma asincrona con checkpoints por pagina.
+
+        Args:
+            pdf_path: Ruta al PDF.
+            modo: 'silabo' o 'examenes'.
+            dpi: Resolucion de imagen.
+            salvage: Si reintentar con prompt simplificado en fallos.
+            max_concurrency: Maximo de paginas procesadas simultaneamente.
+            hybrid: Si usar HybridRouter para extraccion nativa cuando sea posible.
+
+        Returns:
+            Texto Markdown completo (reensamblado en orden de pagina).
+        """
+        import asyncio
+        from app.rag.extraction_checkpoint import ExtractionCheckpoint
+
+        pdf_path = str(pdf_path)
+        if not os.path.exists(pdf_path):
+            logger.error(f"Archivo no encontrado: {pdf_path}")
+            return ""
+
+        try:
+            total = int(pdfinfo_from_path(pdf_path, poppler_path=POPPLER_PATH)["Pages"])
+        except Exception as e:
+            logger.error(f"No se pudo leer el PDF: {e}")
+            return ""
+
+        router = None
+        if hybrid:
+            from app.rag.hybrid_router import HybridRouter
+            router = HybridRouter()
+
+        checkpoint = ExtractionCheckpoint(pdf_path)
+        prompt = MODOS.get(modo, PROMPT_SILABO)
+
+        return await self._run_async_extraction(
+            pdf_path=pdf_path,
+            total_pages=total,
+            modo=modo,
+            dpi=dpi,
+            salvage=salvage,
+            max_concurrency=max_concurrency,
+            checkpoint=checkpoint,
+            router=router,
+        )
+
+    async def _run_async_extraction(
+        self,
+        pdf_path: str,
+        total_pages: int,
+        modo: str,
+        dpi: int,
+        salvage: bool,
+        max_concurrency: int,
+        checkpoint,
+        router=None,
+    ) -> str:
+        """Core asincrono: lanza tareas por pagina con AdaptiveSemaphore."""
+        import asyncio
+        from app.rag.adaptive_semaphore import AdaptiveSemaphore
+
+        prompt = MODOS.get(modo, PROMPT_SILABO)
+        completed = checkpoint.completed_pages()
+        if completed:
+            logger.info(
+                f"[Checkpoint] {len(completed)} pagina(s) encontrada(s) en "
+                f"cache local, se saltan llamadas a Vision."
+            )
+
+        pending = [n for n in range(1, total_pages + 1) if n not in completed]
+        if not pending:
+            logger.info("[Resume] Todas las paginas ya estan procesadas. Nada que hacer.")
+            return checkpoint.read_all()
+
+        logger.info(
+            f"[Extraccion Async] {len(pending)}/{total_pages} paginas pendientes "
+            f"(concurrencia max: {max_concurrency})"
+        )
+
+        sem = AdaptiveSemaphore(initial=max_concurrency, min_concurrency=1)
+        quota_exhausted = False
+        rate_limits = 0
+        RATE_LIMIT_THRESHOLD = 3  # reducir concurrencia tras N rate limits
+
+        async def process_page(n: int):
+            nonlocal quota_exhausted, rate_limits
+            if quota_exhausted:
+                return
+            await sem.acquire()
+            try:
+                t_start = time.time()
+                logger.info(f"[Async Extractor] Tarea iniciada para pagina {n}/{total_pages}...")
+                try:
+                    await self._extract_page_async(
+                        page_num=n,
+                        total=total_pages,
+                        pdf_path=pdf_path,
+                        prompt=prompt,
+                        modo=modo,
+                        dpi=dpi,
+                        salvage=salvage,
+                        checkpoint=checkpoint,
+                        router=router,
+                    )
+                    elapsed = round(time.time() - t_start, 2)
+                    logger.info(f"[Async Extractor] Pagina {n}/{total_pages} completada en {elapsed}s.")
+                except Exception as e:
+                    if self._es_cuota_diaria(e):
+                        quota_exhausted = True
+                        logger.error(f"[Cuota Agotada] Pagina {n}/{total_pages}. Deteniendo.")
+                    elif "429" in str(e).lower() or "quota" in str(e).lower():
+                        rate_limits += 1
+                        if rate_limits >= RATE_LIMIT_THRESHOLD:
+                            sem.reduce()
+                            rate_limits = 0
+                        logger.warning(f"[Rate Limit] Pagina {n}/{total_pages}. Concurrencia actual: {sem.current}")
+                    else:
+                        logger.error(f"[Extraccion Async] Pagina {n}/{total_pages} fallo: {e}")
+            finally:
+                sem.release()
+
+        tasks = [process_page(n) for n in pending]
+        await asyncio.gather(*tasks)
+
+        result = checkpoint.read_all()
+        final_completed = checkpoint.completed_pages()
+
+        if quota_exhausted and len(final_completed) < total_pages:
+            logger.warning(
+                f"[Cuota Agotada] Progreso salvado en checkpoints locales "
+                f"({len(final_completed)}/{total_pages} paginas). "
+                f"Ejecuta con --resume para continuar mas tarde."
+            )
+
+        logger.info(
+            f"[Extraccion Async] Finalizada | {len(result)} caracteres totales | "
+            f"{len(final_completed)}/{total_pages} paginas OK"
+        )
+        return result
+
+    async def _extract_page_async(
+        self,
+        page_num: int,
+        total: int,
+        pdf_path: str,
+        prompt: str,
+        modo: str,
+        dpi: int,
+        salvage: bool,
+        checkpoint,
+        router=None,
+    ) -> None:
+        """Extrae una sola pagina de forma asincrona y guarda checkpoint."""
+        import asyncio
+        from pdf2image import convert_from_path
+
+        # Hybrid routing: si el router decide NATIVE, usar texto directo
+        if router is not None:
+            decision = router.route_page(pdf_path, page_num)
+            ruta = decision.route.upper()
+            razon = decision.reason
+            logger.info(
+                f"[Hibrido] Pagina {page_num}/{total} -> Enrutada a {ruta} "
+                f"(Razon: {razon})"
+            )
+            if decision.route == "native":
+                bloque = (
+                    f"\n\n<!-- === INICIO PAGINA {page_num} === -->\n\n"
+                    f"{decision.native_text}\n\n"
+                    f"<!-- === FIN PAGINA {page_num} === -->\n\n"
+                )
+                checkpoint.save_page(page_num, bloque)
+                logger.info(
+                    f"[Checkpoint] Guardado archivo separado: pagina_{page_num:03d}.md "
+                    f"({len(decision.native_text)} chars, costo $0, <50ms)"
+                )
+                return
+
+        # Vision path
+        loop = asyncio.get_running_loop()
+        try:
+            image = await loop.run_in_executor(
+                None,
+                lambda: convert_from_path(
+                    pdf_path, dpi=dpi, first_page=page_num, last_page=page_num,
+                    poppler_path=POPPLER_PATH
+                )[0]
+            )
+        except Exception as e:
+            bloque = f"\n\n<!-- === PAGINA {page_num} ERROR_CONVERSION: {e} === -->\n\n"
+            checkpoint.save_page(page_num, bloque)
+            logger.error(f"[Extracción] ERROR pagina {page_num}/{total}: {e}")
+            return
+
+        bloque = ""
+        try:
+            response = self._llamar_gemini(prompt, image, page_num)
+            texto, motivo = self._get_text(response)
+
+            if texto and not es_sospechosa(texto):
+                bloque = self._bloque_ok(page_num, texto)
+                logger.info(f"[Extracción] Pagina {page_num}/{total} OK ({len(texto)} caracteres)")
+            elif salvage and modo == "examenes":
+                logger.warning(f"[Extracción] Pagina {page_num}/{total} sospechosa. Rescate...")
+                response2 = self._llamar_gemini(PROMPT_SALVAGE, image, page_num)
+                texto2, motivo2 = self._get_text(response2)
+                if texto2 and not es_sospechosa(texto2):
+                    bloque = self._bloque_ok(page_num, texto2)
+                    logger.info(f"[Extracción] Pagina {page_num}/{total} Rescate OK")
+                else:
+                    bloque = f"\n\n<!-- === PAGINA {page_num} NO_LEGIBLE === -->\n\n"
+            else:
+                bloque = f"\n\n<!-- === PAGINA {page_num} BLOQUEADA ({motivo}) === -->\n\n"
+        except Exception as e:
+            raise
+        finally:
+            del image
+
+        if bloque:
+            checkpoint.save_page(page_num, bloque)
+            logger.info(
+                f"[Checkpoint] Guardado archivo separado: pagina_{page_num:03d}.md"
+            )

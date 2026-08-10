@@ -1,9 +1,11 @@
 # Ingesta de datos
+import logging
 import os
 from dotenv import load_dotenv
 from supabase import Client, create_client
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 class SyllabusIngestor:
     def __init__(self):
@@ -18,11 +20,11 @@ class SyllabusIngestor:
     
     def ingest(self, chunks: list, recurso_id: str, curso_id: int, table_name: str = "resource_chunks", batch_size: int = 50) -> bool:
         if not chunks:
-            print("No se encontraron chunks para hacer la ingesta. ")
+            logger.warning("No se encontraron chunks para hacer la ingesta.")
             return False
-        
+
         total_chunks = len(chunks)
-        print(f"Iniciando ingesta de {total_chunks} fragmentos en Supabase (Tabla: {table_name})...")
+        logger.info(f"[Supabase] Iniciando ingesta de {total_chunks} fragmentos en {table_name}...")
 
         for i in range(0, total_chunks, batch_size):
             lote = chunks[i: i + batch_size]
@@ -34,17 +36,19 @@ class SyllabusIngestor:
                     "contenido": chunk["contenido"],
                     "embedding": chunk["embedding"]
                 })
-            
-            print(f"Subiendo lote {i//batch_size + 1} (Fragmentos {i+1} al {min(i+batch_size, total_chunks)})...")
+
+            logger.info(f"[Supabase] Insertando lote {(i//batch_size)+1} (fragmentos {i+1}-{min(i+batch_size, total_chunks)})...")
 
             try:
                 respuesta = self.supabase.table(table_name).insert(datos_insertar).execute()
                 if not respuesta.data:
-                    print("Advertencia: La inserción se ejecutó, pero Supabase no devolvió confirmación de datos.")
+                    logger.warning("[Supabase] Inserción ejecutada pero sin confirmación de datos.")
+                else:
+                    logger.info("[Supabase] Éxito.")
 
             except Exception as e:
-                print(f"Error crítico al insertar el lote en Supabase: {e}")
+                logger.error(f"[Supabase] Error crítico al insertar lote: {e}")
                 return False
-        
-        print(f"Ingesta exitosa! Todos los {total_chunks} fragmentos están en Supabase.")
+
+        logger.info(f"[Supabase] Ingesta exitosa. {total_chunks} fragmentos en Supabase.")
         return True

@@ -601,7 +601,7 @@ async def complete_onboarding(
         cursos_inscritos = [cid for cid in cursos_inscritos if cid not in db_status]
 
         if not cursos_inscritos:
-            raise HTTPException(status_code=400, detail="Debes inscribirte en al menos 1 curso nuevo.")
+            logger.info("All courses already persisted, skipping enrollment")
 
         # --- PASO I: Antecedentes transitivos de los cursos inscritos ---
         cursos_a_completar: Set[int] = set()

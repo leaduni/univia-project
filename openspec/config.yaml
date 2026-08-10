@@ -1,0 +1,76 @@
+schema: spec-driven
+
+context: |
+  UniVia — plataforma de orientación académica personalizada.
+  Stack: FastAPI 2.0 (Python 3.11, Uvicorn) backend, Next.js 16 (React 19, TypeScript 5 strict, Tailwind 4) frontend.
+  Database: Supabase (PostgreSQL + Auth + RLS), asyncpg + supabase-py (backend), @supabase/supabase-js (frontend).
+  Architecture: Monorepo (backend/ + frontend/). Backend: app/routers/, app/schemas/, app/core/ (database, auth, validators), app/rag/.
+  Frontend: app/ (Next.js App Router), components/ (shadcn/ui New York), lib/ (api-service, supabase, mockData).
+  AI: Google GenAI + OpenAI via LangChain (RAG evaluations). Code execution: Judge0 (motor_ejecucion_codigo/).
+  Testing: pytest 8+ with pytest-asyncio + httpx (backend/tests/), vitest 2.1.9 with @testing-library/react + jsdom (frontend/). Strict TDD enabled.
+  Style: ESLint (frontend), TypeScript strict, Pyrefly (Python type-checker). No formatter configured.
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+  apply:
+    guidelines:
+      - Follow existing code patterns
+      - Consult documentacion/esquema-db-actual.md before SQL/model changes (per opencode.json)
+      - Maintain mockData.ts as fallback for frontend (per AGENTE.md)
+    tdd: true
+    test_command: "pytest backend/tests/ -v; npm --prefix frontend test"
+  verify:
+    test_command: "pytest backend/tests/ -v; npm --prefix frontend test"
+    build_command: ""
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas
+
+testing:
+  strict_tdd: true
+  detected: 2026-08-10
+  backend:
+    runner:
+      available: true
+      command: "pytest backend/tests/ -v"
+      framework: "pytest 8+"
+    conftest: "backend/tests/conftest.py — async client fixture (httpx.AsyncClient + ASGITransport)"
+  frontend:
+    runner:
+      available: true
+      command: "npm --prefix frontend test"
+      framework: "vitest 2.1.9"
+    setup: "frontend/vitest.config.ts — jsdom + @testing-library/react + @testing-library/jest-dom"
+  layers:
+    unit:
+      available: true
+      tool: "pytest (backend), vitest (frontend)"
+    integration:
+      available: true
+      tool: "httpx.AsyncClient + ASGITransport (backend), @testing-library/react (frontend)"
+    e2e:
+      available: false
+      tool: "—"
+  coverage:
+    available: false
+    command: "—"
+  quality:
+    linter:
+      available: true
+      command: "npx eslint . (frontend)"
+    type_checker:
+      available: true
+      command: "npx tsc --noEmit (frontend), pyrefly (backend)"
+    formatter:
+      available: false
+      command: "—"

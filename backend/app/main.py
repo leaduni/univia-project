@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from dotenv import load_dotenv
 
 from app.core.exceptions import ErrorResponse, ErrorDetail
@@ -23,9 +24,27 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# Orígenes permitidos: configurables por entorno (lista separada por comas)
-# para no tener que tocar el código al desplegar.
-DEFAULT_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
+# ── TrustedHostMiddleware ────────────────────────────────────────────
+# En desarrollo permite cualquier host. En producción, configuralo con
+# la variable TRUSTED_HOSTS (lista separada por comas).
+TRUSTED_HOSTS_DEFAULT = "*"
+trusted_hosts_raw = os.getenv("TRUSTED_HOSTS", TRUSTED_HOSTS_DEFAULT)
+trusted_hosts = [
+    host.strip()
+    for host in trusted_hosts_raw.split(",")
+    if host.strip()
+] if trusted_hosts_raw != "*" else ["*"]
+
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
+
+# ── CORS ─────────────────────────────────────────────────────────────
+# Orígenes permitidos: configurables por entorno (lista separada por comas).
+# Para desarrollo local Next.js (3000, 3001) y Vite (5173).
+DEFAULT_ORIGINS = (
+    "http://localhost:3000,http://127.0.0.1:3000,"
+    "http://localhost:3001,http://127.0.0.1:3001,"
+    "http://localhost:5173,http://127.0.0.1:5173"
+)
 origins = [
     origin.strip()
     for origin in os.getenv("CORS_ORIGINS", DEFAULT_ORIGINS).split(",")

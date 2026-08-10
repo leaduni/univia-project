@@ -377,7 +377,7 @@ export const apiService = {
 
             if (!response.ok) {
                 const errorBody = await response.json().catch(() => ({}));
-                throw new Error(errorBody.detail || `Error completing onboarding: ${response.statusText}`);
+                throw new Error(extraerMensajeError(errorBody) || `Error completing onboarding: ${response.statusText}`);
             }
 
             return await response.json();

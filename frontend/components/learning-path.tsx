@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { LearningTimeline } from "./learning-path/timeline"
 import { ExamBank } from "./learning-path/exam-bank"
 import { EvaluacionIA } from "./learning-path/evaluacion-ia"
@@ -19,6 +20,7 @@ interface LearningPathProps {
 }
 
 export function LearningPath({ courseId }: LearningPathProps) {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState("path")
   const [data, setData] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -71,7 +73,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
           <Lock className="h-10 w-10 mx-auto mb-3 text-amber-400" />
           <h2 className="text-lg font-bold mb-2 text-white">Curso Bloqueado</h2>
           <p className="text-sm text-amber-300/80">
-            Este curso tiene prerrequisitos que a&uacute;n no has completado. Debes aprobar los cursos anteriores para acceder a su contenido.
+            Este curso tiene prerrequisitos que aún no has completado. Debes aprobar los cursos anteriores para acceder a su contenido.
           </p>
         </div>
         <Link href="/" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#3b3475] bg-[#1d1a3b] text-sm font-semibold text-white hover:bg-[#282452] transition-all shadow-md">
@@ -88,7 +90,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
           <CheckCircle2 className="h-10 w-10 mx-auto mb-3 text-emerald-400" />
           <h2 className="text-lg font-bold mb-2 text-white">Curso completado exitosamente</h2>
           <p className="text-sm text-emerald-300/80">
-            El curso ha sido marcado al 100% de progreso. Los cursos correlativos se desbloquear&aacute;n en tu malla.
+            El curso ha sido marcado al 100% de progreso. Los cursos correlativos se desbloquearán en tu malla.
           </p>
         </div>
         <Link href="/" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#3b3475] bg-[#1d1a3b] text-sm font-semibold text-white hover:bg-[#282452] transition-all shadow-md">
@@ -147,6 +149,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
       await apiService.completarCurso(courseIdNum)
       setShowCompleteModal(false)
       setCompleteSuccess(true)
+      setTimeout(() => router.push("/"), 2500)
       setTimeout(() => setCompleteSuccess(false), 4000)
       const cleanId = courseId.toString().startsWith("c")
         ? courseId.toString().substring(1)
@@ -213,14 +216,14 @@ export function LearningPath({ courseId }: LearningPathProps) {
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-[#ec4899] to-[#8b5cf6] hover:opacity-90 transition-all shadow-lg shadow-pink-500/20"
           >
             <Sparkles className="w-4 h-4" />
-            Generar evaluaci&oacute;n con IA
+            Generar evaluación con IA
           </button>
           <button
             onClick={() => setActiveTab("exams")}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-300 bg-[#1a1735]/80 border border-[#2b2654] hover:bg-[#231f47] transition-all"
           >
             <FileText className="w-4 h-4" />
-            Ver banco de ex&aacute;menes
+            Ver banco de exámenes
           </button>
         </div>
       </div>}
@@ -230,7 +233,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
         <div className="p-4 rounded-2xl bg-[#121124]/60 border border-[#232045] flex items-center gap-3">
           <GraduationCap className="w-5 h-5 text-indigo-400" />
           <div>
-            <p className="text-sm font-bold text-white">{curso.credits || 4} cr&eacute;ditos</p>
+            <p className="text-sm font-bold text-white">{curso.credits || 4} créditos</p>
             <p className="text-xs text-slate-400">Obligatorio &middot; FIIS</p>
           </div>
         </div>
@@ -238,14 +241,14 @@ export function LearningPath({ courseId }: LearningPathProps) {
           <Calendar className="w-5 h-5 text-indigo-400" />
           <div>
             <p className="text-sm font-bold text-white">{totalWeeks || 8} semanas</p>
-            <p className="text-xs text-slate-400">Alineado al s&iacute;labo 2026-1</p>
+            <p className="text-xs text-slate-400">Alineado al sílabo 2026-1</p>
           </div>
         </div>
         <div className="p-4 rounded-2xl bg-[#121124]/60 border border-[#232045] flex items-center gap-3">
           <FileText className="w-5 h-5 text-indigo-400" />
           <div>
             <p className="text-sm font-bold text-white">{examCount || 15} recursos</p>
-            <p className="text-xs text-slate-400">Ex&aacute;menes, pr&aacute;cticas y clases</p>
+            <p className="text-xs text-slate-400">Exámenes, prácticas y clases</p>
           </div>
         </div>
         <div className="p-4 rounded-2xl bg-[#121124]/60 border border-[#232045] flex items-center gap-3">
@@ -312,7 +315,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#ec4899] to-[#a855f7] flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <h3 className="text-sm font-bold text-white">An&aacute;lisis de tu asistente IA</h3>
+              <h3 className="text-sm font-bold text-white">Análisis de tu asistente IA</h3>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
               {aiText}
@@ -321,7 +324,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
               onClick={() => setActiveTab("evaluacion")}
               className="w-full py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-[#ec4899] to-[#8b5cf6] hover:opacity-90 transition-all shadow-md shadow-pink-500/20"
             >
-              Generar pr&aacute;ctica dirigida
+              Generar práctica dirigida
             </button>
           </div>
 
@@ -349,7 +352,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
               </li>
               <li className="flex items-center justify-between">
                 <span>Racha activa</span>
-                <span className="font-semibold text-emerald-400">3 d&iacute;as</span>
+                <span className="font-semibold text-emerald-400">3 días</span>
               </li>
             </ul>
           </div>
@@ -368,7 +371,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
               </div>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              &quot;Sus ex&aacute;menes priorizan an&aacute;lisis de casos pr&aacute;cticos aplicados a la realidad nacional.&quot;
+              &quot;Sus exámenes priorizan análisis de casos prácticos aplicados a la realidad nacional.&quot;
             </p>
           </div>
         </div>}
@@ -378,10 +381,10 @@ export function LearningPath({ courseId }: LearningPathProps) {
       {showCompleteModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-[#14132a] border border-[#27244a] rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-white">&iquest;Marcar curso como completado?</h3>
+            <h3 className="text-lg font-bold text-white">¿Marcar curso como completado?</h3>
             <p className="text-sm text-slate-400">
-              Esta acci&oacute;n registrar&aacute; el curso al 100% de progreso.
-              Los cursos correlativos dependientes en tu malla curricular se desbloquear&aacute;n.
+              Esta acción registrará el curso al 100% de progreso.
+              Los cursos correlativos dependientes en tu malla curricular se desbloquearán.
             </p>
             <div className="flex justify-end gap-3 pt-2">
               <button
@@ -395,7 +398,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
                 disabled={completing}
                 className="px-5 py-2.5 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-[#ec4899] to-[#a855f7] hover:opacity-90 disabled:opacity-40 transition-all shadow-md shadow-pink-500/20"
               >
-                {completing ? "Completando..." : "S&iacute;, completar al 100%"}
+                {completing ? "Completando..." : "Sí, completar al 100%"}
               </button>
             </div>
           </div>

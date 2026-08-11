@@ -16,27 +16,72 @@ from app.schemas.onboarding import (
     CursosPorCarreraResponse,
     CursoPrereqItem,
     PrerrequisitoFaltante,
+    MallaItem,
 )
-from typing import Dict, Set, List
+from typing import Dict, Set, List, Optional
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _cargar_prerrequisitos(supabase, cursos_de_carrera: Set[int]) -> List[dict]:
-    """Devuelve los prerrequisitos que aplican a los cursos de una carrera.
+def _resolver_malla_id(supabase, carrera_id: int, malla_id: Optional[int] = None) -> Optional[int]:
+    """Obtiene el malla_id directo o busca la malla vigente de la carrera.
 
-    La tabla es global, así que se filtra en memoria para no arrastrar
-    relaciones de otras carreras a la resolución de cadenas.
+    Si existen varias mallas vigentes (es_vigente = true) para la carrera, se
+    toma la más antigua (id menor) como fallback determinista de migración; la
+    asignación real de cada estudiante la decide el onboarding (perfiles.malla_id).
     """
+    if malla_id:
+        return malla_id
+    if not carrera_id:
+        return None
     try:
-        resp = supabase.table("curso_prerrequisitos").select("curso_id, prerrequisito_id").execute()
+        resp = (
+            supabase.table("mallas")
+            .select("id")
+            .eq("carrera_id", carrera_id)
+            .eq("es_vigente", True)
+            .order("id")
+            .limit(1)
+            .execute()
+        )
+        filas = getattr(resp, "data", None) or []
+        return filas[0]["id"] if filas else None
+    except Exception as e:
+        logger.error(f"Error resolviendo malla vigente para carrera {carrera_id}: {e}")
+        return None
+
+
+def _cargar_prerrequisitos(supabase, mc_data: List[dict]) -> Dict[int, List[int]]:
+    """Devuelve los prerrequisitos que aplican a los cursos de una malla usando malla_curso_prerrequisitos."""
+    if not mc_data:
+        return {}
+
+    mc_ids = [mc["id"] for mc in mc_data if "id" in mc]
+    if not mc_ids:
+        return {}
+
+    try:
+        resp = (
+            supabase.table("malla_curso_prerrequisitos")
+            .select("malla_curso_id, prerrequisito_malla_curso_id")
+            .in_("malla_curso_id", mc_ids)
+            .execute()
+        )
         filas = getattr(resp, "data", None) or []
     except Exception as e:
         logger.error(f"Error cargando prerrequisitos: {e}")
-        return []
+        return {}
 
-    return [f for f in filas if f["curso_id"] in cursos_de_carrera]
+    mc_map = {mc["id"]: mc["curso_id"] for mc in mc_data if "id" in mc and "curso_id" in mc}
+    prereq_map: Dict[int, List[int]] = {}
+    for f in filas:
+        mc_id = f.get("malla_curso_id")
+        p_mc_id = f.get("prerrequisito_malla_curso_id")
+        if mc_id in mc_map and p_mc_id in mc_map:
+            prereq_map.setdefault(mc_map[mc_id], []).append(mc_map[p_mc_id])
+
+    return prereq_map
 
 
 def _obtener_carrera(supabase, carrera_id: int) -> dict:
@@ -192,37 +237,71 @@ async def get_onboarding_data(user_data=Depends(get_current_user)):
     )
 
 
+@router.get("/onboarding/mallas", response_model=List[MallaItem])
+async def get_mallas_por_carrera(
+    carrera_id: int = Query(..., description="ID de la carrera"),
+    user_data=Depends(get_current_user),
+):
+    """Lista las mallas/planes de estudio de una carrera (RF-EST-01)."""
+    user, token = user_data
+    supabase = get_supabase(token)
+    try:
+        resp = (
+            supabase.table("mallas")
+            .select("id, carrera_id, nombre, codigo_plan, es_vigente")
+            .eq("carrera_id", carrera_id)
+            .order("es_vigente", desc=True)
+            .execute()
+        )
+        return getattr(resp, "data", None) or []
+    except Exception as e:
+        logger.error(f"Error fetching mallas para carrera {carrera_id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudieron cargar las mallas de la carrera.")
+
+
 @router.get("/onboarding/cursos", response_model=CursosPorCarreraResponse)
 async def get_cursos_por_carrera(
     carrera_id: int = Query(..., description="ID de la carrera"),
     ciclo_actual: int = Query(1, description="Ciclo actual del usuario para filtrar disponibilidad"),
+    malla_id: Optional[int] = Query(None, description="ID de la malla/plan de estudios (opcional)"),
     user_data=Depends(get_current_user),
 ):
     user, token = user_data
     supabase = get_supabase(token)
 
+    real_malla_id = _resolver_malla_id(supabase, carrera_id, malla_id)
+    if not real_malla_id:
+        return CursosPorCarreraResponse(carrera_id=carrera_id, cursos=[])
+
     try:
-        # Se cargan TODOS los cursos de la carrera, no solo los visibles: la
-        # cadena de prerrequisitos necesita resolver también los de ciclos que
-        # el estudiante no verá en pantalla.
-        todos_resp = (
-            supabase.table("cursos")
-            .select("id, code, name, credits, ciclo, carrera_id")
-            .eq("carrera_id", carrera_id)
+        mc_resp = (
+            supabase.table("malla_cursos")
+            .select("id, curso_id, ciclo, credits, tipo, cursos(code, name)")
+            .eq("malla_id", real_malla_id)
             .order("ciclo")
-            .order("code")
             .execute()
         )
-        todos_los_cursos = todos_resp.data or []
-        if not todos_los_cursos:
+        mc_data = getattr(mc_resp, "data", None) or []
+        if not mc_data:
             return CursosPorCarreraResponse(carrera_id=carrera_id, cursos=[])
 
-        cursos_dict: Dict[int, dict] = {c["id"]: c for c in todos_los_cursos}
-        visibles = [c for c in todos_los_cursos if c["ciclo"] <= ciclo_actual]
+        todos_los_cursos = []
+        for mc in mc_data:
+            c_info = mc.get("cursos") or {}
+            todos_los_cursos.append({
+                "id": mc["curso_id"],
+                "mc_id": mc["id"],
+                "code": c_info.get("code", ""),
+                "name": c_info.get("name", ""),
+                "credits": mc.get("credits") or 0,
+                "ciclo": mc.get("ciclo"),
+                "carrera_id": carrera_id,
+            })
 
-        prereq_map: Dict[int, List[int]] = {}
-        for p in _cargar_prerrequisitos(supabase, set(cursos_dict)):
-            prereq_map.setdefault(p["curso_id"], []).append(p["prerrequisito_id"])
+        cursos_dict: Dict[int, dict] = {c["id"]: c for c in todos_los_cursos}
+        visibles = [c for c in todos_los_cursos if c["ciclo"] is not None and c["ciclo"] <= ciclo_actual]
+
+        prereq_map = _cargar_prerrequisitos(supabase, mc_data)
 
         progreso_resp = (
             supabase.table("progreso_cursos")
@@ -236,10 +315,6 @@ async def get_cursos_por_carrera(
             p["curso_id"] for p in progreso_raw if p["status"] == "completed"
         }
 
-        # El estudiante sin historial está haciendo su onboarding inicial: aún
-        # no ha declarado qué aprobó, así que no hay nada contra qué bloquear.
-        # Al confirmar, complete_onboarding marca como aprobada la cadena de
-        # prerrequisitos de lo que eligió.
         sin_historial = not progreso_raw
 
         cursos = []
@@ -288,14 +363,10 @@ async def get_cursos_por_carrera(
 
 
 def calcular_resumen_academico(supabase, user, perfil: dict) -> dict:
-    """Resumen del estado académico del estudiante (RF-07).
-
-    Es el precálculo que consume el paso final del onboarding y que el
-    dashboard de la Fase 3 debe reutilizar en vez de recalcular el avance
-    por su cuenta.
-    """
+    """Resumen del estado académico del estudiante (RF-07)."""
     carrera_id = perfil.get("carrera_id")
-    if not carrera_id:
+    malla_id = _resolver_malla_id(supabase, carrera_id, perfil.get("malla_id"))
+    if not carrera_id or not malla_id:
         return {
             "carrera": None,
             "ciclo_actual": perfil.get("ciclo_actual"),
@@ -310,15 +381,23 @@ def calcular_resumen_academico(supabase, user, perfil: dict) -> dict:
     carrera = _obtener_carrera(supabase, carrera_id)
 
     try:
-        cursos_resp = (
-            supabase.table("cursos")
-            .select("id, code, name, credits, ciclo")
-            .eq("carrera_id", carrera_id)
+        mc_resp = (
+            supabase.table("malla_cursos")
+            .select("id, curso_id, ciclo, credits, cursos(code, name)")
+            .eq("malla_id", malla_id)
             .execute()
         )
-        cursos_dict: Dict[int, dict] = {
-            c["id"]: c for c in (getattr(cursos_resp, "data", None) or [])
-        }
+        mc_data = getattr(mc_resp, "data", None) or []
+        cursos_dict: Dict[int, dict] = {}
+        for mc in mc_data:
+            c_info = mc.get("cursos") or {}
+            cursos_dict[mc["curso_id"]] = {
+                "id": mc["curso_id"],
+                "code": c_info.get("code", ""),
+                "name": c_info.get("name", ""),
+                "credits": mc.get("credits") or 0,
+                "ciclo": mc.get("ciclo"),
+            }
 
         progreso_resp = (
             supabase.table("progreso_cursos")
@@ -335,11 +414,8 @@ def calcular_resumen_academico(supabase, user, perfil: dict) -> dict:
     aprobados: Set[int] = {c for c, s in progreso_map.items() if s == "completed"}
     en_curso: Set[int] = {c for c, s in progreso_map.items() if s == "in_progress"}
 
-    prereq_map: Dict[int, List[int]] = {}
-    for p in _cargar_prerrequisitos(supabase, set(cursos_dict)):
-        prereq_map.setdefault(p["curso_id"], []).append(p["prerrequisito_id"])
+    prereq_map = _cargar_prerrequisitos(supabase, mc_data)
 
-    # Disponible = no cursado aún y con toda su cadena de prerrequisitos aprobada.
     disponibles = [
         cid
         for cid in cursos_dict
@@ -355,12 +431,10 @@ def calcular_resumen_academico(supabase, user, perfil: dict) -> dict:
                 "name": cursos_dict[cid]["name"],
                 "credits": cursos_dict[cid]["credits"],
             }
-            for cid in sorted(ids, key=lambda c: (cursos_dict[c]["ciclo"], cursos_dict[c]["code"]))
+            for cid in sorted(ids, key=lambda c: (cursos_dict[c]["ciclo"] or 99, cursos_dict[c]["code"]))
             if cid in cursos_dict
         ]
 
-    # El avance se calcula en core/avance (RF-07), no aquí: es la misma cifra
-    # que muestran el dashboard y la malla, y debe salir de una sola fórmula.
     avance = calcular_avance(cursos_dict, progreso_map)
 
     return {
@@ -389,24 +463,14 @@ async def actualizar_cursos_del_ciclo(
     data: ActualizarCursosRequest,
     user_data=Depends(get_current_user),
 ):
-    """Reemplaza los cursos activos al iniciar un ciclo nuevo (RF-PRF-01).
-
-    Regla de transición, pensada para no perder el historial que consume la
-    malla (RF-APR-06):
-
-    - Los cursos que estaban en curso y NO se vuelven a elegir se dan por
-      aprobados: el estudiante terminó ese ciclo.
-    - Los que sí se vuelven a elegir siguen en curso, que es como se modela
-      repetir un curso.
-    - Los ya aprobados no se tocan nunca.
-    """
     user, token = user_data
     supabase = get_supabase(token)
 
     perfil = _verificar_perfil_minimo(supabase, user)
 
     carrera_id = perfil.get("carrera_id")
-    if not carrera_id:
+    malla_id = _resolver_malla_id(supabase, carrera_id, perfil.get("malla_id"))
+    if not carrera_id or not malla_id:
         raise_field_error(
             "carrera_id",
             "Aún no completaste tu registro inicial. Termina el onboarding primero.",
@@ -417,15 +481,23 @@ async def actualizar_cursos_del_ciclo(
     _validar_ciclo(carrera, data.ciclo_actual)
 
     try:
-        cursos_resp = (
-            supabase.table("cursos")
-            .select("id, code, name, credits, ciclo")
-            .eq("carrera_id", carrera_id)
+        mc_resp = (
+            supabase.table("malla_cursos")
+            .select("id, curso_id, ciclo, credits, cursos(code, name)")
+            .eq("malla_id", malla_id)
             .execute()
         )
-        cursos_en_carrera: Dict[int, dict] = {
-            c["id"]: c for c in (getattr(cursos_resp, "data", None) or [])
-        }
+        mc_data = getattr(mc_resp, "data", None) or []
+        cursos_en_carrera: Dict[int, dict] = {}
+        for mc in mc_data:
+            c_info = mc.get("cursos") or {}
+            cursos_en_carrera[mc["curso_id"]] = {
+                "id": mc["curso_id"],
+                "code": c_info.get("code", ""),
+                "name": c_info.get("name", ""),
+                "credits": mc.get("credits") or 0,
+                "ciclo": mc.get("ciclo"),
+            }
 
         progreso_resp = (
             supabase.table("progreso_cursos")
@@ -448,8 +520,6 @@ async def actualizar_cursos_del_ciclo(
     def nombre(cid: int) -> str:
         return cursos_en_carrera.get(cid, {}).get("name", str(cid))
 
-    # Un curso ya aprobado no se vuelve a llevar: aceptarlo lo devolvería a
-    # 'en curso' y borraría un avance que la malla ya da por ganado.
     ya_aprobados = [cid for cid in nuevos if cid in aprobados]
     if ya_aprobados:
         raise_field_error(
@@ -458,15 +528,11 @@ async def actualizar_cursos_del_ciclo(
             status_code=400,
         )
 
-    # Cierre del ciclo anterior: lo que no se repite queda aprobado.
     a_cerrar = en_curso - nuevos_set
     aprobados_tras_cierre = aprobados | a_cerrar
 
-    prereq_map: Dict[int, List[int]] = {}
-    for p in _cargar_prerrequisitos(supabase, set(cursos_en_carrera)):
-        prereq_map.setdefault(p["curso_id"], []).append(p["prerrequisito_id"])
+    prereq_map = _cargar_prerrequisitos(supabase, mc_data)
 
-    # RF-EST-03 sobre la selección nueva, contando ya el cierre del ciclo.
     for curso_id in nuevos:
         faltantes = [
             pid
@@ -482,7 +548,6 @@ async def actualizar_cursos_del_ciclo(
                 status_code=400,
             )
 
-    # No se puede llevar un curso junto a su prerrequisito directo.
     for curso_id in nuevos:
         for prereq_id in prereq_map.get(curso_id, []):
             if prereq_id in nuevos_set:
@@ -550,32 +615,40 @@ async def complete_onboarding(
 
     try:
         carrera_id = data.carrera_id
+        malla_id = _resolver_malla_id(supabase, carrera_id, getattr(data, "malla_id", None))
         ciclo_actual = data.ciclo_actual
         cursos_inscritos = data.cursos_inscritos
         inscritos_set: Set[int] = set(cursos_inscritos)
 
-        # --- Validaciones de RF-EST-01 antes de tocar nada ---
         perfil = _verificar_perfil_minimo(supabase, user)
         carrera = _obtener_carrera(supabase, carrera_id)
         _validar_ciclo(carrera, ciclo_actual)
 
-        # --- Cargar datos de la carrera ---
-        cursos_resp = supabase.table("cursos").select("*").eq("carrera_id", carrera_id).execute()
+        if not malla_id:
+            raise_field_error("malla_id", "No se encontró una malla curricular activa para esta carrera.", status_code=400)
+
+        mc_resp = (
+            supabase.table("malla_cursos")
+            .select("id, curso_id, ciclo, credits, cursos(code, name)")
+            .eq("malla_id", malla_id)
+            .execute()
+        )
+        mc_data = getattr(mc_resp, "data", None) or []
         cursos_en_carrera: Dict[int, dict] = {}
-        for c in cursos_resp.data or []:
-            cid = c["id"]
-            cursos_en_carrera[cid] = c
+        for mc in mc_data:
+            c_info = mc.get("cursos") or {}
+            cursos_en_carrera[mc["curso_id"]] = {
+                "id": mc["curso_id"],
+                "code": c_info.get("code", ""),
+                "name": c_info.get("name", ""),
+                "credits": mc.get("credits") or 0,
+                "ciclo": mc.get("ciclo"),
+            }
 
         _validar_cursos_de_carrera(cursos_inscritos, cursos_en_carrera, carrera)
 
-        prereq_resp = supabase.table("curso_prerrequisitos").select("*").execute()
-        prereq_map: Dict[int, List[int]] = {}
-        for p in prereq_resp.data or []:
-            cid = p["curso_id"]
-            if cid in cursos_en_carrera:
-                prereq_map.setdefault(cid, []).append(p["prerrequisito_id"])
+        prereq_map = _cargar_prerrequisitos(supabase, mc_data)
 
-        # --- Cargar estado actual del usuario en DB ---
         progreso_db = supabase.table("progreso_cursos") \
             .select("curso_id, status") \
             .eq("perfil_id", user.id) \
@@ -585,7 +658,6 @@ async def complete_onboarding(
         def nombre_curso(cid: int) -> str:
             return cursos_en_carrera.get(cid, {}).get("name", str(cid))
 
-        # --- REGLA A: Exclusión mutua simultánea (solo directos) ---
         for curso_id in cursos_inscritos:
             for prereq_id in prereq_map.get(curso_id, []):
                 if prereq_id in inscritos_set:
@@ -597,13 +669,11 @@ async def complete_onboarding(
                         ),
                     )
 
-        # --- Filtrar cursos ya existentes en DB (evitar 23505) ---
         cursos_inscritos = [cid for cid in cursos_inscritos if cid not in db_status]
 
         if not cursos_inscritos:
             logger.info("All courses already persisted, skipping enrollment")
 
-        # --- PASO I: Antecedentes transitivos de los cursos inscritos ---
         cursos_a_completar: Set[int] = set()
 
         for curso_id in cursos_inscritos:
@@ -612,10 +682,8 @@ async def complete_onboarding(
                 if prereq_id in cursos_en_carrera:
                     cursos_a_completar.add(prereq_id)
 
-        # --- Filtrar completados contra DB (evitar 23505) ---
         cursos_a_completar = {cid for cid in cursos_a_completar if cid not in db_status}
 
-        # --- Persistir progreso (insert puro, solo novedades) ---
         progreso_items: List[dict] = []
 
         for curso_id in cursos_a_completar:
@@ -636,15 +704,14 @@ async def complete_onboarding(
         if progreso_items:
             supabase.table("progreso_cursos").insert(progreso_items).execute()
 
-        # --- Actualizar perfil ---
         supabase.table("perfiles").update({
             "carrera_id": carrera_id,
+            "malla_id": malla_id,
             "ciclo_actual": ciclo_actual,
             "onboarding_completado": True,
             "updated_at": "now()",
         }).eq("id", user.id).execute()
 
-        # --- Logro de bienvenida ---
         try:
             supabase.table("logros_usuarios").upsert({
                 "perfil_id": user.id,
@@ -667,8 +734,6 @@ async def complete_onboarding(
             "message": "Onboarding completado exitosamente",
             "completados": completados_final,
             "inscritos": inscritos_final,
-            # Perfil ya con los datos mínimos de RF-EST-01, para que el
-            # frontend no tenga que volver a pedirlo tras el wizard.
             "perfil": {
                 "codigo_estudiante": perfil.get("codigo_estudiante"),
                 "email": perfil.get("email"),
@@ -678,6 +743,7 @@ async def complete_onboarding(
                     "codigo": carrera["codigo"],
                     "name": carrera["name"],
                 },
+                "malla_id": malla_id,
                 "ciclo_actual": ciclo_actual,
                 "total_cursos_inscritos": len(inscritos_final),
             },

@@ -10,6 +10,29 @@ async function getAuthToken() {
     return session?.access_token || null;
 }
 
+let redirigiendoSesionInvalida = false;
+
+/**
+ * HTTP 401: sesión inválida o expirada. Limpia las credenciales y redirige a
+ * /auth/login sin mostrar el error en pantalla.
+ */
+function manejarNoAutorizado() {
+    // Varias llamadas 401 en paralelo deben provocar una sola limpieza.
+    if (redirigiendoSesionInvalida) return;
+    redirigiendoSesionInvalida = true;
+
+    if (typeof window === "undefined") return;
+    // En páginas de autenticación no hay sesión que invalidar.
+    if (window.location.pathname.startsWith("/auth/")) return;
+
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    // signOut dispara SIGNED_OUT y el auth-context limpia su estado;
+    // la recarga que trae assign() resetea el flag por sí sola.
+    supabase.auth.signOut().catch(() => {});
+    window.location.assign('/auth/login');
+}
+
 async function fetchWithAuth(url: string, options: RequestInit = {}, customToken?: string) {
     const token = customToken || await getAuthToken();
     const headers = {
@@ -17,7 +40,11 @@ async function fetchWithAuth(url: string, options: RequestInit = {}, customToken
         'Authorization': token ? `Bearer ${token}` : '',
     };
 
-    return fetch(url, { ...options, headers });
+    const response = await fetch(url, { ...options, headers });
+    if (response.status === 401) {
+        manejarNoAutorizado();
+    }
+    return response;
 }
 
 /**
@@ -35,10 +62,11 @@ function extraerMensajeError(body: any): string | null {
 /**
  * Error de la API con el campo que lo originó.
  *
- * Varios endpoints del dashboard responden 400 con `field: "carrera_id"`
- * cuando el estudiante todavía no eligió carrera. Antes se descartaba el
- * cuerpo y se lanzaba un mensaje fijo, así que la pantalla no distinguía
- * "falta tu onboarding" de "el servidor se cayó" y no podía reaccionar.
+ * Varios endpoints del dashboard responden 400 con `field: "carrera_id"` o
+ * `field: "malla_id"` cuando el estudiante todavía no completó su onboarding.
+ * Antes se descartaba el cuerpo y se lanzaba un mensaje fijo, así que la
+ * pantalla no distinguía "falta tu onboarding" de "el servidor se cayó" y no
+ * podía reaccionar.
  */
 export interface ApiError extends Error {
     status?: number;
@@ -53,7 +81,9 @@ async function errorDeRespuesta(response: Response, fallback: string): Promise<A
     const error = new Error(extraerMensajeError(body) || fallback) as ApiError;
     error.status = response.status;
     error.field = field;
-    error.requiereOnboarding = response.status === 400 && field === "carrera_id";
+    error.requiereOnboarding =
+        response.status === 400 && (field === "carrera_id" || field === "malla_id");
+    error.sesionInvalida = response.status === 401;
     return error;
 }
 
@@ -85,6 +115,21 @@ export const apiService = {
         const body = await response.json().catch(() => null);
         if (!response.ok) {
             throw new Error(extraerMensajeError(body) || 'No se pudieron guardar tus datos.');
+        }
+        return body;
+    },
+
+    /** Cambia el plan de estudios / malla del estudiante (PATCH /usuarios/me/malla). */
+    async cambiarMalla(malla_id: number) {
+        const response = await fetchWithAuth(`${API_URL}/usuarios/me/malla`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ malla_id }),
+        });
+
+        const body = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(extraerMensajeError(body) || 'No se pudo cambiar tu plan de estudios.');
         }
         return body;
     },
@@ -132,7 +177,12 @@ export const apiService = {
         try {
             const response = await fetchWithAuth(`${API_URL}/dashboard/test-nivel`);
             if (!response.ok) {
-                throw await errorDeRespuesta(response, 'No se pudo cargar tu diagnóstico académico.');
+                if (response.status === 401) return null;
+                const apiError = await errorDeRespuesta(response, 'No se pudo cargar tu diagnóstico académico.');
+                // Onboarding pendiente (400 + field carrera_id) es un estado normal
+                // de la cuenta, no un fallo: se devuelve null, sin lanzar.
+                if (apiError.requiereOnboarding) return null;
+                throw apiError;
             }
             return await response.json();
         } catch (error) {
@@ -173,7 +223,10 @@ export const apiService = {
         try {
             const response = await fetchWithAuth(`${API_URL}/malla/avance`);
             if (!response.ok) {
-                throw await errorDeRespuesta(response, 'No se pudo cargar tu avance de carrera.');
+                if (response.status === 401) return null;
+                const apiError = await errorDeRespuesta(response, 'No se pudo cargar tu avance de carrera.');
+                if (apiError.requiereOnboarding) return null;
+                throw apiError;
             }
             return await response.json();
         } catch (error) {
@@ -324,12 +377,15 @@ export const apiService = {
         }
     },
 
-    async getEnvironmentCursos(carreraId: number, cicloActual: number) {
+    async getEnvironmentCursos(carreraId: number, cicloActual: number, mallaId?: number) {
         try {
             const params = new URLSearchParams({
                 carrera_id: carreraId.toString(),
                 ciclo_actual: cicloActual.toString()
             });
+            if (mallaId) {
+                params.append('malla_id', mallaId.toString());
+            }
             const response = await fetchWithAuth(`${API_URL}/onboarding/cursos?${params}`);
             if (!response.ok) {
                 throw new Error(`Error al obtener los cursos: ${response.statusText}`);
@@ -369,8 +425,22 @@ export const apiService = {
         }
     },
 
+    async getMallasPorCarrera(carreraId: number) {
+        try {
+            const response = await fetchWithAuth(`${API_URL}/onboarding/mallas?carrera_id=${carreraId}`);
+            if (!response.ok) {
+                throw new Error(`Error al obtener mallas de la carrera: ${response.statusText}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error("API Error (getMallasPorCarrera):", error);
+            throw error;
+        }
+    },
+
     async completeOnboarding(data: {
         carrera_id: number;
+        malla_id?: number;
         ciclo_actual: number;
         cursos_inscritos: number[];
     }) {
@@ -414,7 +484,11 @@ export const apiService = {
                 const mensaje = body?.errors?.[0]?.message
                     || body?.detail
                     || "No pudimos validar tus credenciales.";
-                throw new Error(mensaje);
+                // Credenciales inválidas son un resultado esperado: la UI las
+                // muestra; no deben disparar el overlay "Console Error" de dev.
+                const credencialesInvalidas = new Error(mensaje) as any;
+                credencialesInvalidas.esCredencialesInvalidas = true;
+                throw credencialesInvalidas;
             }
 
             // El resto de la app obtiene el token desde el cliente de Supabase
@@ -441,7 +515,11 @@ export const apiService = {
                 onboardingCompletado: body.onboarding_completado,
             };
         } catch (error: any) {
-            console.error("API Error (login):", error);
+            // Credenciales inválidas no son un fallo del sistema: se omiten en
+            // la consola para no activar el overlay de error de desarrollo.
+            if (!error?.esCredencialesInvalidas) {
+                console.error("API Error (login):", error);
+            }
             throw new Error(error.message || "Login failed");
         }
     },

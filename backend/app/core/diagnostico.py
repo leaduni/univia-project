@@ -75,9 +75,9 @@ def generar_diagnostico(
     """Diagnóstico académico y ruta sugerida.
 
     Args:
-        cursos: {curso_id: {code, name, credits, ciclo}} de la carrera.
+        cursos: {curso_id: {code, name, credits, ciclo}} del plan de estudios (malla_cursos).
         progreso: {curso_id: {status, nota}} del estudiante.
-        prereq_map: {curso_id: [prereq_ids]} de la carrera.
+        prereq_map: {curso_id: [prereq_ids]} de la malla del estudiante (malla_curso_prerrequisitos).
         disponibles: ids de cursos que ya puede llevar.
         ciclo_actual: ciclo declarado por el estudiante.
         avance: avance ya calculado (RF-07), para no recalcularlo aquí.

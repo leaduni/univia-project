@@ -1,10 +1,43 @@
-from typing import Container, List, Mapping, Optional, Sequence, Tuple, TypeVar
-
+from typing import Container, Dict, List, Mapping, Optional, Sequence, Tuple, TypeVar
 
 # Los IDs de curso llegan como int (onboarding) o como str (malla), pero cada
 # llamada usa un solo tipo de forma consistente. Un TypeVar acotado modela eso;
 # un Union no, porque Dict y Set son invariantes y rechazarían ambos usos.
 ID = TypeVar("ID", int, str)
+
+
+def build_prereq_map_from_malla(
+    malla_cursos: Sequence[dict],
+    malla_prereqs: Sequence[dict],
+    use_curso_id: bool = True,
+) -> Dict[ID, List[ID]]:
+    """Construye el mapa de prerrequisitos desde las relaciones de malla_cursos y malla_curso_prerrequisitos.
+
+    Args:
+        malla_cursos: Filas de la tabla `malla_cursos` (con 'id' y 'curso_id').
+        malla_prereqs: Filas de `malla_curso_prerrequisitos` ('malla_curso_id', 'prerrequisito_malla_curso_id').
+        use_curso_id: Si es True, traduce llaves y valores a `curso_id`. Si es False, usa `malla_curso_id`.
+
+    Returns:
+        Dict mapeando ID de curso (o malla_curso) a una lista de sus prerrequisitos.
+    """
+    mc_id_to_curso_id = {mc["id"]: mc["curso_id"] for mc in malla_cursos if "id" in mc and "curso_id" in mc}
+    prereq_map: Dict[ID, List[ID]] = {}
+
+    for p in malla_prereqs:
+        mc_id = p.get("malla_curso_id")
+        p_mc_id = p.get("prerrequisito_malla_curso_id")
+
+        if use_curso_id:
+            if mc_id in mc_id_to_curso_id and p_mc_id in mc_id_to_curso_id:
+                cid = mc_id_to_curso_id[mc_id]
+                pid = mc_id_to_curso_id[p_mc_id]
+                prereq_map.setdefault(cid, []).append(pid)
+        else:
+            if mc_id is not None and p_mc_id is not None:
+                prereq_map.setdefault(mc_id, []).append(p_mc_id)
+
+    return prereq_map
 
 
 def resolve_prereq_chain(curso_id: ID, prereq_map: Mapping[ID, Sequence[ID]]) -> List[ID]:
@@ -15,8 +48,8 @@ def resolve_prereq_chain(curso_id: ID, prereq_map: Mapping[ID, Sequence[ID]]) ->
     Ej: Si A requiere B, y B requiere C, resolve_prereq_chain("A") retorna ["B", "C"].
 
     Args:
-        curso_id: ID del curso a evaluar.
-        prereq_map: Dict donde key=curso_id, value=list de prereq_ids.
+        curso_id: ID del curso (o malla_curso) a evaluar.
+        prereq_map: Dict donde key=curso_id, value=list de prereq_ids (derivado de malla_curso_prerrequisitos).
 
     Returns:
         Lista plana con todos los IDs de prerrequisitos en orden BFS.
@@ -80,7 +113,7 @@ def check_course_status(
         curso_id: ID del curso a evaluar.
         db_status: Estado actual en progreso_cursos (None, "completed", "in_progress").
         completed_courses: Set de IDs de cursos completados por el usuario.
-        prereq_map: Mapa de prerrequisitos (curso_id -> [prereq_ids]).
+        prereq_map: Mapa de prerrequisitos (curso_id -> [prereq_ids] desde malla_curso_prerrequisitos).
         cursos_dict: Dict con info de cursos (id -> {code, name, ...}).
 
     Returns:
@@ -122,3 +155,4 @@ def check_course_status(
     if all_completed:
         return "available", prereq_info, True
     return "locked", prereq_info, False
+

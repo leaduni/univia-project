@@ -95,7 +95,7 @@ function getConflictSet(courseId: number, prereqMap: Record<number, number[]>): 
   return new Set([...prereqs, ...successors])
 }
 
-export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id }: CurrentEnrollmentStepProps) {
+export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id, malla_id }: CurrentEnrollmentStepProps) {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [cursos, setCursos] = useState<CursoItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -111,7 +111,7 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id }: Curr
       setFetchError(null)
       try {
         const cicloParsed = data.semester ? Number(data.semester) : 1
-        const result = await apiService.getEnvironmentCursos(carrera_id, cicloParsed)
+        const result = await apiService.getEnvironmentCursos(carrera_id, cicloParsed, data.malla_id || malla_id)
         const items: CursoItem[] = result?.cursos || []
         setCursos(items)
 
@@ -128,7 +128,7 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id }: Curr
       }
     }
     fetchCursos()
-  }, [carrera_id, data.cursosInscritos])
+  }, [carrera_id, malla_id, data.malla_id, data.cursosInscritos])
 
   const prereqMap = useMemo(() => {
     const map: Record<number, number[]> = {}

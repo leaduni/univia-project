@@ -142,16 +142,19 @@ def promedio_ponderado(cursos: Mapping, progreso: Mapping) -> float:
     return round(suma_pesos / suma_creditos, 2)
 
 
-def cargar_avance(supabase, perfil_id, carrera_id) -> AvanceCarrera:
-    """Lee catálogo y progreso desde Supabase y devuelve el avance."""
+def cargar_avance(supabase, perfil_id, malla_id) -> AvanceCarrera:
+    """Lee catálogo del plan de estudios (malla_cursos) y progreso desde Supabase y devuelve el avance."""
     try:
         cursos_resp = (
-            supabase.table("cursos")
-            .select("id, credits")
-            .eq("carrera_id", carrera_id)
+            supabase.table("malla_cursos")
+            .select("curso_id, credits")
+            .eq("malla_id", malla_id)
             .execute()
         )
-        cursos = {c["id"]: c for c in (getattr(cursos_resp, "data", None) or [])}
+        cursos = {
+            c["curso_id"]: {"credits": c.get("credits") or 0}
+            for c in (getattr(cursos_resp, "data", None) or [])
+        }
 
         progreso_resp = (
             supabase.table("progreso_cursos")

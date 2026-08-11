@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.core.validators import (
     EMAIL_PATTERN,
@@ -25,6 +25,7 @@ __all__ = [
     "RestablecerPassword",
     "PerfilUpdate",
     "CambioPassword",
+    "CambiarMalla",
 ]
 
 
@@ -158,3 +159,13 @@ class CambioPassword(BaseModel):
     @classmethod
     def validar_pass_nueva(cls, v: str) -> str:
         return validar_password(v)
+
+
+class CambiarMalla(BaseModel):
+    """Nueva malla seleccionada desde la vista de perfil (cambio de plan).
+
+    Solo reasigna el plan al perfil; la re-selección de cursos aprobados la
+    hace el estudiante al re-correr el onboarding (/onboarding).
+    """
+
+    malla_id: int = Field(gt=0)

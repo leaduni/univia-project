@@ -57,11 +57,38 @@ async def get_recursos(
         if curso_ids:
             cursos_resp = (
                 supabase.table("cursos")
-                .select("id, code, name, ciclo, carrera_id")
+                .select("id, code, name")
                 .in_("id", list(curso_ids))
                 .execute()
             )
-            cursos_map = {c["id"]: c for c in (cursos_resp.data or [])}
+            cursos_dict = {c["id"]: c for c in (cursos_resp.data or [])}
+
+            mc_resp = (
+                supabase.table("malla_cursos")
+                .select("curso_id, ciclo, mallas(carrera_id)")
+                .in_("curso_id", list(curso_ids))
+                .execute()
+            )
+            mc_data = getattr(mc_resp, "data", None) or []
+
+            cursos_map = {}
+            for cid in curso_ids:
+                c_info = cursos_dict.get(cid) or {}
+                mc_filas = [m for m in mc_data if m.get("curso_id") == cid]
+                carrera_id = None
+                ciclo_mc = None
+                if mc_filas:
+                    ciclo_mc = mc_filas[0].get("ciclo")
+                    malla_obj = mc_filas[0].get("mallas") or {}
+                    carrera_id = malla_obj.get("carrera_id") if isinstance(malla_obj, dict) else None
+
+                cursos_map[cid] = {
+                    "id": cid,
+                    "code": c_info.get("code"),
+                    "name": c_info.get("name"),
+                    "ciclo": ciclo_mc,
+                    "carrera_id": carrera_id,
+                }
 
             carrera_ids = {c["carrera_id"] for c in cursos_map.values() if c.get("carrera_id") is not None}
             if carrera_ids:

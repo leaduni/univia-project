@@ -4,6 +4,7 @@ from app.core.avance import calcular_avance
 from app.core.database import get_supabase
 from app.core.auth_utils import get_current_user
 from app.core.exceptions import raise_field_error
+from app.core.onboarding_service import build_onboarding_courses
 from app.core.prereqs import resolve_prereq_chain, check_course_status
 from app.schemas.onboarding import (
     CICLO_POR_DEFECTO,
@@ -50,38 +51,6 @@ def _resolver_malla_id(supabase, carrera_id: int, malla_id: Optional[int] = None
     except Exception as e:
         logger.error(f"Error resolviendo malla vigente para carrera {carrera_id}: {e}")
         return None
-
-
-def _cargar_prerrequisitos(supabase, mc_data: List[dict]) -> Dict[int, List[int]]:
-    """Devuelve los prerrequisitos que aplican a los cursos de una malla usando malla_curso_prerrequisitos."""
-    if not mc_data:
-        return {}
-
-    mc_ids = [mc["id"] for mc in mc_data if "id" in mc]
-    if not mc_ids:
-        return {}
-
-    try:
-        resp = (
-            supabase.table("malla_curso_prerrequisitos")
-            .select("malla_curso_id, prerrequisito_malla_curso_id")
-            .in_("malla_curso_id", mc_ids)
-            .execute()
-        )
-        filas = getattr(resp, "data", None) or []
-    except Exception as e:
-        logger.error(f"Error cargando prerrequisitos: {e}")
-        return {}
-
-    mc_map = {mc["id"]: mc["curso_id"] for mc in mc_data if "id" in mc and "curso_id" in mc}
-    prereq_map: Dict[int, List[int]] = {}
-    for f in filas:
-        mc_id = f.get("malla_curso_id")
-        p_mc_id = f.get("prerrequisito_malla_curso_id")
-        if mc_id in mc_map and p_mc_id in mc_map:
-            prereq_map.setdefault(mc_map[mc_id], []).append(mc_map[p_mc_id])
-
-    return prereq_map
 
 
 def _obtener_carrera(supabase, carrera_id: int) -> dict:
@@ -259,6 +228,42 @@ async def get_mallas_por_carrera(
         raise HTTPException(status_code=500, detail="No se pudieron cargar las mallas de la carrera.")
 
 
+
+def _cargar_prerrequisitos(supabase, mc_data: List[dict]) -> Dict[int, List[int]]:
+    """Prerrequisitos a nivel de malla (usado por complete_onboarding y cambio de ciclo).
+
+    get_cursos_por_carrera ya no usa esta función: delegó a la RPC get_malla_onboarding.
+    """
+    if not mc_data:
+        return {}
+
+    mc_ids = [mc["id"] for mc in mc_data if "id" in mc]
+    if not mc_ids:
+        return {}
+
+    try:
+        resp = (
+            supabase.table("malla_curso_prerrequisitos")
+            .select("malla_curso_id, prerrequisito_malla_curso_id")
+            .in_("malla_curso_id", mc_ids)
+            .execute()
+        )
+        filas = getattr(resp, "data", None) or []
+    except Exception as e:
+        logger.error(f"Error cargando prerrequisitos: {e}")
+        return {}
+
+    mc_map = {mc["id"]: mc["curso_id"] for mc in mc_data if "id" in mc and "curso_id" in mc}
+    prereq_map: Dict[int, List[int]] = {}
+    for f in filas:
+        mc_id = f.get("malla_curso_id")
+        p_mc_id = f.get("prerrequisito_malla_curso_id")
+        if mc_id in mc_map and p_mc_id in mc_map:
+            prereq_map.setdefault(mc_map[mc_id], []).append(mc_map[p_mc_id])
+
+    return prereq_map
+
+
 @router.get("/onboarding/cursos", response_model=CursosPorCarreraResponse)
 async def get_cursos_por_carrera(
     carrera_id: int = Query(..., description="ID de la carrera"),
@@ -266,6 +271,11 @@ async def get_cursos_por_carrera(
     malla_id: Optional[int] = Query(None, description="ID de la malla/plan de estudios (opcional)"),
     user_data=Depends(get_current_user),
 ):
+    """Cursos de la malla con estado de prerrequisitos resuelto por la RPC.
+
+    Reemplaza las 3 consultas anteriores (malla_cursos, malla_curso_prerrequisitos,
+    progreso_cursos) + BFS en Python por una sola llamada a get_malla_onboarding().
+    """
     user, token = user_data
     supabase = get_supabase(token)
 
@@ -274,92 +284,31 @@ async def get_cursos_por_carrera(
         return CursosPorCarreraResponse(carrera_id=carrera_id, cursos=[])
 
     try:
-        mc_resp = (
-            supabase.table("malla_cursos")
-            .select("id, curso_id, ciclo, credits, tipo, cursos(code, name)")
-            .eq("malla_id", real_malla_id)
-            .order("ciclo")
-            .execute()
-        )
-        mc_data = getattr(mc_resp, "data", None) or []
-        if not mc_data:
-            return CursosPorCarreraResponse(carrera_id=carrera_id, cursos=[])
-
-        todos_los_cursos = []
-        for mc in mc_data:
-            c_info = mc.get("cursos") or {}
-            todos_los_cursos.append({
-                "id": mc["curso_id"],
-                "mc_id": mc["id"],
-                "code": c_info.get("code", ""),
-                "name": c_info.get("name", ""),
-                "credits": mc.get("credits") or 0,
-                "ciclo": mc.get("ciclo"),
-                "carrera_id": carrera_id,
-            })
-
-        cursos_dict: Dict[int, dict] = {c["id"]: c for c in todos_los_cursos}
-        visibles = [c for c in todos_los_cursos if c["ciclo"] is not None and c["ciclo"] <= ciclo_actual]
-
-        prereq_map = _cargar_prerrequisitos(supabase, mc_data)
-
-        progreso_resp = (
-            supabase.table("progreso_cursos")
-            .select("curso_id, status")
-            .eq("perfil_id", user.id)
-            .execute()
-        )
-        progreso_raw = progreso_resp.data or []
-        progreso_map: Dict[int, str] = {p["curso_id"]: p["status"] for p in progreso_raw}
-        completadas: Set[int] = {
-            p["curso_id"] for p in progreso_raw if p["status"] == "completed"
-        }
-
-        sin_historial = not progreso_raw
-
-        cursos = []
-        for c in visibles:
-            cid = c["id"]
-
-            if sin_historial:
-                status, faltantes = "available", []
-            else:
-                status, prereq_info, _ok = check_course_status(
-                    curso_id=cid,
-                    db_status=progreso_map.get(cid),
-                    completed_courses=completadas,
-                    prereq_map=prereq_map,
-                    cursos_dict=cursos_dict,
-                )
-                faltantes = [
-                    PrerrequisitoFaltante(
-                        id=p["id"], code=p["code"], name=p["name"]
-                    )
-                    for p in prereq_info
-                    if not p["completado"]
-                ]
-
-            cursos.append(
-                CursoPrereqItem(
-                    id=cid,
-                    code=c["code"],
-                    name=c["name"],
-                    credits=c["credits"],
-                    ciclo=c["ciclo"],
-                    carrera_id=c["carrera_id"],
-                    prerrequisito_ids=prereq_map.get(cid, []),
-                    status=status,
-                    prerrequisitos_faltantes=faltantes,
-                )
+        resp = (
+            supabase.rpc(
+                "get_malla_onboarding",
+                {
+                    "p_malla_id": real_malla_id,
+                    "p_perfil_id": str(user.id),
+                    "p_ciclo_actual": ciclo_actual,
+                },
             )
-
-        return CursosPorCarreraResponse(carrera_id=carrera_id, cursos=cursos)
-
-    except HTTPException:
-        raise
+            .execute()
+        )
+        rows = getattr(resp, "data", None) or []
     except Exception as e:
-        logger.error(f"Error fetching cursos por carrera: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(
+            f"RPC get_malla_onboarding failed for malla={real_malla_id} "
+            f"perfil={user.id}: {e}"
+        )
+        raise HTTPException(
+            status_code=502,
+            detail="El servicio de validación de prerrequisitos no está disponible. "
+                   "Intenta de nuevo en unos minutos.",
+        )
+
+    cursos = build_onboarding_courses(rows, carrera_id)
+    return CursosPorCarreraResponse(carrera_id=carrera_id, cursos=cursos)
 
 
 def calcular_resumen_academico(supabase, user, perfil: dict) -> dict:

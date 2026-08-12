@@ -19,8 +19,10 @@ import {
   BookOpen
 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import MarkdownRenderer from "@/components/ui/markdown-renderer"
 import { useAuth } from "@/components/providers/auth-context"
+import { apiService } from "@/lib/api-service"
 import { EvaluationResultsView } from "@/components/learning-path/evaluation-results-view"
 import type { EvaluationResultData, QuestionDetail } from "@/types/evaluation"
 
@@ -82,17 +84,18 @@ export function EvaluacionIA({
 }) {
   const [step, setStep] = useState<"config" | "loading" | "evaluacion" | "resultados">("config")
   const [selectedModulo, setSelectedModulo] = useState<ModuloInfo | null>(null)
+  // Geometría Analítica y Cálculo Diferencial son materias únicas
+  // (carrera-agnósticas) desde la migración N:N; antes había un id por
+  // variante de carrera.
   const LIMITES_POR_CURSO: Record<string, { min: number; max: number }> = {
-    "11": { min: 3, max: 6 }, // Geometría Analítica (Sistemas)
-    "31": { min: 3, max: 6 }, // Geometría Analítica (Software)
-    "54": { min: 3, max: 6 }, // Geometría Analítica (Industrial)
-    "12": { min: 3, max: 6 }, // Cálculo Diferencial (Sistemas)
-    "32": { min: 3, max: 6 }, // Cálculo Diferencial (Software)
-    "50": { min: 3, max: 6 }, // Cálculo Diferencial (Industrial)
+    "17": { min: 3, max: 6 }, // Geometría Analítica
+    "5": { min: 3, max: 6 }, // Cálculo Diferencial
   }
   const limites = LIMITES_POR_CURSO[courseId] ?? { min: 3, max: 6 }
   const [numPreguntas, setNumPreguntas] = useState(limites.min)
   const [observaciones, setObservaciones] = useState("")
+  const [profesores, setProfesores] = useState<{ id: number; nombre_completo: string }[]>([])
+  const [profesorId, setProfesorId] = useState<number | null>(null)
   const [evaluacion, setEvaluacion] = useState<Evaluacion | null>(null)
   const [respuestas, setRespuestas] = useState<Record<number, any>>({})
   const [resultado, setResultado] = useState<any>(null)
@@ -125,6 +128,13 @@ export function EvaluacionIA({
       hasProcessedPreselection.current = false
     }
   }, [step])
+
+  // Profesores del curso, para filtrar el contexto RAG a sus documentos.
+  useEffect(() => {
+    apiService.getProfesoresCurso(courseId)
+      .then(setProfesores)
+      .catch((err: unknown) => console.error("Error cargando profesores del curso:", err))
+  }, [courseId])
 
   // Determinar qué módulos están disponibles según progreso
   interface ModuloDisponible extends ModuloInfo {
@@ -242,7 +252,8 @@ export function EvaluacionIA({
           temas: [selectedModulo.title],
           num_preguntas: numPreguntas,
           observaciones: observaciones || null,
-          tipo_evaluacion: "mixta"
+          tipo_evaluacion: "mixta",
+          profesor_id: profesorId
         }),
       })
 
@@ -361,6 +372,7 @@ export function EvaluacionIA({
     setEvaluacion(null)
     setError(null)
     setExecutionResults({})
+    setProfesorId(null)
     if (onResultsChange) onResultsChange(false)
   }
 
@@ -518,6 +530,34 @@ export function EvaluacionIA({
                 className="max-w-xs"
               />
             </div>
+
+            {/* Profesor (opcional): acota el contexto RAG a sus documentos */}
+            {profesores.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="profesor">
+                  Profesor (Opcional)
+                  <span className="text-xs text-muted-foreground ml-2">
+                    Usa exámenes/prácticas de ese profesor como referencia
+                  </span>
+                </Label>
+                <Select
+                  value={profesorId?.toString() ?? "all"}
+                  onValueChange={(val) => setProfesorId(val === "all" ? null : parseInt(val))}
+                >
+                  <SelectTrigger id="profesor" className="max-w-xs">
+                    <SelectValue placeholder="Cualquier profesor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Cualquier profesor</SelectItem>
+                    {profesores.map((p) => (
+                      <SelectItem key={p.id} value={p.id.toString()}>
+                        {p.nombre_completo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Observaciones */}
             <div className="space-y-2">

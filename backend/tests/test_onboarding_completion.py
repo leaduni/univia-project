@@ -20,12 +20,20 @@ def _ok(data):
 def _build_supabase_mock(
     perfil: dict | None = None,
     carrera: dict | None = None,
-    cursos_carrera: list | None = None,
-    prereqs: list | None = None,
+    malla_id: int | None = 1,
+    malla_cursos: list | None = None,
+    malla_prereqs: list | None = None,
     progreso: list | None = None,
     logros_fail: bool = False,
 ):
-    """Build a MagicMock that mimics the Supabase client for complete_onboarding."""
+    """Build a MagicMock that mimics the Supabase client for complete_onboarding.
+
+    Post-migración a mallas curriculares: `_resolver_malla_id` lee `mallas`
+    (id de la malla vigente) y `complete_onboarding` lee `malla_cursos`
+    (curso_id/ciclo/credits + cursos(code,name) embebido) en vez de `cursos`
+    directo; los prerrequisitos salen de `malla_curso_prerrequisitos`, no de
+    `curso_prerrequisitos`.
+    """
     mock = MagicMock()
 
     def table(name: str):
@@ -38,15 +46,18 @@ def _build_supabase_mock(
         tbl.maybe_single.return_value = tbl
         tbl.in_.return_value = tbl
         tbl.order.return_value = tbl
+        tbl.limit.return_value = tbl
 
         if name == "perfiles":
             tbl.execute.return_value = _ok(perfil)
         elif name == "carreras":
             tbl.execute.return_value = _ok(carrera)
-        elif name == "cursos":
-            tbl.execute.return_value = _ok(cursos_carrera or [])
-        elif name == "curso_prerrequisitos":
-            tbl.execute.return_value = _ok(prereqs or [])
+        elif name == "mallas":
+            tbl.execute.return_value = _ok([{"id": malla_id}] if malla_id else [])
+        elif name == "malla_cursos":
+            tbl.execute.return_value = _ok(malla_cursos or [])
+        elif name == "malla_curso_prerrequisitos":
+            tbl.execute.return_value = _ok(malla_prereqs or [])
         elif name == "progreso_cursos":
             tbl.execute.return_value = _ok(progreso or [])
         elif name == "logros_usuarios":
@@ -123,11 +134,10 @@ async def test_re_submission_all_courses_already_persisted_returns_200(
             "ciclo_actual": None,
         },
         carrera={"id": 1, "codigo": "FIIS-01", "name": "Ing. Sistemas", "duracion_ciclos": 10},
-        cursos_carrera=[
-            {"id": 101, "code": "CS101", "name": "Curso A", "credits": 4, "ciclo": 1, "carrera_id": 1},
-            {"id": 102, "code": "CS102", "name": "Curso B", "credits": 3, "ciclo": 1, "carrera_id": 1},
+        malla_cursos=[
+            {"id": 901, "curso_id": 101, "ciclo": 1, "credits": 4, "cursos": {"code": "CS101", "name": "Curso A"}},
+            {"id": 902, "curso_id": 102, "ciclo": 1, "credits": 3, "cursos": {"code": "CS102", "name": "Curso B"}},
         ],
-        prereqs=[],
         progreso=[
             {"curso_id": 101, "status": "in_progress"},
             {"curso_id": 102, "status": "in_progress"},
@@ -162,8 +172,6 @@ async def test_invalid_carrera_id_returns_400(client, mock_get_supabase):
             "nombre_completo": "Test User",
         },
         carrera=None,  # not found
-        cursos_carrera=[],
-        prereqs=[],
         progreso=[],
     )
 
@@ -200,10 +208,9 @@ async def test_invalid_curso_id_returns_400(client, mock_get_supabase):
             "nombre_completo": "Test User",
         },
         carrera={"id": 1, "codigo": "FIIS-01", "name": "Ing. Sistemas", "duracion_ciclos": 10},
-        cursos_carrera=[
-            {"id": 101, "code": "CS101", "name": "Curso A", "credits": 4, "ciclo": 1, "carrera_id": 1},
+        malla_cursos=[
+            {"id": 901, "curso_id": 101, "ciclo": 1, "credits": 4, "cursos": {"code": "CS101", "name": "Curso A"}},
         ],
-        prereqs=[],
         progreso=[],
     )
 

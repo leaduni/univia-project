@@ -29,7 +29,9 @@ const GEOMETRIA_PLANCHAS: { nombre: string; archivo: string }[] = [
   { nombre: "Ecuación de Segundo Grado", archivo: "ECUACION DE SEGUNDO GRADO.pdf" },
 ]
 
-const COURSE_IDS_GA = ["11", "31", "54"]
+// Antes había un id por variante de carrera; Geometría Analítica es una sola
+// materia (cursos.id=17), carrera-agnóstica desde la migración N:N.
+const COURSE_IDS_GA = ["17"]
 
 const TIPOS: Recurso["tipo"][] = ["Examen", "Practica", "Silabo", "PDF", "Compendio", "Libro", "Apunte", "Video"]
 

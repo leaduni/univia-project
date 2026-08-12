@@ -148,6 +148,31 @@ def get_planchas_for_step(course_id: int, step_title: str) -> list:
     
     return []
 
+@router.get("/curso/{course_id}/profesores")
+async def get_profesores_curso(course_id: int, user_data=Depends(get_current_user)):
+    """Profesores que dictan la materia, para el selector del generador de
+    evaluaciones (filtra el RAG a los documentos etiquetados con ese
+    profesor). Catálogo público del curso, no requiere verificar acceso."""
+    user, token = user_data
+    supabase = get_supabase(token)
+
+    resp = (
+        supabase.table("curso_profesores")
+        .select("profesores(id, nombre_completo)")
+        .eq("curso_id", course_id)
+        .execute()
+    )
+    profesores = sorted(
+        (
+            {"id": p["id"], "nombre_completo": p["nombre_completo"]}
+            for row in (resp.data or [])
+            if (p := row.get("profesores"))
+        ),
+        key=lambda p: p["nombre_completo"],
+    )
+    return profesores
+
+
 @router.get("/curso/{course_id}/learning-path")
 async def get_learning_path(course_id: int, user_data = Depends(get_current_user)):
     user, token = user_data
@@ -159,6 +184,27 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
         course_resp = supabase.table("cursos").select("*").eq("id", course_id).single().execute()
         if not course_resp.data:
             raise HTTPException(status_code=404, detail="Curso no encontrado")
+
+        # curso_profesores es N:N (varias secciones/horarios pueden tener
+        # distinto docente); no sabemos en qué sección está el estudiante,
+        # así que se listan todos los que dictan la materia.
+        profesores_resp = (
+            supabase.table("curso_profesores")
+            .select("profesores(nombre_completo)")
+            .eq("curso_id", course_id)
+            .execute()
+        )
+        nombres_profesores: List[str] = sorted({
+            nombre
+            for p in (profesores_resp.data or [])
+            if (nombre := (p.get("profesores") or {}).get("nombre_completo"))
+        })
+        if not nombres_profesores:
+            profesor_texto = None
+        elif len(nombres_profesores) <= 3:
+            profesor_texto = ", ".join(nombres_profesores)
+        else:
+            profesor_texto = ", ".join(nombres_profesores[:3]) + f" y {len(nombres_profesores) - 3} más"
 
         steps_resp = supabase.table("learning_path_steps").select("*").eq("curso_id", course_id).order("order_index").execute()
 
@@ -239,7 +285,7 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
                 "id": course_resp.data["id"],
                 "code": course_resp.data["code"],
                 "name": course_resp.data["name"],
-                "professor": "Ing. Docente UNI",
+                "professor": profesor_texto,
                 "progress": progress_pct
             },
             "timeline": timeline_steps,

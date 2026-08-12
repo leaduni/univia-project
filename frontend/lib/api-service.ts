@@ -309,6 +309,26 @@ export const apiService = {
         }
     },
 
+    async getProfesoresCurso(courseId: string | number) {
+        try {
+            const response = await fetchWithAuth(`${API_URL}/curso/${courseId}/profesores`);
+            if (!response.ok) {
+                let errorMsg = `Error ${response.status}: ${response.statusText}`;
+                try {
+                    const errorBody = await response.json();
+                    if (errorBody.detail) errorMsg = errorBody.detail;
+                } catch {}
+                const error: any = new Error(errorMsg);
+                error.status = response.status;
+                throw error;
+            }
+            return await response.json();
+        } catch (error) {
+            console.error(`API Error (getProfesoresCurso ${courseId}):`, error);
+            throw error;
+        }
+    },
+
     async completeStep(courseId: string | number, stepId: string | number) {
         try {
             const response = await fetchWithAuth(`${API_URL}/curso/${courseId}/step/${stepId}/complete`, {

@@ -70,13 +70,14 @@ class SyllabusRetriever:
             print(f"Error en la base de datos al buscar contexto: {e}")
             return []
 
-    def buscar_contexto_por_nombre(self, pregunta: str, curso_nombre: str = None, limit: int = 5, umbral_similitud: float = 0.5) -> list:
+    def buscar_contexto_por_nombre(self, pregunta: str, curso_nombre: str = None, limit: int = 5, umbral_similitud: float = 0.5, profesor_id: int = None) -> list:
         pregunta_vectorizada = self.vectorizar_pregunta(pregunta)
 
         if not pregunta_vectorizada:
             return []
 
-        print(f"Buscando en supabase los {limit} fragmentos más relevantes para el curso '{curso_nombre}' ...")
+        print(f"Buscando en supabase los {limit} fragmentos más relevantes para el curso '{curso_nombre}'"
+              + (f" (profesor_id={profesor_id})" if profesor_id else "") + " ...")
 
         try:
             respuesta = self.supabase.rpc(
@@ -86,6 +87,7 @@ class SyllabusRetriever:
                     "match_threshold": umbral_similitud,
                     "match_count": limit,
                     "filter_curso_nombre": curso_nombre,
+                    "filter_profesor_id": profesor_id,
                 }
             ).execute()
 

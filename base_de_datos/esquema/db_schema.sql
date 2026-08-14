@@ -33,6 +33,39 @@ CREATE TABLE IF NOT EXISTS cursos (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 2b. Modelo de mallas curriculares (planes de estudio versionables)
+-- Versiones de plan de una carrera. es_vigente marca el plan activo; el
+-- estudiante queda atado a una malla concreta vía perfiles.malla_id.
+CREATE TABLE IF NOT EXISTS mallas (
+    id SERIAL PRIMARY KEY,
+    carrera_id INTEGER NOT NULL REFERENCES carreras(id),
+    nombre VARCHAR(255) NOT NULL,
+    codigo_plan VARCHAR(255) NOT NULL,
+    es_vigente BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Curso dentro de una malla: única fuente de `ciclo` y `credits` del curso
+-- PARA ESA malla. El mismo curso puede tener ciclo/créditos distintos en otra.
+CREATE TABLE IF NOT EXISTS malla_cursos (
+    id SERIAL PRIMARY KEY,
+    malla_id INTEGER NOT NULL REFERENCES mallas(id),
+    curso_id INTEGER NOT NULL REFERENCES cursos(id),
+    ciclo INTEGER NOT NULL,
+    credits INTEGER NOT NULL,
+    tipo VARCHAR(255) DEFAULT 'OBLIGATORIO',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Prerrequisitos resueltos a nivel de malla: referencian filas de
+-- malla_cursos (no cursos sueltos) para permitir variantes por plan.
+CREATE TABLE IF NOT EXISTS malla_curso_prerrequisitos (
+    id SERIAL PRIMARY KEY,
+    malla_curso_id INTEGER NOT NULL REFERENCES malla_cursos(id),
+    prerrequisito_malla_curso_id INTEGER NOT NULL REFERENCES malla_cursos(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- 3. Usuarios y Perfiles (Extensión de Auth.Users)
 CREATE TABLE IF NOT EXISTS perfiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -45,7 +78,9 @@ CREATE TABLE IF NOT EXISTS perfiles (
     onboarding_completado BOOLEAN DEFAULT FALSE,
     avatar_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    -- NULL hasta que el estudiante complete el onboarding (/onboarding/complete).
+    malla_id INTEGER REFERENCES mallas(id)
 );
 
 -- 3b. Prerrequisitos de cursos (RF-EST-03)
@@ -132,8 +167,8 @@ CREATE TABLE IF NOT EXISTS progreso_unidades (
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
-  INSERT INTO public.perfiles (id, email, nombre_completo)
-  VALUES (new.id, new.email, new.raw_user_meta_data->>'nombre_completo');
+  INSERT INTO public.perfiles (id, email, nombre_completo, malla_id)
+  VALUES (new.id, new.email, new.raw_user_meta_data->>'nombre_completo', NULL);
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

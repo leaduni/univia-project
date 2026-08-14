@@ -31,23 +31,44 @@ def _verificar_acceso_curso(supabase, user, course_id: int | str) -> None:
         if status_actual in ("in_progress", "completed"):
             return
 
-    profile_resp = supabase.table("perfiles").select("carrera_id").eq("id", user.id).single().execute()
-    carrera_id = profile_resp.data.get("carrera_id") if profile_resp.data else None
-    if not carrera_id:
-        raise HTTPException(status_code=403, detail="No tienes una carrera asignada.")
+    profile_resp = supabase.table("perfiles").select("carrera_id, malla_id").eq("id", user.id).maybe_single().execute()
+    perfil = profile_resp.data if profile_resp else None
+    if not perfil:
+        raise HTTPException(status_code=403, detail="No se encontró tu perfil.")
 
-    cursos_resp = supabase.table("cursos").select("*").eq("carrera_id", carrera_id).execute()
-    cursos_en_carrera = {str(c["id"]): c for c in (cursos_resp.data or [])}
+    carrera_id = perfil.get("carrera_id")
+    malla_id = perfil.get("malla_id")
+    if not malla_id and carrera_id:
+        try:
+            m_resp = supabase.table("mallas").select("id").eq("carrera_id", carrera_id).eq("es_vigente", True).order("id").limit(1).execute()
+            filas = getattr(m_resp, "data", None) or []
+            malla_id = filas[0]["id"] if filas else None
+        except Exception:
+            pass
+
+    if not malla_id:
+        raise HTTPException(status_code=403, detail="No tienes un plan de estudios asignado.")
+
+    mc_resp = supabase.table("malla_cursos").select("id, curso_id, ciclo, credits, cursos(code, name)").eq("malla_id", malla_id).execute()
+    mc_data = mc_resp.data or []
+    cursos_en_carrera = {
+        str(mc["curso_id"]): {
+            "id": str(mc["curso_id"]),
+            "code": (mc.get("cursos") or {}).get("code"),
+            "name": (mc.get("cursos") or {}).get("name"),
+        }
+        for mc in mc_data
+    }
+
     cid_str = str(cid_int)
     if cid_str not in cursos_en_carrera:
-        raise HTTPException(status_code=404, detail="Curso no encontrado en tu carrera.")
+        raise HTTPException(status_code=404, detail="Curso no encontrado en tu plan de estudios.")
 
-    prereq_resp = supabase.table("curso_prerrequisitos").select("*").execute()
-    prereq_map: Dict[str, List[str]] = {}
-    for p in prereq_resp.data or []:
-        cid = str(p["curso_id"])
-        if cid in cursos_en_carrera:
-            prereq_map.setdefault(cid, []).append(str(p["prerrequisito_id"]))
+    mc_ids = [mc["id"] for mc in mc_data]
+    prereq_resp = supabase.table("malla_curso_prerrequisitos").select("malla_curso_id, prerrequisito_malla_curso_id").in_("malla_curso_id", mc_ids).execute()
+    from app.core.prereqs import build_prereq_map_from_malla
+    prereq_map = build_prereq_map_from_malla(mc_data, prereq_resp.data or [], use_curso_id=True)
+    prereq_map_str = {str(k): [str(v) for v in vals] for k, vals in prereq_map.items()}
 
     progreso_resp = supabase.table("progreso_cursos").select("curso_id, status").eq("perfil_id", user.id).execute()
     progreso_data: Dict[str, str] = {str(p["curso_id"]): p["status"] for p in (progreso_resp.data or [])}
@@ -58,7 +79,7 @@ def _verificar_acceso_curso(supabase, user, course_id: int | str) -> None:
         curso_id=cid_str,
         db_status=db_status,
         completed_courses=completed_courses,
-        prereq_map=prereq_map,
+        prereq_map=prereq_map_str,
         cursos_dict=cursos_en_carrera,
     )
 
@@ -127,6 +148,31 @@ def get_planchas_for_step(course_id: int, step_title: str) -> list:
     
     return []
 
+@router.get("/curso/{course_id}/profesores")
+async def get_profesores_curso(course_id: int, user_data=Depends(get_current_user)):
+    """Profesores que dictan la materia, para el selector del generador de
+    evaluaciones (filtra el RAG a los documentos etiquetados con ese
+    profesor). Catálogo público del curso, no requiere verificar acceso."""
+    user, token = user_data
+    supabase = get_supabase(token)
+
+    resp = (
+        supabase.table("curso_profesores")
+        .select("profesores(id, nombre_completo)")
+        .eq("curso_id", course_id)
+        .execute()
+    )
+    profesores = sorted(
+        (
+            {"id": p["id"], "nombre_completo": p["nombre_completo"]}
+            for row in (resp.data or [])
+            if (p := row.get("profesores"))
+        ),
+        key=lambda p: p["nombre_completo"],
+    )
+    return profesores
+
+
 @router.get("/curso/{course_id}/learning-path")
 async def get_learning_path(course_id: int, user_data = Depends(get_current_user)):
     user, token = user_data
@@ -138,6 +184,27 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
         course_resp = supabase.table("cursos").select("*").eq("id", course_id).single().execute()
         if not course_resp.data:
             raise HTTPException(status_code=404, detail="Curso no encontrado")
+
+        # curso_profesores es N:N (varias secciones/horarios pueden tener
+        # distinto docente); no sabemos en qué sección está el estudiante,
+        # así que se listan todos los que dictan la materia.
+        profesores_resp = (
+            supabase.table("curso_profesores")
+            .select("profesores(nombre_completo)")
+            .eq("curso_id", course_id)
+            .execute()
+        )
+        nombres_profesores: List[str] = sorted({
+            nombre
+            for p in (profesores_resp.data or [])
+            if (nombre := (p.get("profesores") or {}).get("nombre_completo"))
+        })
+        if not nombres_profesores:
+            profesor_texto = None
+        elif len(nombres_profesores) <= 3:
+            profesor_texto = ", ".join(nombres_profesores)
+        else:
+            profesor_texto = ", ".join(nombres_profesores[:3]) + f" y {len(nombres_profesores) - 3} más"
 
         steps_resp = supabase.table("learning_path_steps").select("*").eq("curso_id", course_id).order("order_index").execute()
 
@@ -218,7 +285,7 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
                 "id": course_resp.data["id"],
                 "code": course_resp.data["code"],
                 "name": course_resp.data["name"],
-                "professor": "Ing. Docente UNI",
+                "professor": profesor_texto,
                 "progress": progress_pct
             },
             "timeline": timeline_steps,
@@ -309,10 +376,26 @@ async def completar_curso(curso_id: int, user_data = Depends(get_current_user)):
     user, token = user_data
     supabase = get_supabase(token)
 
-    prereq_resp = supabase.table("curso_prerrequisitos").select("curso_id, prerrequisito_id").execute()
+    profile_resp = supabase.table("perfiles").select("carrera_id, malla_id").eq("id", user.id).maybe_single().execute()
+    perfil = profile_resp.data if profile_resp else None
+    malla_id = perfil.get("malla_id") if perfil else None
+    if not malla_id and perfil and perfil.get("carrera_id"):
+        try:
+            m_resp = supabase.table("mallas").select("id").eq("carrera_id", perfil["carrera_id"]).eq("es_vigente", True).order("id").limit(1).execute()
+            filas = getattr(m_resp, "data", None) or []
+            malla_id = filas[0]["id"] if filas else None
+        except Exception:
+            malla_id = None
+
     prereq_map: Dict[int, List[int]] = {}
-    for p in prereq_resp.data or []:
-        prereq_map.setdefault(p["curso_id"], []).append(p["prerrequisito_id"])
+    if malla_id:
+        mc_resp = supabase.table("malla_cursos").select("id, curso_id").eq("malla_id", malla_id).execute()
+        mc_data = mc_resp.data or []
+        mc_ids = [mc["id"] for mc in mc_data]
+        if mc_ids:
+            prereq_resp = supabase.table("malla_curso_prerrequisitos").select("malla_curso_id, prerrequisito_malla_curso_id").in_("malla_curso_id", mc_ids).execute()
+            from app.core.prereqs import build_prereq_map_from_malla
+            prereq_map = build_prereq_map_from_malla(mc_data, prereq_resp.data or [], use_curso_id=True)
 
     chain = resolve_prereq_chain(curso_id, prereq_map)
     cursos_a_completar = {curso_id, *chain}

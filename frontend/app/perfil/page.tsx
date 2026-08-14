@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, Loader2, LogOut, Pencil, X } from "lucide-react"
+import { Check, Layers, Loader2, LogOut, Pencil, X } from "lucide-react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { useAuth } from "@/components/providers/auth-context"
 import { CambiarPasswordForm } from "@/components/perfil/cambiar-password-form"
@@ -11,11 +11,12 @@ import { PreferenciasCard } from "@/components/perfil/preferencias-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { apiService } from "@/lib/api-service"
 import { aRomano } from "@/lib/ciclos"
 import { calcularRacha } from "@/lib/racha"
 import { validarNombre } from "@/lib/validaciones"
-import type { Carrera } from "@/types/onboarding"
+import type { Carrera, MallaItem } from "@/types/onboarding"
 
 interface Perfil {
   id: string
@@ -23,6 +24,7 @@ interface Perfil {
   nombre_completo?: string
   codigo_estudiante?: string
   carrera_id?: number
+  malla_id?: number
   ciclo_actual?: number
 }
 
@@ -59,6 +61,13 @@ export default function PerfilPage() {
   const [guardando, setGuardando] = useState(false)
   const [errorNombre, setErrorNombre] = useState("")
 
+  // Cambio de plan de estudios / malla (PATCH /usuarios/me/malla)
+  const [mallasPlan, setMallasPlan] = useState<MallaItem[]>([])
+  const [modalMallaAbierto, setModalMallaAbierto] = useState(false)
+  const [mallaNuevaId, setMallaNuevaId] = useState<number | undefined>()
+  const [cambiandoMalla, setCambiandoMalla] = useState(false)
+  const [errorMalla, setErrorMalla] = useState("")
+
   useEffect(() => {
     let activo = true
 
@@ -83,6 +92,15 @@ export default function PerfilPage() {
           (c: Carrera) => c.id === datosPerfil.carrera_id,
         )
         setCarrera(encontrada ?? null)
+      }
+
+      if (datosPerfil?.carrera_id) {
+        apiService
+          .getMallasPorCarrera(datosPerfil.carrera_id)
+          .then((mallas) => {
+            if (activo) setMallasPlan(Array.isArray(mallas) ? mallas : [])
+          })
+          .catch(() => {})
       }
 
       if (avanceRes.status === "fulfilled") setAvance(avanceRes.value)
@@ -119,6 +137,26 @@ export default function PerfilPage() {
       setErrorNombre(err.message || "No se pudieron guardar tus datos.")
     } finally {
       setGuardando(false)
+    }
+  }
+
+  const mallaActualNombre = mallasPlan.find((m) => m.id === perfil?.malla_id)?.nombre
+
+  const handleCambiarMalla = async () => {
+    if (!mallaNuevaId) return
+    setCambiandoMalla(true)
+    setErrorMalla("")
+    try {
+      const respuesta = await apiService.cambiarMalla(mallaNuevaId)
+      setPerfil(
+        (prev) => ({ ...(prev ?? {}), ...(respuesta?.usuario ?? { malla_id: mallaNuevaId }) }) as Perfil,
+      )
+      setModalMallaAbierto(false)
+      router.push("/onboarding")
+    } catch (err: any) {
+      setErrorMalla(err.message || "No se pudo cambiar tu plan de estudios.")
+    } finally {
+      setCambiandoMalla(false)
     }
   }
 
@@ -267,7 +305,11 @@ export default function PerfilPage() {
               />
               <Dato
                 etiqueta="Plan de estudios"
-                valor={carrera?.duracion_ciclos ? `${carrera.duracion_ciclos} ciclos` : "—"}
+                valor={
+                  perfil.malla_id
+                    ? (mallaActualNombre ?? `Plan #${perfil.malla_id}`)
+                    : (carrera?.duracion_ciclos ? `${carrera.duracion_ciclos} ciclos` : "—")
+                }
               />
               <Dato
                 etiqueta="Créditos aprobados"
@@ -299,11 +341,81 @@ export default function PerfilPage() {
                   ¿Cambiaste de ciclo o aprobaste cursos nuevos? Actualiza tu situación para
                   recalcular tu malla y tu ruta.
                 </p>
-                <Button variant="brand" size="sm" onClick={() => router.push("/onboarding")}>
-                  Actualizar situación académica
-                </Button>
+                <div className="flex flex-wrap gap-3">
+                  <Button variant="brand" size="sm" onClick={() => router.push("/onboarding")}>
+                    Actualizar situación académica
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!mallasPlan.length}
+                    onClick={() => {
+                      setMallaNuevaId(undefined)
+                      setErrorMalla("")
+                      setModalMallaAbierto(true)
+                    }}
+                  >
+                    <Layers className="w-4 h-4 mr-2" />
+                    Cambiar Plan de Estudios
+                  </Button>
+                </div>
               </div>
             </div>
+
+            <Sheet open={modalMallaAbierto} onOpenChange={setModalMallaAbierto}>
+              <SheetContent>
+                <SheetHeader>
+                  <SheetTitle>Cambiar Plan de Estudios</SheetTitle>
+                  <SheetDescription>
+                    Al cambiar de plan, tu avance y progreso de cursos se reajustará para la
+                    nueva malla. Deberás volver a seleccionar los cursos que tienes aprobados.
+                  </SheetDescription>
+                </SheetHeader>
+
+                {errorMalla && (
+                  <p className="text-xs text-destructive mt-2">{errorMalla}</p>
+                )}
+
+                <div className="space-y-2 mt-4">
+                  {mallasPlan.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setMallaNuevaId(m.id)}
+                      aria-pressed={mallaNuevaId === m.id}
+                      className={`w-full text-left p-3 rounded-xl border transition-all ${
+                        mallaNuevaId === m.id
+                          ? "bg-card border-accent ring-1 ring-accent"
+                          : "bg-card/60 border-border hover:border-accent/40"
+                      }`}
+                    >
+                      <span className="font-heading text-sm font-bold text-foreground block">
+                        {m.nombre}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {m.es_vigente ? "Vigente" : "Plan anterior"}
+                        {m.codigo_plan ? ` · ${m.codigo_plan}` : ""}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-border mt-6">
+                  <Button variant="outline" size="sm" onClick={() => setModalMallaAbierto(false)}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    variant="brand"
+                    size="sm"
+                    disabled={!mallaNuevaId || cambiandoMalla}
+                    onClick={handleCambiarMalla}
+                  >
+                    {cambiandoMalla && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                    Cambiar plan
+                  </Button>
+                </div>
+              </SheetContent>
+            </Sheet>
           </TabsContent>
 
           <TabsContent value="seguridad">

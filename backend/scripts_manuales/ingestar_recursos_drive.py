@@ -116,7 +116,7 @@ def main():
     sb = get_admin_client()
 
     print("Cargando cursos...")
-    cursos_resp = sb.table("cursos").select("id, code, name, ciclo").execute()
+    cursos_resp = sb.table("cursos").select("id, code, name").execute()
     prefix_map = defaultdict(list)
     for c in cursos_resp.data or []:
         code = (c.get("code") or "").strip()
@@ -124,6 +124,14 @@ def main():
             continue
         prefix = code.split("_")[0].upper()
         prefix_map[prefix].append(c)
+
+    # El ciclo vive en malla_cursos (esquema actual), no en `cursos`.
+    ciclo_por_curso = {}
+    mc_resp = sb.table("malla_cursos").select("curso_id, ciclo").execute()
+    for m in mc_resp.data or []:
+        if m.get("ciclo") is not None:
+            ciclo_por_curso.setdefault(m["curso_id"], m["ciclo"])
+
     print(f"  {len(cursos_resp.data or [])} cursos cargados, {len(prefix_map)} prefijos de código.")
 
     print("\nListando carpetas de Drive...")
@@ -176,7 +184,7 @@ def main():
                     "titulo": titulo,
                     "tipo": tipo,
                     "curso_id": curso["id"] if curso else None,
-                    "ciclo": curso["ciclo"] if curso else None,
+                    "ciclo": ciclo_por_curso.get(curso["id"]) if curso else None,
                     "year": year,
                     "url_drive": url_drive,
                     "preview_url": url_drive,

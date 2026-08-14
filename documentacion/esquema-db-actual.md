@@ -2,121 +2,159 @@
 
 ## Estructura de Tablas
 
-| Tabla                | Columna               | Tipo_Dato                | Permite_Null |
-| -------------------- | --------------------- | ------------------------ | ------------ |
-| carreras             | id                    | integer                  | NO           |
-| carreras             | facultad_id           | integer                  | YES          |
-| carreras             | codigo                | character varying        | NO           |
-| carreras             | name                  | character varying        | NO           |
-| carreras             | description           | text                     | YES          |
-| carreras             | duracion_ciclos       | integer                  | YES          |
-| carreras             | created_at            | timestamp with time zone | YES          |
-| curso_prerrequisitos | id                    | integer                  | NO           |
-| curso_prerrequisitos | curso_id              | integer                  | YES          |
-| curso_prerrequisitos | prerrequisito_id      | integer                  | YES          |
-| curso_prerrequisitos | created_at            | timestamp with time zone | YES          |
-| cursos               | id                    | integer                  | NO           |
-| cursos               | carrera_id            | integer                  | YES          |
-| cursos               | code                  | character varying        | NO           |
-| cursos               | name                  | character varying        | NO           |
-| cursos               | credits               | integer                  | NO           |
-| cursos               | description           | text                     | YES          |
-| cursos               | ciclo                 | integer                  | NO           |
-| cursos               | created_at            | timestamp with time zone | YES          |
-| eventos_actividad    | id                    | bigint                   | NO           |
-| eventos_actividad    | perfil_id             | uuid                     | NO           |
-| eventos_actividad    | tipo                  | character varying        | NO           |
-| eventos_actividad    | curso_id              | integer                  | YES          |
-| eventos_actividad    | metadata              | jsonb                    | NO           |
-| eventos_actividad    | created_at            | timestamp with time zone | NO           |
-| facultades           | id                    | integer                  | NO           |
-| facultades           | codigo                | character varying        | NO           |
-| facultades           | nombre                | character varying        | NO           |
-| facultades           | descripcion           | text                     | YES          |
-| facultades           | created_at            | timestamp with time zone | YES          |
-| learning_path_steps  | id                    | integer                  | NO           |
-| learning_path_steps  | curso_id              | integer                  | YES          |
-| learning_path_steps  | title                 | character varying        | NO           |
-| learning_path_steps  | description           | text                     | YES          |
-| learning_path_steps  | duration              | character varying        | YES          |
-| learning_path_steps  | order_index           | integer                  | NO           |
-| learning_path_steps  | topics                | ARRAY                    | YES          |
-| learning_path_steps  | icon                  | character varying        | YES          |
-| learning_path_steps  | created_at            | timestamp with time zone | YES          |
-| logros               | id                    | integer                  | NO           |
-| logros               | nombre                | character varying        | NO           |
-| logros               | descripcion           | text                     | YES          |
-| logros               | icon                  | character varying        | YES          |
-| logros               | created_at            | timestamp with time zone | YES          |
-| logros_usuarios      | id                    | integer                  | NO           |
-| logros_usuarios      | perfil_id             | uuid                     | YES          |
-| logros_usuarios      | logro_id              | integer                  | YES          |
-| logros_usuarios      | unlocked_at           | timestamp with time zone | YES          |
-| perfiles             | id                    | uuid                     | NO           |
-| perfiles             | email                 | character varying        | NO           |
-| perfiles             | nombre_completo       | character varying        | YES          |
-| perfiles             | carrera_id            | integer                  | YES          |
-| perfiles             | ciclo_actual          | integer                  | YES          |
-| perfiles             | onboarding_completado | boolean                  | YES          |
-| perfiles             | avatar_url            | text                     | YES          |
-| perfiles             | created_at            | timestamp with time zone | YES          |
-| perfiles             | updated_at            | timestamp with time zone | YES          |
-| perfiles             | codigo_estudiante     | character varying        | YES          |
-| progreso_cursos      | id                    | integer                  | NO           |
-| progreso_cursos      | perfil_id             | uuid                     | YES          |
-| progreso_cursos      | curso_id              | integer                  | YES          |
-| progreso_cursos      | status                | character varying        | YES          |
-| progreso_cursos      | nota                  | numeric                  | YES          |
-| progreso_cursos      | fecha_completado      | timestamp with time zone | YES          |
-| progreso_cursos      | updated_at            | timestamp with time zone | YES          |
-| progreso_unidades    | id                    | integer                  | NO           |
-| progreso_unidades    | perfil_id             | uuid                     | YES          |
-| progreso_unidades    | step_id               | integer                  | YES          |
-| progreso_unidades    | curso_id              | integer                  | YES          |
-| progreso_unidades    | completado            | boolean                  | YES          |
-| progreso_unidades    | fecha_completado      | timestamp with time zone | YES          |
-| progreso_unidades    | created_at            | timestamp with time zone | YES          |
-| recursos             | id                    | integer                  | NO           |
-| recursos             | curso_id              | integer                  | YES          |
-| recursos             | titulo                | character varying        | NO           |
-| recursos             | tipo                  | character varying        | NO           |
-| recursos             | ciclo                 | integer                  | YES          |
-| recursos             | year                  | integer                  | YES          |
-| recursos             | downloads             | integer                  | YES          |
-| recursos             | rating                | numeric                  | YES          |
-| recursos             | preview_url           | text                     | YES          |
-| recursos             | has_solucionario      | boolean                  | YES          |
-| recursos             | created_at            | timestamp with time zone | YES          |
-| recursos             | url_drive             | text                     | YES          |
-| recursos             | drive_file_id         | text                     | YES          |
-| recursos             | nombre_curso          | text                     | YES          |
-| recursos             | codigo_curso          | text                     | YES          |
-| resource_chunks      | id                    | uuid                     | NO           |
-| resource_chunks      | recurso_id            | integer                  | NO           |
-| resource_chunks      | curso_id              | integer                  | NO           |
-| resource_chunks      | contenido             | text                     | NO           |
-| resource_chunks      | embedding             | USER-DEFINED             | NO           |
-| resource_chunks      | created_at            | timestamp with time zone | NO           |
-
+| tabla                      | orden | columna                      | tipo_dato                | permite_null | valor_defecto                                          | tipo_clave | tabla_destino       | columna_destino |
+| -------------------------- | ----- | ---------------------------- | ------------------------ | ------------ | ------------------------------------------------------ | ---------- | ------------------- | --------------- |
+| carreras                   | 1     | id                           | integer                  | NO           | nextval('carreras_id_seq'::regclass)                   | PK         | -                   | -               |
+| carreras                   | 2     | facultad_id                  | integer                  | YES          | N/A                                                    | FK         | facultades          | id              |
+| carreras                   | 3     | codigo                       | character varying        | NO           | N/A                                                    |            | -                   | -               |
+| carreras                   | 4     | name                         | character varying        | NO           | N/A                                                    |            | -                   | -               |
+| carreras                   | 5     | description                  | text                     | YES          | N/A                                                    |            | -                   | -               |
+| carreras                   | 6     | duracion_ciclos              | integer                  | YES          | 10                                                     |            | -                   | -               |
+| carreras                   | 7     | created_at                   | timestamp with time zone | YES          | now()                                                  |            | -                   | -               |
+| curso_carrera              | 1     | id                           | integer                  | NO           | nextval('cursos_id_seq'::regclass)                     | PK         | -                   | -               |
+| curso_carrera              | 2     | carrera_id                   | integer                  | YES          | N/A                                                    | FK         | carreras            | id              |
+| curso_carrera              | 8     | created_at                   | timestamp with time zone | YES          | now()                                                  |            | -                   | -               |
+| curso_carrera              | 9     | curso_id                     | integer                  | NO           | N/A                                                    | FK         | cursos              | id              |
+| curso_prerrequisitos       | 1     | id                           | integer                  | NO           | nextval('curso_prerrequisitos_id_seq'::regclass)       | PK         | -                   | -               |
+| curso_prerrequisitos       | 2     | curso_id                     | integer                  | YES          | N/A                                                    | FK         | cursos              | id              |
+| curso_prerrequisitos       | 3     | prerrequisito_id             | integer                  | YES          | N/A                                                    | FK         | cursos              | id              |
+| curso_prerrequisitos       | 4     | created_at                   | timestamp with time zone | YES          | now()                                                  |            | -                   | -               |
+| curso_profesores           | 1     | id                           | integer                  | NO           | nextval('curso_profesores_id_seq'::regclass)           | PK         | -                   | -               |
+| curso_profesores           | 2     | curso_id                     | integer                  | YES          | N/A                                                    | FK         | cursos              | id              |
+| curso_profesores           | 3     | profesor_id                  | integer                  | YES          | N/A                                                    | FK         | profesores          | id              |
+| curso_profesores           | 4     | created_at                   | timestamp with time zone | YES          | now()                                                  |            | -                   | -               |
+| cursos                     | 1     | id                           | integer                  | NO           | nextval('cursos_id_seq1'::regclass)                    | PK         | -                   | -               |
+| cursos                     | 2     | name                         | character varying        | NO           | N/A                                                    |            | -                   | -               |
+| cursos                     | 3     | description                  | text                     | YES          | N/A                                                    |            | -                   | -               |
+| cursos                     | 4     | created_at                   | timestamp with time zone | YES          | now()                                                  |            | -                   | -               |
+| cursos                     | 5     | code                         | character varying        | NO           | N/A                                                    |            | -                   | -               |
+| eventos_actividad          | 1     | id                           | bigint                   | NO           | nextval('eventos_actividad_id_seq'::regclass)          | PK         | -                   | -               |
+| eventos_actividad          | 2     | perfil_id                    | uuid                     | NO           | N/A                                                    | FK         | perfiles            | id              |
+| eventos_actividad          | 3     | tipo                         | character varying        | NO           | N/A                                                    |            | -                   | -               |
+| eventos_actividad          | 4     | curso_id                     | integer                  | YES          | N/A                                                    | FK         | cursos              | id              |
+| eventos_actividad          | 5     | metadata                     | jsonb                    | NO           | '{}'::jsonb                                            |            | -                   | -               |
+| eventos_actividad          | 6     | created_at                   | timestamp with time zone | NO           | now()                                                  |            | -                   | -               |
+| facultades                 | 1     | id                           | integer                  | NO           | nextval('facultades_id_seq'::regclass)                 | PK         | -                   | -               |
+| facultades                 | 2     | codigo                       | character varying        | NO           | N/A                                                    |            | -                   | -               |
+| facultades                 | 3     | nombre                       | character varying        | NO           | N/A                                                    |            | -                   | -               |
+| facultades                 | 4     | descripcion                  | text                     | YES          | N/A                                                    |            | -                   | -               |
+| facultades                 | 5     | created_at                   | timestamp with time zone | YES          | now()                                                  |            | -                   | -               |
+| learning_path_steps        | 1     | id                           | integer                  | NO           | nextval('learning_path_steps_id_seq'::regclass)        | PK         | -                   | -               |
+| learning_path_steps        | 2     | curso_id                     | integer                  | YES          | N/A                                                    | FK         | cursos              | id              |
+| learning_path_steps        | 3     | title                        | character varying        | NO           | N/A                                                    |            | -                   | -               |
+| learning_path_steps        | 4     | description                  | text                     | YES          | N/A                                                    |            | -                   | -               |
+| learning_path_steps        | 5     | duration                     | character varying        | YES          | N/A                                                    |            | -                   | -               |
+| learning_path_steps        | 6     | order_index                  | integer                  | NO           | N/A                                                    |            | -                   | -               |
+| learning_path_steps        | 7     | topics                       | ARRAY                    | YES          | N/A                                                    |            | -                   | -               |
+| learning_path_steps        | 8     | icon                         | character varying        | YES          | N/A                                                    |            | -                   | -               |
+| learning_path_steps        | 9     | created_at                   | timestamp with time zone | YES          | now()                                                  |            | -                   | -               |
+| logros                     | 1     | id                           | integer                  | NO           | nextval('logros_id_seq'::regclass)                     | PK         | -                   | -               |
+| logros                     | 2     | nombre                       | character varying        | NO           | N/A                                                    |            | -                   | -               |
+| logros                     | 3     | descripcion                  | text                     | YES          | N/A                                                    |            | -                   | -               |
+| logros                     | 4     | icon                         | character varying        | YES          | N/A                                                    |            | -                   | -               |
+| logros                     | 5     | created_at                   | timestamp with time zone | YES          | now()                                                  |            | -                   | -               |
+| logros_usuarios            | 1     | id                           | integer                  | NO           | nextval('logros_usuarios_id_seq'::regclass)            | PK         | -                   | -               |
+| logros_usuarios            | 2     | perfil_id                    | uuid                     | YES          | N/A                                                    | FK         | perfiles            | id              |
+| logros_usuarios            | 3     | logro_id                     | integer                  | YES          | N/A                                                    | FK         | logros              | id              |
+| logros_usuarios            | 4     | unlocked_at                  | timestamp with time zone | YES          | now()                                                  |            | -                   | -               |
+| malla_curso_prerrequisitos | 1     | id                           | integer                  | NO           | nextval('malla_curso_prerrequisitos_id_seq'::regclass) | PK         | -                   | -               |
+| malla_curso_prerrequisitos | 2     | malla_curso_id               | integer                  | NO           | N/A                                                    | FK         | malla_cursos        | id              |
+| malla_curso_prerrequisitos | 3     | prerrequisito_malla_curso_id | integer                  | NO           | N/A                                                    | FK         | malla_cursos        | id              |
+| malla_curso_prerrequisitos | 4     | created_at                   | timestamp with time zone | YES          | timezone('utc'::text, now())                           |            | -                   | -               |
+| malla_cursos               | 1     | id                           | integer                  | NO           | nextval('malla_cursos_id_seq'::regclass)               | PK         | -                   | -               |
+| malla_cursos               | 2     | malla_id                     | integer                  | NO           | N/A                                                    | FK         | mallas              | id              |
+| malla_cursos               | 3     | curso_id                     | integer                  | NO           | N/A                                                    | FK         | cursos              | id              |
+| malla_cursos               | 4     | ciclo                        | integer                  | NO           | N/A                                                    |            | -                   | -               |
+| malla_cursos               | 5     | credits                      | integer                  | NO           | N/A                                                    |            | -                   | -               |
+| malla_cursos               | 6     | tipo                         | character varying        | YES          | 'OBLIGATORIO'::character varying                       |            | -                   | -               |
+| malla_cursos               | 7     | created_at                   | timestamp with time zone | YES          | timezone('utc'::text, now())                           |            | -                   | -               |
+| mallas                     | 1     | id                           | integer                  | NO           | nextval('mallas_id_seq'::regclass)                     | PK         | -                   | -               |
+| mallas                     | 2     | carrera_id                   | integer                  | NO           | N/A                                                    | FK         | carreras            | id              |
+| mallas                     | 3     | nombre                       | character varying        | NO           | N/A                                                    |            | -                   | -               |
+| mallas                     | 4     | codigo_plan                  | character varying        | NO           | N/A                                                    |            | -                   | -               |
+| mallas                     | 5     | es_vigente                   | boolean                  | YES          | true                                                   |            | -                   | -               |
+| mallas                     | 6     | created_at                   | timestamp with time zone | YES          | timezone('utc'::text, now())                           |            | -                   | -               |
+| perfiles                   | 1     | id                           | uuid                     | NO           | N/A                                                    | PK         | -                   | -               |
+| perfiles                   | 2     | email                        | character varying        | NO           | N/A                                                    |            | -                   | -               |
+| perfiles                   | 3     | nombre_completo              | character varying        | YES          | N/A                                                    |            | -                   | -               |
+| perfiles                   | 4     | carrera_id                   | integer                  | YES          | N/A                                                    | FK         | carreras            | id              |
+| perfiles                   | 5     | ciclo_actual                 | integer                  | YES          | 1                                                      |            | -                   | -               |
+| perfiles                   | 6     | onboarding_completado        | boolean                  | YES          | false                                                  |            | -                   | -               |
+| perfiles                   | 7     | avatar_url                   | text                     | YES          | N/A                                                    |            | -                   | -               |
+| perfiles                   | 8     | created_at                   | timestamp with time zone | YES          | now()                                                  |            | -                   | -               |
+| perfiles                   | 9     | updated_at                   | timestamp with time zone | YES          | now()                                                  |            | -                   | -               |
+| perfiles                   | 10    | codigo_estudiante            | character varying        | YES          | N/A                                                    |            | -                   | -               |
+| perfiles                   | 11    | malla_id                     | integer                  | YES          | N/A                                                    | FK         | mallas              | id              |
+| profesores                 | 1     | id                           | integer                  | NO           | nextval('profesores_id_seq'::regclass)                 | PK         | -                   | -               |
+| profesores                 | 2     | nombre_completo              | character varying        | NO           | N/A                                                    |            | -                   | -               |
+| profesores                 | 3     | created_at                   | timestamp with time zone | YES          | now()                                                  |            | -                   | -               |
+| progreso_cursos            | 1     | id                           | integer                  | NO           | nextval('progreso_cursos_id_seq'::regclass)            | PK         | -                   | -               |
+| progreso_cursos            | 2     | perfil_id                    | uuid                     | YES          | N/A                                                    | FK         | perfiles            | id              |
+| progreso_cursos            | 3     | curso_id                     | integer                  | YES          | N/A                                                    | FK         | cursos              | id              |
+| progreso_cursos            | 4     | status                       | character varying        | YES          | 'available'::character varying                         |            | -                   | -               |
+| progreso_cursos            | 5     | nota                         | numeric                  | YES          | N/A                                                    |            | -                   | -               |
+| progreso_cursos            | 6     | fecha_completado             | timestamp with time zone | YES          | N/A                                                    |            | -                   | -               |
+| progreso_cursos            | 7     | updated_at                   | timestamp with time zone | YES          | now()                                                  |            | -                   | -               |
+| progreso_unidades          | 1     | id                           | integer                  | NO           | nextval('progreso_unidades_id_seq'::regclass)          | PK         | -                   | -               |
+| progreso_unidades          | 2     | perfil_id                    | uuid                     | YES          | N/A                                                    | FK         | perfiles            | id              |
+| progreso_unidades          | 3     | step_id                      | integer                  | YES          | N/A                                                    | FK         | learning_path_steps | id              |
+| progreso_unidades          | 4     | curso_id                     | integer                  | YES          | N/A                                                    | FK         | cursos              | id              |
+| progreso_unidades          | 5     | completado                   | boolean                  | YES          | false                                                  |            | -                   | -               |
+| progreso_unidades          | 6     | fecha_completado             | timestamp with time zone | YES          | N/A                                                    |            | -                   | -               |
+| progreso_unidades          | 7     | created_at                   | timestamp with time zone | YES          | now()                                                  |            | -                   | -               |
+| recursos                   | 1     | id                           | integer                  | NO           | nextval('recursos_id_seq'::regclass)                   | PK         | -                   | -               |
+| recursos                   | 2     | curso_id                     | integer                  | YES          | N/A                                                    | FK         | cursos              | id              |
+| recursos                   | 3     | titulo                       | character varying        | NO           | N/A                                                    |            | -                   | -               |
+| recursos                   | 4     | tipo                         | character varying        | NO           | N/A                                                    |            | -                   | -               |
+| recursos                   | 5     | ciclo                        | integer                  | YES          | N/A                                                    |            | -                   | -               |
+| recursos                   | 6     | year                         | integer                  | YES          | N/A                                                    |            | -                   | -               |
+| recursos                   | 7     | downloads                    | integer                  | YES          | 0                                                      |            | -                   | -               |
+| recursos                   | 8     | rating                       | numeric                  | YES          | 0.0                                                    |            | -                   | -               |
+| recursos                   | 9     | preview_url                  | text                     | YES          | N/A                                                    |            | -                   | -               |
+| recursos                   | 10    | has_solucionario             | boolean                  | YES          | false                                                  |            | -                   | -               |
+| recursos                   | 11    | created_at                   | timestamp with time zone | YES          | now()                                                  |            | -                   | -               |
+| recursos                   | 12    | url_drive                    | text                     | YES          | N/A                                                    |            | -                   | -               |
+| recursos                   | 13    | drive_file_id                | text                     | YES          | N/A                                                    |            | -                   | -               |
+| recursos                   | 14    | nombre_curso                 | text                     | YES          | N/A                                                    |            | -                   | -               |
+| recursos                   | 15    | codigo_curso                 | text                     | YES          | N/A                                                    |            | -                   | -               |
+| resource_chunks            | 1     | id                           | uuid                     | NO           | gen_random_uuid()                                      | PK         | -                   | -               |
+| resource_chunks            | 2     | recurso_id                   | integer                  | NO           | N/A                                                    | FK         | recursos            | id              |
+| resource_chunks            | 3     | curso_id                     | integer                  | NO           | N/A                                                    | FK         | cursos              | id              |
+| resource_chunks            | 4     | contenido                    | text                     | NO           | N/A                                                    |            | -                   | -               |
+| resource_chunks            | 5     | embedding                    | USER-DEFINED             | NO           | N/A                                                    |            | -                   | -               |
+| resource_chunks            | 7     | created_at                   | timestamp with time zone | NO           | now()                                                  |            | -                   | -               |
 ---
 
-| Tabla_Origen         | Columna_Origen   | Tabla_Destino       | Columna_Destino |
-| -------------------- | ---------------- | ------------------- | --------------- |
-| perfiles             | carrera_id       | carreras            | id              |
-| carreras             | facultad_id      | facultades          | id              |
-| cursos               | carrera_id       | carreras            | id              |
-| progreso_cursos      | perfil_id        | perfiles            | id              |
-| progreso_cursos      | curso_id         | cursos              | id              |
-| recursos             | curso_id         | cursos              | id              |
-| logros_usuarios      | perfil_id        | perfiles            | id              |
-| logros_usuarios      | logro_id         | logros              | id              |
-| learning_path_steps  | curso_id         | cursos              | id              |
-| curso_prerrequisitos | curso_id         | cursos              | id              |
-| curso_prerrequisitos | prerrequisito_id | cursos              | id              |
-| resource_chunks      | recurso_id       | recursos            | id              |
-| resource_chunks      | curso_id         | cursos              | id              |
-| progreso_unidades    | perfil_id        | perfiles            | id              |
-| progreso_unidades    | step_id          | learning_path_steps | id              |
-| progreso_unidades    | curso_id         | cursos              | id              |
-| eventos_actividad    | perfil_id        | perfiles            | id              |
-| eventos_actividad    | curso_id         | cursos              | id              |
+> **Nota — `mallas.es_vigente`:** una carrera puede tener **2 o más mallas con `es_vigente = true`**
+> simultáneamente (p. ej. Plan 2021 y Plan 2026 conviviendo). La malla de cada estudiante se
+> resuelve por `perfiles.malla_id`; ninguna consulta por carrera debe asumir una única malla activa.
+
+| tabla_origen               | columna_origen               | tabla_destino       | columna_destino | nombre_restriccion                                           |
+| -------------------------- | ---------------------------- | ------------------- | --------------- | ------------------------------------------------------------ |
+| carreras                   | facultad_id                  | facultades          | id              | carreras_facultad_id_fkey                                    |
+| curso_carrera              | carrera_id                   | carreras            | id              | cursos_carrera_id_fkey                                       |
+| curso_carrera              | curso_id                     | cursos              | id              | curso_carrera_curso_id_fkey                                  |
+| curso_prerrequisitos       | curso_id                     | cursos              | id              | curso_prerrequisitos_curso_id_fkey                           |
+| curso_prerrequisitos       | prerrequisito_id             | cursos              | id              | curso_prerrequisitos_prerrequisito_id_fkey                   |
+| curso_profesores           | curso_id                     | cursos              | id              | curso_profesores_curso_id_fkey                               |
+| curso_profesores           | profesor_id                  | profesores          | id              | curso_profesores_profesor_id_fkey                            |
+| eventos_actividad          | curso_id                     | cursos              | id              | eventos_actividad_curso_id_fkey                              |
+| eventos_actividad          | perfil_id                    | perfiles            | id              | eventos_actividad_perfil_id_fkey                             |
+| learning_path_steps        | curso_id                     | cursos              | id              | learning_path_steps_curso_id_fkey                            |
+| logros_usuarios            | logro_id                     | logros              | id              | logros_usuarios_logro_id_fkey                                |
+| logros_usuarios            | perfil_id                    | perfiles            | id              | logros_usuarios_perfil_id_fkey                               |
+| malla_curso_prerrequisitos | malla_curso_id               | malla_cursos        | id              | malla_curso_prerrequisitos_malla_curso_id_fkey               |
+| malla_curso_prerrequisitos | prerrequisito_malla_curso_id | malla_cursos        | id              | malla_curso_prerrequisitos_prerrequisito_malla_curso_id_fkey |
+| malla_cursos               | curso_id                     | cursos              | id              | malla_cursos_curso_id_fkey                                   |
+| malla_cursos               | malla_id                     | mallas              | id              | malla_cursos_malla_id_fkey                                   |
+| mallas                     | carrera_id                   | carreras            | id              | mallas_carrera_id_fkey                                       |
+| perfiles                   | carrera_id                   | carreras            | id              | perfiles_carrera_id_fkey                                     |
+| perfiles                   | malla_id                     | mallas              | id              | perfiles_malla_id_fkey                                       |
+| progreso_cursos            | curso_id                     | cursos              | id              | progreso_cursos_curso_id_fkey                                |
+| progreso_cursos            | perfil_id                    | perfiles            | id              | progreso_cursos_perfil_id_fkey                               |
+| progreso_unidades          | curso_id                     | cursos              | id              | progreso_unidades_curso_id_fkey                              |
+| progreso_unidades          | perfil_id                    | perfiles            | id              | progreso_unidades_perfil_id_fkey                             |
+| progreso_unidades          | step_id                      | learning_path_steps | id              | progreso_unidades_step_id_fkey                               |
+| recursos                   | curso_id                     | cursos              | id              | recursos_curso_id_fkey                                       |
+| resource_chunks            | curso_id                     | cursos              | id              | fk_curso                                                     |
+| resource_chunks            | recurso_id                   | recursos            | id              | fk_recurso                                                   |

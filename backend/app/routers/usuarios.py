@@ -7,6 +7,7 @@ from app.core.database import get_supabase, get_admin_client
 from app.core.auth_utils import get_current_user
 from app.core.exceptions import raise_field_error
 from app.schemas.usuarios import (
+    CambiarMalla,
     CambioPassword,
     PerfilUpdate,
     RegistroEstudiante,
@@ -52,12 +53,8 @@ def _resolver_email(identificador: str, es_email: bool) -> str | None:
     return data.get("email") if data else None
 
 
-def _cargar_carrera_y_plan(token: str, carrera_id: int | None) -> tuple[dict | None, dict | None]:
-    """Devuelve la carrera del estudiante y el resumen de su plan de estudios (RF-02).
-
-    El plan se deriva del catálogo de cursos de la carrera; el avance del
-    estudiante lo expone la Fase 3 y no se duplica aquí.
-    """
+def _cargar_carrera_y_plan(token: str, carrera_id: int | None, malla_id: int | None = None) -> tuple[dict | None, dict | None]:
+    """Devuelve la carrera del estudiante y el resumen de su plan de estudios (RF-02)."""
     if not carrera_id:
         return None, None
 
@@ -76,16 +73,36 @@ def _cargar_carrera_y_plan(token: str, carrera_id: int | None) -> tuple[dict | N
         logger.error(f"[LOGIN] Error cargando carrera {carrera_id}: {e}")
         return None, None
 
+    real_malla_id = malla_id
+    if not real_malla_id and carrera_id:
+        try:
+            m_resp = (
+                supabase.table("mallas")
+                .select("id")
+                .eq("carrera_id", carrera_id)
+                .eq("es_vigente", True)
+                .order("id")
+                .limit(1)
+                .execute()
+            )
+            filas = getattr(m_resp, "data", None) or []
+            real_malla_id = filas[0]["id"] if filas else None
+        except Exception as e:
+            logger.error(f"[LOGIN] Error cargando malla vigente para carrera {carrera_id}: {e}")
+
+    if not real_malla_id:
+        return carrera, None
+
     try:
         cursos_resp = (
-            supabase.table("cursos")
+            supabase.table("malla_cursos")
             .select("credits, ciclo")
-            .eq("carrera_id", carrera_id)
+            .eq("malla_id", real_malla_id)
             .execute()
         )
         cursos = getattr(cursos_resp, "data", None) or []
     except Exception as e:
-        logger.error(f"[LOGIN] Error cargando plan de carrera {carrera_id}: {e}")
+        logger.error(f"[LOGIN] Error cargando plan de malla {real_malla_id}: {e}")
         return carrera, None
 
     if not cursos:
@@ -94,6 +111,7 @@ def _cargar_carrera_y_plan(token: str, carrera_id: int | None) -> tuple[dict | N
     ciclos = {c["ciclo"] for c in cursos if c.get("ciclo") is not None}
     plan = {
         "carrera_id": carrera_id,
+        "malla_id": real_malla_id,
         "total_cursos": len(cursos),
         "total_creditos": sum(c.get("credits") or 0 for c in cursos),
         "total_ciclos": max(ciclos) if ciclos else 0,
@@ -103,11 +121,7 @@ def _cargar_carrera_y_plan(token: str, carrera_id: int | None) -> tuple[dict | N
 
 @router.post("/auth/login")
 async def login(data: LoginRequest):
-    """Inicia sesión con correo institucional o código universitario (RF-01).
-
-    Devuelve la sesión junto con el perfil, la carrera y el plan de estudios
-    asociados automáticamente (RF-02).
-    """
+    """Inicia sesión con correo institucional o código universitario (RF-01)."""
     email = _resolver_email(data.identificador, data.es_email)
     if not email:
         raise_field_error("identificador", CREDENCIALES_INVALIDAS, status_code=401)
@@ -142,7 +156,6 @@ async def login(data: LoginRequest):
         perfil = None
 
     if not perfil:
-        # El perfil se crea en el registro; si falta, devolvemos lo mínimo de auth.
         perfil = {
             "id": user.id,
             "email": user.email,
@@ -150,7 +163,7 @@ async def login(data: LoginRequest):
             "onboarding_completado": False,
         }
 
-    carrera, plan_estudios = _cargar_carrera_y_plan(token, perfil.get("carrera_id"))
+    carrera, plan_estudios = _cargar_carrera_y_plan(token, perfil.get("carrera_id"), perfil.get("malla_id"))
 
     # Deja rastro del inicio de sesión para las estadísticas de actividad
     # (RF-21). Es best-effort: si falla, el login continúa igual.
@@ -301,6 +314,86 @@ async def actualizar_datos_personales(
     }
 
 
+@router.patch("/usuarios/me/malla")
+async def cambiar_malla(
+    data: CambiarMalla,
+    user_data=Depends(get_current_user),
+):
+    """Cambia el plan de estudios (malla_id) del estudiante desde el perfil.
+
+    Solo reasigna la malla: el avance/progreso se reajusta cuando el estudiante
+    re-corre el onboarding para re-seleccionar sus cursos aprobados.
+    """
+    user, token = user_data
+    supabase = get_supabase(token)
+
+    try:
+        perfil_resp = (
+            supabase.table("perfiles")
+            .select("carrera_id")
+            .eq("id", user.id)
+            .maybe_single()
+            .execute()
+        )
+        perfil = getattr(perfil_resp, "data", None) if perfil_resp else None
+    except Exception as e:
+        logger.error(f"[PERFIL] Error cargando perfil de {user.id}: {e}")
+        perfil = None
+
+    if not perfil or not perfil.get("carrera_id"):
+        raise_field_error(
+            "perfil",
+            "No encontramos tu carrera. Completa tu onboarding para poder cambiar de plan.",
+            status_code=400,
+        )
+
+    # La malla objetivo debe existir y pertenecer a la carrera del estudiante.
+    try:
+        m_resp = (
+            supabase.table("mallas")
+            .select("id")
+            .eq("id", data.malla_id)
+            .eq("carrera_id", perfil["carrera_id"])
+            .maybe_single()
+            .execute()
+        )
+    except Exception as e:
+        logger.error(f"[PERFIL] Error validando malla {data.malla_id} de {user.id}: {e}")
+        m_resp = None
+
+    if not m_resp or not getattr(m_resp, "data", None):
+        raise_field_error(
+            "malla_id",
+            "El plan de estudios seleccionado no pertenece a tu carrera.",
+            status_code=400,
+        )
+
+    try:
+        resp = (
+            supabase.table("perfiles")
+            .update({"malla_id": data.malla_id, "updated_at": "now()"})
+            .eq("id", user.id)
+            .execute()
+        )
+        filas = getattr(resp, "data", None) or []
+    except Exception as e:
+        logger.error(f"[PERFIL] Error cambiando malla de {user.id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo cambiar tu plan de estudios.")
+
+    if not filas:
+        raise_field_error(
+            "perfil",
+            "No encontramos tu perfil para actualizarlo. Vuelve a iniciar sesión.",
+            status_code=400,
+        )
+
+    return {
+        "status": "success",
+        "message": "Plan de estudios actualizado. Vuelve a seleccionar tus cursos aprobados.",
+        "usuario": filas[0],
+    }
+
+
 @router.put("/usuarios/password")
 async def cambiar_password(
     data: CambioPassword,
@@ -392,6 +485,7 @@ async def register(
         "codigo_estudiante": data.codigo_estudiante,
         "nombre_completo": data.nombre_completo,
         "onboarding_completado": True,
+        "malla_id": None,  # NULL: la malla se asigna al completar el onboarding.
         "updated_at": "now()",
     }
     print(f"[REGISTER] Upsert payload: {payload}")
@@ -481,6 +575,7 @@ async def register_user(data: RegistroCompleto):
             "codigo_estudiante": data.codigo_estudiante,
             "nombre_completo": data.nombre_completo,
             "onboarding_completado": False,
+            "malla_id": None,  # NULL: se asigna en /onboarding/complete.
             "updated_at": "now()",
         }, on_conflict="id").execute()
         print(f"[REGISTER-USER] Profile created for user: {user_id}")

@@ -2,10 +2,26 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import dynamic from "next/dynamic"
 import { AlertCircle, Loader2 } from "lucide-react"
 import { DashboardLayout } from "@/components/dashboard-layout"
-import { MallaCurricular } from "@/components/malla-curricular"
 import { apiService } from "@/lib/api-service"
+import type { AvanceCarrera, CicloDetail } from "@/types/malla"
+
+// Los estilos de React Flow son globales: solo se cargan en esta ruta.
+import "@xyflow/react/dist/style.css"
+
+const MallaGraph = dynamic(
+  () => import("@/components/malla-graph/MallaGraph").then((m) => m.MallaGraph),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[calc(100vh-200px)] min-h-[650px] items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-accent" />
+      </div>
+    ),
+  },
+)
 
 export default function MallaPage() {
   const [malla, setMalla] = useState<any[]>([])
@@ -45,8 +61,8 @@ export default function MallaPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-6 max-w-5xl mx-auto">
-        <div className="space-y-1">
+      <div className="p-6 space-y-6">
+        <div className="space-y-1 max-w-5xl">
           <h1 className="font-heading text-2xl md:text-3xl font-bold tracking-tight text-foreground">
             Mi malla curricular
           </h1>
@@ -54,27 +70,6 @@ export default function MallaPage() {
             Tu plan de estudios completo, con el estado de cada curso.
           </p>
         </div>
-
-        {avance && avance.creditos_totales > 0 && (
-          <div className="p-5 rounded-2xl bg-card border border-border space-y-3">
-            <div className="flex items-baseline justify-between gap-4">
-              <p className="text-sm font-medium text-foreground">Avance de carrera</p>
-              <p className="font-heading text-2xl font-bold gradient-brand-text">
-                {avance.porcentaje_avance}%
-              </p>
-            </div>
-            <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-              <div
-                className="progress-bar-modern-fill"
-                style={{ width: `${Math.min(avance.porcentaje_avance, 100)}%` }}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {avance.creditos_aprobados} de {avance.creditos_totales} créditos aprobados
-              {avance.creditos_restantes > 0 && ` · te faltan ${avance.creditos_restantes}`}
-            </p>
-          </div>
-        )}
 
         {error ? (
           <div className="flex flex-col items-center text-center gap-4 py-16">
@@ -95,7 +90,7 @@ export default function MallaPage() {
           </div>
         ) : (
           <div className="rounded-2xl bg-card border border-border overflow-hidden">
-            <MallaCurricular malla={malla} isLoading={false} />
+            <MallaGraph malla={malla as CicloDetail[]} avance={avance as AvanceCarrera | null} />
           </div>
         )}
       </div>

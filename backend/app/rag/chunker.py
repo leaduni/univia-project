@@ -1,6 +1,9 @@
 # Divisor del texto en fragmentos
+import logging
 import os
 from langchain_text_splitters import RecursiveCharacterTextSplitter, MarkdownHeaderTextSplitter
+
+logger = logging.getLogger(__name__)
 
 class SyllabusChunker:
     def __init__(self, chunk_size=1200, chunk_overlap=200):
@@ -26,11 +29,11 @@ class SyllabusChunker:
     
     def chunk_text(self, markdown_text: str) -> list:
         if not markdown_text.strip():
-            print("Texto vacio recibido en el chunker. ")
+            logger.warning("Texto vacío recibido en el chunker.")
             return []
-        
-        print("Iniciando con el proceso de chunking ...")
-        
+
+        logger.info(f"[Chunking] Generando fragmentos (tamaño: {self.chunk_size}, overlap: {self.chunk_overlap})...")
+
         md_chunks = self.markdown_splitter.split_text(markdown_text)
         text_chunks = self.recursive_splitter.split_documents(md_chunks)
 
@@ -42,8 +45,8 @@ class SyllabusChunker:
             chunks_to_supabase.append({
                 "contenido": rich_context.strip()
             })
-        
-        print(f"Chunking completado. Se generaron {len(chunks_to_supabase)} fragmentos de texto. ")
+
+        logger.info(f"[Chunking] Completado. Total generado: {len(chunks_to_supabase)} fragmentos.")
         return chunks_to_supabase
 
 if __name__ == "__main__":

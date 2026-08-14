@@ -1,4 +1,5 @@
 {
+  "$schema": "https://opencode.ai/config.json",
   "instructions": [
     "Antes de escribir cualquier consulta SQL, modelo Pydantic o endpoint en el Backend:",
     "1. Consulta OBLIGATORIAMENTE el archivo documentacion/esquema-db-actual.md.",

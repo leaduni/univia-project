@@ -14,11 +14,16 @@
 -- DDL; la anon key del backend NO puede crear funciones).
 -- ============================================================================
 
+-- filter_profesor_id: filtra a los fragmentos cuyo recurso está etiquetado
+-- con ese profesor (recursos.profesor_id, poblado por
+-- backend/scrapeo/tag_recursos_por_profesor.py). NULL = sin filtro, mismo
+-- comportamiento que antes.
 CREATE OR REPLACE FUNCTION search_resource_chunks_by_nombre(
     query_embedding vector(1536),
     match_threshold float,
     match_count int,
-    filter_curso_nombre text DEFAULT NULL
+    filter_curso_nombre text DEFAULT NULL,
+    filter_profesor_id integer DEFAULT NULL
 )
 RETURNS TABLE (
     id uuid,
@@ -42,6 +47,13 @@ BEGIN
     WHERE (
             filter_curso_nombre IS NULL
             OR lower(trim(c.name)) = lower(trim(filter_curso_nombre))
+          )
+      AND (
+            filter_profesor_id IS NULL
+            OR EXISTS (
+                SELECT 1 FROM recursos r
+                WHERE r.id = rc.recurso_id AND r.profesor_id = filter_profesor_id
+            )
           )
       AND 1 - (rc.embedding <=> query_embedding) > match_threshold
     ORDER BY rc.embedding <=> query_embedding

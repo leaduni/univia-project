@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { CareerStep } from "./onboarding/career-step"
+import { MallaStep } from "./onboarding/malla-step"
 import { SemesterStep } from "./onboarding/semester-step"
 import { CurrentEnrollmentStep } from "./onboarding/current-enrollment-step"
 import { CompletionStep } from "./onboarding/completion-step"
@@ -13,7 +14,7 @@ import { Loader2 } from "lucide-react"
 import { BrandLogo } from "@/app/auth/brand-logo"
 import { OnboardingProgress } from "./onboarding/onboarding-progress"
 
-const STEPS = ["Carrera", "Ciclo", "Cursos", "Confirmación"]
+const STEPS = ["Carrera", "Plan", "Ciclo", "Cursos", "Confirmación"]
 
 /** Usado solo si el backend no informa la duración del plan. */
 const CICLOS_POR_DEFECTO = 10
@@ -70,6 +71,7 @@ export function OnboardingWizard() {
     try {
       const payload = {
         carrera_id: data.career,
+        malla_id: data.malla_id,
         ciclo_actual: data.semester,
         cursos_inscritos: data.cursosInscritos,
       }
@@ -138,6 +140,15 @@ export function OnboardingWizard() {
             <div className="animate-in fade-in zoom-in-95 duration-500">
               {step === 0 && <CareerStep data={data} onNext={handleNext} careers={onboardingMeta.careers} />}
               {step === 1 && (
+                <MallaStep
+                  data={data}
+                  onNext={handleNext}
+                  onBack={handleBack}
+                  carrera_id={data.career}
+                  careerName={selectedCareerName}
+                />
+              )}
+              {step === 2 && (
                 <SemesterStep
                   data={data}
                   onNext={handleNext}
@@ -145,15 +156,16 @@ export function OnboardingWizard() {
                   maxCiclos={maxCiclos}
                 />
               )}
-              {step === 2 && (
+              {step === 3 && (
                 <CurrentEnrollmentStep
                   data={data}
                   onNext={handleNext}
                   onBack={handleBack}
                   carrera_id={data.career}
+                  malla_id={data.malla_id}
                 />
               )}
-              {step === 3 && (
+              {step === 4 && (
                 <CompletionStep
                   data={data}
                   onBack={handleBack}

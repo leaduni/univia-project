@@ -57,6 +57,9 @@ class ConfiguracionEvaluacion(BaseModel):
     num_preguntas: int = Field(default=4, ge=3, le=6)
     observaciones: Optional[str] = None
     tipo_evaluacion: str = "mixta"
+    # Filtra el contexto RAG a documentos etiquetados con este profesor
+    # (recursos.profesor_id). None = sin filtro, busca en todo el curso.
+    profesor_id: Optional[int] = None
 
 class CasoDeEjemplo(BaseModel):
     input: str
@@ -106,15 +109,19 @@ class ResultadoEvaluacion(BaseModel):
     detalles: List[Dict[str, Any]]
     retroalimentacion: str
 
-# Lista de IDs de cursos de programación
-CURSOS_PROGRAMACION_IDS = [14, 23, 30, 36, 43, 47, 49]
+# Lista de IDs de materia (cursos.id) de programación. Antes eran ids de
+# curso_carrera (uno por variante de carrera); tras la consolidación de la
+# fase 8, Introducción a la Computación y Algoritmia y Estructura de Datos
+# pasaron a ser una sola materia cada una, así que la lista se redujo.
+CURSOS_PROGRAMACION_IDS = [19, 2, 25, 3, 22]
 
 def obtener_nombre_curso(curso_id: int) -> Optional[str]:
-    """Resuelve el nombre del curso a partir de su ID consultando la tabla 'cursos'.
+    """Resuelve el nombre de la materia a partir de su id (cursos.id).
 
-    Se usa para recuperar contexto por NOMBRE de curso: como cada curso existe
-    varias veces (una fila por carrera), el material ingestado bajo un único
-    curso_id debe poder recuperarse para todas las variantes con el mismo nombre.
+    Se usa para recuperar contexto por NOMBRE de curso: la materia es
+    carrera-agnóstica desde la migración N:N, así que el material ingestado
+    bajo un único curso_id de materia se recupera para cualquier carrera que
+    la dicte.
     """
     try:
         from app.core.database import get_supabase
@@ -126,14 +133,17 @@ def obtener_nombre_curso(curso_id: int) -> Optional[str]:
         print(f"Error al obtener el nombre del curso {curso_id}: {e}")
     return None
 
-def recuperar_contexto_semantico(tema_consulta: str, curso_id: int) -> List[Dict[str, Any]]:
+def recuperar_contexto_semantico(
+    tema_consulta: str, curso_id: int, profesor_id: Optional[int] = None
+) -> List[Dict[str, Any]]:
     """Usa el SyllabusRetriever del módulo RAG para buscar los fragmentos más relevantes del curso.
 
     Recupera el contexto filtrando por NOMBRE de curso (no por curso_id), de modo que
     un mismo compendio/examen sirva a todas las variantes del curso por carrera.
-
-    Devuelve lista de dicts con al menos 'contenido', más metadatos del fragmento
-    (recurso_id, curso_nombre, etc.) para trazabilidad de origen.
+    Si se pasa profesor_id, además restringe a documentos etiquetados con ese
+    profesor (recursos.profesor_id); si ese profesor no tiene documentos
+    etiquetados para el tema, el resultado queda vacío en vez de caer de
+    vuelta a la búsqueda sin filtrar — el llamador decide qué hacer con eso.
     """
     retriever = get_retriever()
     if not retriever:
@@ -150,6 +160,7 @@ def recuperar_contexto_semantico(tema_consulta: str, curso_id: int) -> List[Dict
             curso_nombre=curso_nombre,
             limit=15,
             umbral_similitud=0.1,
+            profesor_id=profesor_id,
         )
         if len(resultados) > 5:
             resultados = random.sample(resultados, k=5)
@@ -841,7 +852,7 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion):
             tema_completo = config.temas[0]
         else:
             tema_completo = f"{config.modulo}: {', '.join(config.temas)}"
-        contexto = recuperar_contexto_semantico(tema_completo, config.curso_id)
+        contexto = recuperar_contexto_semantico(tema_completo, config.curso_id, config.profesor_id)
 
         print("\n" + "="*50)
         print(f"RAG: Se recuperaron {len(contexto)} fragmentos del PDF.")
@@ -1223,7 +1234,7 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion):
         logger.info("PASO 2: Buscando contexto semántico / sílabo (RAG)...")
         es_programacion = config.curso_id in CURSOS_PROGRAMACION_IDS
         tema_completo = config.temas[0] if len(config.temas) == 1 else f"{config.modulo}: {', '.join(config.temas)}"
-        contexto = recuperar_contexto_semantico(tema_completo, config.curso_id)
+        contexto = recuperar_contexto_semantico(tema_completo, config.curso_id, config.profesor_id)
         temas_str = config.temas[0] if len(config.temas) == 1 else ', '.join(config.temas)
 
         contexto_bloque = ""

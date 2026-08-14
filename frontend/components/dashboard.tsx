@@ -83,9 +83,14 @@ export function Dashboard() {
       // métricas se calculan sobre la malla de la carrera. En vez de pintar
       // ceros y dejar errores en consola, se manda al estudiante a terminar
       // el onboarding, que es lo único que puede hacer desde aquí.
-      const faltaOnboarding = [summaryResult, activosResult, avanceResult, actividadResult].some(
-        (r) => r.status === "rejected" && (r.reason as ApiError)?.requiereOnboarding,
-      )
+      // Sin carrera elegida, getAvanceCarrera ahora resuelve a null (onboarding
+      // pendiente) en lugar de rechazar: se detecta igual que el rechazo con
+      // `requiereOnboarding` de los demás endpoints.
+      const faltaOnboarding =
+        (avanceResult.status === "fulfilled" && avanceResult.value === null) ||
+        [summaryResult, activosResult, avanceResult, actividadResult].some(
+          (r) => r.status === "rejected" && (r.reason as ApiError)?.requiereOnboarding,
+        )
       if (faltaOnboarding) {
         // Se mantiene el skeleton hasta que la navegación ocurra: apagar la
         // carga aquí mostraría el dashboard vacío por un instante.

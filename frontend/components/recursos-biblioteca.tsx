@@ -10,8 +10,10 @@ import { RecursoCard } from "./recursos/recurso-card"
 import { RecursosEmptyState } from "./recursos/empty-state"
 import { apiService } from "@/lib/api-service"
 import type { Recurso } from "@/types/recurso"
+import { useAuth } from "@/components/providers/auth-context"
 
 export function RecursosBiblioteca() {
+  const { session } = useAuth()
   // Permite llegar filtrado desde otra pantalla (ej. 'Banco de exámenes' del
   // menú Explorar abre /recursos?tipo=Examen). Sin esto, ese enlace abriría la
   // biblioteca completa y el estudiante tendría que filtrar a mano.
@@ -32,23 +34,40 @@ export function RecursosBiblioteca() {
   const [selectedYears, setSelectedYears] = useState<string[]>([])
 
   useEffect(() => {
+    let activo = true
+
+    if (!session) {
+      setRecursosData([])
+      setIsLoading(false)
+      return
+    }
+
     const fetchRecursos = async () => {
       try {
         setIsLoading(true)
         const data = await apiService.getRecursos({
           search: searchQuery
         })
-        setRecursosData(data)
+        if (activo) {
+          setRecursosData(data)
+        }
       } catch (err) {
-        console.error("Error fetching recursos:", err)
+        if (activo) {
+          console.error("Error fetching recursos:", err)
+        }
       } finally {
-        setIsLoading(false)
+        if (activo) {
+          setIsLoading(false)
+        }
       }
     }
 
     const timeoutId = setTimeout(fetchRecursos, 500) // Debounce search
-    return () => clearTimeout(timeoutId)
-  }, [searchQuery])
+    return () => {
+      activo = false
+      clearTimeout(timeoutId)
+    }
+  }, [searchQuery, session])
 
   // Facultades y años reales presentes en los datos recibidos (no hay endpoint propio para esto).
   const facultadesDisponibles = useMemo(

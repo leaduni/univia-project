@@ -39,3 +39,6 @@ ingesta_silabos/
 
 # Metadata de Windows Explorer
 desktop.ini
+
+# agentes
+.agents/

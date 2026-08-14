@@ -42,6 +42,7 @@ class OnboardingCompleteRequest(SeleccionCursosBase):
     """
 
     carrera_id: int = Field(gt=0)
+    malla_id: int | None = None
 
 
 class ActualizarCursosRequest(SeleccionCursosBase):
@@ -76,6 +77,14 @@ class RangoCiclos(BaseModel):
 
     min: int = 1
     max: int
+
+
+class MallaItem(BaseModel):
+    id: int
+    carrera_id: int
+    nombre: str
+    codigo_plan: str | None = None
+    es_vigente: bool = True
 
 
 class OnboardingDataResponse(BaseModel):

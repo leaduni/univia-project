@@ -3,6 +3,7 @@
 export interface OnboardingData {
   career: number
   semester: number
+  malla_id?: number
   cursosInscritos: number[]
   /** Créditos de los cursos elegidos. Solo para el resumen final. */
   creditosInscritos?: number
@@ -37,4 +38,13 @@ export interface OnboardingDataResponse {
   carreras: Carrera[]
   facultades: Facultad[]
   ciclos: RangoCiclos
+}
+
+/** Espejo de `MallaItem`. */
+export interface MallaItem {
+  id: number
+  carrera_id: number
+  nombre: string
+  codigo_plan?: string | null
+  es_vigente: boolean
 }

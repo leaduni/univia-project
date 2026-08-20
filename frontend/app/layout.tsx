@@ -1,7 +1,7 @@
 // Root layout with ThemeProvider, AuthProvider, Poppins + Open Sans fonts
 import type React from "react"
 import type { Metadata } from "next"
-import { Poppins, Open_Sans } from "next/font/google"
+import { Anton, Poppins, Open_Sans } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 
@@ -17,6 +17,14 @@ const openSans = Open_Sans({
   weight: ["400", "500", "600", "700"],
   display: "swap",
   variable: "--font-sans",
+})
+
+// Anton: titulares display (manual de marca LEAD UNI §6.3, alternativa a MediaPro Heavy Condensed).
+const anton = Anton({
+  subsets: ["latin"],
+  weight: "400",
+  display: "swap",
+  variable: "--font-display",
 })
 
 export const metadata: Metadata = {
@@ -41,7 +49,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className={`${poppins.variable} ${openSans.variable} font-sans antialiased text-foreground bg-background min-h-screen`}>
+      <body className={`${poppins.variable} ${openSans.variable} ${anton.variable} font-sans antialiased text-foreground bg-background min-h-screen`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <AuthProvider>
             {children}

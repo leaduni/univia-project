@@ -1,0 +1,93 @@
+/* Landing UniVia - estilos del mockup (template/Univia Landing.html).
+   Iconos Phosphor recortados a los usados en la landing. */
+
+@font-face {
+  font-family: "Phosphor";
+  src: url("/fonts/phosphor.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+.ph {
+  font-family: "Phosphor" !important;
+  speak: never;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  letter-spacing: 0;
+  font-feature-settings: "liga";
+  font-variant-ligatures: discretionary-ligatures;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.ph.ph-arrow-right::before { content: "\e06c"; }
+.ph.ph-atom::before { content: "\e5e4"; }
+.ph.ph-book-open::before { content: "\e0e6"; }
+.ph.ph-check-circle::before { content: "\e184"; }
+.ph.ph-circle-dashed::before { content: "\e602"; }
+.ph.ph-circle-notch::before { content: "\eb44"; }
+.ph.ph-code::before { content: "\e1bc"; }
+.ph.ph-file-text::before { content: "\e23a"; }
+.ph.ph-function::before { content: "\ebe4"; }
+.ph.ph-graduation-cap::before { content: "\e62c"; }
+.ph.ph-instagram-logo::before { content: "\e2d0"; }
+.ph.ph-linkedin-logo::before { content: "\e2ee"; }
+.ph.ph-magic-wand::before { content: "\e6b6"; }
+.ph.ph-magnifying-glass::before { content: "\e30c"; }
+.ph.ph-paperclip::before { content: "\e39a"; }
+.ph.ph-play::before { content: "\e3d0"; }
+.ph.ph-shield-check::before { content: "\e40c"; }
+.ph.ph-sign-in::before { content: "\e428"; }
+.ph.ph-sparkle::before { content: "\e6a2"; }
+.ph.ph-squares-four::before { content: "\e464"; }
+.ph.ph-tiktok-logo::before { content: "\eaf2"; }
+.ph.ph-trend-up::before { content: "\e4ae"; }
+.ph.ph-user::before { content: "\e4c2"; }
+.ph.ph-users-three::before { content: "\e68e"; }
+.ph.ph-warning-circle::before { content: "\e4e2"; }
+.ph.ph-youtube-logo::before { content: "\e4fc"; }
+
+/* --- Landing shell --- */
+.univia-landing { background: #0b0c16; color: #f8fafc; min-height: 100vh; }
+.univia-landing a { color: #d7cef7; text-decoration: none; }
+.univia-landing a:hover { color: #ffffff; }
+.univia-landing section[id] { scroll-margin-top: 76px; }
+.univia-landing ::selection { background: rgba(121, 87, 241, 0.35); }
+
+/* --- Animaciones --- */
+@keyframes univiaTwinkleA { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.9; } }
+@keyframes univiaTwinkleB { 0%, 100% { opacity: 0.8; } 45% { opacity: 0.25; } }
+@keyframes univiaDrift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-28px, -22px, 0); } }
+@keyframes univiaPulseDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes univiaSheen { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
+@keyframes univiaSpin { to { transform: rotate(360deg); } }
+@keyframes univiaFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* --- Reveal on scroll --- */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity 760ms cubic-bezier(0.22, 1, 0.36, 1), transform 760ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+[data-reveal="left"] { transform: translateX(-34px); }
+[data-reveal="right"] { transform: translateX(34px); }
+[data-reveal="scale"] { transform: scale(0.9); }
+[data-reveal].is-in { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] { opacity: 1; transform: none; transition: none; }
+}
+
+/* --- Responsive de las secciones a dos columnas --- */
+@media (max-width: 900px) {
+  .univia-split { grid-template-columns: 1fr !important; }
+  .univia-split > * { grid-column: 1 !important; grid-row: auto !important; text-align: left !important; }
+  .univia-split h2 { margin-left: 0 !important; text-align: left !important; }
+  .univia-team-grid { grid-template-columns: 1fr !important; }
+  .univia-nav-links { display: none !important; }
+}

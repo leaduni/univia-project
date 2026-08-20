@@ -54,7 +54,7 @@
 
 @theme inline {
   --font-sans: var(--font-sans), "Open Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-heading), "Poppins", ui-sans-serif, sans-serif;
+  --font-display: var(--font-display), "Anton", ui-sans-serif, sans-serif;
   --font-heading: var(--font-heading), "Poppins", ui-sans-serif, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
   --color-background: var(--background);
@@ -100,6 +100,26 @@
   --color-brand-lila: var(--brand-lila);
   --color-brand-navy: var(--brand-navy);
   --breakpoint-3xl: 1800px;
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+}
+
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
 }
 
 @layer base {

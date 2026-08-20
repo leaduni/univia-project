@@ -125,10 +125,6 @@
 | resource_chunks            | 7     | created_at                   | timestamp with time zone | NO           | now()                                                  |            | -                   | -               |
 ---
 
-> **Nota — `mallas.es_vigente`:** una carrera puede tener **2 o más mallas con `es_vigente = true`**
-> simultáneamente (p. ej. Plan 2021 y Plan 2026 conviviendo). La malla de cada estudiante se
-> resuelve por `perfiles.malla_id`; ninguna consulta por carrera debe asumir una única malla activa.
-
 | tabla_origen               | columna_origen               | tabla_destino       | columna_destino | nombre_restriccion                                           |
 | -------------------------- | ---------------------------- | ------------------- | --------------- | ------------------------------------------------------------ |
 | carreras                   | facultad_id                  | facultades          | id              | carreras_facultad_id_fkey                                    |

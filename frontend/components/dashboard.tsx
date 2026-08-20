@@ -163,7 +163,15 @@ export function Dashboard() {
     // No disparar llamadas API sin sesión activa: sin token, todas
     // responderían 401 y generarían errores en la consola.
     if (hasSession) {
-      loadDashboardData()
+      // Guard temprano: si el perfil ya indica que el onboarding no está
+      // completo, no tiene sentido disparar el batch (su avance respondería
+      // 400/requiereOnboarding): se va directo a terminar el onboarding.
+      if (user && user.onboarding_completado === false) {
+        redirigiendoRef.current = true
+        router.replace("/onboarding")
+      } else {
+        loadDashboardData()
+      }
     } else {
       setIsLoading(false)
     }

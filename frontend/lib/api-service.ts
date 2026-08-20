@@ -1,12 +1,24 @@
 // API service layer - Supabase calls for auth, malla, stats
 
 import { supabase } from './supabase';
+import { leerOCache, invalidarClave, invalidarPrefijo, limpiarCache, TTL } from './api-cache';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API_URL = BASE_URL.endsWith('/api') ? BASE_URL : `${BASE_URL}/api`;
 
+// Memoización de getSession: N llamadas paralelas a getAuthToken comparten una
+// sola lectura de sesión (y un solo posible refresh del token).
+let sesionEnCurso: ReturnType<typeof supabase.auth.getSession> | null = null;
+
 async function getAuthToken() {
-    const { data: { session } } = await supabase.auth.getSession();
+    if (!sesionEnCurso) {
+        sesionEnCurso = supabase.auth
+            .getSession()
+            .finally(() => {
+                sesionEnCurso = null;
+            });
+    }
+    const { data: { session } } = await sesionEnCurso;
     return session?.access_token || null;
 }
 
@@ -20,6 +32,7 @@ function manejarNoAutorizado() {
     // Varias llamadas 401 en paralelo deben provocar una sola limpieza.
     if (redirigiendoSesionInvalida) return;
     redirigiendoSesionInvalida = true;
+    limpiarCache();
 
     if (typeof window === "undefined") return;
     // En páginas de autenticación no hay sesión que invalidar.
@@ -90,11 +103,13 @@ async function errorDeRespuesta(response: Response, fallback: string): Promise<A
 export const apiService = {
     async getMalla() {
         try {
-            const response = await fetchWithAuth(`${API_URL}/malla`);
-            if (!response.ok) {
-                throw new Error(`Error fetching malla: ${response.statusText}`);
-            }
-            return await response.json();
+            return await leerOCache("malla", async () => {
+                const response = await fetchWithAuth(`${API_URL}/malla`);
+                if (!response.ok) {
+                    throw new Error(`Error fetching malla: ${response.statusText}`);
+                }
+                return await response.json();
+            }, { ttl: TTL.CINCO_MINUTOS });
         } catch (error) {
             console.error("API Error (getMalla):", error);
             throw error;
@@ -116,6 +131,7 @@ export const apiService = {
         if (!response.ok) {
             throw new Error(extraerMensajeError(body) || 'No se pudieron guardar tus datos.');
         }
+        invalidarClave("profile");
         return body;
     },
 
@@ -131,6 +147,8 @@ export const apiService = {
         if (!response.ok) {
             throw new Error(extraerMensajeError(body) || 'No se pudo cambiar tu plan de estudios.');
         }
+        // Cambiar la malla invalida todo lo derivado del plan.
+        limpiarCache();
         return body;
     },
 
@@ -149,6 +167,7 @@ export const apiService = {
         if (!response.ok) {
             throw new Error(extraerMensajeError(body) || 'No se pudo actualizar tu contraseña.');
         }
+        invalidarClave("profile");
         return body;
     },
 
@@ -158,11 +177,13 @@ export const apiService = {
      */
     async getCursosActivos() {
         try {
-            const response = await fetchWithAuth(`${API_URL}/dashboard/cursos-activos`);
-            if (!response.ok) {
-                throw new Error('No se pudieron cargar tus cursos activos.');
-            }
-            return await response.json();
+            return await leerOCache("cursos-activos", async () => {
+                const response = await fetchWithAuth(`${API_URL}/dashboard/cursos-activos`);
+                if (!response.ok) {
+                    throw new Error('No se pudieron cargar tus cursos activos.');
+                }
+                return await response.json();
+            }, { ttl: TTL.UN_MINUTO });
         } catch (error) {
             console.error("API Error (getCursosActivos):", error);
             throw error;
@@ -175,16 +196,18 @@ export const apiService = {
      */
     async getTestNivel() {
         try {
-            const response = await fetchWithAuth(`${API_URL}/dashboard/test-nivel`);
-            if (!response.ok) {
-                if (response.status === 401) return null;
-                const apiError = await errorDeRespuesta(response, 'No se pudo cargar tu diagnóstico académico.');
-                // Onboarding pendiente (400 + field carrera_id) es un estado normal
-                // de la cuenta, no un fallo: se devuelve null, sin lanzar.
-                if (apiError.requiereOnboarding) return null;
-                throw apiError;
-            }
-            return await response.json();
+            return await leerOCache("test-nivel", async () => {
+                const response = await fetchWithAuth(`${API_URL}/dashboard/test-nivel`);
+                if (!response.ok) {
+                    if (response.status === 401) return null;
+                    const apiError = await errorDeRespuesta(response, 'No se pudo cargar tu diagnóstico académico.');
+                    // Onboarding pendiente (400 + field carrera_id) es un estado normal
+                    // de la cuenta, no un fallo: se devuelve null, sin lanzar.
+                    if (apiError.requiereOnboarding) return null;
+                    throw apiError;
+                }
+                return await response.json();
+            }, { ttl: TTL.CINCO_MINUTOS });
         } catch (error) {
             // Un onboarding pendiente es un estado normal de la cuenta, no un
             // fallo: quien llama decide qué mostrar sin ensuciar la consola.
@@ -204,11 +227,13 @@ export const apiService = {
             const params = new URLSearchParams({ periodo });
             if (cursoId !== undefined) params.set('curso_id', String(cursoId));
 
-            const response = await fetchWithAuth(`${API_URL}/dashboard/actividad?${params}`);
-            if (!response.ok) {
-                throw new Error('No se pudo cargar tu actividad.');
-            }
-            return await response.json();
+            return await leerOCache(`actividad:${params.toString()}`, async () => {
+                const response = await fetchWithAuth(`${API_URL}/dashboard/actividad?${params}`);
+                if (!response.ok) {
+                    throw new Error('No se pudo cargar tu actividad.');
+                }
+                return await response.json();
+            }, { ttl: TTL.CINCO_MINUTOS });
         } catch (error) {
             console.error("API Error (getActividad):", error);
             throw error;
@@ -221,14 +246,16 @@ export const apiService = {
      */
     async getAvanceCarrera() {
         try {
-            const response = await fetchWithAuth(`${API_URL}/malla/avance`);
-            if (!response.ok) {
-                if (response.status === 401) return null;
-                const apiError = await errorDeRespuesta(response, 'No se pudo cargar tu avance de carrera.');
-                if (apiError.requiereOnboarding) return null;
-                throw apiError;
-            }
-            return await response.json();
+            return await leerOCache("avance", async () => {
+                const response = await fetchWithAuth(`${API_URL}/malla/avance`);
+                if (!response.ok) {
+                    if (response.status === 401) return null;
+                    const apiError = await errorDeRespuesta(response, 'No se pudo cargar tu avance de carrera.');
+                    if (apiError.requiereOnboarding) return null;
+                    throw apiError;
+                }
+                return await response.json();
+            }, { ttl: TTL.UN_MINUTO });
         } catch (error) {
             if (!(error as ApiError)?.requiereOnboarding) {
                 console.error("API Error (getAvanceCarrera):", error);
@@ -239,11 +266,13 @@ export const apiService = {
 
     async getDashboardSummary() {
         try {
-            const response = await fetchWithAuth(`${API_URL}/dashboard/summary`);
-            if (!response.ok) {
-                throw new Error(`Error fetching summary: ${response.statusText}`);
-            }
-            return await response.json();
+            return await leerOCache("summary", async () => {
+                const response = await fetchWithAuth(`${API_URL}/dashboard/summary`);
+                if (!response.ok) {
+                    throw new Error(`Error fetching summary: ${response.statusText}`);
+                }
+                return await response.json();
+            }, { ttl: TTL.UN_MINUTO });
         } catch (error) {
             console.error("API Error (getDashboardSummary):", error);
             throw error;
@@ -291,18 +320,20 @@ export const apiService = {
 
     async getLearningPath(courseId: string | number) {
         try {
-            const response = await fetchWithAuth(`${API_URL}/curso/${courseId}/learning-path`);
-            if (!response.ok) {
-                let errorMsg = `Error ${response.status}: ${response.statusText}`;
-                try {
-                    const errorBody = await response.json();
-                    if (errorBody.detail) errorMsg = errorBody.detail;
-                } catch {}
-                const error: any = new Error(errorMsg);
-                error.status = response.status;
-                throw error;
-            }
-            return await response.json();
+            return await leerOCache(`learning-path:${courseId}`, async () => {
+                const response = await fetchWithAuth(`${API_URL}/curso/${courseId}/learning-path`);
+                if (!response.ok) {
+                    let errorMsg = `Error ${response.status}: ${response.statusText}`;
+                    try {
+                        const errorBody = await response.json();
+                        if (errorBody.detail) errorMsg = errorBody.detail;
+                    } catch {}
+                    const error: any = new Error(errorMsg);
+                    error.status = response.status;
+                    throw error;
+                }
+                return await response.json();
+            }, { ttl: TTL.CINCO_MINUTOS });
         } catch (error) {
             console.error(`API Error (getLearningPath ${courseId}):`, error);
             throw error;
@@ -311,18 +342,20 @@ export const apiService = {
 
     async getProfesoresCurso(courseId: string | number) {
         try {
-            const response = await fetchWithAuth(`${API_URL}/curso/${courseId}/profesores`);
-            if (!response.ok) {
-                let errorMsg = `Error ${response.status}: ${response.statusText}`;
-                try {
-                    const errorBody = await response.json();
-                    if (errorBody.detail) errorMsg = errorBody.detail;
-                } catch {}
-                const error: any = new Error(errorMsg);
-                error.status = response.status;
-                throw error;
-            }
-            return await response.json();
+            return await leerOCache(`profesores-curso:${courseId}`, async () => {
+                const response = await fetchWithAuth(`${API_URL}/curso/${courseId}/profesores`);
+                if (!response.ok) {
+                    let errorMsg = `Error ${response.status}: ${response.statusText}`;
+                    try {
+                        const errorBody = await response.json();
+                        if (errorBody.detail) errorMsg = errorBody.detail;
+                    } catch {}
+                    const error: any = new Error(errorMsg);
+                    error.status = response.status;
+                    throw error;
+                }
+                return await response.json();
+            }, { ttl: TTL.CINCO_MINUTOS });
         } catch (error) {
             console.error(`API Error (getProfesoresCurso ${courseId}):`, error);
             throw error;
@@ -340,6 +373,11 @@ export const apiService = {
             if (!response.ok) {
                 throw new Error(`Error completing step: ${response.statusText}`);
             }
+            // El avance y el learning path cambian al completar un paso.
+            invalidarPrefijo(`learning-path:${courseId}`);
+            invalidarClave("cursos-activos");
+            invalidarClave("avance");
+            invalidarClave("summary");
             return await response.json();
         } catch (error) {
             console.error('API Error (completeStep):', error);
@@ -368,6 +406,11 @@ export const apiService = {
     },
 
     async getRecursos(filters: { tipo?: string; ciclo?: number; curso_id?: number; codigo_curso?: string; year?: number; facultad?: string; search?: string } = {}) {
+        const token = await getAuthToken();
+        if (!token) {
+            return [];
+        }
+
         try {
             const params = new URLSearchParams();
             if (filters.tipo && filters.tipo !== 'all') params.append('tipo', filters.tipo);
@@ -378,19 +421,16 @@ export const apiService = {
             if (filters.facultad && filters.facultad !== 'all') params.append('facultad', filters.facultad);
             if (filters.search) params.append('search', filters.search);
 
-            const token = await getAuthToken();
-            if (!token) {
-                return [];
-            }
-
-            const response = await fetchWithAuth(`${API_URL}/recursos?${params.toString()}`, {}, token);
-            if (response.status === 401) {
-                return [];
-            }
-            if (!response.ok) {
-                throw new Error(`Error fetching recursos: ${response.statusText}`);
-            }
-            return await response.json();
+            return await leerOCache(`recursos:${params.toString()}`, async () => {
+                const response = await fetchWithAuth(`${API_URL}/recursos?${params.toString()}`, {}, token);
+                if (response.status === 401) {
+                    return [];
+                }
+                if (!response.ok) {
+                    throw new Error(`Error fetching recursos: ${response.statusText}`);
+                }
+                return await response.json();
+            }, { ttl: TTL.CINCO_MINUTOS });
         } catch (error) {
             console.error("API Error (getRecursos):", error);
             throw error;
@@ -406,11 +446,13 @@ export const apiService = {
             if (mallaId) {
                 params.append('malla_id', mallaId.toString());
             }
-            const response = await fetchWithAuth(`${API_URL}/onboarding/cursos?${params}`);
-            if (!response.ok) {
-                throw new Error(`Error al obtener los cursos: ${response.statusText}`);
-            }
-            return await response.json();
+            return await leerOCache(`onboarding-cursos:${params.toString()}`, async () => {
+                const response = await fetchWithAuth(`${API_URL}/onboarding/cursos?${params}`);
+                if (!response.ok) {
+                    throw new Error(`Error al obtener los cursos: ${response.statusText}`);
+                }
+                return await response.json();
+            }, { ttl: TTL.DIEZ_MINUTOS });
         } catch (error) {
             console.error("API Error (getEnvironmentCursos):", error);
             throw error;
@@ -425,6 +467,10 @@ export const apiService = {
             if (!response.ok) {
                 throw new Error('No se pudo marcar el curso como completado');
             }
+            invalidarPrefijo(`learning-path:${cursoId}`);
+            invalidarClave("cursos-activos");
+            invalidarClave("avance");
+            invalidarClave("summary");
             return await response.json();
         } catch (error) {
             console.error("API Error (completarCurso):", error);
@@ -434,11 +480,13 @@ export const apiService = {
 
     async getOnboardingData() {
         try {
-            const response = await fetchWithAuth(`${API_URL}/onboarding/data`);
-            if (!response.ok) {
-                throw new Error(`Error fetching onboarding data: ${response.statusText}`);
-            }
-            return await response.json();
+            return await leerOCache("onboarding-data", async () => {
+                const response = await fetchWithAuth(`${API_URL}/onboarding/data`);
+                if (!response.ok) {
+                    throw new Error(`Error fetching onboarding data: ${response.statusText}`);
+                }
+                return await response.json();
+            }, { ttl: TTL.DIEZ_MINUTOS });
         } catch (error) {
             console.error("API Error (getOnboardingData):", error);
             throw error;
@@ -447,11 +495,13 @@ export const apiService = {
 
     async getMallasPorCarrera(carreraId: number) {
         try {
-            const response = await fetchWithAuth(`${API_URL}/onboarding/mallas?carrera_id=${carreraId}`);
-            if (!response.ok) {
-                throw new Error(`Error al obtener mallas de la carrera: ${response.statusText}`);
-            }
-            return await response.json();
+            return await leerOCache(`mallas-carrera:${carreraId}`, async () => {
+                const response = await fetchWithAuth(`${API_URL}/onboarding/mallas?carrera_id=${carreraId}`);
+                if (!response.ok) {
+                    throw new Error(`Error al obtener mallas de la carrera: ${response.statusText}`);
+                }
+                return await response.json();
+            }, { ttl: TTL.DIEZ_MINUTOS });
         } catch (error) {
             console.error("API Error (getMallasPorCarrera):", error);
             throw error;
@@ -478,6 +528,9 @@ export const apiService = {
                 throw new Error(extraerMensajeError(errorBody) || `Error completing onboarding: ${response.statusText}`);
             }
 
+            // El onboarding define el plan del estudiante: todo lo derivado
+            // (malla, avance, cursos, perfil) queda obsoleto.
+            limpiarCache();
             return await response.json();
         } catch (error) {
             console.error("API Error (completeOnboarding):", error);
@@ -526,6 +579,9 @@ export const apiService = {
                 localStorage.setItem('user', JSON.stringify(body.usuario));
                 localStorage.setItem('token', body.access_token);
             }
+
+            // Sesión nueva: nada de lo cacheado del usuario anterior aplica.
+            limpiarCache();
 
             return {
                 user: body.usuario,
@@ -602,13 +658,15 @@ export const apiService = {
 
     async getProfile(customToken?: string) {
         try {
-            const response = await fetchWithAuth(`${API_URL}/usuarios/me`, {}, customToken);
-            if (!response.ok) {
-                const errorBody = await response.json().catch(() => ({}));
-                console.error("getProfile error response:", errorBody);
-                throw new Error(`Error fetching profile: ${response.statusText}`);
-            }
-            return await response.json();
+            return await leerOCache("profile", async () => {
+                const response = await fetchWithAuth(`${API_URL}/usuarios/me`, {}, customToken);
+                if (!response.ok) {
+                    const errorBody = await response.json().catch(() => ({}));
+                    console.error("getProfile error response:", errorBody);
+                    throw new Error(`Error fetching profile: ${response.statusText}`);
+                }
+                return await response.json();
+            }, { ttl: TTL.UN_MINUTO });
         } catch (error) {
             console.error("API Error (getProfile):", error);
             throw error;
@@ -651,6 +709,7 @@ export const apiService = {
 
     async logout() {
         const { error } = await supabase.auth.signOut();
+        limpiarCache();
         if (error) console.error("Error signing out:", error);
     }
 };

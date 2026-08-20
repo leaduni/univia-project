@@ -6,6 +6,11 @@ import { supabase } from '@/lib/supabase';
 import { apiService } from '@/lib/api-service';
 import { User, Session } from '@supabase/supabase-js';
 
+// Single-flight del perfil: una petición en vuelo se reutiliza en vez de
+// duplicarse (p. ej. INITIAL_SESSION y SIGNED_IN seguidos). Vive fuera del
+// componente para sobrevivir a los re-renders del provider.
+let perfilEnVuelo: Promise<void> | null = null;
+
 interface AuthContextType {
     user: any | null;
     supabaseUser: User | null;
@@ -24,32 +29,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [isLoading, setIsLoading] = useState(true);
 
     const fetchProfile = async (token: string) => {
-        try {
-            const profile = await apiService.getProfile(token);
-            setUser(profile);
-            if (typeof window !== 'undefined') {
-                localStorage.setItem('user', JSON.stringify(profile));
-                localStorage.setItem('token', token);
-            }
-        } catch (error: any) {
-            // Si el error es de red (backend no disponible), lo logueamos
-            // pero NO cerramos la sesión de Supabase
-            const isNetworkError = error instanceof TypeError && error.message === 'Failed to fetch';
-            if (isNetworkError) {
-                console.warn("Backend no disponible en este momento. El usuario de Supabase sigue autenticado.");
-                // Intentar cargar perfil cacheado del localStorage
+        if (perfilEnVuelo) return perfilEnVuelo;
+        perfilEnVuelo = (async () => {
+            try {
+                const profile = await apiService.getProfile(token);
+                setUser(profile);
                 if (typeof window !== 'undefined') {
-                    const cached = localStorage.getItem('user');
-                    if (cached) {
-                        try { setUser(JSON.parse(cached)); } catch { setUser(null); }
-                        return;
-                    }
+                    localStorage.setItem('user', JSON.stringify(profile));
+                    localStorage.setItem('token', token);
                 }
-            } else {
-                console.error("Error fetching user profile:", error);
+            } catch (error: any) {
+                // Si el error es de red (backend no disponible), lo logueamos
+                // pero NO cerramos la sesión de Supabase
+                const isNetworkError = error instanceof TypeError && error.message === 'Failed to fetch';
+                if (isNetworkError) {
+                    console.warn("Backend no disponible en este momento. El usuario de Supabase sigue autenticado.");
+                    // Intentar cargar perfil cacheado del localStorage
+                    if (typeof window !== 'undefined') {
+                        const cached = localStorage.getItem('user');
+                        if (cached) {
+                            try { setUser(JSON.parse(cached)); } catch { setUser(null); }
+                            return;
+                        }
+                    }
+                } else {
+                    console.error("Error fetching user profile:", error);
+                }
+                setUser(null);
+            } finally {
+                perfilEnVuelo = null;
             }
-            setUser(null);
-        }
+        })();
+        return perfilEnVuelo;
     };
 
     useEffect(() => {
@@ -73,7 +84,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setSupabaseUser(session?.user ?? null);
 
             if (session) {
-                await fetchProfile(session.access_token);
+                // TOKEN_REFRESHED solo renueva el token (al volver a la
+                // pestaña o tras expirar): el perfil ya está cargado y no
+                // debe re-pedirse a la red.
+                if (event !== "TOKEN_REFRESHED") {
+                    await fetchProfile(session.access_token);
+                }
             } else {
                 setUser(null);
                 if (typeof window !== 'undefined') {

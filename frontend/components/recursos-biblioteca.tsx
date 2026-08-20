@@ -13,7 +13,10 @@ import type { Recurso } from "@/types/recurso"
 import { useAuth } from "@/components/providers/auth-context"
 
 export function RecursosBiblioteca() {
-  const { session } = useAuth()
+  const { user } = useAuth()
+  // user.id es una primitiva estable: el objeto `session` cambia en cada
+  // renovación de token de Supabase y dispararía re-fetches innecesarios.
+  const userId = user?.id ?? null
   // Permite llegar filtrado desde otra pantalla (ej. 'Banco de exámenes' del
   // menú Explorar abre /recursos?tipo=Examen). Sin esto, ese enlace abriría la
   // biblioteca completa y el estudiante tendría que filtrar a mano.
@@ -36,7 +39,7 @@ export function RecursosBiblioteca() {
   useEffect(() => {
     let activo = true
 
-    if (!session) {
+    if (!user) {
       setRecursosData([])
       setIsLoading(false)
       return
@@ -67,7 +70,7 @@ export function RecursosBiblioteca() {
       activo = false
       clearTimeout(timeoutId)
     }
-  }, [searchQuery, session])
+  }, [searchQuery, userId])
 
   // Facultades y años reales presentes en los datos recibidos (no hay endpoint propio para esto).
   const facultadesDisponibles = useMemo(

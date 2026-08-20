@@ -3,11 +3,12 @@
 
 import type React from "react"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Sidebar } from "./sidebar"
 import { Header } from "./header"
 import { useAuth } from "./providers/auth-context"
+import { apiService } from "@/lib/api-service"
 
 interface DashboardLayoutProps {
   children?: React.ReactNode
@@ -18,6 +19,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isRedirecting, setIsRedirecting] = useState(false)
   const { user, session, isLoading: isAuthLoading } = useAuth()
   const router = useRouter()
+  // Una sola vez por montaje: evita repetir el prefetch ante cada evento de
+  // auth (p. ej. TOKEN_REFRESHED al volver a la pestaña).
+  const prefetchHecho = useRef(false)
 
   useEffect(() => {
     try {
@@ -63,6 +67,19 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       router.push("/onboarding")
     }
   }, [session, user, isAuthLoading, router])
+
+  useEffect(() => {
+    // Prefetch silencioso tras autenticarse: getMalla, getAvanceCarrera y
+    // getRecursos quedan en la caché de api-service (con TTL), así que abrir
+    // /malla o /recursos no espera la red. Fire-and-forget: un fallo aquí no
+    // debe afectar la sesión.
+    if (isAuthLoading || prefetchHecho.current) return
+    if (!session || !user) return
+    prefetchHecho.current = true
+    apiService.getMalla().catch(() => {})
+    apiService.getAvanceCarrera().catch(() => {})
+    apiService.getRecursos({}).catch(() => {})
+  }, [isAuthLoading, session, user])
 
   // isRedirecting evita que el contenido del dashboard se alcance a
   // renderizar por un instante antes de que router.push() complete la

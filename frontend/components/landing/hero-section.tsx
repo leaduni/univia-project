@@ -2,6 +2,7 @@
 
 import { Hoverable } from "./hoverable";
 import { AUTH_ROUTES } from "./landing-data";
+import Image from "next/image";
 import { useGlowGrid } from "./use-landing-fx";
 
 const STARS_A =
@@ -111,11 +112,13 @@ export function HeroSection({ ctaLabel = "Empieza a aprender" }: { ctaLabel?: st
           textAlign: "center",
         }}
       >
-        <img
+        <Image
           data-reveal="scale"
           data-reveal-delay="60"
           src="/Logo_LEAD_UNI.png"
           alt="LEAD UNI"
+          width={148}
+          height={148}
           style={{
             width: "clamp(96px, 11vw, 148px)",
             height: "auto",
@@ -202,7 +205,9 @@ export function HeroSection({ ctaLabel = "Empieza a aprender" }: { ctaLabel?: st
               height: 52,
               padding: "0 24px",
               borderRadius: 9,
-              border: "1px solid rgba(215, 206, 247, 0.3)",
+              borderWidth: 1,
+              borderStyle: "solid",
+              borderColor: "rgba(215, 206, 247, 0.3)",
               fontSize: 16,
               fontWeight: 400,
               color: "#d7cef7",

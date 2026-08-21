@@ -33,7 +33,7 @@ function iniciales(nombre?: string): string {
 
 /** Accesos directos del mockup, además del sidebar. */
 const ACCESOS = [
-  { label: "Mi aprendizaje", href: "/" },
+  { label: "Mi aprendizaje", href: "/dashboard" },
   { label: "Mi malla", href: "/malla" },
   { label: "Recursos", href: "/recursos" },
 ]

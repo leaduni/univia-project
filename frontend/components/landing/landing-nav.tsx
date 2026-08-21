@@ -2,12 +2,18 @@
 
 import { Hoverable } from "./hoverable";
 import { AUTH_ROUTES, SECCIONES } from "./landing-data";
+import Image from "next/image";
 import { useScrollSpy } from "./use-landing-fx";
+import { useAuth } from "../providers/auth-context";
 
 const IDS = SECCIONES.map((s) => s.id);
 
 export function LandingNav() {
   const { activo, irA } = useScrollSpy(IDS);
+  const { session, isLoading } = useAuth();
+  // Mientras la sesión se está resolviendo no se pinta el CTA para no mostrar
+  // "Log in" por un instante cuando en realidad hay sesión (parpadeo de hidratación).
+  const tieneSesion = !isLoading && !!session;
 
   return (
     <header
@@ -27,9 +33,11 @@ export function LandingNav() {
       }}
     >
       <a href="#inicio" onClick={irA("inicio")} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-        <img
+        <Image
           src="/Logo_LEAD_UNI.png"
           alt="LEAD UNI"
+          width={38}
+          height={38}
           style={{ height: 38, width: "auto", objectFit: "contain", filter: "drop-shadow(0 2px 12px rgba(217, 51, 64, 0.35))" }}
         />
       </a>
@@ -65,49 +73,78 @@ export function LandingNav() {
           })}
         </nav>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Hoverable
-            as="a"
-            href={AUTH_ROUTES.login}
-            style={{
-              whiteSpace: "nowrap",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: 40,
-              padding: "0 20px",
-              borderRadius: 8,
-              border: "1px solid rgba(215, 206, 247, 0.32)",
-              fontSize: 14,
-              fontWeight: 500,
-              color: "#f8fafc",
-              transition: "background 180ms ease, border-color 180ms ease",
-            }}
-            hoverStyle={{ background: "rgba(121, 87, 241, 0.14)", borderColor: "#7957f1", color: "#ffffff" }}
-          >
-            Log in
-          </Hoverable>
-          <Hoverable
-            as="a"
-            href={AUTH_ROUTES.signup}
-            style={{
-              whiteSpace: "nowrap",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: 40,
-              padding: "0 22px",
-              borderRadius: 8,
-              fontSize: 14,
-              fontWeight: 500,
-              color: "#ffffff",
-              backgroundImage: "linear-gradient(135deg, #d93340, #a6249d, #7957f1)",
-              boxShadow: "0 4px 18px rgba(121, 87, 241, 0.28)",
-              transition: "box-shadow 200ms ease, transform 200ms ease",
-            }}
-            hoverStyle={{ boxShadow: "0 6px 26px rgba(121, 87, 241, 0.45)", color: "#ffffff" }}
-          >
-            Sign in
-          </Hoverable>
+          {tieneSesion ? (
+            <Hoverable
+              as="a"
+              href="/dashboard"
+              style={{
+                whiteSpace: "nowrap",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: 40,
+                padding: "0 22px",
+                borderRadius: 8,
+                fontSize: 14,
+                fontWeight: 500,
+                color: "#ffffff",
+                backgroundImage: "linear-gradient(135deg, #d93340, #a6249d, #7957f1)",
+                boxShadow: "0 4px 18px rgba(121, 87, 241, 0.28)",
+                transition: "box-shadow 200ms ease, transform 200ms ease",
+              }}
+              hoverStyle={{ boxShadow: "0 6px 26px rgba(121, 87, 241, 0.45)", color: "#ffffff" }}
+            >
+              Ir al Dashboard
+            </Hoverable>
+          ) : (
+            <>
+              <Hoverable
+                as="a"
+                href={AUTH_ROUTES.login}
+                style={{
+                  whiteSpace: "nowrap",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  height: 40,
+                  padding: "0 20px",
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderStyle: "solid",
+                  borderColor: "rgba(215, 206, 247, 0.32)",
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: "#f8fafc",
+                  transition: "background 180ms ease, border-color 180ms ease",
+                }}
+                hoverStyle={{ background: "rgba(121, 87, 241, 0.14)", borderColor: "#7957f1", color: "#ffffff" }}
+              >
+                Log in
+              </Hoverable>
+              <Hoverable
+                as="a"
+                href={AUTH_ROUTES.signup}
+                style={{
+                  whiteSpace: "nowrap",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  height: 40,
+                  padding: "0 22px",
+                  borderRadius: 8,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: "#ffffff",
+                  backgroundImage: "linear-gradient(135deg, #d93340, #a6249d, #7957f1)",
+                  boxShadow: "0 4px 18px rgba(121, 87, 241, 0.28)",
+                  transition: "box-shadow 200ms ease, transform 200ms ease",
+                }}
+                hoverStyle={{ boxShadow: "0 6px 26px rgba(121, 87, 241, 0.45)", color: "#ffffff" }}
+              >
+                Sign in
+              </Hoverable>
+            </>
+          )}
         </div>
       </div>
     </header>

@@ -77,7 +77,7 @@ export function OnboardingWizard() {
       }
       await apiService.completeOnboarding(payload)
       await refreshProfile()
-      router.push("/")
+      router.push("/dashboard")
     } catch (error: any) {
       console.error("Error completing onboarding:", error)
       // Se muestra dentro del paso final: un alert() del navegador tapa la
@@ -97,8 +97,10 @@ export function OnboardingWizard() {
    * onboarding para el próximo ingreso.
    */
   const handleOmitir = async () => {
+    // El dashboard rebota a quien no terminó el onboarding (ver `dashboard-layout`),
+    // así que "omitir" no puede llevar a la app. Se cierra la sesión (signOut ya
+    // reenvía a la portada pública /) y el onboarding queda para el próximo ingreso.
     await signOut()
-    router.replace("/auth/login")
   }
 
   return (

@@ -1,14 +1,7 @@
-import { Metadata } from "next";
+import { redirect } from "next/navigation"
 
-import { LandingShell } from "@/components/landing/landing-shell";
-import "../landing.css";
-
-export const metadata: Metadata = {
-  title: "UniVia | Tu camino universitario a tu ritmo",
-  description:
-    "Todos tus cursos de la UNI en un solo lugar, con evaluaciones generadas por IA para reforzar lo que aprendes y ver tu progreso ciclo a ciclo.",
-};
-
+// Ruta legacy: la landing vive ahora en la raíz (/). Se conserva como alias
+// 308 para no romper enlaces/bookmarks que aún apuntan a /inicio.
 export default function InicioPage() {
-  return <LandingShell />;
+  redirect("/")
 }

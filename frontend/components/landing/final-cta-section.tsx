@@ -2,6 +2,7 @@
 
 import { Hoverable } from "./hoverable";
 import { AUTH_ROUTES, REDES, SECCIONES } from "./landing-data";
+import Image from "next/image";
 import { useGlowGrid } from "./use-landing-fx";
 
 export function FinalCtaSection() {
@@ -74,10 +75,12 @@ export function FinalCtaSection() {
           textAlign: "center",
         }}
       >
-        <img
+        <Image
           data-reveal="scale"
           src="/Logo_LEAD_UNI.png"
           alt="LEAD UNI"
+          width={118}
+          height={118}
           style={{ width: "clamp(84px, 9vw, 118px)", height: "auto", objectFit: "contain", filter: "drop-shadow(0 8px 34px rgba(217, 51, 64, 0.4))" }}
         />
         <h2
@@ -147,7 +150,9 @@ export function FinalCtaSection() {
               height: 54,
               padding: "0 26px",
               borderRadius: 10,
-              border: "1px solid rgba(215, 206, 247, 0.34)",
+              borderWidth: 1,
+              borderStyle: "solid",
+              borderColor: "rgba(215, 206, 247, 0.34)",
               fontSize: 16,
               color: "#d7cef7",
               transition: "background 200ms ease, border-color 200ms ease",
@@ -208,9 +213,11 @@ export function LandingFooter() {
       >
         <div data-reveal="up" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#ffffff" }}>LEAD UNI</span>
-          <img
+          <Image
             src="/Logo_LEAD_UNI.png"
             alt="LEAD UNI"
+            width={96}
+            height={96}
             style={{ width: 96, height: "auto", objectFit: "contain", filter: "drop-shadow(0 4px 18px rgba(217, 51, 64, 0.35))" }}
           />
           <span style={{ fontSize: 12, fontWeight: 400, lineHeight: 1.6, color: "rgba(215, 206, 247, 0.55)" }}>

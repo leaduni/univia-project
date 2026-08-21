@@ -114,6 +114,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         await supabase.auth.signOut();
+
+        // Al cerrar sesión se vuelve a la portada pública (/).
+        if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+            window.location.assign('/');
+        }
     };
 
     const refreshProfile = async () => {

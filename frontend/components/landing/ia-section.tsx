@@ -333,7 +333,9 @@ export function IaSection() {
                             fontSize: 11.5,
                             color: "#e9e9ed",
                             background: bg,
-                            border: "1px solid " + bd,
+                            borderWidth: 1,
+                            borderStyle: "solid",
+                            borderColor: bd,
                             transition: "background 220ms ease, border-color 220ms ease",
                           }}
                           hoverStyle={{ borderColor: "#7957f1" }}

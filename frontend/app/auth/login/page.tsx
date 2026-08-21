@@ -74,7 +74,7 @@ function LoginPageContent() {
         identificador: data.identificador,
         password: data.password,
       })
-      router.push("/")
+      router.push("/dashboard")
     } catch (err: any) {
       setError(err.message || "No pudimos validar tus credenciales académicas.")
     } finally {

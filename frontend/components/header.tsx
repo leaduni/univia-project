@@ -65,7 +65,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           {/* Accesos directos. Duplican al sidebar a propósito: el mockup los
               pide arriba, y en pantallas donde el sidebar va colapsado son la
               única navegación con texto. */}
-          <nav className="hidden lg:flex items-center gap-1" aria-label="Accesos rápidos">
+          <nav className="hidden md:flex items-center gap-1" aria-label="Accesos rápidos">
             {ACCESOS.map((acceso) => {
               const activo =
                 pathname === acceso.href ||

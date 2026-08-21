@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useScrollSpy } from "./use-landing-fx";
 import { useAuth } from "../providers/auth-context";
 
+// Definimos IDS aquí para que esté disponible en el ámbito del componente
 const IDS = SECCIONES.map((s) => s.id);
 
 export function LandingNav() {

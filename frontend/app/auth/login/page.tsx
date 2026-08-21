@@ -13,6 +13,7 @@ import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { apiService } from "@/lib/api-service"
 import { useRouter, useSearchParams } from "next/navigation"
+import { toast } from "sonner"
 import { AuthErrorBanner } from "@/app/auth/auth-error-banner"
 import {
   esCodigoEstudiante,
@@ -74,6 +75,7 @@ function LoginPageContent() {
         identificador: data.identificador,
         password: data.password,
       })
+      toast.success("Sesión iniciada correctamente.")
       router.push("/dashboard")
     } catch (err: any) {
       setError(err.message || "No pudimos validar tus credenciales académicas.")

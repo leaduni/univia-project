@@ -50,6 +50,15 @@
   --dashboard-bg: #0b0c16;
   --dashboard-card: #151428;
   --dashboard-card-border: #262444;
+  /* === UNIVIA VISUAL TOKENS === */
+  --glass-base: rgba(255,255,255,0.028);
+  --glass-hover: rgba(255,255,255,0.055);
+  --glass-border: rgba(255,255,255,0.08);
+  --glass-border-h: rgba(255,255,255,0.16);
+  --glow-subtle: 0 4px 20px rgba(0,0,0,0.45);
+  --glow-violet: 0 4px 28px rgba(121,87,241,0.18), 0 1px 4px rgba(0,0,0,0.4);
+  --glow-violet-h: 0 8px 36px rgba(121,87,241,0.28), 0 4px 12px rgba(0,0,0,0.5);
+  --glow-brand: 0 8px 40px rgba(121,87,241,0.2), 0 2px 8px rgba(0,0,0,0.5);
 }
 
 @theme inline {
@@ -332,3 +341,15 @@
     color-mix(in srgb, #ec4899 85%, black),
     color-mix(in srgb, #8b5cf6 85%, black));
 }
+
+/* === UNIVIA KEYFRAMES === */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+@keyframes fadeInRight {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0);    }
+}
+.anim-up    { animation: fadeInUp    0.4s ease-out both; }
+.anim-right { animation: fadeInRight 0.35s ease-out both; }

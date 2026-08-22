@@ -126,7 +126,7 @@ export function HeaderSearch() {
   const mostrarPanel = abierto && consulta.trim().length > 0
 
   return (
-    <div ref={contenedor} className="relative flex-1 max-w-xl hidden md:block">
+    <div ref={contenedor} className="relative group flex-1 max-w-xl hidden md:block rounded-full bg-white/[0.05] border border-white/[0.09] ring-0 transition-all duration-250 hover:bg-white/[0.08] hover:border-white/[0.15] focus-within:bg-white/[0.08] focus-within:border-[#7957f1]/40 focus-within:shadow-[0_0_0_3px_rgba(121,87,241,0.12),0_2px_12px_rgba(121,87,241,0.15)]">
       <label htmlFor="buscador-cursos" className="sr-only">
         Buscar un curso de tu malla
       </label>
@@ -149,9 +149,9 @@ export function HeaderSearch() {
         }}
         onKeyDown={alTeclear}
         placeholder="¿Qué curso quieres reforzar hoy?"
-        className="w-full py-2.5 pl-5 pr-12 rounded-full bg-input border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all"
+        className="w-full py-2.5 pl-5 pr-12 rounded-full bg-transparent border-none text-sm text-foreground placeholder:text-muted-foreground outline-none ring-0 focus-visible:ring-0 transition-all"
       />
-      <span className="absolute right-1.5 top-1/2 -translate-y-1/2 p-2 rounded-full gradient-login-btn text-primary-foreground shadow-md shadow-accent/20 pointer-events-none">
+      <span className="absolute right-1.5 top-1/2 -translate-y-1/2 p-2 rounded-full gradient-login-btn text-primary-foreground shadow-md shadow-accent/20 pointer-events-none text-muted-foreground/60 group-hover:text-muted-foreground transition-colors duration-200">
         {cargando ? (
           <Loader2 className="w-4 h-4 animate-spin" />
         ) : (

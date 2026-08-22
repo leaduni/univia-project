@@ -45,7 +45,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const nombre = user?.nombre_completo || "Estudiante"
 
   return (
-    <header className="bg-sidebar/80 backdrop-blur-md border-b border-sidebar-border sticky top-0 z-40">
+    <header className="backdrop-blur-md sticky top-0 z-40 bg-[rgba(9,11,21,0.75)] border-b border-white/[0.07] shadow-[0_1px_0_rgba(255,255,255,0.05),0_4px_24px_rgba(0,0,0,0.4)] transition-all duration-300">
       <div className="flex items-center justify-between px-6 py-4 gap-4">
         <div className="flex items-center gap-4 flex-1">
           <Button
@@ -76,10 +76,10 @@ export function Header({ onMenuClick }: HeaderProps) {
                   href={acceso.href}
                   aria-current={activo ? "page" : undefined}
                   className={cn(
-                    "px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap",
+                    "px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap",
                     activo
-                      ? "bg-accent/15 text-accent"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                      ? "text-white bg-white/[0.08] shadow-[0_0_12px_rgba(121,87,241,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] border border-white/[0.12]"
+                      : "text-muted-foreground hover:text-foreground hover:bg-white/[0.07]",
                   )}
                 >
                   {acceso.label}
@@ -91,7 +91,7 @@ export function Header({ onMenuClick }: HeaderProps) {
 
           {/* Sin punto de "no leídas": no hay fuente de notificaciones todavía
               y un indicador siempre encendido deja de significar algo. */}
-          <Button variant="ghost" size="icon" aria-label="Notificaciones">
+          <Button variant="ghost" size="icon" aria-label="Notificaciones" className="relative rounded-full p-1.5 text-muted-foreground transition-all duration-200 hover:text-foreground hover:bg-white/[0.08] hover:shadow-[0_0_10px_rgba(121,87,241,0.15)]">
             <Bell className="w-5 h-5" />
           </Button>
 
@@ -100,7 +100,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="rounded-full"
+                className="rounded-full ring-2 ring-white/[0.08] transition-all duration-200 hover:ring-[#7957f1]/50 hover:shadow-[0_0_12px_rgba(121,87,241,0.25)]"
                 aria-label={`Menú de ${nombre}`}
               >
                 <Avatar className="w-8 h-8">

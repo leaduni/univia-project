@@ -32,12 +32,12 @@ export function Sidebar({ open, onToggle }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "bg-[#161826] text-[#e9e9ed] border-r border-[#3f424d]/40 transition-all duration-300 ease-in-out hidden md:flex flex-col relative z-20 shrink-0",
+        "bg-[rgba(9,11,21,0.80)] backdrop-blur-xl text-[#e9e9ed] border-r border-white/[0.07] shadow-[4px_0_24px_rgba(0,0,0,0.4),1px_0_0_rgba(255,255,255,0.04)] transition-all duration-300 ease-in-out hidden md:flex flex-col relative z-20 shrink-0",
         open ? "w-64" : "w-20",
       )}
     >
       {/* Header del Sidebar con Logo y Botón Toggle */}
-      <div className={cn("p-4 flex items-center justify-between border-b border-[#3f424d]/30 min-h-[64px]", !open && "justify-center px-2")}>
+      <div className={cn("p-4 flex items-center justify-between min-h-[64px] mb-2 pb-4 border-b border-white/[0.07]", !open && "justify-center px-2")}>
         <Logo compact={!open} />
         {open && onToggle && (
           <button
@@ -77,21 +77,23 @@ export function Sidebar({ open, onToggle }: SidebarProps) {
               aria-current={isActive ? "page" : undefined}
               title={!open ? item.label : undefined}
               className={cn(
-                "w-full flex items-center gap-3.5 px-3.5 py-3 rounded-xl transition-all duration-200 relative group font-sans text-sm font-medium",
-                !open && "justify-center px-0",
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-muted-foreground/70 transition-all duration-200 relative group font-sans text-sm font-medium",
+                !open && "justify-center px-0 group/item",
                 isActive
-                  ? "bg-primary/15 border border-primary/40 text-foreground font-semibold shadow-sm"
-                  : "text-[#e9e9ed]/70 hover:text-foreground hover:bg-[#232532] border border-transparent",
+                  ? "text-white bg-gradient-to-r from-[#7957f1]/20 to-[#a6249d]/10 border border-[#7957f1]/25 shadow-[0_0_16px_rgba(121,87,241,0.18),inset_0_1px_0_rgba(255,255,255,0.08)]"
+                  : "hover:text-foreground hover:bg-white/[0.07] hover:shadow-[0_0_12px_rgba(121,87,241,0.1)]",
               )}
             >
               {/* Barra de acento de marca activa */}
               {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full gradient-brand" />
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-full bg-gradient-to-b from-[#d93340] via-[#a6249d] to-[#7957f1] shadow-[0_0_8px_rgba(121,87,241,0.5)]" />
               )}
               <Icon
                 className={cn(
-                  "w-5 h-5 shrink-0 transition-colors",
-                  isActive ? "text-primary" : "text-[#e9e9ed]/60 group-hover:text-foreground",
+                  "w-5 h-5 shrink-0 transition-all duration-200 group-hover:scale-110",
+                  isActive
+                    ? "text-[#c4b5fd] drop-shadow-[0_0_6px_rgba(121,87,241,0.6)]"
+                    : "text-muted-foreground/70 group-hover:text-foreground",
                 )}
               />
               {open && <span className="truncate">{item.label}</span>}

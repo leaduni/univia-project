@@ -14,7 +14,7 @@ export function Logo({ compact = false }: { compact?: boolean }) {
         className="w-7 h-7 shrink-0 object-contain drop-shadow-[0_2px_10px_rgba(217,51,64,0.35)]"
       />
       {!compact && (
-        <span className="font-heading text-xl font-bold gradient-brand-text tracking-tight">
+        <span className="font-heading text-xl font-bold bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent tracking-tight">
           UniVia
         </span>
       )}

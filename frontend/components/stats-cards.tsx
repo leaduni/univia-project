@@ -74,7 +74,7 @@ export function StatsCards({ stats, isLoading, compact }: StatsCardsProps) {
           return (
             <div
               key={m.label}
-              className="bg-[#232532]/80 border border-[#3f424d]/60 rounded-xl p-3.5 flex flex-col justify-between min-h-[86px] transition-all duration-200 hover:border-[#7957f1]/40"
+              className="bg-[var(--glass-base)] backdrop-blur-sm border border-[var(--glass-border)] shadow-[var(--glow-subtle)] rounded-2xl p-3.5 flex flex-col justify-between min-h-[86px] transition-all duration-300 ease-out hover:bg-[var(--glass-hover)] hover:border-[var(--glass-border-h)] hover:shadow-[var(--glow-violet-h)] hover:-translate-y-0.5 anim-up"
             >
               {isLoading ? (
                 <>
@@ -107,7 +107,7 @@ export function StatsCards({ stats, isLoading, compact }: StatsCardsProps) {
         return (
           <div
             key={m.label}
-            className="bg-[#232532]/80 border border-[#3f424d]/60 rounded-xl p-4 flex items-start gap-3.5 transition-all duration-200 hover:border-[#7957f1]/50"
+            className="bg-[var(--glass-base)] backdrop-blur-sm border border-[var(--glass-border)] shadow-[var(--glow-subtle)] rounded-2xl p-4 flex items-start gap-3.5 transition-all duration-300 ease-out hover:bg-[var(--glass-hover)] hover:border-[var(--glass-border-h)] hover:shadow-[var(--glow-violet-h)] hover:-translate-y-0.5 anim-up"
           >
             <div
               className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-[#161826]"

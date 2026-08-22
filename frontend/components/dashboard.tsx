@@ -244,7 +244,7 @@ const skeletonAvance = isLoadingAvance && !hasLoadedOnce.current
           </div>
 
           {/* Panel lateral */}
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-4 sticky top-24">
             <SidebarWidgets stats={stats} logros={logros} isLoading={skeletonSummary} />
           </div>
         </div>

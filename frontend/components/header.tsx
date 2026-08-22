@@ -45,7 +45,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const nombre = user?.nombre_completo || "Estudiante"
 
   return (
-    <header className="backdrop-blur-md sticky top-0 z-40 bg-[rgba(9,11,21,0.75)] border-b border-white/[0.07] shadow-[0_1px_0_rgba(255,255,255,0.05),0_4px_24px_rgba(0,0,0,0.4)] transition-all duration-300">
+    <header className="backdrop-blur-md sticky top-0 z-40 bg-[rgba(9,11,21,0.75)] rounded-2xl border border-white/[0.08] shadow-[0_4px_20px_rgba(0,0,0,0.3)] overflow-hidden transition-all duration-300">
       <div className="flex items-center justify-between px-6 py-4 gap-4">
         <div className="flex items-center gap-4 flex-1">
           <Button

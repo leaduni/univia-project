@@ -99,14 +99,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   return (
-    <div className="flex h-screen bg-[#161826] text-[#e9e9ed] overflow-hidden">
+    <div className="flex h-screen bg-[#090b15] text-[#e9e9ed] overflow-hidden p-3 gap-3">
       {/* Barra lateral colapsable */}
       <Sidebar open={!isCollapsed} onToggle={handleToggle} />
 
       {/* Contenido principal con transición suave */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden transition-all duration-300 ease-in-out bg-[#161826]">
+      <div className="flex flex-col flex-1 h-full gap-3 min-w-0 overflow-hidden transition-all duration-300 ease-in-out">
         <Header onMenuClick={handleToggle} />
-        <main className="flex-1 overflow-auto bg-[#161826]">{children}</main>
+        <main className="flex-1 overflow-y-auto rounded-2xl custom-scrollbar p-1">{children}</main>
       </div>
     </div>
   )

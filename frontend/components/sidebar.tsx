@@ -32,7 +32,7 @@ export function Sidebar({ open, onToggle }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "bg-[rgba(9,11,21,0.80)] backdrop-blur-xl text-[#e9e9ed] border-r border-white/[0.07] shadow-[4px_0_24px_rgba(0,0,0,0.4),1px_0_0_rgba(255,255,255,0.04)] transition-all duration-300 ease-in-out hidden md:flex flex-col relative z-20 shrink-0",
+        "bg-[rgba(9,11,21,0.80)] backdrop-blur-xl text-[#e9e9ed] rounded-2xl border border-white/[0.08] overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.5)] transition-all duration-300 ease-in-out hidden md:flex flex-col relative z-20 shrink-0",
         open ? "w-64" : "w-20",
       )}
     >

@@ -77,7 +77,7 @@ export function OnboardingWizard() {
       }
       await apiService.completeOnboarding(payload)
       await refreshProfile()
-      router.push("/")
+      router.push("/dashboard")
     } catch (error: any) {
       console.error("Error completing onboarding:", error)
       // Se muestra dentro del paso final: un alert() del navegador tapa la

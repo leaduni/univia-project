@@ -47,7 +47,7 @@ export default function NotFound() {
         <p className="text-sm text-muted-foreground mb-8 max-w-md">
           La página que buscas no existe o se fue a explorar otros rumbos del universo.
         </p>
-        <Link href="/">
+        <Link href="/dashboard">
           <Button className="gradient-brand-hover text-white border-0 gap-2 px-6">
             <Home className="w-4 h-4" />
             Volver al Dashboard

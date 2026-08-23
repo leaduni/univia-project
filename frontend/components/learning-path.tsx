@@ -76,7 +76,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
             Este curso tiene prerrequisitos que aún no has completado. Debes aprobar los cursos anteriores para acceder a su contenido.
           </p>
         </div>
-        <Link href="/" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#3b3475] bg-[#1d1a3b] text-sm font-semibold text-white hover:bg-[#282452] transition-all shadow-md">
+        <Link href="/malla" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#3b3475] bg-[#1d1a3b] text-sm font-semibold text-white hover:bg-[#282452] transition-all shadow-md">
           Volver a Mi Malla
         </Link>
       </div>
@@ -93,7 +93,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
             El curso ha sido marcado al 100% de progreso. Los cursos correlativos se desbloquearán en tu malla.
           </p>
         </div>
-        <Link href="/" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#3b3475] bg-[#1d1a3b] text-sm font-semibold text-white hover:bg-[#282452] transition-all shadow-md">
+        <Link href="/malla" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#3b3475] bg-[#1d1a3b] text-sm font-semibold text-white hover:bg-[#282452] transition-all shadow-md">
           Volver a Mi Malla
         </Link>
       </div>
@@ -106,7 +106,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
         <div className="bg-rose-500/10 text-rose-200 p-4 rounded-2xl border border-rose-500/20 font-semibold">
           {error || "No se encontraron datos para este curso."}
         </div>
-        <Link href="/" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#3b3475] bg-[#1d1a3b] text-sm font-semibold text-white hover:bg-[#282452] transition-all shadow-md">
+        <Link href="/malla" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#3b3475] bg-[#1d1a3b] text-sm font-semibold text-white hover:bg-[#282452] transition-all shadow-md">
           Volver a Mi Malla
         </Link>
       </div>
@@ -149,7 +149,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
       await apiService.completarCurso(courseIdNum)
       setShowCompleteModal(false)
       setCompleteSuccess(true)
-      setTimeout(() => router.push("/"), 2500)
+      setTimeout(() => router.push("/malla"), 2500)
       setTimeout(() => setCompleteSuccess(false), 4000)
       const cleanId = courseId.toString().startsWith("c")
         ? courseId.toString().substring(1)
@@ -171,9 +171,9 @@ export function LearningPath({ courseId }: LearningPathProps) {
       {!showingEvaluationResults && <div className="bg-gradient-to-r from-[#17112c] via-[#0f0e21] to-[#0b0a16] rounded-2xl border border-[#27244a] p-6 md:p-8">
         {/* Breadcrumbs */}
         <p className="text-xs text-slate-500 mb-4">
-          <Link href="/" className="hover:text-slate-300 transition-colors">Inicio</Link>
+          <Link href="/dashboard" className="hover:text-slate-300 transition-colors">Inicio</Link>
           <span className="mx-1.5">/</span>
-          <Link href="/" className="hover:text-slate-300 transition-colors">Mi malla</Link>
+          <Link href="/malla" className="hover:text-slate-300 transition-colors">Mi malla</Link>
           <span className="mx-1.5">/</span>
           <span className="text-slate-400">{curso.name}</span>
         </p>

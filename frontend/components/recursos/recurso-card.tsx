@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { Download, Eye, FileCheck, Star, FileText, BookOpen, GraduationCap, Video, Sparkles, FolderArchive } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -13,6 +14,14 @@ interface RecursoCardProps {
 
 export function RecursoCard({ recurso, onDownload }: RecursoCardProps) {
   const puedeAbrir = Boolean(onDownload || recurso.url_drive)
+  const [previewError, setPreviewError] = useState(false)
+
+  // Miniatura real del archivo de Drive (primera página del PDF / frame del
+  // video). Solo disponible para recursos ingeridos desde Drive.
+  const previewSrc =
+    !previewError && recurso.drive_file_id
+      ? `https://drive.google.com/thumbnail?id=${recurso.drive_file_id}&sz=w400`
+      : null
 
   const urlSolucionario =
     recurso.url_solucionario ||
@@ -46,7 +55,7 @@ export function RecursoCard({ recurso, onDownload }: RecursoCardProps) {
       return
     }
 
-    const fileId = (recurso as any).drive_file_id
+    const fileId = recurso.drive_file_id
     if (fileId) {
       window.open(`https://drive.google.com/uc?export=download&id=${fileId}`, "_blank")
     } else if (recurso.url_drive) {
@@ -97,10 +106,22 @@ export function RecursoCard({ recurso, onDownload }: RecursoCardProps) {
     <div className="group flex flex-col rounded-2xl bg-card border border-border overflow-hidden cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:border-primary/40">
       {/* Header / Thumbnail */}
       <div className="relative h-44 overflow-hidden" style={{ background: thumbBackground }}>
+        {/* Previsualización real del archivo (miniatura de Drive) */}
+        {previewSrc && (
+          <img
+            src={previewSrc}
+            alt=""
+            loading="lazy"
+            onError={() => setPreviewError(true)}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
         {/* Overlay de gradiente inferior */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
         {/* Highlight radial */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_20%,rgba(255,255,255,0.18),transparent_55%)]" />
+        {!previewSrc && (
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_20%,rgba(255,255,255,0.18),transparent_55%)]" />
+        )}
 
         {/* Badge Tipo (Superior Izquierda) */}
         <div className="absolute left-3 top-3 text-[10.5px] font-semibold px-2.5 py-1 rounded-lg bg-black/50 backdrop-blur-md text-white border border-white/10 shadow-sm">
@@ -112,8 +133,8 @@ export function RecursoCard({ recurso, onDownload }: RecursoCardProps) {
           {getDificultadBadge()}
         </div>
 
-        {/* Marca de agua / Icono (Inferior Derecha) */}
-        <WatermarkIcon />
+        {/* Marca de agua / Icono (Inferior Derecha): solo si no hay previsualización real */}
+        {!previewSrc && <WatermarkIcon />}
 
         {/* Título en thumbnail overlay */}
         <div className="absolute left-3 right-16 bottom-3 z-10">
@@ -164,39 +185,40 @@ export function RecursoCard({ recurso, onDownload }: RecursoCardProps) {
         )}
 
         {/* Footer de la tarjeta */}
-        <div className="flex items-center justify-between mt-auto pt-3 border-t border-border/60">
-          <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-            <span>{recurso.year ?? "—"}</span>
-            <span>•</span>
-            <span className="flex items-center gap-1">
-              <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-              {recurso.rating.toFixed(1)}
-            </span>
-            <span>•</span>
-            <span>{recurso.downloads} descargas</span>
-          </div>
+        <div className="mt-auto pt-3 border-t border-border/60 space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0 text-[11px] text-muted-foreground">
+              <span className="shrink-0">{recurso.year ?? "—"}</span>
+              <span className="shrink-0">•</span>
+              <span className="flex items-center gap-1 shrink-0">
+                <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                {recurso.rating.toFixed(1)}
+              </span>
+              <span className="shrink-0">•</span>
+              <span className="truncate">{recurso.downloads} descargas</span>
+            </div>
 
-          <div className="flex items-center gap-1">
             <Button
               size="icon"
               variant="ghost"
-              className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary"
+              className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary"
               disabled={!puedeAbrir}
               onClick={previsualizar}
               title="Previsualizar"
             >
               <Eye className="w-4 h-4" />
             </Button>
-            <Button
-              size="sm"
-              className="gap-1.5 h-8 px-3 text-[11.5px] font-semibold gradient-brand-hover text-white rounded-xl border-0 shadow-sm"
-              disabled={!puedeAbrir}
-              onClick={descargar}
-            >
-              <Download className="w-3.5 h-3.5" />
-              Descargar
-            </Button>
           </div>
+
+          <Button
+            size="sm"
+            className="w-full gap-1.5 h-8 text-[11.5px] font-semibold gradient-brand-hover text-white rounded-xl border-0 shadow-sm"
+            disabled={!puedeAbrir}
+            onClick={descargar}
+          >
+            <Download className="w-3.5 h-3.5" />
+            Descargar
+          </Button>
         </div>
       </div>
     </div>

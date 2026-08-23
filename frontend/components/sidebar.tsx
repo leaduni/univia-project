@@ -12,7 +12,7 @@ interface SidebarProps {
 }
 
 const MENU = [
-  { icon: Grid, label: "Mi aprendizaje", id: "Dashboard", href: "/" },
+  { icon: Grid, label: "Mi aprendizaje", id: "Dashboard", href: "/dashboard" },
   { icon: GraduationCap, label: "Mi malla", id: "Malla", href: "/malla" },
   { icon: FileText, label: "Recursos", id: "Recursos", href: "/recursos" },
   { icon: User, label: "Perfil", id: "Perfil", href: "/perfil" },
@@ -26,7 +26,7 @@ export function Sidebar({ open, onToggle }: SidebarProps) {
   }
 
   const activo =
-    MENU.find((m) => pathname === m.href || (m.href !== "/" && pathname?.startsWith(m.href)))?.id ||
+    MENU.find((m) => pathname === m.href || pathname?.startsWith(m.href))?.id ||
     "Dashboard"
 
   return (

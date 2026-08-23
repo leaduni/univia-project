@@ -52,7 +52,7 @@
 .ph.ph-youtube-logo::before { content: "\e4fc"; }
 
 /* --- Landing shell --- */
-.univia-landing { background: #0b0c16; color: #f8fafc; min-height: 100vh; }
+.univia-landing { background: #0b0c16; color: #f8fafc; min-height: 100vh; font-family: var(--font-heading); }
 .univia-landing a { color: #d7cef7; text-decoration: none; }
 .univia-landing a:hover { color: #ffffff; }
 .univia-landing section[id] { scroll-margin-top: 76px; }

@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
-import { Search } from "lucide-react"
+import { Search, BookMarked, Library } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RecursoCard } from "./recursos/recurso-card"
@@ -13,6 +13,10 @@ import { apiService } from "@/lib/api-service"
 import type { Recurso } from "@/types/recurso"
 import { useAuth } from "@/components/providers/auth-context"
 
+type Vista = "mis-cursos" | "todo"
+
+const RECURSOS_POR_PAGINA = 20
+
 export function RecursosBiblioteca() {
   const { session } = useAuth()
   // Permite llegar filtrado desde otra pantalla (ej. 'Banco de exámenes' del
@@ -21,12 +25,17 @@ export function RecursosBiblioteca() {
   const searchParams = useSearchParams()
   const tipoInicial = searchParams.get("tipo")
 
-  const RECURSOS_POR_PAGINA = 20
-
+  // Por defecto se muestra solo el material de los cursos que el estudiante
+  // lleva ahora: es lo que viene a buscar, y evita que el navegador se baje el
+  // banco entero de la universidad en cada visita.
+  const [vista, setVista] = useState<Vista>("mis-cursos")
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState<"recent" | "downloaded" | "rated">("recent")
   const [paginaActual, setPaginaActual] = useState(1)
-  const [recursosData, setRecursosData] = useState<Recurso[]>([])
+
+  const [recursos, setRecursos] = useState<Recurso[]>([])
+  const [total, setTotal] = useState(0)
+  const [sinCursosActivos, setSinCursosActivos] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   // Filter states
@@ -37,11 +46,50 @@ export function RecursosBiblioteca() {
   const [selectedFacultad, setSelectedFacultad] = useState<string>("")
   const [selectedYears, setSelectedYears] = useState<string[]>([])
 
+  const [facultades, setFacultades] = useState<string[]>([])
+
+  // El catálogo de facultades sale del endpoint de onboarding, no de los
+  // recursos visibles: derivarlo de la página actual daría una lista distinta
+  // en cada página.
+  useEffect(() => {
+    if (!session) return
+    let activo = true
+    apiService
+      .getOnboardingData()
+      .then((data) => {
+        if (!activo) return
+        setFacultades((data?.facultades ?? []).map((f: any) => f.nombre).filter(Boolean))
+      })
+      .catch(() => {
+        if (activo) setFacultades([])
+      })
+    return () => {
+      activo = false
+    }
+  }, [session])
+
+  const claveFiltros = JSON.stringify({
+    vista,
+    searchQuery,
+    sortBy,
+    selectedTypes,
+    selectedCiclos,
+    selectedFacultad,
+    selectedYears,
+  })
+
+  // Al cambiar filtros el listado se reduce: quedarse en una página que ya no
+  // existe mostraría una grilla vacía.
+  useEffect(() => {
+    setPaginaActual(1)
+  }, [claveFiltros])
+
   useEffect(() => {
     let activo = true
 
     if (!session) {
-      setRecursosData([])
+      setRecursos([])
+      setTotal(0)
       setIsLoading(false)
       return
     }
@@ -49,102 +97,52 @@ export function RecursosBiblioteca() {
     const fetchRecursos = async () => {
       try {
         setIsLoading(true)
-        const data = await apiService.getRecursos({
-          search: searchQuery
+        const pagina = await apiService.getRecursosPaginados({
+          mis_cursos: vista === "mis-cursos",
+          search: searchQuery || undefined,
+          tipo: selectedTypes.length ? selectedTypes.join(",") : undefined,
+          ciclo: selectedCiclos.length ? Number(selectedCiclos[0]) : undefined,
+          year: selectedYears.length ? Number(selectedYears[0]) : undefined,
+          facultad: selectedFacultad || undefined,
+          orden: sortBy,
+          limit: RECURSOS_POR_PAGINA,
+          offset: (paginaActual - 1) * RECURSOS_POR_PAGINA,
         })
-        if (activo) {
-          setRecursosData(data)
-        }
+        if (!activo) return
+        setRecursos(pagina.items as Recurso[])
+        setTotal(pagina.total)
+        setSinCursosActivos(pagina.sinCursosActivos)
       } catch (err) {
         if (activo) {
           console.error("Error fetching recursos:", err)
+          setRecursos([])
+          setTotal(0)
         }
       } finally {
-        if (activo) {
-          setIsLoading(false)
-        }
+        if (activo) setIsLoading(false)
       }
     }
 
-    const timeoutId = setTimeout(fetchRecursos, 500) // Debounce search
+    // Debounce: escribir en el buscador no debe disparar una petición por tecla.
+    const timeoutId = setTimeout(fetchRecursos, 350)
     return () => {
       activo = false
       clearTimeout(timeoutId)
     }
-  }, [searchQuery, session])
+  }, [claveFiltros, paginaActual, session])
 
-  // Facultades y años reales presentes en los datos recibidos (no hay endpoint propio para esto).
-  const facultadesDisponibles = useMemo(
-    () => Array.from(new Set(recursosData.map((r) => r.facultad_nombre).filter(Boolean))) as string[],
-    [recursosData],
-  )
-  const aniosDisponibles = useMemo(
-    () =>
-      Array.from(new Set(recursosData.map((r) => r.year).filter((y): y is number => Boolean(y))))
-        .sort((a, b) => b - a),
-    [recursosData],
-  )
+  const totalPaginas = Math.max(1, Math.ceil(total / RECURSOS_POR_PAGINA))
 
   const aniosOpciones = useMemo(() => {
     const defaultYears = ["2026", "2025", "2020", "2018", "2014", "2013", "2011", "2006"]
-    const dynamicYears = aniosDisponibles.map((y) => y.toString())
-    const set = new Set([...defaultYears, ...dynamicYears])
-    return Array.from(set).sort((a, b) => Number(b) - Number(a))
-  }, [aniosDisponibles])
-
-  // Filter and sort logic (Client side filtering for secondary filters)
-  const filteredRecursos = useMemo(() => {
-    let filtered = recursosData
-
-    // Type filter
-    if (selectedTypes.length > 0) {
-      filtered = filtered.filter((r) => selectedTypes.includes(r.tipo))
-    }
-
-    // Ciclo filter
-    if (selectedCiclos.length > 0) {
-      filtered = filtered.filter((r) => selectedCiclos.includes(r.ciclo?.toString() || ""))
-    }
-
-    // Facultad filter
-    if (selectedFacultad && selectedFacultad !== 'all') {
-      filtered = filtered.filter(
-        (r) =>
-          r.facultad_nombre === selectedFacultad ||
-          r.especialidades?.some((e) => e.facultad_nombre === selectedFacultad),
-      )
-    }
-
-    // Year filter
-    if (selectedYears.length > 0) {
-      filtered = filtered.filter((r) => selectedYears.includes(r.year?.toString() || ""))
-    }
-
-    // Sort
-    const sorted = [...filtered]
-    if (sortBy === "downloaded") {
-      sorted.sort((a, b) => b.downloads - a.downloads)
-    } else if (sortBy === "rated") {
-      sorted.sort((a, b) => b.rating - a.rating)
-    } else {
-      sorted.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))
-    }
-
-    return sorted
-  }, [recursosData, selectedTypes, selectedCiclos, selectedFacultad, selectedYears, sortBy])
-
-  const totalPaginas = Math.max(1, Math.ceil(filteredRecursos.length / RECURSOS_POR_PAGINA))
-
-  // Al cambiar filtros, búsqueda u orden el listado se reduce: quedarse en una
-  // página que ya no existe mostraría una grilla vacía.
-  useEffect(() => {
-    setPaginaActual(1)
-  }, [searchQuery, selectedTypes, selectedCiclos, selectedFacultad, selectedYears, sortBy])
-
-  const recursosPagina = useMemo(() => {
-    const inicio = (paginaActual - 1) * RECURSOS_POR_PAGINA
-    return filteredRecursos.slice(inicio, inicio + RECURSOS_POR_PAGINA)
-  }, [filteredRecursos, paginaActual])
+    const dynamicYears = recursos
+      .map((r) => r.year)
+      .filter((y): y is number => Boolean(y))
+      .map((y) => y.toString())
+    return Array.from(new Set([...defaultYears, ...dynamicYears])).sort(
+      (a, b) => Number(b) - Number(a),
+    )
+  }, [recursos])
 
   const irAPagina = (pagina: number) => {
     if (pagina < 1 || pagina > totalPaginas) return
@@ -168,6 +166,11 @@ export function RecursosBiblioteca() {
     { id: "Video", label: "Videos" },
   ]
 
+  const vistas: { id: Vista; label: string; icon: typeof BookMarked }[] = [
+    { id: "mis-cursos", label: "Mis cursos", icon: BookMarked },
+    { id: "todo", label: "Todo el banco", icon: Library },
+  ]
+
   return (
     <div className="min-h-screen bg-[#161826] text-foreground">
       {/* Header & Main Search Section */}
@@ -179,8 +182,34 @@ export function RecursosBiblioteca() {
               Banco de exámenes y recursos
             </h1>
             <p className="text-muted-foreground text-sm">
-              Repositorio global de materiales académicos de la universidad
+              {vista === "mis-cursos"
+                ? "Material de los cursos que llevas este ciclo"
+                : "Repositorio global de materiales académicos de la universidad"}
             </p>
+          </div>
+
+          {/* Selector de alcance */}
+          <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-[#232532] border border-[#3f424d]/60">
+            {vistas.map((v) => {
+              const Icono = v.icon
+              const activa = vista === v.id
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => setVista(v.id)}
+                  aria-pressed={activa}
+                  className={`inline-flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium transition-all ${
+                    activa
+                      ? "bg-primary text-primary-foreground shadow-sm font-semibold"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Icono className="w-4 h-4" />
+                  {v.label}
+                </button>
+              )
+            })}
           </div>
 
           {/* Barra de búsqueda y selectores de filtro superior */}
@@ -198,13 +227,13 @@ export function RecursosBiblioteca() {
 
             {/* Select Facultad */}
             <div className="w-full sm:w-48">
-              <Select value={selectedFacultad || "all"} onValueChange={setSelectedFacultad}>
+              <Select value={selectedFacultad || "all"} onValueChange={(v) => setSelectedFacultad(v === "all" ? "" : v)}>
                 <SelectTrigger className="h-11 rounded-xl bg-[#232532] border border-[#3f424d]/60 text-sm">
                   <SelectValue placeholder="Facultad" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas las facultades</SelectItem>
-                  {facultadesDisponibles.map((fac) => (
+                  {facultades.map((fac) => (
                     <SelectItem key={fac} value={fac}>
                       {fac}
                     </SelectItem>
@@ -299,7 +328,7 @@ export function RecursosBiblioteca() {
 
             {/* Contador de resultados */}
             <span className="text-xs text-muted-foreground font-medium shrink-0">
-              {filteredRecursos.length} recursos
+              {total} recursos
               {totalPaginas > 1 && ` · página ${paginaActual} de ${totalPaginas}`}
             </span>
           </div>
@@ -331,10 +360,10 @@ export function RecursosBiblioteca() {
                 </div>
               ))}
             </div>
-          ) : filteredRecursos.length > 0 ? (
+          ) : recursos.length > 0 ? (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                {recursosPagina.map((recurso) => (
+                {recursos.map((recurso) => (
                   <RecursoCard key={recurso.id} recurso={recurso} />
                 ))}
               </div>
@@ -345,6 +374,28 @@ export function RecursosBiblioteca() {
                 onCambiar={irAPagina}
               />
             </>
+          ) : sinCursosActivos ? (
+            /* Vista "Mis cursos" sin cursos activos: sin esto la pantalla
+               parecería un banco vacío en vez de un perfil sin matrícula. */
+            <div className="text-center py-16 space-y-4">
+              <BookMarked className="w-10 h-10 mx-auto text-muted-foreground/60" />
+              <div className="space-y-1">
+                <h2 className="font-poppins font-semibold text-foreground">
+                  Todavía no tienes cursos activos
+                </h2>
+                <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                  Cuando registres los cursos que llevas este ciclo, aquí verás su material.
+                  Mientras tanto puedes explorar el banco completo.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setVista("todo")}
+                className="h-10 px-5 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+              >
+                Ver todo el banco
+              </button>
+            </div>
           ) : (
             <RecursosEmptyState />
           )}

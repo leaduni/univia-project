@@ -77,6 +77,46 @@ export interface ApiError extends Error {
     sesionInvalida?: boolean;
 }
 
+/** Filtros aceptados por GET /recursos. Espejo de `recursos.py`. */
+export interface RecursoFiltros {
+    /** Uno o varios tipos separados por coma. */
+    tipo?: string;
+    ciclo?: number;
+    curso_id?: number;
+    codigo_curso?: string;
+    year?: number;
+    facultad?: string;
+    search?: string;
+    orden?: 'recent' | 'downloaded' | 'rated';
+    /** Restringe a los cursos que el estudiante lleva ahora. */
+    mis_cursos?: boolean;
+    limit?: number;
+    offset?: number;
+}
+
+export interface RecursosPagina {
+    items: any[];
+    total: number;
+    /** true cuando se pidió `mis_cursos` y el estudiante no tiene ninguno activo. */
+    sinCursosActivos: boolean;
+}
+
+function construirParamsRecursos(filters: RecursoFiltros): URLSearchParams {
+    const params = new URLSearchParams();
+    if (filters.tipo && filters.tipo !== 'all') params.append('tipo', filters.tipo);
+    if (filters.ciclo) params.append('ciclo', filters.ciclo.toString());
+    if (filters.curso_id) params.append('curso_id', filters.curso_id.toString());
+    if (filters.codigo_curso) params.append('codigo_curso', filters.codigo_curso);
+    if (filters.year) params.append('year', filters.year.toString());
+    if (filters.facultad && filters.facultad !== 'all') params.append('facultad', filters.facultad);
+    if (filters.search) params.append('search', filters.search);
+    if (filters.orden) params.append('orden', filters.orden);
+    if (filters.mis_cursos) params.append('mis_cursos', 'true');
+    if (filters.limit) params.append('limit', filters.limit.toString());
+    if (filters.offset) params.append('offset', filters.offset.toString());
+    return params;
+}
+
 async function errorDeRespuesta(response: Response, fallback: string): Promise<ApiError> {
     const body = await response.json().catch(() => null);
     const field = body?.errors?.[0]?.field;
@@ -369,30 +409,45 @@ export const apiService = {
         }
     },
 
-    async getRecursos(filters: { tipo?: string; ciclo?: number; curso_id?: number; codigo_curso?: string; year?: number; facultad?: string; search?: string } = {}) {
+    /**
+     * Página del banco de recursos. El backend filtra, ordena y pagina: antes
+     * la biblioteca se bajaba el catálogo entero y filtraba en el navegador.
+     */
+    async getRecursosPaginados(filters: RecursoFiltros = {}): Promise<RecursosPagina> {
+        const vacia: RecursosPagina = { items: [], total: 0, sinCursosActivos: false };
         try {
-            const params = new URLSearchParams();
-            if (filters.tipo && filters.tipo !== 'all') params.append('tipo', filters.tipo);
-            if (filters.ciclo) params.append('ciclo', filters.ciclo.toString());
-            if (filters.curso_id) params.append('curso_id', filters.curso_id.toString());
-            if (filters.codigo_curso) params.append('codigo_curso', filters.codigo_curso);
-            if (filters.year) params.append('year', filters.year.toString());
-            if (filters.facultad && filters.facultad !== 'all') params.append('facultad', filters.facultad);
-            if (filters.search) params.append('search', filters.search);
+            const params = construirParamsRecursos(filters);
 
             const token = await getAuthToken();
-            if (!token) {
-                return [];
-            }
+            if (!token) return vacia;
 
             const response = await fetchWithAuth(`${API_URL}/recursos?${params.toString()}`, {}, token);
-            if (response.status === 401) {
-                return [];
-            }
+            if (response.status === 401) return vacia;
             if (!response.ok) {
                 throw new Error(`Error fetching recursos: ${response.statusText}`);
             }
-            return await response.json();
+
+            const body = await response.json();
+            // Tolera la forma antigua (array plano) por si queda un backend sin desplegar.
+            if (Array.isArray(body)) {
+                return { items: body, total: body.length, sinCursosActivos: false };
+            }
+            return {
+                items: body?.items ?? [],
+                total: body?.total ?? 0,
+                sinCursosActivos: Boolean(body?.sin_cursos_activos),
+            };
+        } catch (error) {
+            console.error("API Error (getRecursosPaginados):", error);
+            throw error;
+        }
+    },
+
+    /** Lista simple de recursos, para pantallas que no paginan. */
+    async getRecursos(filters: RecursoFiltros = {}) {
+        try {
+            const { items } = await apiService.getRecursosPaginados(filters);
+            return items;
         } catch (error) {
             console.error("API Error (getRecursos):", error);
             throw error;

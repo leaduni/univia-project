@@ -1,7 +1,7 @@
 // Auth context provider with Supabase session management
 "use client"
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { apiService } from '@/lib/api-service';
 import { User, Session } from '@supabase/supabase-js';
@@ -23,7 +23,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [user, setUser] = useState<any | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
+    // Token cuyo perfil ya se pidió al backend. Supabase re-emite eventos de
+    // auth cada vez que la pestaña recupera el foco; sin esta marca se volvería
+    // a pedir el perfil (y a recargar las pantallas que dependen de la sesión)
+    // en cada cambio de pestaña del navegador.
+    const tokenPerfilCargado = useRef<string | null>(null);
+
+    // Solo reemplaza la sesión cuando cambia el token. Guardar el objeto nuevo
+    // que manda Supabase en cada evento cambiaría su identidad y re-dispararía
+    // todos los useEffect que dependen de `session`.
+    const guardarSesion = (nueva: Session | null) => {
+        setSession((previa) => {
+            if (previa?.access_token === nueva?.access_token) return previa;
+            return nueva;
+        });
+        setSupabaseUser((previo) => {
+            const nuevoUsuario = nueva?.user ?? null;
+            if (previo?.id === nuevoUsuario?.id) return previo;
+            return nuevoUsuario;
+        });
+    };
+
     const fetchProfile = async (token: string) => {
+        tokenPerfilCargado.current = token;
         try {
             const profile = await apiService.getProfile(token);
             setUser(profile);
@@ -56,9 +78,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Initial session check
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session) {
-                setSession(session);
-                setSupabaseUser(session.user);
-                // No llamamos a fetchProfile aquí porque onAuthStateChange 
+                guardarSesion(session);
+                // No llamamos a fetchProfile aquí porque onAuthStateChange
                 // disparará el evento INITIAL_SESSION inmediatamente después.
             } else {
                 setIsLoading(false);
@@ -67,14 +88,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Listen for changes on auth state
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            console.log("Auth State Change:", event, !!session);
-
-            setSession(session);
-            setSupabaseUser(session?.user ?? null);
+            guardarSesion(session);
 
             if (session) {
-                await fetchProfile(session.access_token);
+                // Al volver de otra pestaña Supabase reemite SIGNED_IN/TOKEN_REFRESHED
+                // con el mismo token: el perfil ya está en memoria y volver a
+                // pedirlo solo haría parpadear las pantallas.
+                if (tokenPerfilCargado.current !== session.access_token) {
+                    await fetchProfile(session.access_token);
+                }
             } else {
+                tokenPerfilCargado.current = null;
                 setUser(null);
                 if (typeof window !== 'undefined') {
                     localStorage.removeItem('user');
@@ -88,6 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, []);
 
     const signOut = async () => {
+        tokenPerfilCargado.current = null;
         setSession(null);
         setSupabaseUser(null);
         setUser(null);

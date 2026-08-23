@@ -35,6 +35,7 @@ export function CompletionStep({
 }: CompletionStepProps) {
   const cursos = data.cursosInscritos?.length || 0
   const creditos = data.creditosInscritos || 0
+  const aprobados = data.cursosAprobados?.length || 0
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
@@ -54,7 +55,7 @@ export function CompletionStep({
 
       {/* Resumen armado con lo que elegiste en los pasos anteriores. Todavía no
           está guardado, así que no hay avance que consultarle al backend. */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-3xl mx-auto mb-8">
         <div className="p-4 rounded-2xl bg-card border border-border text-center space-y-1">
           <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             Carrera
@@ -80,6 +81,13 @@ export function CompletionStep({
           {creditos > 0 && (
             <p className="text-xs text-muted-foreground">{creditos} créditos</p>
           )}
+        </div>
+        <div className="p-4 rounded-2xl bg-card border border-border text-center space-y-1">
+          <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Ya aprobados
+          </span>
+          <p className="font-heading text-sm font-bold text-foreground">{aprobados}</p>
+          <p className="text-xs text-muted-foreground">de ciclos anteriores</p>
         </div>
       </div>
 

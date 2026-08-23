@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RecursoCard } from "./recursos/recurso-card"
 import { RecursosEmptyState } from "./recursos/empty-state"
+import { Paginacion } from "./recursos/paginacion"
 import { apiService } from "@/lib/api-service"
 import type { Recurso } from "@/types/recurso"
 import { useAuth } from "@/components/providers/auth-context"
@@ -20,8 +21,11 @@ export function RecursosBiblioteca() {
   const searchParams = useSearchParams()
   const tipoInicial = searchParams.get("tipo")
 
+  const RECURSOS_POR_PAGINA = 20
+
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState<"recent" | "downloaded" | "rated">("recent")
+  const [paginaActual, setPaginaActual] = useState(1)
   const [recursosData, setRecursosData] = useState<Recurso[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -129,6 +133,26 @@ export function RecursosBiblioteca() {
     return sorted
   }, [recursosData, selectedTypes, selectedCiclos, selectedFacultad, selectedYears, sortBy])
 
+  const totalPaginas = Math.max(1, Math.ceil(filteredRecursos.length / RECURSOS_POR_PAGINA))
+
+  // Al cambiar filtros, búsqueda u orden el listado se reduce: quedarse en una
+  // página que ya no existe mostraría una grilla vacía.
+  useEffect(() => {
+    setPaginaActual(1)
+  }, [searchQuery, selectedTypes, selectedCiclos, selectedFacultad, selectedYears, sortBy])
+
+  const recursosPagina = useMemo(() => {
+    const inicio = (paginaActual - 1) * RECURSOS_POR_PAGINA
+    return filteredRecursos.slice(inicio, inicio + RECURSOS_POR_PAGINA)
+  }, [filteredRecursos, paginaActual])
+
+  const irAPagina = (pagina: number) => {
+    if (pagina < 1 || pagina > totalPaginas) return
+    setPaginaActual(pagina)
+    // Sin esto el usuario cambia de página y sigue viendo el pie de la grilla.
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
   const toggleType = (type: string) => {
     setSelectedTypes((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]))
   }
@@ -147,7 +171,7 @@ export function RecursosBiblioteca() {
   return (
     <div className="min-h-screen bg-[#161826] text-foreground">
       {/* Header & Main Search Section */}
-      <div className="bg-[#161826]/80 border-b border-[#3f424d]/60 sticky top-0 z-30 backdrop-blur-md">
+      <div className="bg-[#161826] border-b border-[#3f424d]/60">
         <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-4">
           {/* Page Header */}
           <div>
@@ -276,6 +300,7 @@ export function RecursosBiblioteca() {
             {/* Contador de resultados */}
             <span className="text-xs text-muted-foreground font-medium shrink-0">
               {filteredRecursos.length} recursos
+              {totalPaginas > 1 && ` · página ${paginaActual} de ${totalPaginas}`}
             </span>
           </div>
         </div>
@@ -286,7 +311,7 @@ export function RecursosBiblioteca() {
         <div className="max-w-7xl mx-auto">
           {isLoading ? (
             /* Grid de Skeletons */
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {Array.from({ length: 8 }).map((_, idx) => (
                 <div
                   key={idx}
@@ -307,11 +332,19 @@ export function RecursosBiblioteca() {
               ))}
             </div>
           ) : filteredRecursos.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-              {filteredRecursos.map((recurso) => (
-                <RecursoCard key={recurso.id} recurso={recurso} />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                {recursosPagina.map((recurso) => (
+                  <RecursoCard key={recurso.id} recurso={recurso} />
+                ))}
+              </div>
+
+              <Paginacion
+                paginaActual={paginaActual}
+                totalPaginas={totalPaginas}
+                onCambiar={irAPagina}
+              />
+            </>
           ) : (
             <RecursosEmptyState />
           )}

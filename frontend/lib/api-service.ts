@@ -73,6 +73,8 @@ export interface ApiError extends Error {
     field?: string;
     /** El estudiante aún no completó su onboarding: no es un fallo real. */
     requiereOnboarding?: boolean;
+    /** HTTP 401: la sesión expiró o dejó de ser válida. */
+    sesionInvalida?: boolean;
 }
 
 async function errorDeRespuesta(response: Response, fallback: string): Promise<ApiError> {
@@ -463,6 +465,8 @@ export const apiService = {
         malla_id?: number;
         ciclo_actual: number;
         cursos_inscritos: number[];
+        /** Historial declarado en el wizard: cursos de ciclos previos ya aprobados. */
+        cursos_aprobados?: number[];
     }) {
         try {
             const response = await fetchWithAuth(`${API_URL}/onboarding/complete`, {

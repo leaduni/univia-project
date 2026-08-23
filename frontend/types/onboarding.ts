@@ -5,6 +5,12 @@ export interface OnboardingData {
   semester: number
   malla_id?: number
   cursosInscritos: number[]
+  /**
+   * Historial académico declarado: cursos de ciclos previos que el estudiante
+   * confirmó haber aprobado. Es lo que permite desbloquear los cursos con
+   * prerrequisito de quien no arranca en el ciclo 1.
+   */
+  cursosAprobados?: number[]
   /** Créditos de los cursos elegidos. Solo para el resumen final. */
   creditosInscritos?: number
 }

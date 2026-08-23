@@ -10,19 +10,20 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
-        brand: 'gradient-brand text-white font-semibold shadow-md hover:shadow-lg hover:shadow-[#7957f1]/20 transition-all duration-300',
+        default: 'bg-[#0a0d1e] border-2 border-[#5b8bf7] text-white shadow-[0_0_10px_rgba(91,139,247,0.2)] hover:shadow-[0_0_20px_rgba(91,139,247,0.5)] hover:bg-[#11172b] rounded-xl [text-shadow:-1px_0_0_#0ff,1px_0_0_#f00] tracking-wide font-bold',
+        brand: 'bg-[#0a0d1e] border-2 border-[#7957f1] text-white shadow-[0_0_10px_rgba(121,87,241,0.2)] hover:shadow-[0_0_20px_rgba(121,87,241,0.5)] hover:bg-[#11172b] rounded-xl [text-shadow:-1px_0_0_#0ff,1px_0_0_#f00] tracking-wide font-bold',
         destructive:
           'bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60',
         outline:
-          'border border-border bg-transparent shadow-xs hover:bg-muted hover:text-foreground',
+          'bg-transparent border-2 border-[#5b8bf7] text-white shadow-[0_0_10px_rgba(91,139,247,0.1)] hover:shadow-[0_0_20px_rgba(91,139,247,0.4)] hover:bg-[#5b8bf7]/10 rounded-xl tracking-wide font-bold',
         secondary:
-          'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+          'bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-xl',
         ghost:
-          'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
-        link: 'text-primary underline-offset-4 hover:underline',
+          'hover:bg-[#5b8bf7]/10 text-white rounded-xl font-bold',
+        link: 'text-[#5b8bf7] underline-offset-4 hover:underline font-bold',
         neon: 'gradient-ai-neon text-white hover:opacity-90 shadow-lg shadow-[var(--ai-neon-magenta)]/30 border-0',
         'neon-outline': 'border-[var(--ai-neon-pink)] text-[var(--ai-neon-pink)] bg-[var(--ai-neon-magenta)]/10 hover:bg-[var(--ai-neon-magenta)]/20 hover:text-[var(--ai-neon-pink)]',
+
       },
       size: {
         default: 'h-9 px-4 py-2 has-[>svg]:px-3',

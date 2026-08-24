@@ -1,11 +1,13 @@
 // Barra superior: buscador, notificaciones y menú de usuario
 "use client"
 
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Menu, Bell, User, LogOut } from "lucide-react"
 import { HeaderSearch } from "./header-search"
 import { ExplorarMenu } from "./explorar-menu"
+import { Logo } from "./logo"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -41,11 +43,51 @@ const ACCESOS = [
 export function Header({ onMenuClick }: HeaderProps) {
   const { user, signOut } = useAuth()
   const pathname = usePathname()
+  const [isAtTop, setIsAtTop] = useState(true)
+  const [isHidden, setIsHidden] = useState(false)
+  const ultimoScroll = useRef(0)
 
   const nombre = user?.nombre_completo || "Estudiante"
 
+  useEffect(() => {
+    const main = document.querySelector("main")
+
+    const manejarScroll = (event: Event) => {
+      const posicion =
+        event.currentTarget === main
+          ? main.scrollTop
+          : window.scrollY
+
+      setIsAtTop(posicion === 0)
+      setIsHidden(posicion > ultimoScroll.current && posicion > 0)
+      ultimoScroll.current = posicion
+    }
+
+    const posicionInicial = main?.scrollTop ?? window.scrollY
+    setIsAtTop(posicionInicial === 0)
+    ultimoScroll.current = posicionInicial
+
+    window.addEventListener("scroll", manejarScroll, { passive: true })
+    main?.addEventListener("scroll", manejarScroll, { passive: true })
+
+    return () => {
+      window.removeEventListener("scroll", manejarScroll)
+      main?.removeEventListener("scroll", manejarScroll)
+    }
+  }, [])
+
   return (
-    <header className="backdrop-blur-md sticky top-0 z-40 bg-[rgba(9,11,21,0.75)] rounded-2xl border border-white/[0.08] shadow-[0_4px_20px_rgba(0,0,0,0.3)] overflow-hidden transition-all duration-300">
+    <header
+      className={cn(
+        "absolute top-3 left-0 right-0 z-50 w-[calc(100%-2rem)] mx-auto transition-all duration-300 ease-out",
+        isHidden
+          ? "-translate-y-28 opacity-0 pointer-events-none"
+          : "translate-y-0 opacity-100",
+        isAtTop
+          ? "rounded-2xl backdrop-blur-xl bg-[rgba(11,12,22,0.85)] border border-white/[0.12] shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+          : "rounded-2xl backdrop-blur-xl bg-[rgba(11,12,22,0.75)] border border-white/[0.08] shadow-[0_4px_20px_rgba(0,0,0,0.4)]",
+      )}
+    >
       <div className="flex items-center justify-between px-6 py-4 gap-4">
         <div className="flex items-center gap-4 flex-1">
           <Button
@@ -57,6 +99,13 @@ export function Header({ onMenuClick }: HeaderProps) {
           >
             <Menu className="w-5 h-5" />
           </Button>
+
+          <div className="md:hidden">
+            <Logo compact />
+          </div>
+          <div className="hidden md:block">
+            <Logo />
+          </div>
 
           <HeaderSearch />
         </div>

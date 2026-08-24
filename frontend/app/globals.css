@@ -353,3 +353,52 @@
 }
 .anim-up    { animation: fadeInUp    0.4s ease-out both; }
 .anim-right { animation: fadeInRight 0.35s ease-out both; }
+
+/* ==========================================
+   ESTILIZADO GLASSMORPHISM SCROLLBARS
+   ========================================== */
+
+/* 1. Barra ultra sutil (para el main vertical) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(121, 87, 241, 0.4); /* Resplandor violeta sutil en hover */
+}
+
+/* Ocultar botones de flechas en Windows */
+.custom-scrollbar::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0;
+  height: 0;
+}
+
+/* Soporte para Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+/* 2. Ocultar completamente la barra visual manteniendo la funcionalidad de scroll */
+.scrollbar-none {
+  -ms-overflow-style: none; /* IE y Edge antiguo */
+  scrollbar-width: none;    /* Firefox */
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;             /* Webkit (Chrome, Safari, Edge) */
+  width: 0;
+  height: 0;
+}

@@ -49,6 +49,7 @@ export function ExplorarMenu() {
   const [carreras, setCarreras] = useState<Carrera[]>([])
   const [miCarreraId, setMiCarreraId] = useState<number | null>(null)
   const contenedor = useRef<HTMLDivElement>(null)
+  const temporizadorCierre = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   /** Se carga al abrir, no al montar: el menú vive en todas las pantallas. */
   const cargar = async () => {
@@ -83,6 +84,27 @@ export function ExplorarMenu() {
     }
   }
 
+  const cancelarCierre = () => {
+    if (temporizadorCierre.current) {
+      clearTimeout(temporizadorCierre.current)
+      temporizadorCierre.current = null
+    }
+  }
+
+  const abrirConHover = () => {
+    cancelarCierre()
+    setAbierto(true)
+    cargar()
+  }
+
+  const programarCierre = () => {
+    cancelarCierre()
+    temporizadorCierre.current = setTimeout(() => {
+      setAbierto(false)
+      temporizadorCierre.current = null
+    }, 180)
+  }
+
   useEffect(() => {
     const alClicar = (e: MouseEvent) => {
       if (contenedor.current && !contenedor.current.contains(e.target as Node)) setAbierto(false)
@@ -95,6 +117,7 @@ export function ExplorarMenu() {
     return () => {
       document.removeEventListener("mousedown", alClicar)
       document.removeEventListener("keydown", alEscapar)
+      cancelarCierre()
     }
   }, [])
 
@@ -105,17 +128,22 @@ export function ExplorarMenu() {
   }
 
   return (
-    <div ref={contenedor} className="relative hidden lg:block">
+    <div
+      ref={contenedor}
+      onMouseEnter={abrirConHover}
+      onMouseLeave={programarCierre}
+      className="relative hidden lg:block"
+    >
       <button
         type="button"
         onClick={alternar}
         aria-expanded={abierto}
         aria-haspopup="true"
         className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap",
+          "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap",
           abierto
-            ? "bg-accent/15 text-accent"
-            : "text-muted-foreground hover:text-foreground hover:bg-muted",
+            ? "text-white bg-white/[0.08] shadow-[0_0_12px_rgba(121,87,241,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] border border-white/[0.12]"
+            : "text-muted-foreground hover:text-foreground hover:bg-white/[0.07]",
         )}
       >
         Explorar
@@ -123,7 +151,7 @@ export function ExplorarMenu() {
       </button>
 
       {abierto && (
-        <div className="absolute right-0 top-full mt-2 w-[860px] max-w-[92vw] rounded-2xl bg-card border border-border shadow-2xl p-6 z-50">
+        <div className="absolute right-0 top-full mt-2 w-[860px] max-w-[92vw] rounded-2xl bg-[#0d0f1d]/95 backdrop-blur-2xl border border-white/[0.1] shadow-[0_12px_40px_rgba(0,0,0,0.6)] p-6 z-50">
           {cargando && !cargado ? (
             <div className="flex items-center justify-center gap-3 py-10">
               <Loader2 className="w-5 h-5 animate-spin text-accent" />

@@ -5,7 +5,6 @@ import type React from "react"
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Sidebar } from "./sidebar"
 import { Header } from "./header"
 import { useAuth } from "./providers/auth-context"
 import { apiService } from "@/lib/api-service"
@@ -15,7 +14,7 @@ interface DashboardLayoutProps {
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
-  const [isCollapsed, setIsCollapsed] = useState(true)
+  const [, setIsCollapsed] = useState(true)
   const [isRedirecting, setIsRedirecting] = useState(false)
   const { user, session, isLoading: isAuthLoading } = useAuth()
   const router = useRouter()
@@ -99,14 +98,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   return (
-    <div className="flex h-screen bg-[#090b15] text-[#e9e9ed] overflow-hidden p-3 gap-3">
+    <div className="flex h-screen bg-[#0b0c16] text-[#e9e9ed] overflow-hidden">
       {/* Barra lateral colapsable */}
-      <Sidebar open={!isCollapsed} onToggle={handleToggle} />
 
       {/* Contenido principal con transición suave */}
-      <div className="flex flex-col flex-1 h-full gap-3 min-w-0 overflow-hidden transition-all duration-300 ease-in-out">
+      <div className="relative flex-1 h-full min-w-0 overflow-hidden">
         <Header onMenuClick={handleToggle} />
-        <main className="flex-1 overflow-y-auto rounded-2xl custom-scrollbar p-1">{children}</main>
+        <main className="w-full h-full overflow-y-auto custom-scrollbar pt-20 px-4 pb-6">{children}</main>
       </div>
     </div>
   )

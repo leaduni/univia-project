@@ -109,7 +109,7 @@ export function RecentResources() {
           ))}
         </div>
       ) : (
-        <div className="flex gap-4 overflow-x-auto pb-2">
+        <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
           {recursos.map((recurso, i) => {
             const Icono = ICONO_POR_TIPO[recurso.tipo] ?? FileText
             return (

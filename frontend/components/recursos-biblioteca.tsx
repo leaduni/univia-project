@@ -150,7 +150,7 @@ export function RecursosBiblioteca() {
   return (
     <div className="min-h-screen bg-[#161826] text-foreground">
       {/* Header & Main Search Section */}
-      <div className="bg-[#161826]/80 border-b border-[#3f424d]/60 sticky top-0 z-30 backdrop-blur-md">
+      <div className="bg-[#161826]/80 border-b border-[#3f424d]/60 backdrop-blur-md">
         <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-4">
           {/* Page Header */}
           <div>

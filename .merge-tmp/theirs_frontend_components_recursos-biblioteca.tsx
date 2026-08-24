@@ -1,4 +1,4 @@
-// Resource library with search, filters, and AI exam generation
+﻿// Resource library with search, filters, and AI exam generation
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
@@ -19,9 +19,9 @@ const RECURSOS_POR_PAGINA = 20
 
 export function RecursosBiblioteca() {
   const { session } = useAuth()
-  // Permite llegar filtrado desde otra pantalla (ej. 'Banco de exámenes' del
-  // menú Explorar abre /recursos?tipo=Examen). Sin esto, ese enlace abriría la
-  // biblioteca completa y el estudiante tendría que filtrar a mano.
+  // Permite llegar filtrado desde otra pantalla (ej. 'Banco de ex├ímenes' del
+  // men├║ Explorar abre /recursos?tipo=Examen). Sin esto, ese enlace abrir├¡a la
+  // biblioteca completa y el estudiante tendr├¡a que filtrar a mano.
   const searchParams = useSearchParams()
   const tipoInicial = searchParams.get("tipo")
 
@@ -48,9 +48,9 @@ export function RecursosBiblioteca() {
 
   const [facultades, setFacultades] = useState<string[]>([])
 
-  // El catálogo de facultades sale del endpoint de onboarding, no de los
-  // recursos visibles: derivarlo de la página actual daría una lista distinta
-  // en cada página.
+  // El cat├ílogo de facultades sale del endpoint de onboarding, no de los
+  // recursos visibles: derivarlo de la p├ígina actual dar├¡a una lista distinta
+  // en cada p├ígina.
   useEffect(() => {
     if (!session) return
     let activo = true
@@ -78,8 +78,8 @@ export function RecursosBiblioteca() {
     selectedYears,
   })
 
-  // Al cambiar filtros el listado se reduce: quedarse en una página que ya no
-  // existe mostraría una grilla vacía.
+  // Al cambiar filtros el listado se reduce: quedarse en una p├ígina que ya no
+  // existe mostrar├¡a una grilla vac├¡a.
   useEffect(() => {
     setPaginaActual(1)
   }, [claveFiltros])
@@ -123,7 +123,7 @@ export function RecursosBiblioteca() {
       }
     }
 
-    // Debounce: escribir en el buscador no debe disparar una petición por tecla.
+    // Debounce: escribir en el buscador no debe disparar una petici├│n por tecla.
     const timeoutId = setTimeout(fetchRecursos, 350)
     return () => {
       activo = false
@@ -147,7 +147,7 @@ export function RecursosBiblioteca() {
   const irAPagina = (pagina: number) => {
     if (pagina < 1 || pagina > totalPaginas) return
     setPaginaActual(pagina)
-    // Sin esto el usuario cambia de página y sigue viendo el pie de la grilla.
+    // Sin esto el usuario cambia de p├ígina y sigue viendo el pie de la grilla.
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
@@ -157,9 +157,9 @@ export function RecursosBiblioteca() {
 
   const categoryChips = [
     { id: "all", label: "Todos" },
-    { id: "Examen", label: "Exámenes" },
-    { id: "Practica", label: "Prácticas" },
-    { id: "Silabo", label: "Sílabos" },
+    { id: "Examen", label: "Ex├ímenes" },
+    { id: "Practica", label: "Pr├ícticas" },
+    { id: "Silabo", label: "S├¡labos" },
     { id: "Compendio", label: "Compendios" },
     { id: "Libro", label: "Libros" },
     { id: "Apunte", label: "Apuntes" },
@@ -174,17 +174,17 @@ export function RecursosBiblioteca() {
   return (
     <div className="min-h-screen bg-[#161826] text-foreground">
       {/* Header & Main Search Section */}
-      <div className="bg-[#161826]/80 border-b border-[#3f424d]/60 backdrop-blur-md">
+      <div className="bg-[#161826] border-b border-[#3f424d]/60">
         <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-4">
           {/* Page Header */}
           <div>
             <h1 className="font-poppins font-semibold text-3xl text-foreground tracking-tight mb-1">
-              Banco de exámenes y recursos
+              Banco de ex├ímenes y recursos
             </h1>
             <p className="text-muted-foreground text-sm">
               {vista === "mis-cursos"
                 ? "Material de los cursos que llevas este ciclo"
-                : "Repositorio global de materiales académicos de la universidad"}
+                : "Repositorio global de materiales acad├®micos de la universidad"}
             </p>
           </div>
 
@@ -212,13 +212,13 @@ export function RecursosBiblioteca() {
             })}
           </div>
 
-          {/* Barra de búsqueda y selectores de filtro superior */}
+          {/* Barra de b├║squeda y selectores de filtro superior */}
           <div className="flex gap-3 mb-2 flex-wrap xl:flex-nowrap items-center">
-            {/* Input de búsqueda */}
+            {/* Input de b├║squeda */}
             <div className="relative flex-1 min-w-[240px]">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4 pointer-events-none" />
               <Input
-                placeholder="Buscar por curso, código o tema..."
+                placeholder="Buscar por curso, c├│digo o tema..."
                 className="h-11 pl-10 pr-4 rounded-xl bg-[#232532] border border-[#3f424d]/60 text-sm focus-visible:ring-2 focus-visible:ring-primary/50 placeholder:text-muted-foreground/50 w-full"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -262,17 +262,17 @@ export function RecursosBiblioteca() {
               </Select>
             </div>
 
-            {/* Select Año */}
+            {/* Select A├▒o */}
             <div className="w-full sm:w-36">
               <Select
                 value={selectedYears[0] ?? "all"}
                 onValueChange={(val) => setSelectedYears(val === "all" ? [] : [val])}
               >
                 <SelectTrigger className="h-11 rounded-xl bg-[#232532] border border-[#3f424d]/60 text-sm">
-                  <SelectValue placeholder="Año" />
+                  <SelectValue placeholder="A├▒o" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos los años</SelectItem>
+                  <SelectItem value="all">Todos los a├▒os</SelectItem>
                   {aniosOpciones.map((year) => (
                     <SelectItem key={year} value={year}>
                       {year}
@@ -289,17 +289,17 @@ export function RecursosBiblioteca() {
                   <SelectValue placeholder="Ordenar por..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="recent">Más Reciente</SelectItem>
-                  <SelectItem value="downloaded">Más Descargado</SelectItem>
+                  <SelectItem value="recent">M├ís Reciente</SelectItem>
+                  <SelectItem value="downloaded">M├ís Descargado</SelectItem>
                   <SelectItem value="rated">Mejor Calificado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          {/* Chips de Categoría y Contador de Resultados */}
+          {/* Chips de Categor├¡a y Contador de Resultados */}
           <div className="flex items-center justify-between pt-1 flex-wrap gap-3">
-            {/* Chips de Categorías */}
+            {/* Chips de Categor├¡as */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full scrollbar-none">
               {categoryChips.map((chip) => {
                 const isActive =
@@ -329,7 +329,7 @@ export function RecursosBiblioteca() {
             {/* Contador de resultados */}
             <span className="text-xs text-muted-foreground font-medium shrink-0">
               {total} recursos
-              {totalPaginas > 1 && ` · página ${paginaActual} de ${totalPaginas}`}
+              {totalPaginas > 1 && ` ┬À p├ígina ${paginaActual} de ${totalPaginas}`}
             </span>
           </div>
         </div>
@@ -376,15 +376,15 @@ export function RecursosBiblioteca() {
             </>
           ) : sinCursosActivos ? (
             /* Vista "Mis cursos" sin cursos activos: sin esto la pantalla
-               parecería un banco vacío en vez de un perfil sin matrícula. */
+               parecer├¡a un banco vac├¡o en vez de un perfil sin matr├¡cula. */
             <div className="text-center py-16 space-y-4">
               <BookMarked className="w-10 h-10 mx-auto text-muted-foreground/60" />
               <div className="space-y-1">
                 <h2 className="font-poppins font-semibold text-foreground">
-                  Todavía no tienes cursos activos
+                  Todav├¡a no tienes cursos activos
                 </h2>
                 <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                  Cuando registres los cursos que llevas este ciclo, aquí verás su material.
+                  Cuando registres los cursos que llevas este ciclo, aqu├¡ ver├ís su material.
                   Mientras tanto puedes explorar el banco completo.
                 </p>
               </div>

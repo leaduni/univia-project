@@ -32,6 +32,7 @@ export function OnboardingWizard() {
     career: 0,
     semester: 1,
     cursosInscritos: [],
+    cursosAprobados: [],
   })
 
   const selectedCareer = onboardingMeta.careers.find((c) => c.id === data.career)
@@ -74,6 +75,7 @@ export function OnboardingWizard() {
         malla_id: data.malla_id,
         ciclo_actual: data.semester,
         cursos_inscritos: data.cursosInscritos,
+        cursos_aprobados: data.cursosAprobados ?? [],
       }
       await apiService.completeOnboarding(payload)
       await refreshProfile()

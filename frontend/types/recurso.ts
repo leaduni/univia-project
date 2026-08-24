@@ -24,5 +24,6 @@ export interface Recurso {
   url_drive: string | null
   facultad_nombre: string | null
   created_at: string
+  drive_file_id?: string | null
   especialidades?: EspecialidadRecurso[]
 }

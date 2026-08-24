@@ -135,7 +135,7 @@ describe("Course completion redirect", () => {
     vi.useRealTimers();
   });
 
-  it("redirects to / after 2500ms when course is completed", async () => {
+  it("redirects to /malla after 2500ms when course is completed", async () => {
     mockGetLearningPath.mockResolvedValue({
       curso: {
         name: "Física I",
@@ -179,7 +179,8 @@ describe("Course completion redirect", () => {
       vi.advanceTimersByTime(2600);
     });
 
-    // ASSERT (RED — will fail because redirect doesn't exist yet)
-    expect(mockRouterPush).toHaveBeenCalledWith("/");
+    // Vuelve a la malla, que es de donde se entra al curso. Antes esperaba "/"
+    // porque esa ruta era el dashboard; hoy "/" es la landing pública.
+    expect(mockRouterPush).toHaveBeenCalledWith("/malla");
   }, 15000);
 });

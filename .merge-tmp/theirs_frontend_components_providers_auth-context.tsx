@@ -1,15 +1,10 @@
-// Auth context provider with Supabase session management
+﻿// Auth context provider with Supabase session management
 "use client"
 
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { apiService } from '@/lib/api-service';
 import { User, Session } from '@supabase/supabase-js';
-
-// Single-flight del perfil: una petición en vuelo se reutiliza en vez de
-// duplicarse (p. ej. INITIAL_SESSION y SIGNED_IN seguidos). Vive fuera del
-// componente para sobrevivir a los re-renders del provider.
-let perfilEnVuelo: Promise<void> | null = null;
 
 interface AuthContextType {
     user: any | null;
@@ -28,14 +23,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [user, setUser] = useState<any | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Token cuyo perfil ya se pidió al backend. Supabase re-emite eventos de
-    // auth cada vez que la pestaña recupera el foco; sin esta marca se volvería
-    // a pedir el perfil (y a recargar las pantallas que dependen de la sesión)
-    // en cada cambio de pestaña del navegador.
+    // Token cuyo perfil ya se pidi├│ al backend. Supabase re-emite eventos de
+    // auth cada vez que la pesta├▒a recupera el foco; sin esta marca se volver├¡a
+    // a pedir el perfil (y a recargar las pantallas que dependen de la sesi├│n)
+    // en cada cambio de pesta├▒a del navegador.
     const tokenPerfilCargado = useRef<string | null>(null);
 
-    // Solo reemplaza la sesión cuando cambia el token. Guardar el objeto nuevo
-    // que manda Supabase en cada evento cambiaría su identidad y re-dispararía
+    // Solo reemplaza la sesi├│n cuando cambia el token. Guardar el objeto nuevo
+    // que manda Supabase en cada evento cambiar├¡a su identidad y re-disparar├¡a
     // todos los useEffect que dependen de `session`.
     const guardarSesion = (nueva: Session | null) => {
         setSession((previa) => {
@@ -50,38 +45,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const fetchProfile = async (token: string) => {
-        if (perfilEnVuelo) return perfilEnVuelo;
-        perfilEnVuelo = (async () => {
-            try {
-                const profile = await apiService.getProfile(token);
-                setUser(profile);
-                if (typeof window !== 'undefined') {
-                    localStorage.setItem('user', JSON.stringify(profile));
-                    localStorage.setItem('token', token);
-                }
-            } catch (error: any) {
-                // Si el error es de red (backend no disponible), lo logueamos
-                // pero NO cerramos la sesión de Supabase
-                const isNetworkError = error instanceof TypeError && error.message === 'Failed to fetch';
-                if (isNetworkError) {
-                    console.warn("Backend no disponible en este momento. El usuario de Supabase sigue autenticado.");
-                    // Intentar cargar perfil cacheado del localStorage
-                    if (typeof window !== 'undefined') {
-                        const cached = localStorage.getItem('user');
-                        if (cached) {
-                            try { setUser(JSON.parse(cached)); } catch { setUser(null); }
-                            return;
-                        }
-                    }
-                } else {
-                    console.error("Error fetching user profile:", error);
-                }
-                setUser(null);
-            } finally {
-                perfilEnVuelo = null;
+        tokenPerfilCargado.current = token;
+        try {
+            const profile = await apiService.getProfile(token);
+            setUser(profile);
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('user', JSON.stringify(profile));
+                localStorage.setItem('token', token);
             }
-        })();
-        return perfilEnVuelo;
+        } catch (error: any) {
+            // Si el error es de red (backend no disponible), lo logueamos
+            // pero NO cerramos la sesi├│n de Supabase
+            const isNetworkError = error instanceof TypeError && error.message === 'Failed to fetch';
+            if (isNetworkError) {
+                console.warn("Backend no disponible en este momento. El usuario de Supabase sigue autenticado.");
+                // Intentar cargar perfil cacheado del localStorage
+                if (typeof window !== 'undefined') {
+                    const cached = localStorage.getItem('user');
+                    if (cached) {
+                        try { setUser(JSON.parse(cached)); } catch { setUser(null); }
+                        return;
+                    }
+                }
+            } else {
+                console.error("Error fetching user profile:", error);
+            }
+            setUser(null);
+        }
     };
 
     useEffect(() => {
@@ -89,8 +79,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session) {
                 guardarSesion(session);
-                // No llamamos a fetchProfile aquí porque onAuthStateChange
-                // disparará el evento INITIAL_SESSION inmediatamente después.
+                // No llamamos a fetchProfile aqu├¡ porque onAuthStateChange
+                // disparar├í el evento INITIAL_SESSION inmediatamente despu├®s.
             } else {
                 setIsLoading(false);
             }
@@ -101,10 +91,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             guardarSesion(session);
 
             if (session) {
-                // TOKEN_REFRESHED solo renueva el token (al volver a la
-                // pestaña o tras expirar): el perfil ya está cargado y no
-                // debe re-pedirse a la red.
-                if (event !== "TOKEN_REFRESHED") {
+                // Al volver de otra pesta├▒a Supabase reemite SIGNED_IN/TOKEN_REFRESHED
+                // con el mismo token: el perfil ya est├í en memoria y volver a
+                // pedirlo solo har├¡a parpadear las pantallas.
+                if (tokenPerfilCargado.current !== session.access_token) {
                     await fetchProfile(session.access_token);
                 }
             } else {
@@ -115,7 +105,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     localStorage.removeItem('token');
                 }
             }
-            setIsLoading(false);
+            setIsLoading(false);  // Siempre se ejecuta
         });
 
         return () => subscription.unsubscribe();
@@ -133,11 +123,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         await supabase.auth.signOut();
-
-        // Al cerrar sesión se vuelve a la portada pública (/).
-        if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-            window.location.assign('/');
-        }
     };
 
     const refreshProfile = async () => {

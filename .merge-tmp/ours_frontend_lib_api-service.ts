@@ -1,4 +1,4 @@
-// API service layer - Supabase calls for auth, malla, stats
+﻿// API service layer - Supabase calls for auth, malla, stats
 
 import { supabase } from './supabase';
 import { leerOCache, invalidarClave, invalidarPrefijo, limpiarCache, TTL } from './api-cache';
@@ -6,8 +6,8 @@ import { leerOCache, invalidarClave, invalidarPrefijo, limpiarCache, TTL } from 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API_URL = BASE_URL.endsWith('/api') ? BASE_URL : `${BASE_URL}/api`;
 
-// Memoización de getSession: N llamadas paralelas a getAuthToken comparten una
-// sola lectura de sesión (y un solo posible refresh del token).
+// Memoizaci├│n de getSession: N llamadas paralelas a getAuthToken comparten una
+// sola lectura de sesi├│n (y un solo posible refresh del token).
 let sesionEnCurso: ReturnType<typeof supabase.auth.getSession> | null = null;
 
 async function getAuthToken() {
@@ -25,7 +25,7 @@ async function getAuthToken() {
 let redirigiendoSesionInvalida = false;
 
 /**
- * HTTP 401: sesión inválida o expirada. Limpia las credenciales y redirige a
+ * HTTP 401: sesi├│n inv├ílida o expirada. Limpia las credenciales y redirige a
  * /auth/login sin mostrar el error en pantalla.
  */
 function manejarNoAutorizado() {
@@ -35,13 +35,13 @@ function manejarNoAutorizado() {
     limpiarCache();
 
     if (typeof window === "undefined") return;
-    // En páginas de autenticación no hay sesión que invalidar.
+    // En p├íginas de autenticaci├│n no hay sesi├│n que invalidar.
     if (window.location.pathname.startsWith("/auth/")) return;
 
     localStorage.removeItem('user');
     localStorage.removeItem('token');
     // signOut dispara SIGNED_OUT y el auth-context limpia su estado;
-    // la recarga que trae assign() resetea el flag por sí sola.
+    // la recarga que trae assign() resetea el flag por s├¡ sola.
     supabase.auth.signOut().catch(() => {});
     window.location.assign('/auth/login');
 }
@@ -64,70 +64,28 @@ async function fetchWithAuth(url: string, options: RequestInit = {}, customToken
  * Mensaje legible del cuerpo de un error del backend.
  *
  * La API responde de dos formas: `{errors: [{field, message}]}` cuando la
- * validación falla en un campo concreto, y `{detail: "..."}` en el resto.
+ * validaci├│n falla en un campo concreto, y `{detail: "..."}` en el resto.
  * El mensaje del campo va primero porque es el que le dice al estudiante
- * qué corregir.
+ * qu├® corregir.
  */
 function extraerMensajeError(body: any): string | null {
     return body?.errors?.[0]?.message || body?.detail || null;
 }
 
 /**
- * Error de la API con el campo que lo originó.
+ * Error de la API con el campo que lo origin├│.
  *
  * Varios endpoints del dashboard responden 400 con `field: "carrera_id"` o
- * `field: "malla_id"` cuando el estudiante todavía no completó su onboarding.
- * Antes se descartaba el cuerpo y se lanzaba un mensaje fijo, así que la
- * pantalla no distinguía "falta tu onboarding" de "el servidor se cayó" y no
- * podía reaccionar.
+ * `field: "malla_id"` cuando el estudiante todav├¡a no complet├│ su onboarding.
+ * Antes se descartaba el cuerpo y se lanzaba un mensaje fijo, as├¡ que la
+ * pantalla no distingu├¡a "falta tu onboarding" de "el servidor se cay├│" y no
+ * pod├¡a reaccionar.
  */
 export interface ApiError extends Error {
     status?: number;
     field?: string;
-    /** El estudiante aún no completó su onboarding: no es un fallo real. */
+    /** El estudiante a├║n no complet├│ su onboarding: no es un fallo real. */
     requiereOnboarding?: boolean;
-    /** HTTP 401: la sesión expiró o dejó de ser válida. */
-    sesionInvalida?: boolean;
-}
-
-/** Filtros aceptados por GET /recursos. Espejo de `recursos.py`. */
-export interface RecursoFiltros {
-    /** Uno o varios tipos separados por coma. */
-    tipo?: string;
-    ciclo?: number;
-    curso_id?: number;
-    codigo_curso?: string;
-    year?: number;
-    facultad?: string;
-    search?: string;
-    orden?: 'recent' | 'downloaded' | 'rated';
-    /** Restringe a los cursos que el estudiante lleva ahora. */
-    mis_cursos?: boolean;
-    limit?: number;
-    offset?: number;
-}
-
-export interface RecursosPagina {
-    items: any[];
-    total: number;
-    /** true cuando se pidió `mis_cursos` y el estudiante no tiene ninguno activo. */
-    sinCursosActivos: boolean;
-}
-
-function construirParamsRecursos(filters: RecursoFiltros): URLSearchParams {
-    const params = new URLSearchParams();
-    if (filters.tipo && filters.tipo !== 'all') params.append('tipo', filters.tipo);
-    if (filters.ciclo) params.append('ciclo', filters.ciclo.toString());
-    if (filters.curso_id) params.append('curso_id', filters.curso_id.toString());
-    if (filters.codigo_curso) params.append('codigo_curso', filters.codigo_curso);
-    if (filters.year) params.append('year', filters.year.toString());
-    if (filters.facultad && filters.facultad !== 'all') params.append('facultad', filters.facultad);
-    if (filters.search) params.append('search', filters.search);
-    if (filters.orden) params.append('orden', filters.orden);
-    if (filters.mis_cursos) params.append('mis_cursos', 'true');
-    if (filters.limit) params.append('limit', filters.limit.toString());
-    if (filters.offset) params.append('offset', filters.offset.toString());
-    return params;
 }
 
 async function errorDeRespuesta(response: Response, fallback: string): Promise<ApiError> {
@@ -160,7 +118,7 @@ export const apiService = {
 
     /**
      * Actualiza los datos personales del estudiante (RF-PRF-02).
-     * Solo el nombre: el correo y el código no son editables.
+     * Solo el nombre: el correo y el c├│digo no son editables.
      */
     async actualizarPerfil(nombreCompleto: string) {
         const response = await fetchWithAuth(`${API_URL}/usuarios/perfil`, {
@@ -194,7 +152,7 @@ export const apiService = {
         return body;
     },
 
-    /** Cambia la contraseña desde el perfil (RF-PRF-03). */
+    /** Cambia la contrase├▒a desde el perfil (RF-PRF-03). */
     async cambiarPassword(passwordActual: string, passwordNueva: string) {
         const response = await fetchWithAuth(`${API_URL}/usuarios/password`, {
             method: 'PUT',
@@ -207,14 +165,14 @@ export const apiService = {
 
         const body = await response.json().catch(() => null);
         if (!response.ok) {
-            throw new Error(extraerMensajeError(body) || 'No se pudo actualizar tu contraseña.');
+            throw new Error(extraerMensajeError(body) || 'No se pudo actualizar tu contrase├▒a.');
         }
         invalidarClave("profile");
         return body;
     },
 
     /**
-     * Cursos en curso con su avance real y el tema donde se quedó.
+     * Cursos en curso con su avance real y el tema donde se qued├│.
      * Un solo llamado en vez de un /learning-path por curso.
      */
     async getCursosActivos() {
@@ -233,8 +191,8 @@ export const apiService = {
     },
 
     /**
-     * Diagnóstico académico y ruta sugerida (RF-19, RF-20).
-     * Se deriva del récord del estudiante, no de un cuestionario.
+     * Diagn├│stico acad├®mico y ruta sugerida (RF-19, RF-20).
+     * Se deriva del r├®cord del estudiante, no de un cuestionario.
      */
     async getTestNivel() {
         try {
@@ -242,7 +200,7 @@ export const apiService = {
                 const response = await fetchWithAuth(`${API_URL}/dashboard/test-nivel`);
                 if (!response.ok) {
                     if (response.status === 401) return null;
-                    const apiError = await errorDeRespuesta(response, 'No se pudo cargar tu diagnóstico académico.');
+                    const apiError = await errorDeRespuesta(response, 'No se pudo cargar tu diagn├│stico acad├®mico.');
                     // Onboarding pendiente (400 + field carrera_id) es un estado normal
                     // de la cuenta, no un fallo: se devuelve null, sin lanzar.
                     if (apiError.requiereOnboarding) return null;
@@ -252,7 +210,7 @@ export const apiService = {
             }, { ttl: TTL.CINCO_MINUTOS });
         } catch (error) {
             // Un onboarding pendiente es un estado normal de la cuenta, no un
-            // fallo: quien llama decide qué mostrar sin ensuciar la consola.
+            // fallo: quien llama decide qu├® mostrar sin ensuciar la consola.
             if (!(error as ApiError)?.requiereOnboarding) {
                 console.error("API Error (getTestNivel):", error);
             }
@@ -283,7 +241,7 @@ export const apiService = {
     },
 
     /**
-     * Avance de carrera sobre el total de créditos del plan (RF-07).
+     * Avance de carrera sobre el total de cr├®ditos del plan (RF-07).
      * Es la cifra oficial: no la recalcules a partir de la malla.
      */
     async getAvanceCarrera() {
@@ -447,47 +405,32 @@ export const apiService = {
         }
     },
 
-    /**
-     * Página del banco de recursos. El backend filtra, ordena y pagina: antes
-     * la biblioteca se bajaba el catálogo entero y filtraba en el navegador.
-     */
-    async getRecursosPaginados(filters: RecursoFiltros = {}): Promise<RecursosPagina> {
-        const vacia: RecursosPagina = { items: [], total: 0, sinCursosActivos: false };
+    async getRecursos(filters: { tipo?: string; ciclo?: number; curso_id?: number; codigo_curso?: string; year?: number; facultad?: string; search?: string } = {}) {
+        const token = await getAuthToken();
+        if (!token) {
+            return [];
+        }
+
         try {
-            const params = construirParamsRecursos(filters);
+            const params = new URLSearchParams();
+            if (filters.tipo && filters.tipo !== 'all') params.append('tipo', filters.tipo);
+            if (filters.ciclo) params.append('ciclo', filters.ciclo.toString());
+            if (filters.curso_id) params.append('curso_id', filters.curso_id.toString());
+            if (filters.codigo_curso) params.append('codigo_curso', filters.codigo_curso);
+            if (filters.year) params.append('year', filters.year.toString());
+            if (filters.facultad && filters.facultad !== 'all') params.append('facultad', filters.facultad);
+            if (filters.search) params.append('search', filters.search);
 
             return await leerOCache(`recursos:${params.toString()}`, async () => {
-                const token = await getAuthToken();
-                if (!token) return vacia;
-
                 const response = await fetchWithAuth(`${API_URL}/recursos?${params.toString()}`, {}, token);
-                if (response.status === 401) return vacia;
+                if (response.status === 401) {
+                    return [];
+                }
                 if (!response.ok) {
                     throw new Error(`Error fetching recursos: ${response.statusText}`);
                 }
-
-                const body = await response.json();
-                // Tolera la forma antigua (array plano) por si queda un backend sin desplegar.
-                if (Array.isArray(body)) {
-                    return { items: body, total: body.length, sinCursosActivos: false };
-                }
-                return {
-                    items: body?.items ?? [],
-                    total: body?.total ?? 0,
-                    sinCursosActivos: Boolean(body?.sin_cursos_activos),
-                };
+                return await response.json();
             }, { ttl: TTL.CINCO_MINUTOS });
-        } catch (error) {
-            console.error("API Error (getRecursosPaginados):", error);
-            throw error;
-        }
-    },
-
-    /** Lista simple de recursos, para pantallas que no paginan. */
-    async getRecursos(filters: RecursoFiltros = {}) {
-        try {
-            const { items } = await apiService.getRecursosPaginados(filters);
-            return items;
         } catch (error) {
             console.error("API Error (getRecursos):", error);
             throw error;
@@ -570,8 +513,6 @@ export const apiService = {
         malla_id?: number;
         ciclo_actual: number;
         cursos_inscritos: number[];
-        /** Historial declarado en el wizard: cursos de ciclos previos ya aprobados. */
-        cursos_aprobados?: number[];
     }) {
         try {
             const response = await fetchWithAuth(`${API_URL}/onboarding/complete`, {
@@ -598,9 +539,9 @@ export const apiService = {
     },
 
     /**
-     * Inicia sesión contra el backend (RF-01), que acepta correo institucional
-     * o código universitario. Antes esto llamaba a Supabase directamente, lo
-     * que hacía imposible entrar con el código.
+     * Inicia sesi├│n contra el backend (RF-01), que acepta correo institucional
+     * o c├│digo universitario. Antes esto llamaba a Supabase directamente, lo
+     * que hac├¡a imposible entrar con el c├│digo.
      */
     async login(credentials: { identificador: string; password: string }) {
         try {
@@ -616,7 +557,7 @@ export const apiService = {
                 const mensaje = body?.errors?.[0]?.message
                     || body?.detail
                     || "No pudimos validar tus credenciales.";
-                // Credenciales inválidas son un resultado esperado: la UI las
+                // Credenciales inv├ílidas son un resultado esperado: la UI las
                 // muestra; no deben disparar el overlay "Console Error" de dev.
                 const credencialesInvalidas = new Error(mensaje) as any;
                 credencialesInvalidas.esCredencialesInvalidas = true;
@@ -624,14 +565,14 @@ export const apiService = {
             }
 
             // El resto de la app obtiene el token desde el cliente de Supabase
-            // (fetchWithAuth -> getSession). Como la sesión la creó el backend,
-            // hay que cargarla aquí o toda petición posterior saldría sin token.
+            // (fetchWithAuth -> getSession). Como la sesi├│n la cre├│ el backend,
+            // hay que cargarla aqu├¡ o toda petici├│n posterior saldr├¡a sin token.
             const { error: sessionError } = await supabase.auth.setSession({
                 access_token: body.access_token,
                 refresh_token: body.refresh_token,
             });
             if (sessionError) {
-                throw new Error("No se pudo iniciar la sesión en el navegador.");
+                throw new Error("No se pudo iniciar la sesi├│n en el navegador.");
             }
 
             if (typeof window !== 'undefined') {
@@ -639,7 +580,7 @@ export const apiService = {
                 localStorage.setItem('token', body.access_token);
             }
 
-            // Sesión nueva: nada de lo cacheado del usuario anterior aplica.
+            // Sesi├│n nueva: nada de lo cacheado del usuario anterior aplica.
             limpiarCache();
 
             return {
@@ -650,7 +591,7 @@ export const apiService = {
                 onboardingCompletado: body.onboarding_completado,
             };
         } catch (error: any) {
-            // Credenciales inválidas no son un fallo del sistema: se omiten en
+            // Credenciales inv├ílidas no son un fallo del sistema: se omiten en
             // la consola para no activar el overlay de error de desarrollo.
             if (!error?.esCredencialesInvalidas) {
                 console.error("API Error (login):", error);
@@ -660,10 +601,10 @@ export const apiService = {
     },
 
     /**
-     * Pide el correo de recuperación de contraseña (RF-03).
+     * Pide el correo de recuperaci├│n de contrase├▒a (RF-03).
      *
-     * El backend responde lo mismo exista o no la cuenta, para no revelar qué
-     * correos están registrados. La UI debe mostrar ese mensaje tal cual.
+     * El backend responde lo mismo exista o no la cuenta, para no revelar qu├®
+     * correos est├ín registrados. La UI debe mostrar ese mensaje tal cual.
      */
     async solicitarRecuperacion(email: string) {
         try {
@@ -689,7 +630,7 @@ export const apiService = {
     },
 
     /**
-     * Guarda la contraseña nueva (RF-03). Requiere la sesión temporal que
+     * Guarda la contrase├▒a nueva (RF-03). Requiere la sesi├│n temporal que
      * Supabase crea al abrir el enlace del correo.
      */
     async restablecerPassword(passwordNueva: string) {
@@ -704,14 +645,14 @@ export const apiService = {
 
             if (!response.ok) {
                 throw new Error(
-                    body?.errors?.[0]?.message || "No se pudo actualizar la contraseña."
+                    body?.errors?.[0]?.message || "No se pudo actualizar la contrase├▒a."
                 );
             }
 
             return body;
         } catch (error: any) {
             console.error("API Error (restablecerPassword):", error);
-            throw new Error(error.message || "No se pudo actualizar la contraseña.");
+            throw new Error(error.message || "No se pudo actualizar la contrase├▒a.");
         }
     },
 

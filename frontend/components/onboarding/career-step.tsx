@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowRight, Network, Code, Factory, Cpu, Building2, GraduationCap, AlertCircle } from "lucide-react"
+import { ArrowRight, ArrowLeft, Network, Code, Factory, Cpu, Building2, GraduationCap, AlertCircle } from "lucide-react"
 import type { Carrera, OnboardingData } from "@/types/onboarding"
 
 const getCareerIcon = (name: string = "") => {
@@ -17,10 +17,12 @@ const getCareerIcon = (name: string = "") => {
 interface CareerStepProps {
   data: OnboardingData
   onNext: (data: Partial<OnboardingData>) => void
+  onBack: () => void
+  /** Ya filtradas por la facultad elegida en el paso anterior. */
   careers: Carrera[]
 }
 
-export function CareerStep({ data, onNext, careers }: CareerStepProps) {
+export function CareerStep({ data, onNext, onBack, careers }: CareerStepProps) {
   const [selected, setSelected] = useState<number>(data.career)
 
   const handleContinue = () => {
@@ -29,8 +31,9 @@ export function CareerStep({ data, onNext, careers }: CareerStepProps) {
     }
   }
 
-  // Sin carreras no hay nada que elegir: si el backend falló, el estudiante
-  // solo veía una pantalla en blanco sin saber por qué.
+  // La lista llega ya filtrada por facultad: si viene vacía, esa facultad aún
+  // no tiene carreras cargadas. Mandar a "reintentar" sería mentir, porque
+  // recargar no las va a traer; lo útil es volver y elegir otra facultad.
   if (!careers?.length) {
     return (
       <div className="flex flex-col items-center text-center gap-4 py-16">
@@ -39,18 +42,19 @@ export function CareerStep({ data, onNext, careers }: CareerStepProps) {
         </div>
         <div className="space-y-1">
           <h2 className="font-heading text-lg font-bold text-foreground">
-            No pudimos cargar las carreras
+            Esta facultad todavía no tiene carreras disponibles
           </h2>
           <p className="text-sm text-muted-foreground max-w-sm">
-            Revisa tu conexión y vuelve a intentarlo en unos segundos.
+            Vuelve al paso anterior y elige otra facultad.
           </p>
         </div>
         <button
           type="button"
-          onClick={() => window.location.reload()}
-          className="px-6 py-2.5 rounded-xl text-sm font-semibold text-foreground bg-card border border-border hover:bg-muted transition-colors"
+          onClick={onBack}
+          className="px-6 py-2.5 rounded-xl text-sm font-semibold text-foreground bg-card border border-border hover:bg-muted transition-colors flex items-center gap-2"
         >
-          Reintentar
+          <ArrowLeft className="w-4 h-4" />
+          <span>Volver</span>
         </button>
       </div>
     )
@@ -112,7 +116,15 @@ export function CareerStep({ data, onNext, careers }: CareerStepProps) {
         })}
       </div>
 
-      <div className="flex justify-end pt-2">
+      <div className="flex justify-between items-center pt-2">
+        <button
+          type="button"
+          onClick={onBack}
+          className="px-6 py-3 rounded-xl text-sm font-semibold text-foreground bg-card border border-border hover:bg-muted transition-colors flex items-center gap-2"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Volver</span>
+        </button>
         <button
           type="button"
           onClick={handleContinue}

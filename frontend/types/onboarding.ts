@@ -1,6 +1,12 @@
 // Tipos del onboarding. Los que describen respuestas del backend son espejo de
 // `backend/app/schemas/onboarding.py`: si cambia un campo allá, cambia aquí.
 export interface OnboardingData {
+  /**
+   * Facultad elegida en el primer paso. No se persiste: se deriva de la
+   * carrera (`carreras.facultad_id`). Vive aquí solo para filtrar el paso
+   * siguiente y poder volver atrás sin perder la elección.
+   */
+  facultad?: number
   career: number
   semester: number
   malla_id?: number

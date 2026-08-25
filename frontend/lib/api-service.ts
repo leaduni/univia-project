@@ -112,6 +112,8 @@ export interface RecursosPagina {
     total: number;
     /** true cuando se pidió `mis_cursos` y el estudiante no tiene ninguno activo. */
     sinCursosActivos: boolean;
+    /** Facultad a la que el backend acotó el listado. Solo para mostrar contexto. */
+    facultad?: string | null;
 }
 
 function construirParamsRecursos(filters: RecursoFiltros): URLSearchParams {
@@ -452,7 +454,7 @@ export const apiService = {
      * la biblioteca se bajaba el catálogo entero y filtraba en el navegador.
      */
     async getRecursosPaginados(filters: RecursoFiltros = {}): Promise<RecursosPagina> {
-        const vacia: RecursosPagina = { items: [], total: 0, sinCursosActivos: false };
+        const vacia: RecursosPagina = { items: [], total: 0, sinCursosActivos: false, facultad: null };
         try {
             const params = construirParamsRecursos(filters);
 
@@ -475,6 +477,7 @@ export const apiService = {
                     items: body?.items ?? [],
                     total: body?.total ?? 0,
                     sinCursosActivos: Boolean(body?.sin_cursos_activos),
+                    facultad: body?.facultad ?? null,
                 };
             }, { ttl: TTL.CINCO_MINUTOS });
         } catch (error) {
@@ -486,7 +489,10 @@ export const apiService = {
     /** Lista simple de recursos, para pantallas que no paginan. */
     async getRecursos(filters: RecursoFiltros = {}) {
         try {
-            const { items } = await apiService.getRecursosPaginados(filters);
+            // Sin `limit` explícito el backend pagina de 20 en 20; estas
+            // pantallas (banco de exámenes de un curso, recientes) esperan el
+            // listado completo, así que se pide el máximo que admite.
+            const { items } = await apiService.getRecursosPaginados({ limit: 100, ...filters });
             return items;
         } catch (error) {
             console.error("API Error (getRecursos):", error);

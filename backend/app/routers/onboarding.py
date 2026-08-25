@@ -598,6 +598,32 @@ async def complete_onboarding(
 
         prereq_map = _cargar_prerrequisitos(supabase, mc_data)
 
+        # Historial declarado en el wizard. Se ignoran los cursos ajenos a la
+        # malla en vez de cortar con 400: cambiar de plan de estudios deja
+        # marcados cursos que ya no existen en el nuevo, y eso no es culpa del
+        # estudiante ni debe bloquearle el registro.
+        declarados: Set[int] = {
+            cid for cid in data.cursos_aprobados if cid in cursos_en_carrera
+        }
+        solapados = declarados & inscritos_set
+        if solapados:
+            raise_field_error(
+                "cursos_aprobados",
+                "No puedes declarar como aprobado un curso que también estás "
+                "inscribiendo: "
+                + ", ".join(cursos_en_carrera[cid]["name"] for cid in sorted(solapados))
+                + ".",
+                status_code=400,
+            )
+
+        # Aprobar un curso implica haber aprobado sus prerrequisitos. Se cierra
+        # la cadena aquí en vez de rechazar el envío: el historial resultante es
+        # el único coherente y evita dejar huecos que luego bloquean la malla.
+        for curso_id in list(declarados):
+            for prereq_id in resolve_prereq_chain(curso_id, prereq_map):
+                if prereq_id in cursos_en_carrera:
+                    declarados.add(prereq_id)
+
         progreso_db = supabase.table("progreso_cursos") \
             .select("curso_id, status") \
             .eq("perfil_id", user.id) \
@@ -623,7 +649,7 @@ async def complete_onboarding(
         if not cursos_inscritos:
             logger.info("All courses already persisted, skipping enrollment")
 
-        cursos_a_completar: Set[int] = set()
+        cursos_a_completar: Set[int] = set(declarados)
 
         for curso_id in cursos_inscritos:
             chain = resolve_prereq_chain(curso_id, prereq_map)
@@ -631,6 +657,17 @@ async def complete_onboarding(
                 if prereq_id in cursos_en_carrera:
                     cursos_a_completar.add(prereq_id)
 
+        # Quien vuelve a este paso desde "Actualizar situación académica" ya
+        # tiene filas en progreso_cursos: los cursos del ciclo que terminó están
+        # en 'in_progress' y ahora los declara aprobados. Sin este ascenso, la
+        # fila existente bloquea el insert y el avance nunca sube.
+        # Solo se asciende lo que el estudiante declaró: los prerrequisitos que
+        # se infieren de la matrícula no dicen nada sobre una fila ya existente,
+        # y tocarlas cambiaría el historial sin que nadie lo haya pedido.
+        a_ascender = {
+            cid for cid in declarados
+            if db_status.get(cid) not in (None, "completed")
+        }
         cursos_a_completar = {cid for cid in cursos_a_completar if cid not in db_status}
 
         progreso_items: List[dict] = []
@@ -649,6 +686,15 @@ async def complete_onboarding(
                 "curso_id": curso_id,
                 "status": "in_progress",
             })
+
+        if a_ascender:
+            (
+                supabase.table("progreso_cursos")
+                .update({"status": "completed", "fecha_completado": "now()"})
+                .eq("perfil_id", user.id)
+                .in_("curso_id", list(a_ascender))
+                .execute()
+            )
 
         if progreso_items:
             supabase.table("progreso_cursos").insert(progreso_items).execute()
@@ -670,7 +716,7 @@ async def complete_onboarding(
         except Exception as ae:
             logger.warning(f"No se pudo otorgar el logro: {ae}")
 
-        completados_final = list(cursos_a_completar)
+        completados_final = list(cursos_a_completar | a_ascender)
         inscritos_final = cursos_inscritos
         logger.info(
             f"Onboarding OK. Usuario={user.id}, "

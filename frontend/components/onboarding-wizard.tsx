@@ -2,19 +2,20 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { FacultyStep } from "./onboarding/faculty-step"
 import { CareerStep } from "./onboarding/career-step"
 import { MallaStep } from "./onboarding/malla-step"
 import { SemesterStep } from "./onboarding/semester-step"
 import { CurrentEnrollmentStep } from "./onboarding/current-enrollment-step"
 import { CompletionStep } from "./onboarding/completion-step"
-import type { Carrera, OnboardingData, OnboardingDataResponse } from "@/types/onboarding"
+import type { Carrera, Facultad, OnboardingData, OnboardingDataResponse } from "@/types/onboarding"
 import { useAuth } from "./providers/auth-context"
 import { apiService } from "@/lib/api-service"
 import { Loader2 } from "lucide-react"
 import { BrandLogo } from "@/app/auth/brand-logo"
 import { OnboardingProgress } from "./onboarding/onboarding-progress"
 
-const STEPS = ["Carrera", "Plan", "Ciclo", "Cursos", "Confirmación"]
+const STEPS = ["Facultad", "Carrera", "Plan", "Ciclo", "Cursos", "Confirmación"]
 
 /** Usado solo si el backend no informa la duración del plan. */
 const CICLOS_POR_DEFECTO = 10
@@ -26,17 +27,29 @@ export function OnboardingWizard() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [onboardingMeta, setOnboardingMeta] = useState<{ careers: Carrera[] }>({ careers: [] })
+  const [onboardingMeta, setOnboardingMeta] = useState<{
+    careers: Carrera[]
+    facultades: Facultad[]
+  }>({ careers: [], facultades: [] })
 
+  // `cursosAprobados` arranca sin definir a propósito: el paso de cursos usa
+  // "no declarado aún" para pre-marcar los ciclos previos. Un [] inicial se lee
+  // como "el estudiante no aprobó nada" y deja el historial en blanco.
   const [data, setData] = useState<OnboardingData>({
     career: 0,
     semester: 1,
     cursosInscritos: [],
-    cursosAprobados: [],
   })
 
   const selectedCareer = onboardingMeta.careers.find((c) => c.id === data.career)
   const selectedCareerName = selectedCareer?.name || "Tu carrera"
+
+  // El paso de carrera solo ofrece las de la facultad elegida. Sin facultad
+  // todavía (primera carga) la lista queda vacía, que es lo correcto: no se
+  // llega a ese paso sin haber pasado por el anterior.
+  const careersDeFacultad = data.facultad
+    ? onboardingMeta.careers.filter((c) => c.facultad?.id === data.facultad)
+    : []
 
   // El tope de ciclos es el del plan de la carrera elegida. Antes la grilla
   // estaba fija en 8, así que quien iba en 9no o 10mo no podía declararlo.
@@ -47,7 +60,10 @@ export function OnboardingWizard() {
       try {
         setLoading(true)
         const result: OnboardingDataResponse = await apiService.getOnboardingData()
-        setOnboardingMeta({ careers: result?.carreras ?? [] })
+        setOnboardingMeta({
+          careers: result?.carreras ?? [],
+          facultades: result?.facultades ?? [],
+        })
       } catch (error) {
         console.error("Error fetching onboarding meta:", error)
       } finally {
@@ -58,7 +74,29 @@ export function OnboardingWizard() {
   }, [])
 
   const handleNext = (stepData: Partial<OnboardingData>) => {
-    setData((prev) => ({ ...prev, ...stepData }))
+    setData((prev) => {
+      const siguiente = { ...prev, ...stepData }
+      // Cambiar de facultad invalida la carrera elegida (ya no pertenece a la
+      // nueva) y, con ella, todo lo que cuelga de la carrera.
+      if (stepData.facultad !== undefined && stepData.facultad !== prev.facultad) {
+        siguiente.career = 0
+        siguiente.malla_id = undefined
+      }
+
+      // Cambiar de carrera, plan o ciclo redefine qué cursos existen y cuáles
+      // se dan por aprobados: conservar la declaración anterior dejaría marcado
+      // historial de otra malla o de un ciclo que ya no aplica.
+      const baseCambio =
+        (stepData.facultad !== undefined && stepData.facultad !== prev.facultad) ||
+        (stepData.career !== undefined && stepData.career !== prev.career) ||
+        (stepData.malla_id !== undefined && stepData.malla_id !== prev.malla_id) ||
+        (stepData.semester !== undefined && stepData.semester !== prev.semester)
+      if (baseCambio) {
+        siguiente.cursosAprobados = undefined
+        siguiente.cursosInscritos = []
+      }
+      return siguiente
+    })
     setStep((prev) => Math.min(prev + 1, STEPS.length - 1))
   }
 
@@ -142,8 +180,18 @@ export function OnboardingWizard() {
             </div>
           ) : (
             <div className="animate-in fade-in zoom-in-95 duration-500">
-              {step === 0 && <CareerStep data={data} onNext={handleNext} careers={onboardingMeta.careers} />}
+              {step === 0 && (
+                <FacultyStep
+                  data={data}
+                  onNext={handleNext}
+                  facultades={onboardingMeta.facultades}
+                  careers={onboardingMeta.careers}
+                />
+              )}
               {step === 1 && (
+                <CareerStep data={data} onNext={handleNext} onBack={handleBack} careers={careersDeFacultad} />
+              )}
+              {step === 2 && (
                 <MallaStep
                   data={data}
                   onNext={handleNext}
@@ -152,7 +200,7 @@ export function OnboardingWizard() {
                   careerName={selectedCareerName}
                 />
               )}
-              {step === 2 && (
+              {step === 3 && (
                 <SemesterStep
                   data={data}
                   onNext={handleNext}
@@ -160,7 +208,7 @@ export function OnboardingWizard() {
                   maxCiclos={maxCiclos}
                 />
               )}
-              {step === 3 && (
+              {step === 4 && (
                 <CurrentEnrollmentStep
                   data={data}
                   onNext={handleNext}
@@ -169,7 +217,7 @@ export function OnboardingWizard() {
                   malla_id={data.malla_id}
                 />
               )}
-              {step === 4 && (
+              {step === 5 && (
                 <CompletionStep
                   data={data}
                   onBack={handleBack}

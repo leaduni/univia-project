@@ -1,6 +1,11 @@
 """
-Barre la carpeta pública de Drive con los PDFs de recursos por curso y hace
+Barre una carpeta pública de Drive con los PDFs de recursos por curso y hace
 upsert de cada archivo en la tabla `recursos`.
+
+Uso:
+    python ingestar_recursos_drive.py                      # banco por defecto
+    python ingestar_recursos_drive.py --carpeta <ID|URL>   # otra carpeta
+    python ingestar_recursos_drive.py --carpeta <ID> --simular   # sin escribir
 
 Requiere:
   - GOOGLE_DRIVE_API_KEY en .env (ver .env.example: no hace falta service
@@ -12,6 +17,7 @@ Requiere:
 Reintentable: usa curso_id resuelto para elegir entre insertar o actualizar,
 así que correrlo de nuevo no duplica filas.
 """
+import argparse
 import os
 import re
 import sys
@@ -30,6 +36,37 @@ from app.core.tipos_recursos import normalizar_tipo
 
 ROOT_FOLDER_ID = "1EY6Bm0NXTm85VkVLIC7T4-lilubKDQDV"
 API_KEY = os.getenv("GOOGLE_DRIVE_API_KEY")
+
+# Valor de .env.example: si sigue ahí, nadie configuró la key todavía y las
+# llamadas fallarían con un 400 genérico de Google difícil de interpretar.
+API_KEY_PLACEHOLDER = "tu_google_drive_api_key_aqui"
+
+
+def extraer_folder_id(valor: str) -> str:
+    """Acepta un ID suelto o una URL de Drive y devuelve siempre el ID.
+
+    Pegar la URL de la barra del navegador es lo natural; obligar a recortar
+    el ID a mano solo invita a errores de copiado.
+    """
+    valor = (valor or "").strip()
+    m = re.search(r"/folders/([A-Za-z0-9_\-]+)", valor)
+    if m:
+        return m.group(1)
+    m = re.search(r"[?&]id=([A-Za-z0-9_\-]+)", valor)
+    if m:
+        return m.group(1)
+    return valor
+
+
+def verificar_api_key() -> None:
+    """Corta temprano y con un mensaje claro si la API key no sirve."""
+    if not API_KEY or API_KEY == API_KEY_PLACEHOLDER:
+        raise SystemExit(
+            "GOOGLE_DRIVE_API_KEY no está configurada en backend/.env "
+            f"(valor actual: {'vacío' if not API_KEY else 'el placeholder de .env.example'}).\n"
+            "Créala en https://console.cloud.google.com/apis/credentials "
+            "con la 'Google Drive API' habilitada."
+        )
 
 MIME_FOLDER = "application/vnd.google-apps.folder"
 MIME_PDF = "application/pdf"
@@ -69,18 +106,36 @@ def drive_list(folder_id: str) -> list:
     return items
 
 
-def collect_pdfs(folder_id: str, depth: int = 1, max_depth: int = 3) -> list:
-    """Recolecta PDFs de una carpeta, bajando hasta max_depth niveles."""
+# Profundidad por defecto del recorrido. El banco original es plano
+# (curso/archivos), pero carpetas como la de FIM anidan por unidad, semana y
+# profesor: con el tope anterior de 3 se perdía más de la mitad de los PDFs
+# sin más aviso que un WARN en medio del log.
+PROFUNDIDAD_POR_DEFECTO = 8
+
+
+def collect_pdfs(folder_id: str, depth: int = 1, max_depth: int = PROFUNDIDAD_POR_DEFECTO,
+                 omitidos: Optional[dict] = None) -> list:
+    """Recolecta PDFs de una carpeta, bajando hasta max_depth niveles.
+
+    `omitidos` acumula, si se pasa, cuántos archivos que no son PDF quedaron
+    fuera: son docx/pptx/videos que el banco todavía no sabe ingerir y que de
+    otro modo desaparecen sin dejar rastro en el resumen.
+    """
     items = drive_list(folder_id)
     pdfs = [f for f in items if f.get("mimeType") == MIME_PDF]
     subfolders = [f for f in items if f.get("mimeType") == MIME_FOLDER]
 
-    if subfolders and depth + 1 >= max_depth:
+    if omitidos is not None:
+        for f in items:
+            if f.get("mimeType") not in (MIME_PDF, MIME_FOLDER):
+                omitidos["no_pdf"] = omitidos.get("no_pdf", 0) + 1
+
+    if subfolders and depth + 1 > max_depth:
         print(f"  [WARN] Subcarpetas no exploradas por profundidad máxima ({max_depth}): "
               f"{[f['name'] for f in subfolders]}")
     else:
         for sf in subfolders:
-            pdfs.extend(collect_pdfs(sf["id"], depth + 1, max_depth))
+            pdfs.extend(collect_pdfs(sf["id"], depth + 1, max_depth, omitidos))
     return pdfs
 
 
@@ -113,7 +168,33 @@ def parse_year(text: str):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Ingesta de recursos desde una carpeta de Drive.")
+    parser.add_argument(
+        "--carpeta",
+        default=ROOT_FOLDER_ID,
+        help="ID o URL de la carpeta raíz de Drive. Por defecto, el banco original.",
+    )
+    parser.add_argument(
+        "--simular",
+        action="store_true",
+        help="Recorre Drive y reporta qué se ingeriría, sin escribir en la base.",
+    )
+    parser.add_argument(
+        "--profundidad",
+        type=int,
+        default=PROFUNDIDAD_POR_DEFECTO,
+        help=f"Niveles de subcarpetas a explorar (por defecto {PROFUNDIDAD_POR_DEFECTO}).",
+    )
+    args = parser.parse_args()
+
+    verificar_api_key()
+    root_folder_id = extraer_folder_id(args.carpeta)
+
     sb = get_admin_client()
+
+    print(f"Carpeta raíz: {root_folder_id}")
+    if args.simular:
+        print("Modo simulación: no se escribirá nada en la base.\n")
 
     print("Cargando cursos...")
     cursos_resp = sb.table("cursos").select("id, code, name").execute()
@@ -135,12 +216,13 @@ def main():
     print(f"  {len(cursos_resp.data or [])} cursos cargados, {len(prefix_map)} prefijos de código.")
 
     print("\nListando carpetas de Drive...")
-    root_items = drive_list(ROOT_FOLDER_ID)
+    root_items = drive_list(root_folder_id)
     folders = [f for f in root_items if f.get("mimeType") == MIME_FOLDER]
     print(f"  {len(folders)} carpetas encontradas en la raíz.")
 
     rows = []
     stats = {"carpetas_ok": 0, "carpetas_sin_match": 0, "carpetas_omitidas": 0, "archivos": 0}
+    omitidos = {"no_pdf": 0}
 
     for folder in folders:
         nombre_carpeta = folder["name"]
@@ -169,7 +251,7 @@ def main():
             stats["carpetas_sin_match"] += 1
             target_cursos = [None]
 
-        pdfs = collect_pdfs(folder["id"])
+        pdfs = collect_pdfs(folder["id"], max_depth=args.profundidad, omitidos=omitidos)
         print(f"  {len(pdfs)} PDFs encontrados.")
 
         for pdf in pdfs:
@@ -195,12 +277,25 @@ def main():
                 })
                 stats["archivos"] += 1
 
-    print(f"\n\nUpsert de {len(rows)} filas...")
     rows_con_curso = [r for r in rows if r["curso_id"] is not None]
     rows_huerfanas = [r for r in rows if r["curso_id"] is None]
 
     insertadas = 0
     actualizadas = 0
+
+    if args.simular:
+        print(f"\n\n[SIMULACIÓN] Se habrían procesado {len(rows)} filas: "
+              f"{len(rows_con_curso)} con curso resuelto y {len(rows_huerfanas)} huérfanas.")
+        print("\n=== Resumen (simulación) ===")
+        print(f"Carpetas emparejadas: {stats['carpetas_ok']}")
+        print(f"Carpetas sin emparejar (huérfanas): {stats['carpetas_sin_match']}")
+        print(f"Carpetas omitidas: {stats['carpetas_omitidas']}")
+        print(f"Archivos procesados: {stats['archivos']}")
+        print(f"Archivos ignorados por no ser PDF: {omitidos['no_pdf']}")
+        print("No se escribió nada en la base.")
+        return
+
+    print(f"\n\nUpsert de {len(rows)} filas...")
 
     if rows_con_curso:
         sb.table("recursos").upsert(rows_con_curso, on_conflict="drive_file_id,curso_id").execute()
@@ -226,6 +321,7 @@ def main():
     print(f"Carpetas sin emparejar (huérfanas): {stats['carpetas_sin_match']}")
     print(f"Carpetas omitidas: {stats['carpetas_omitidas']}")
     print(f"Archivos procesados: {stats['archivos']}")
+    print(f"Archivos ignorados por no ser PDF: {omitidos['no_pdf']}")
     print(f"Filas nuevas insertadas: {insertadas}")
     print(f"Filas existentes actualizadas: {actualizadas}")
 

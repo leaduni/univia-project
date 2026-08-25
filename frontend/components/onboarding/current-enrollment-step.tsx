@@ -129,9 +129,11 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id, malla_
         // primera visita se asume la progresión normal de malla: todo lo de
         // ciclos anteriores está aprobado y el estudiante solo desmarca sus
         // excepciones (cursos jalados o que aún no lleva).
+        // Se compara contra undefined, no por verdad: una declaración vacía
+        // ("no aprobé nada") es válida y no debe re-pre-marcarse.
         const previosAprobados = data.cursosAprobados
         setAprobados(
-          previosAprobados
+          previosAprobados !== undefined
             ? new Set(previosAprobados)
             : new Set(
                 items
@@ -192,9 +194,11 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id, malla_
     [cursos, cicloActual],
   )
 
-  /** Cursos ofertables: los del ciclo declarado más los previos no aprobados. */
+  /** Cursos ofertables: los del ciclo declarado más los previos no aprobados.
+   *  Los de ciclos posteriores quedan fuera: nadie se matricula en un ciclo que
+   *  todavía no alcanza, y colarlos llenaba la lista de cursos imposibles. */
   const cursosOfertados = useMemo(
-    () => cursos.filter((c) => c.ciclo === cicloActual || !aprobados.has(c.id)),
+    () => cursos.filter((c) => c.ciclo <= cicloActual && !aprobados.has(c.id)),
     [cursos, cicloActual, aprobados],
   )
 
@@ -226,10 +230,14 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id, malla_
         )
       : cursosOfertados
     // Primero los del ciclo declarado: son los que el estudiante viene a marcar.
-    return [...lista].sort(
-      (a, b) => a.ciclo - b.ciclo || a.name.localeCompare(b.name),
-    )
-  }, [cursosOfertados, busqueda])
+    // Detrás van los arrastres, del ciclo más reciente al más antiguo.
+    return [...lista].sort((a, b) => {
+      const aEsDelCiclo = a.ciclo === cicloActual
+      const bEsDelCiclo = b.ciclo === cicloActual
+      if (aEsDelCiclo !== bEsDelCiclo) return aEsDelCiclo ? -1 : 1
+      return b.ciclo - a.ciclo || a.name.localeCompare(b.name)
+    })
+  }, [cursosOfertados, busqueda, cicloActual])
 
   const creditosSeleccionados = useMemo(
     () => cursos.filter((c) => selected.has(c.id)).reduce((total, c) => total + c.credits, 0),
@@ -250,8 +258,11 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id, malla_
    */
   const toggleAprobado = (courseId: number) => {
     const curso = cursosPorId.get(courseId)
-    // Lo que ya está registrado en la base no se declara aquí.
-    if (curso?.status === "completed" || curso?.status === "in_progress") return
+    // Un curso ya aprobado en la base no se puede desaprobar desde aquí. Los
+    // `in_progress` sí se tocan: al actualizar la situación académica, los
+    // cursos del ciclo que acaba de terminar son justamente los que el
+    // estudiante viene a declarar como aprobados o jalados.
+    if (curso?.status === "completed") return
 
     const next = new Set(aprobados)
     if (next.has(courseId)) {
@@ -285,7 +296,7 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id, malla_
     const delCiclo = cursosPrevios.filter((c) => c.ciclo === cicloNum)
     const next = new Set(aprobados)
     for (const curso of delCiclo) {
-      if (curso.status === "completed" || curso.status === "in_progress") continue
+      if (curso.status === "completed") continue
       if (marcar) {
         next.add(curso.id)
         for (const previo of resolvePrereqs(curso.id, prereqMap)) {
@@ -451,8 +462,7 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id, malla_
                       <div className="flex flex-wrap gap-2 p-2.5 pt-0">
                         {grupo.courses.map((course) => {
                           const estaAprobado = aprobados.has(course.id)
-                          const bloqueadoEnBd =
-                            course.status === "completed" || course.status === "in_progress"
+                          const bloqueadoEnBd = course.status === "completed"
                           return (
                             <button
                               key={course.id}

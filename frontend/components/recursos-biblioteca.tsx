@@ -37,36 +37,16 @@ export function RecursosBiblioteca() {
   const [total, setTotal] = useState(0)
   const [sinCursosActivos, setSinCursosActivos] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  // Facultad a la que el backend acota el listado. No es un filtro que el
+  // estudiante elija: se deriva de su carrera y solo se muestra como contexto.
+  const [facultad, setFacultad] = useState<string | null>(null)
 
   // Filter states
   const [selectedTypes, setSelectedTypes] = useState<string[]>(
     tipoInicial ? [tipoInicial] : [],
   )
   const [selectedCiclos, setSelectedCiclos] = useState<string[]>([])
-  const [selectedFacultad, setSelectedFacultad] = useState<string>("")
   const [selectedYears, setSelectedYears] = useState<string[]>([])
-
-  const [facultades, setFacultades] = useState<string[]>([])
-
-  // El catálogo de facultades sale del endpoint de onboarding, no de los
-  // recursos visibles: derivarlo de la página actual daría una lista distinta
-  // en cada página.
-  useEffect(() => {
-    if (!session) return
-    let activo = true
-    apiService
-      .getOnboardingData()
-      .then((data) => {
-        if (!activo) return
-        setFacultades((data?.facultades ?? []).map((f: any) => f.nombre).filter(Boolean))
-      })
-      .catch(() => {
-        if (activo) setFacultades([])
-      })
-    return () => {
-      activo = false
-    }
-  }, [session])
 
   const claveFiltros = JSON.stringify({
     vista,
@@ -74,7 +54,6 @@ export function RecursosBiblioteca() {
     sortBy,
     selectedTypes,
     selectedCiclos,
-    selectedFacultad,
     selectedYears,
   })
 
@@ -103,7 +82,6 @@ export function RecursosBiblioteca() {
           tipo: selectedTypes.length ? selectedTypes.join(",") : undefined,
           ciclo: selectedCiclos.length ? Number(selectedCiclos[0]) : undefined,
           year: selectedYears.length ? Number(selectedYears[0]) : undefined,
-          facultad: selectedFacultad || undefined,
           orden: sortBy,
           limit: RECURSOS_POR_PAGINA,
           offset: (paginaActual - 1) * RECURSOS_POR_PAGINA,
@@ -112,6 +90,7 @@ export function RecursosBiblioteca() {
         setRecursos(pagina.items as Recurso[])
         setTotal(pagina.total)
         setSinCursosActivos(pagina.sinCursosActivos)
+        setFacultad(pagina.facultad ?? null)
       } catch (err) {
         if (activo) {
           console.error("Error fetching recursos:", err)
@@ -184,7 +163,8 @@ export function RecursosBiblioteca() {
             <p className="text-muted-foreground text-sm">
               {vista === "mis-cursos"
                 ? "Material de los cursos que llevas este ciclo"
-                : "Repositorio global de materiales académicos de la universidad"}
+                : "Todo el material académico de tu facultad"}
+              {facultad && <span className="text-muted-foreground/70"> · {facultad}</span>}
             </p>
           </div>
 
@@ -225,22 +205,9 @@ export function RecursosBiblioteca() {
               />
             </div>
 
-            {/* Select Facultad */}
-            <div className="w-full sm:w-48">
-              <Select value={selectedFacultad || "all"} onValueChange={(v) => setSelectedFacultad(v === "all" ? "" : v)}>
-                <SelectTrigger className="h-11 rounded-xl bg-[#232532] border border-[#3f424d]/60 text-sm">
-                  <SelectValue placeholder="Facultad" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas las facultades</SelectItem>
-                  {facultades.map((fac) => (
-                    <SelectItem key={fac} value={fac}>
-                      {fac}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Sin selector de facultad: el listado ya viene acotado a la
+                facultad del estudiante, así que ofrecer "todas" prometía
+                material que nunca se iba a mostrar. */}
 
             {/* Select Ciclo */}
             <div className="w-full sm:w-40">

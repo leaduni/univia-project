@@ -8,6 +8,10 @@ CICLO_MAXIMO_ADMITIDO = 20
 # Evita que una petición manipulada intente inscribir cientos de cursos.
 MAX_CURSOS_INSCRITOS = 12
 
+# Cota del historial declarado: ninguna malla de la universidad pasa de este
+# número de cursos, así que un envío mayor solo puede venir manipulado.
+MAX_CURSOS_APROBADOS = 200
+
 # Duración de plan asumida cuando la carrera no la tiene registrada.
 CICLO_POR_DEFECTO = 10
 
@@ -43,6 +47,21 @@ class OnboardingCompleteRequest(SeleccionCursosBase):
 
     carrera_id: int = Field(gt=0)
     malla_id: int | None = None
+    # Historial que el estudiante declara en el wizard. No se puede deducir:
+    # `progreso_cursos` está vacía al registrarse, así que sin este dato quien
+    # entra en un ciclo avanzado quedaba sin ningún curso previo aprobado.
+    cursos_aprobados: List[int] = []
+
+    @field_validator("cursos_aprobados")
+    @classmethod
+    def validar_aprobados(cls, v: List[int]) -> List[int]:
+        if len(set(v)) != len(v):
+            raise ValueError("Hay cursos repetidos en tu historial académico.")
+        if any(cid <= 0 for cid in v):
+            raise ValueError("Tu historial académico contiene un identificador inválido.")
+        if len(v) > MAX_CURSOS_APROBADOS:
+            raise ValueError("Tu historial académico declara demasiados cursos.")
+        return v
 
 
 class ActualizarCursosRequest(SeleccionCursosBase):

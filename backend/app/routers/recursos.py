@@ -5,7 +5,7 @@ el tab "Banco de exámenes" de cada curso (filtrado por curso_id).
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Tuple, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from app.core.auth_utils import get_current_user
@@ -14,6 +14,87 @@ from app.core.tipos_recursos import normalizar_tipo
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _alcance_de_facultad(supabase, user) -> Tuple[Optional[List[int]], Optional[str]]:
+    """Cursos visibles para el estudiante y el nombre de su facultad.
+
+    La biblioteca está acotada a la facultad a la que pertenece el estudiante:
+    un alumno de FIIS no tiene por qué toparse con el material de FIM. La
+    facultad no se guarda en `perfiles`, se deriva de la carrera
+    (`perfiles.carrera_id -> carreras.facultad_id`), que es la única fuente de
+    verdad y no puede quedar desincronizada.
+
+    Devuelve `(None, None)` cuando no se puede resolver (perfil sin carrera,
+    es decir onboarding sin terminar): quien llama decide qué hacer.
+    """
+    try:
+        perfil_resp = (
+            supabase.table("perfiles")
+            .select("carrera_id")
+            .eq("id", user.id)
+            .maybe_single()
+            .execute()
+        )
+        perfil = getattr(perfil_resp, "data", None) if perfil_resp else None
+        carrera_id = (perfil or {}).get("carrera_id")
+        if not carrera_id:
+            return None, None
+
+        carrera_resp = (
+            supabase.table("carreras")
+            .select("facultad_id")
+            .eq("id", carrera_id)
+            .maybe_single()
+            .execute()
+        )
+        carrera = getattr(carrera_resp, "data", None) if carrera_resp else None
+        facultad_id = (carrera or {}).get("facultad_id")
+        if not facultad_id:
+            return None, None
+
+        facultad_resp = (
+            supabase.table("facultades")
+            .select("nombre")
+            .eq("id", facultad_id)
+            .maybe_single()
+            .execute()
+        )
+        facultad = getattr(facultad_resp, "data", None) if facultad_resp else None
+        facultad_nombre = (facultad or {}).get("nombre")
+
+        # Un curso pertenece a la facultad si aparece en alguna malla de
+        # alguna de sus carreras. Se recorre por malla_cursos y no por una
+        # columna en `cursos` porque un mismo curso (Cálculo, Física) lo
+        # comparten varias carreras.
+        carreras_resp = (
+            supabase.table("carreras").select("id").eq("facultad_id", facultad_id).execute()
+        )
+        carrera_ids = [c["id"] for c in (getattr(carreras_resp, "data", None) or [])]
+        if not carrera_ids:
+            return [], facultad_nombre
+
+        mallas_resp = (
+            supabase.table("mallas").select("id").in_("carrera_id", carrera_ids).execute()
+        )
+        malla_ids = [m["id"] for m in (getattr(mallas_resp, "data", None) or [])]
+        if not malla_ids:
+            return [], facultad_nombre
+
+        mc_resp = (
+            supabase.table("malla_cursos").select("curso_id").in_("malla_id", malla_ids).execute()
+        )
+        curso_ids = sorted(
+            {
+                mc["curso_id"]
+                for mc in (getattr(mc_resp, "data", None) or [])
+                if mc.get("curso_id") is not None
+            }
+        )
+        return curso_ids, facultad_nombre
+    except Exception as e:
+        logger.error(f"Error resolviendo la facultad de {user.id}: {e}")
+        return None, None
 
 
 @router.get("/recursos")
@@ -25,17 +106,81 @@ async def get_recursos(
     year: Optional[int] = Query(None),
     facultad: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    orden: str = Query("recent", pattern="^(recent|downloaded|rated)$"),
+    mis_cursos: bool = Query(False, description="Solo material de los cursos que el estudiante lleva ahora."),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     user_data=Depends(get_current_user),
 ):
-    """Lista de recursos académicos, con filtros combinables."""
+    """Página de recursos académicos, con filtros combinables.
+
+    Devuelve `{items, total, sin_cursos_activos, facultad}`. `total` cuenta
+    documentos ya agrupados (un PDF compartido por varias carreras es una sola
+    tarjeta), que es lo que la biblioteca pagina.
+
+    Todo el listado está acotado a la facultad del estudiante, en las dos
+    vistas ("mis cursos" y "todo el banco").
+    """
     user, token = user_data
     supabase = get_supabase(token)
 
     try:
+        cursos_facultad, facultad_usuario = _alcance_de_facultad(supabase, user)
+        vacia = {
+            "items": [],
+            "total": 0,
+            "sin_cursos_activos": False,
+            "facultad": facultad_usuario,
+        }
+
+        # Sin facultad resoluble no hay alcance que aplicar. Se devuelve vacío
+        # en vez de todo el banco: fallar abierto aquí mostraría material de
+        # otras facultades, que es justo lo que este filtro evita.
+        if cursos_facultad is None:
+            logger.info(f"Recursos sin facultad resoluble para {user.id}; se omite el listado.")
+            return vacia
+        if not cursos_facultad:
+            return vacia
+
         # Filas sin curso_id resuelto (huérfanas de la ingesta de Drive) no se
         # muestran en la biblioteca pública: quedan solo en la BD para
         # revisión manual hasta que se les asigne un curso real.
-        query = supabase.table("recursos").select("*").not_.is_("curso_id", "null")
+        query = (
+            supabase.table("recursos")
+            .select("*")
+            .not_.is_("curso_id", "null")
+            .in_("curso_id", cursos_facultad)
+        )
+
+        if mis_cursos:
+            # Se filtra contra la BD y no después de agrupar: el objetivo de
+            # esta vista es no traerse el banco entero de la universidad.
+            progreso_resp = (
+                supabase.table("progreso_cursos")
+                .select("curso_id")
+                .eq("perfil_id", user.id)
+                .eq("status", "in_progress")
+                .execute()
+            )
+            mis_curso_ids = [
+                p["curso_id"]
+                for p in (getattr(progreso_resp, "data", None) or [])
+                if p.get("curso_id") is not None
+            ]
+            # Sin matrícula activa no hay nada que mostrar, pero tampoco es un
+            # banco vacío: el frontend distingue ambos casos con esta bandera.
+            if not mis_curso_ids:
+                return {**vacia, "sin_cursos_activos": True}
+
+            # Se cruza en Python en vez de encadenar un segundo .in_ sobre la
+            # misma columna: así el alcance de facultad se respeta explícitamente
+            # y no depende de cómo PostgREST combine dos filtros iguales.
+            permitidos = set(cursos_facultad)
+            mis_curso_ids = [cid for cid in mis_curso_ids if cid in permitidos]
+            if not mis_curso_ids:
+                return {**vacia, "sin_cursos_activos": True}
+            query = query.in_("curso_id", mis_curso_ids)
+
         if curso_id is not None:
             query = query.eq("curso_id", curso_id)
         if ciclo is not None:
@@ -43,12 +188,17 @@ async def get_recursos(
         if year is not None:
             query = query.eq("year", year)
         if tipo:
-            query = query.eq("tipo", normalizar_tipo(tipo))
+            # El selector de categorías permite marcar varios chips a la vez.
+            tipos = [normalizar_tipo(t) for t in tipo.split(",") if t.strip()]
+            if len(tipos) == 1:
+                query = query.eq("tipo", tipos[0])
+            elif tipos:
+                query = query.in_("tipo", tipos)
 
         recursos_resp = query.execute()
         recursos_data = recursos_resp.data or []
         if not recursos_data:
-            return []
+            return vacia
 
         curso_ids = {r["curso_id"] for r in recursos_data if r.get("curso_id") is not None}
         cursos_map = {}
@@ -246,8 +396,25 @@ async def get_recursos(
             }
 
         resultado = list(grupos.values())
-        resultado.sort(key=lambda r: str(r["created_at"] or ""), reverse=True)
-        return resultado
+
+        # El orden se aplica sobre el documento agrupado y antes de cortar la
+        # página: ordenar solo la página visible daría un listado incoherente
+        # al avanzar.
+        if orden == "downloaded":
+            clave_orden = lambda r: (r.get("downloads") or 0, str(r.get("created_at") or ""))
+        elif orden == "rated":
+            clave_orden = lambda r: (r.get("rating") or 0.0, str(r.get("created_at") or ""))
+        else:
+            clave_orden = lambda r: str(r.get("created_at") or "")
+        resultado.sort(key=clave_orden, reverse=True)
+
+        total = len(resultado)
+        return {
+            "items": resultado[offset : offset + limit],
+            "total": total,
+            "sin_cursos_activos": False,
+            "facultad": facultad_usuario,
+        }
     except Exception as e:
         logger.error(f"Error obteniendo recursos: {e}")
         raise HTTPException(status_code=500, detail="Error interno al obtener los recursos.")

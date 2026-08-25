@@ -3,6 +3,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Anton, Poppins, Open_Sans } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
+import { Toaster } from "sonner"
 import "./globals.css"
 
 const poppins = Poppins({
@@ -55,6 +56,19 @@ export default function RootLayout({
             {children}
           </AuthProvider>
         </ThemeProvider>
+        <Toaster
+          position="top-right"
+          theme="dark"
+          closeButton
+          richColors={false}
+          toastOptions={{
+            classNames: {
+              toast:
+                "bg-[#0d0e1b]/90 backdrop-blur-md border border-white/10 text-white rounded-xl shadow-xl shadow-purple-950/20",
+              description: "text-slate-400 text-xs",
+            },
+          }}
+        />
         <Analytics />
       </body>
     </html>

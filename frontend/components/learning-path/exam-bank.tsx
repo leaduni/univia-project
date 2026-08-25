@@ -36,7 +36,10 @@ const COURSE_IDS_GA = ["17"]
 const TIPOS: Recurso["tipo"][] = ["Examen", "Practica", "Silabo", "PDF", "Compendio", "Libro", "Apunte", "Video"]
 
 export function ExamBank({ courseId, onCountChange }: { courseId: string; onCountChange?: (count: number) => void }) {
-  const { session } = useAuth()
+  const { user } = useAuth()
+  // user.id es una primitiva estable: el objeto `session` cambia en cada
+  // renovación de token de Supabase y dispararía re-fetches innecesarios.
+  const userId = user?.id ?? null
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<Recurso["tipo"] | null>(null)
   const [recursos, setRecursos] = useState<Recurso[]>([])
@@ -47,7 +50,7 @@ export function ExamBank({ courseId, onCountChange }: { courseId: string; onCoun
   useEffect(() => {
     let activo = true
 
-    if (!session) {
+    if (!user) {
       setRecursos([])
       setIsLoading(false)
       return
@@ -75,7 +78,7 @@ export function ExamBank({ courseId, onCountChange }: { courseId: string; onCoun
     return () => {
       activo = false
     }
-  }, [courseId, session])
+  }, [courseId, userId])
 
   const allRecursos = useMemo(() => {
     const lista = [...recursos]

@@ -34,7 +34,10 @@ const ETIQUETA_NIVEL: Record<string, string> = {
 
 export function AIRecommendationBanner() {
   const router = useRouter()
-  const { session } = useAuth()
+  const { user } = useAuth()
+  // user.id es una primitiva estable: el objeto `session` cambia en cada
+  // renovación de token de Supabase y dispararía re-fetches innecesarios.
+  const userId = user?.id ?? null
   const [diagnostico, setDiagnostico] = useState<Diagnostico | null>(null)
   const [cargando, setCargando] = useState(true)
   // Arranca en true para no parpadear: si el estudiante lo apagó, el efecto
@@ -58,7 +61,15 @@ export function AIRecommendationBanner() {
     let activo = true
 
     // Sin sesión no hay token: la petición respondería 401.
-    if (!session) {
+    if (!user) {
+      setCargando(false)
+      return
+    }
+
+    // La preferencia se lee en vivo además del estado: en el primer render
+    // `habilitado` aún es true (para no parpadear) aunque el estudiante haya
+    // apagado las recomendaciones; en ese caso no debe salir ninguna petición.
+    if (!habilitado || !verRecomendacionesIA()) {
       setCargando(false)
       return
     }
@@ -81,7 +92,7 @@ export function AIRecommendationBanner() {
     return () => {
       activo = false
     }
-  }, [session])
+  }, [userId, habilitado])
 
   if (!habilitado) return null
 

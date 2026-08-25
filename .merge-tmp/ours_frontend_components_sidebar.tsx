@@ -1,4 +1,4 @@
-// Navegación lateral de la app colapsable y armónica
+﻿// Navegaci├│n lateral de la app colapsable y arm├│nica
 "use client"
 import { Grid, FileText, User, GraduationCap, ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
@@ -36,37 +36,37 @@ export function Sidebar({ open, onToggle }: SidebarProps) {
         open ? "w-64" : "w-20",
       )}
     >
-      {/* Header del Sidebar con Logo y Botón Toggle */}
+      {/* Header del Sidebar con Logo y Bot├│n Toggle */}
       <div className={cn("p-4 flex items-center justify-between min-h-[64px] mb-2 pb-4 border-b border-white/[0.07]", !open && "justify-center px-2")}>
         <Logo compact={!open} />
         {open && onToggle && (
           <button
             onClick={onToggle}
             className="h-8 w-8 rounded-lg bg-[#232532] border border-[#3f424d]/60 text-muted-foreground hover:text-foreground hover:border-primary/50 flex items-center justify-center transition-all duration-200"
-            title="Colapsar menú"
-            aria-label="Colapsar menú lateral"
+            title="Colapsar men├║"
+            aria-label="Colapsar men├║ lateral"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
         )}
       </div>
 
-      {/* Botón Toggle centrado cuando está colapsado */}
+      {/* Bot├│n Toggle centrado cuando est├í colapsado */}
       {!open && onToggle && (
         <div className="px-2 pt-3 flex justify-center">
           <button
             onClick={onToggle}
             className="h-8 w-8 rounded-lg bg-[#232532] border border-[#3f424d]/60 text-muted-foreground hover:text-foreground hover:border-primary/50 flex items-center justify-center transition-all duration-200"
-            title="Expandir menú"
-            aria-label="Expandir menú lateral"
+            title="Expandir men├║"
+            aria-label="Expandir men├║ lateral"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* Navegación principal */}
-      <nav className="flex-1 p-3 space-y-1.5" aria-label="Navegación principal">
+      {/* Navegaci├│n principal */}
+      <nav className="flex-1 p-3 space-y-1.5" aria-label="Navegaci├│n principal">
         {MENU.map((item) => {
           const Icon = item.icon
           const isActive = activo === item.id
@@ -105,7 +105,7 @@ export function Sidebar({ open, onToggle }: SidebarProps) {
       {/* Footer del Sidebar */}
       {open ? (
         <div className="p-4 border-t border-[#3f424d]/30">
-          <p className="text-[11px] text-[#e9e9ed]/40 tracking-wider">UniVia · v1.0.0</p>
+          <p className="text-[11px] text-[#e9e9ed]/40 tracking-wider">UniVia ┬À v1.0.0</p>
         </div>
       ) : (
         <div className="p-3 border-t border-[#3f424d]/30 text-center">

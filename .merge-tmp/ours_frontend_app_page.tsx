@@ -1,4 +1,4 @@
-// Landing page — portada pública principal (/)
+﻿// Landing page ÔÇö portada p├║blica principal (/)
 import { Metadata } from "next";
 
 import { LandingShell } from "@/components/landing/landing-shell";

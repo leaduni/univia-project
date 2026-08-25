@@ -1,11 +1,13 @@
 // Barra superior: buscador, notificaciones y menú de usuario
 "use client"
 
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Menu, Bell, User, LogOut } from "lucide-react"
 import { HeaderSearch } from "./header-search"
 import { ExplorarMenu } from "./explorar-menu"
+import { Logo } from "./logo"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -33,7 +35,7 @@ function iniciales(nombre?: string): string {
 
 /** Accesos directos del mockup, además del sidebar. */
 const ACCESOS = [
-  { label: "Mi aprendizaje", href: "/" },
+  { label: "Mi aprendizaje", href: "/dashboard" },
   { label: "Mi malla", href: "/malla" },
   { label: "Recursos", href: "/recursos" },
 ]
@@ -41,11 +43,51 @@ const ACCESOS = [
 export function Header({ onMenuClick }: HeaderProps) {
   const { user, signOut } = useAuth()
   const pathname = usePathname()
+  const [isAtTop, setIsAtTop] = useState(true)
+  const [isHidden, setIsHidden] = useState(false)
+  const ultimoScroll = useRef(0)
 
   const nombre = user?.nombre_completo || "Estudiante"
 
+  useEffect(() => {
+    const main = document.querySelector("main")
+
+    const manejarScroll = (event: Event) => {
+      const posicion =
+        event.currentTarget === main
+          ? main.scrollTop
+          : window.scrollY
+
+      setIsAtTop(posicion === 0)
+      setIsHidden(posicion > ultimoScroll.current && posicion > 0)
+      ultimoScroll.current = posicion
+    }
+
+    const posicionInicial = main?.scrollTop ?? window.scrollY
+    setIsAtTop(posicionInicial === 0)
+    ultimoScroll.current = posicionInicial
+
+    window.addEventListener("scroll", manejarScroll, { passive: true })
+    main?.addEventListener("scroll", manejarScroll, { passive: true })
+
+    return () => {
+      window.removeEventListener("scroll", manejarScroll)
+      main?.removeEventListener("scroll", manejarScroll)
+    }
+  }, [])
+
   return (
-    <header className="bg-sidebar/80 backdrop-blur-md border-b border-sidebar-border sticky top-0 z-40">
+    <header
+      className={cn(
+        "absolute top-3 left-0 right-0 z-50 w-[calc(100%-2rem)] mx-auto transition-all duration-300 ease-out",
+        isHidden
+          ? "-translate-y-28 opacity-0 pointer-events-none"
+          : "translate-y-0 opacity-100",
+        isAtTop
+          ? "rounded-2xl backdrop-blur-xl bg-[rgba(11,12,22,0.85)] border border-white/[0.12] shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+          : "rounded-2xl backdrop-blur-xl bg-[rgba(11,12,22,0.75)] border border-white/[0.08] shadow-[0_4px_20px_rgba(0,0,0,0.4)]",
+      )}
+    >
       <div className="flex items-center justify-between px-6 py-4 gap-4">
         <div className="flex items-center gap-4 flex-1">
           <Button
@@ -58,6 +100,13 @@ export function Header({ onMenuClick }: HeaderProps) {
             <Menu className="w-5 h-5" />
           </Button>
 
+          <div className="md:hidden">
+            <Logo compact />
+          </div>
+          <div className="hidden md:block">
+            <Logo />
+          </div>
+
           <HeaderSearch />
         </div>
 
@@ -65,7 +114,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           {/* Accesos directos. Duplican al sidebar a propósito: el mockup los
               pide arriba, y en pantallas donde el sidebar va colapsado son la
               única navegación con texto. */}
-          <nav className="hidden lg:flex items-center gap-1" aria-label="Accesos rápidos">
+          <nav className="hidden md:flex items-center gap-1" aria-label="Accesos rápidos">
             {ACCESOS.map((acceso) => {
               const activo =
                 pathname === acceso.href ||
@@ -76,10 +125,10 @@ export function Header({ onMenuClick }: HeaderProps) {
                   href={acceso.href}
                   aria-current={activo ? "page" : undefined}
                   className={cn(
-                    "px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap",
+                    "px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap",
                     activo
-                      ? "bg-accent/15 text-accent"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                      ? "text-white bg-white/[0.08] shadow-[0_0_12px_rgba(121,87,241,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] border border-white/[0.12]"
+                      : "text-muted-foreground hover:text-foreground hover:bg-white/[0.07]",
                   )}
                 >
                   {acceso.label}
@@ -91,7 +140,7 @@ export function Header({ onMenuClick }: HeaderProps) {
 
           {/* Sin punto de "no leídas": no hay fuente de notificaciones todavía
               y un indicador siempre encendido deja de significar algo. */}
-          <Button variant="ghost" size="icon" aria-label="Notificaciones">
+          <Button variant="ghost" size="icon" aria-label="Notificaciones" className="relative rounded-full p-1.5 text-muted-foreground transition-all duration-200 hover:text-foreground hover:bg-white/[0.08] hover:shadow-[0_0_10px_rgba(121,87,241,0.15)]">
             <Bell className="w-5 h-5" />
           </Button>
 
@@ -100,7 +149,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="rounded-full"
+                className="rounded-full ring-2 ring-white/[0.08] transition-all duration-200 hover:ring-[#7957f1]/50 hover:shadow-[0_0_12px_rgba(121,87,241,0.25)]"
                 aria-label={`Menú de ${nombre}`}
               >
                 <Avatar className="w-8 h-8">

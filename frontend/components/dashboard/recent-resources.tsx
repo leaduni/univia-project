@@ -29,7 +29,10 @@ const ICONO_POR_TIPO: Record<string, any> = {
 }
 
 export function RecentResources() {
-  const { session } = useAuth()
+  const { user } = useAuth()
+  // user.id es una primitiva estable: el objeto `session` cambia en cada
+  // renovación de token de Supabase y dispararía re-fetches innecesarios.
+  const userId = user?.id ?? null
   const [recursos, setRecursos] = useState<Recurso[]>([])
   const [esEjemplo, setEsEjemplo] = useState(false)
   const [cargando, setCargando] = useState(true)
@@ -39,7 +42,7 @@ export function RecentResources() {
 
     // Sin sesión no hay token: ir directo al fallback de datos de ejemplo
     // en vez de lanzar un fetch que devolvería 401 o 404.
-    if (!session) {
+    if (!user) {
       setRecursos(RECURSOS_DATA.slice(0, MAX_TARJETAS) as Recurso[])
       setEsEjemplo(true)
       setCargando(false)
@@ -74,7 +77,7 @@ export function RecentResources() {
     return () => {
       activo = false
     }
-  }, [session])
+  }, [userId])
 
   return (
     <section className="mt-10">
@@ -106,7 +109,7 @@ export function RecentResources() {
           ))}
         </div>
       ) : (
-        <div className="flex gap-4 overflow-x-auto pb-2">
+        <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
           {recursos.map((recurso, i) => {
             const Icono = ICONO_POR_TIPO[recurso.tipo] ?? FileText
             return (

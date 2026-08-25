@@ -30,10 +30,11 @@ export function Dashboard() {
   const [logros, setLogros] = useState<Logro[]>([])
   const [cursosActivos, setCursosActivos] = useState<CursoActivo[]>([])
   const [racha, setRacha] = useState(0)
-  // isLoading: solo la primera carga (sin datos previos que mostrar).
-  // isRefreshing: recargas posteriores (ej. Supabase renueva el token al
-  // volver a la pestaña) — los datos ya cargados se quedan en pantalla.
-  const [isLoading, setIsLoading] = useState(true)
+  // Estados de carga estructurados por sección: reemplazo el isLoading global.
+  // Cada sección (resumen, avance/timeline) muestra su skeleton independientemente
+  // mientras sus datos se poblan. Esto evita que un solo fetch bloquee todo el dashboard.
+  const [isLoadingSummary, setIsLoadingSummary] = useState(true)
+  const [isLoadingAvance, setIsLoadingAvance] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const isMounted = useRef(true)
@@ -57,7 +58,8 @@ export function Dashboard() {
     if (hasLoadedOnce.current) {
       setIsRefreshing(true)
     } else {
-      setIsLoading(true)
+      setIsLoadingSummary(true)
+      setIsLoadingAvance(true)
     }
     setError(null)
 
@@ -152,7 +154,8 @@ export function Dashboard() {
     } finally {
       isFetchingRef.current = false
       if (isMounted.current && !redirigiendoRef.current) {
-        setIsLoading(false)
+        setIsLoadingSummary(false)
+        setIsLoadingAvance(false)
         setIsRefreshing(false)
       }
     }
@@ -163,9 +166,18 @@ export function Dashboard() {
     // No disparar llamadas API sin sesión activa: sin token, todas
     // responderían 401 y generarían errores en la consola.
     if (hasSession) {
-      loadDashboardData()
+      // Guard temprano: si el perfil ya indica que el onboarding no está
+      // completo, no tiene sentido disparar el batch (su avance respondería
+      // 400/requiereOnboarding): se va directo a terminar el onboarding.
+      if (user && user.onboarding_completado === false) {
+        redirigiendoRef.current = true
+        router.replace("/onboarding")
+      } else {
+        loadDashboardData()
+      }
     } else {
-      setIsLoading(false)
+      setIsLoadingSummary(false)
+      setIsLoadingAvance(false)
     }
     return () => {
       isMounted.current = false
@@ -177,9 +189,11 @@ export function Dashboard() {
   // nadie, y el nombre completo ya está en el menú de usuario.
   const primerNombre = (user?.nombre_completo || "Estudiante").trim().split(/\s+/)[0]
 
-  // Skeletons solo en la primera carga. En refrescos de fondo se mantienen
-  // los datos anteriores en pantalla — nada que "desaparezca".
-  const showSkeleton = isLoading && !hasLoadedOnce.current
+// Skeletons por sección: cada una muestra su loader mientras sus datos
+// correspondientes no han llegado aún. Se ocultan automáticamente cuando
+// el fetch respectivo termina (dentro de loadDashboardData).
+const skeletonSummary = isLoadingSummary && !hasLoadedOnce.current
+const skeletonAvance = isLoadingAvance && !hasLoadedOnce.current
 
   return (
     <div className="min-h-screen bg-background">
@@ -191,17 +205,17 @@ export function Dashboard() {
               Hola, {primerNombre} <span aria-hidden="true">👋</span>
             </h1>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              {showSkeleton ? (
+{skeletonAvance ? (
                 "Revisando tu actividad..."
               ) : (
                 <>
                   Llevas <b className="text-[#d2cefd] font-bold">{racha} días</b> de racha estudiando. Sigue así, la constancia gana ciclos.
-                </>
-              )}
+                  </>
+                )}
             </p>
           </div>
           <div className="lg:col-span-7">
-            <StatsCards stats={stats} isLoading={showSkeleton} compact />
+            <StatsCards stats={stats} isLoading={skeletonSummary} compact />
           </div>
         </div>
 
@@ -225,13 +239,13 @@ export function Dashboard() {
           <div className="lg:col-span-8 space-y-6">
             <AIRecommendationBanner />
             <section>
-              <ContinueLearning cursos={cursosActivos} isLoading={showSkeleton} />
+              <ContinueLearning cursos={cursosActivos} isLoading={skeletonSummary} />
             </section>
           </div>
 
           {/* Panel lateral */}
-          <div className="lg:col-span-4">
-            <SidebarWidgets stats={stats} logros={logros} isLoading={showSkeleton} />
+          <div className="lg:col-span-4 sticky top-24">
+            <SidebarWidgets stats={stats} logros={logros} isLoading={skeletonSummary} />
           </div>
         </div>
 

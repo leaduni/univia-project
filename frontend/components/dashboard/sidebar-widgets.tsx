@@ -31,7 +31,7 @@ function AvanceDonut({ stats, isLoading }: { stats: DashboardMetricas | null; is
   const offset = CIRCUNFERENCIA - (Math.min(pct, 100) / 100) * CIRCUNFERENCIA
 
   return (
-    <div className="p-5 rounded-xl bg-[#232532] border border-[#3f424d] mb-4">
+    <div className="p-5 rounded-2xl bg-[var(--glass-base)] backdrop-blur-md border border-[var(--glass-border)] shadow-[var(--glow-subtle)] transition-all duration-300 hover:shadow-[var(--glow-violet)] anim-right mb-4">
       <h3 className="font-poppins text-[14.5px] font-semibold text-[#e9e9ed] mb-4">Avance de carrera</h3>
       {isLoading ? (
         <div className="flex items-center gap-4">
@@ -101,7 +101,7 @@ function Logros({ logros, isLoading }: { logros: Logro[]; isLoading: boolean }) 
   const desbloqueados = logros.filter((l) => l.unlocked).length
 
   return (
-    <div className="p-5 rounded-xl bg-[#232532] border border-[#3f424d] mb-4">
+    <div className="p-5 rounded-2xl bg-[var(--glass-base)] backdrop-blur-md border border-[var(--glass-border)] shadow-[var(--glow-subtle)] transition-all duration-300 hover:shadow-[var(--glow-violet)] anim-right mb-4">
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-poppins text-[14.5px] font-semibold text-[#e9e9ed]">Tus logros</h3>
         <span className="text-xs text-[#e9e9ed]/50 font-medium">
@@ -132,13 +132,13 @@ function Logros({ logros, isLoading }: { logros: Logro[]; isLoading: boolean }) 
             return (
               <div
                 key={logro.id}
-                className={cn("flex items-center gap-3", !logro.unlocked && "opacity-45")}
+                className={cn("flex items-center gap-3 transition-all duration-200 hover:bg-white/[0.03] rounded-xl", !logro.unlocked && "opacity-45")}
               >
                 <div
                   className={cn(
                     "w-[36px] h-[36px] rounded-lg flex items-center justify-center shrink-0 shadow-sm",
                     logro.unlocked
-                      ? "bg-gradient-to-br from-[#a6249d] to-[#7957f1] text-white opacity-100"
+                      ? "bg-gradient-to-br from-[#a6249d] to-[#7957f1] text-white opacity-100 shadow-[0_0_12px_rgba(245,158,11,0.25)]"
                       : "bg-[#e9e9ed]/7 text-[#e9e9ed]/50 border border-[#3f424d]/40",
                   )}
                 >
@@ -161,7 +161,7 @@ function Logros({ logros, isLoading }: { logros: Logro[]; isLoading: boolean }) 
 
 function AccesosRapidos() {
   return (
-    <div className="p-5 rounded-xl bg-[#232532] border border-[#3f424d]">
+    <div className="p-5 rounded-2xl bg-[var(--glass-base)] backdrop-blur-md border border-[var(--glass-border)] shadow-[var(--glow-subtle)] transition-all duration-300 hover:shadow-[var(--glow-violet)] anim-right">
       <h3 className="font-poppins text-[14.5px] font-semibold text-[#e9e9ed] mb-3">Accesos rápidos</h3>
       <div className="space-y-1">
         <Link

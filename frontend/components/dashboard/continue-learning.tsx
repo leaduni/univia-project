@@ -60,8 +60,10 @@ function TarjetaCurso({ curso, index }: { curso: CursoActivo; index: number }) {
         }
       }}
       aria-label={`${curso.name}, ${curso.progreso}% completado`}
-      className="group cursor-pointer rounded-2xl bg-[#232532] border border-[#3f424d] overflow-hidden flex flex-col transition-all duration-200 hover:-translate-y-0.5 hover:border-[#7957f1] hover:shadow-xl active:scale-[0.99]"
+      className="group relative cursor-pointer rounded-2xl bg-gradient-to-br from-white/[0.04] to-white/[0.02] border border-white/[0.08] overflow-hidden flex flex-col transition-all duration-300 ease-out hover:-translate-y-1 hover:border-white/[0.18] hover:shadow-[0_12px_40px_rgba(121,87,241,0.22),0_4px_16px_rgba(0,0,0,0.5)] active:scale-[0.99] anim-up"
+      style={{ animationDelay: `${200 + index * 100}ms` }}
     >
+      <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-[#d93340] via-[#a6249d] to-[#7957f1] opacity-50 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
       {/* Thumbnail (Header 118px) */}
       <div
         className="relative h-[118px] p-4 flex flex-col justify-between overflow-hidden"
@@ -124,9 +126,9 @@ function TarjetaCurso({ curso, index }: { curso: CursoActivo; index: number }) {
             </span>
             <span className="font-poppins font-bold text-[#e9e9ed]">{curso.progreso}%</span>
           </div>
-          <div className="h-1.5 w-full bg-[#2e3142] rounded-full overflow-hidden">
+          <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-[#a6249d] to-[#7957f1] transition-all duration-500"
+              className="h-full rounded-full bg-gradient-to-r from-[#d93340] via-[#a6249d] to-[#7957f1] transition-all duration-700 ease-out"
               style={{ width: `${Math.min(curso.progreso, 100)}%` }}
             />
           </div>

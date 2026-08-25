@@ -3,21 +3,24 @@
 
 import type React from "react"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Sidebar } from "./sidebar"
 import { Header } from "./header"
 import { useAuth } from "./providers/auth-context"
+import { apiService } from "@/lib/api-service"
 
 interface DashboardLayoutProps {
   children?: React.ReactNode
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
-  const [isCollapsed, setIsCollapsed] = useState(true)
+  const [, setIsCollapsed] = useState(true)
   const [isRedirecting, setIsRedirecting] = useState(false)
   const { user, session, isLoading: isAuthLoading } = useAuth()
   const router = useRouter()
+  // Una sola vez por montaje: evita repetir el prefetch ante cada evento de
+  // auth (p. ej. TOKEN_REFRESHED al volver a la pestaña).
+  const prefetchHecho = useRef(false)
 
   useEffect(() => {
     try {
@@ -64,6 +67,19 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }
   }, [session, user, isAuthLoading, router])
 
+  useEffect(() => {
+    // Prefetch silencioso tras autenticarse: getMalla, getAvanceCarrera y
+    // getRecursos quedan en la caché de api-service (con TTL), así que abrir
+    // /malla o /recursos no espera la red. Fire-and-forget: un fallo aquí no
+    // debe afectar la sesión.
+    if (isAuthLoading || prefetchHecho.current) return
+    if (!session || !user) return
+    prefetchHecho.current = true
+    apiService.getMalla().catch(() => {})
+    apiService.getAvanceCarrera().catch(() => {})
+    apiService.getRecursos({}).catch(() => {})
+  }, [isAuthLoading, session, user])
+
   // isRedirecting evita que el contenido del dashboard se alcance a
   // renderizar por un instante antes de que router.push() complete la
   // navegación (parpadeo de contenido que el usuario no debería ver).
@@ -82,14 +98,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   return (
-    <div className="flex h-screen bg-[#161826] text-[#e9e9ed] overflow-hidden">
+    <div className="flex h-screen bg-[#0b0c16] text-[#e9e9ed] overflow-hidden">
       {/* Barra lateral colapsable */}
-      <Sidebar open={!isCollapsed} onToggle={handleToggle} />
 
       {/* Contenido principal con transición suave */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden transition-all duration-300 ease-in-out bg-[#161826]">
+      <div className="relative flex-1 h-full min-w-0 overflow-hidden">
         <Header onMenuClick={handleToggle} />
-        <main className="flex-1 overflow-auto bg-[#161826]">{children}</main>
+        <main className="w-full h-full overflow-y-auto custom-scrollbar pt-20 px-4 pb-6">{children}</main>
       </div>
     </div>
   )

@@ -1,7 +1,7 @@
 // Learning path timeline with step cards and progress
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -43,7 +43,13 @@ export function LearningTimeline({
   const [selectedStep, setSelectedStep] = useState<TimelineStep | null>(null)
   const [completingStep, setCompletingStep] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const steps = timeline
+  // Estado local: permite marcar pasos como completados de forma optimista
+  // sin recargar la página. Se sincroniza si el padre vuelve a pedir la ruta.
+  const [steps, setSteps] = useState<TimelineStep[]>(timeline)
+
+  useEffect(() => {
+    setSteps(timeline)
+  }, [timeline])
 
   const getStepIcon = (iconName?: string) => {
     switch (iconName) {
@@ -64,12 +70,28 @@ export function LearningTimeline({
     setError(null)
     try {
       await apiService.completeStep(courseId, selectedStep.id)
+      // Actualización optimista: el paso completado pasa a "completed" y el
+      // siguiente disponible a "current", sin recargar la página. completeStep
+      // ya invalidó la caché de learning-path/cursos-activos/avance/summary;
+      // la próxima visita pedirá datos frescos.
+      setSteps((prev) => {
+        const idx = prev.findIndex((s) => String(s.id) === String(selectedStep.id))
+        if (idx === -1) return prev
+        return prev.map((s, i) => {
+          if (String(s.id) === String(selectedStep.id)) {
+            return { ...s, status: "completed", completado: true }
+          }
+          if (i === idx + 1 && s.status !== "completed" && s.status !== "locked") {
+            return { ...s, status: "current" }
+          }
+          return s
+        })
+      })
       setCompletingStep(null)
       setSelectedStep(null)
       if (onStartEvaluation) {
         onStartEvaluation(selectedStep.title)
       }
-      window.location.reload()
     } catch (err: any) {
       setError(err.message)
       setCompletingStep(null)

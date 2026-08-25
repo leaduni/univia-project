@@ -1,5 +1,4 @@
-// Landing page — portada pública principal (/)
-import { Metadata } from "next";
+﻿import { Metadata } from "next";
 
 import { LandingShell } from "@/components/landing/landing-shell";
 import "./landing.css";
@@ -10,6 +9,6 @@ export const metadata: Metadata = {
     "Todos tus cursos de la UNI en un solo lugar, con evaluaciones generadas por IA para reforzar lo que aprendes y ver tu progreso ciclo a ciclo.",
 };
 
-export default function Home() {
+export default function LandingPage() {
   return <LandingShell />;
 }

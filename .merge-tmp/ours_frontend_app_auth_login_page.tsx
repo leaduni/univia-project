@@ -1,4 +1,4 @@
-// Login page with dark theme, email/password only
+﻿// Login page with dark theme, email/password only
 "use client"
 
 import { Suspense, useState, useEffect } from "react"
@@ -22,9 +22,9 @@ import {
   MSG_PASSWORD_VACIA,
 } from "@/lib/validaciones"
 
-// El backend admite correo institucional o código UNI (RF-01). No se aplica
-// aquí la política de complejidad de contraseña: hay cuentas creadas antes de
-// esa regla y quedarían fuera al intentar entrar.
+// El backend admite correo institucional o c├│digo UNI (RF-01). No se aplica
+// aqu├¡ la pol├¡tica de complejidad de contrase├▒a: hay cuentas creadas antes de
+// esa regla y quedar├¡an fuera al intentar entrar.
 const loginSchema = z.object({
   identificador: z.string().refine(
     (v) => esEmailInstitucional(v) || esCodigoEstudiante(v),
@@ -75,10 +75,10 @@ function LoginPageContent() {
         identificador: data.identificador,
         password: data.password,
       })
-      toast.success("Sesión iniciada correctamente.")
+      toast.success("Sesi├│n iniciada correctamente.")
       router.push("/dashboard")
     } catch (err: any) {
-      setError(err.message || "No pudimos validar tus credenciales académicas.")
+      setError(err.message || "No pudimos validar tus credenciales acad├®micas.")
     } finally {
       setIsLoading(false)
     }
@@ -90,12 +90,12 @@ function LoginPageContent() {
         <div className="fixed top-6 right-6 z-50 animate-in fade-in slide-in-from-top-4 duration-500">
           <div className="bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-emerald-500/20">
             <Sparkles className="w-5 h-5 animate-bounce" />
-            <p className="font-bold text-sm">¡Cuenta creada! Ya puedes iniciar sesión.</p>
+            <p className="font-bold text-sm">┬íCuenta creada! Ya puedes iniciar sesi├│n.</p>
           </div>
         </div>
       )}
 
-      {/* SECCIÓN IZQUIERDA: HERO / BRANDING */}
+      {/* SECCI├ôN IZQUIERDA: HERO / BRANDING */}
       <div className="hidden lg:flex lg:col-span-5 flex-col justify-between bg-card border-r border-border p-8 xl:p-12 2xl:p-16 3xl:p-24 relative overflow-hidden min-h-screen">
         <div className="absolute -top-24 -left-24 w-96 h-96 2xl:w-[500px] 2xl:h-[500px] bg-accent/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -right-24 w-96 h-96 2xl:w-[500px] 2xl:h-[500px] bg-primary/10 rounded-full blur-3xl pointer-events-none" />
@@ -110,7 +110,7 @@ function LoginPageContent() {
             </span>
           </h1>
           <p className="text-muted-foreground text-sm xl:text-base 2xl:text-lg leading-relaxed">
-            Tu malla, tus cursos, exámenes pasados y evaluaciones de práctica generadas con IA. UniVia ordena tu camino académico para que tú solo te ocupes de aprender.
+            Tu malla, tus cursos, ex├ímenes pasados y evaluaciones de pr├íctica generadas con IA. UniVia ordena tu camino acad├®mico para que t├║ solo te ocupes de aprender.
           </p>
           <div className="flex items-center gap-3 text-xs text-muted-foreground tracking-widest uppercase font-medium pt-2">
             <span className="h-0.5 w-8 gradient-brand inline-block rounded-full" />
@@ -123,7 +123,7 @@ function LoginPageContent() {
         </p>
       </div>
 
-      {/* SECCIÓN DERECHA: FORMULARIO */}
+      {/* SECCI├ôN DERECHA: FORMULARIO */}
       <div className="col-span-1 lg:col-span-7 bg-background flex flex-col justify-center items-center p-6 sm:p-12 xl:p-16 2xl:p-24 min-h-screen">
         <div className="w-full max-w-md xl:max-w-lg 2xl:max-w-xl space-y-6 2xl:space-y-8">
           <div className="space-y-2">
@@ -134,7 +134,7 @@ function LoginPageContent() {
               </span>
             </div>
             <p className="text-sm xl:text-base 2xl:text-lg text-muted-foreground">
-              Qué bueno verte por acá 👋 Ingresa con tu correo institucional.
+              Qu├® bueno verte por ac├í ­ƒæï Ingresa con tu correo institucional.
             </p>
           </div>
 
@@ -148,7 +148,7 @@ function LoginPageContent() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="block text-xs 2xl:text-sm font-medium text-muted-foreground">
-                      Correo institucional o código UNI
+                      Correo institucional o c├│digo UNI
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -171,13 +171,13 @@ function LoginPageContent() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="block text-xs 2xl:text-sm font-medium text-muted-foreground">
-                      Contraseña
+                      Contrase├▒a
                     </FormLabel>
                     <FormControl>
                       <div className="relative">
                         <Input
                           type={showPassword ? "text" : "password"}
-                          placeholder="••••••••"
+                          placeholder="ÔÇóÔÇóÔÇóÔÇóÔÇóÔÇóÔÇóÔÇó"
                           className="w-full px-4 py-3 2xl:py-4 bg-input border border-border rounded-xl text-sm 2xl:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 pr-10 h-auto"
                           {...field}
                         />
@@ -185,7 +185,7 @@ function LoginPageContent() {
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs"
-                          aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                          aria-label={showPassword ? "Ocultar contrase├▒a" : "Mostrar contrase├▒a"}
                         >
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
@@ -212,7 +212,7 @@ function LoginPageContent() {
 
           <div className="flex items-center justify-between text-xs 2xl:text-sm text-muted-foreground pt-1">
             <Link href="/auth/forgot-password" className="hover:text-foreground transition-colors">
-              ¿Olvidaste tu contraseña?
+              ┬┐Olvidaste tu contrase├▒a?
             </Link>
             <Link className="text-accent hover:text-accent/80 font-medium transition-colors" href="/auth/signup">
               Crear cuenta
@@ -224,7 +224,7 @@ function LoginPageContent() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <p className="text-xs 2xl:text-sm text-muted-foreground leading-relaxed">
-              Solo necesitas tu correo <strong className="text-foreground font-medium">@uni.pe</strong> — sin trámites, sin costo.
+              Solo necesitas tu correo <strong className="text-foreground font-medium">@uni.pe</strong> ÔÇö sin tr├ímites, sin costo.
             </p>
           </div>
         </div>

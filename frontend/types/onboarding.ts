@@ -4,6 +4,8 @@ export interface OnboardingData {
   career: number
   semester: number
   malla_id?: number
+  /** Código universitario (usuarios de Google SSO no lo traen; se declara en el wizard). */
+  codigo_estudiante?: string
   cursosInscritos: number[]
   /**
    * Historial académico declarado: cursos de ciclos previos que el estudiante

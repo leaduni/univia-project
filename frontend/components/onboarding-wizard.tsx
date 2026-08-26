@@ -21,7 +21,7 @@ const CICLOS_POR_DEFECTO = 10
 
 export function OnboardingWizard() {
   const router = useRouter()
-  const { refreshProfile, signOut } = useAuth()
+  const { refreshProfile, signOut, user } = useAuth()
   const [step, setStep] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -31,6 +31,9 @@ export function OnboardingWizard() {
   const [data, setData] = useState<OnboardingData>({
     career: 0,
     semester: 1,
+    // Los usuarios de Google SSO no traen código; si el registro manual ya lo
+    // dejó, se pre-rellena aquí para no pedirlo de nuevo en el Paso 1.
+    codigo_estudiante: user?.codigo_estudiante ?? "",
     cursosInscritos: [],
     cursosAprobados: [],
   })
@@ -74,6 +77,7 @@ export function OnboardingWizard() {
         carrera_id: data.career,
         malla_id: data.malla_id,
         ciclo_actual: data.semester,
+        codigo_estudiante: data.codigo_estudiante || undefined,
         cursos_inscritos: data.cursosInscritos,
         cursos_aprobados: data.cursosAprobados ?? [],
       }

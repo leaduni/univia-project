@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowRight, Network, Code, Factory, Cpu, Building2, GraduationCap, AlertCircle } from "lucide-react"
+import { ArrowRight, Network, Code, Factory, Cpu, Building2, GraduationCap, AlertCircle, Hash } from "lucide-react"
 import type { Carrera, OnboardingData } from "@/types/onboarding"
+import { CODIGO_PATTERN, MSG_CODIGO_INVALIDO } from "@/lib/validaciones"
 
 const getCareerIcon = (name: string = "") => {
   const n = name.toLowerCase()
@@ -22,10 +23,14 @@ interface CareerStepProps {
 
 export function CareerStep({ data, onNext, careers }: CareerStepProps) {
   const [selected, setSelected] = useState<number>(data.career)
+  const [codigo, setCodigo] = useState<string>(data.codigo_estudiante ?? "")
+  // El código se pide solo si el usuario aún no lo tiene (p. ej. Google SSO).
+  const requiereCodigo = !data.codigo_estudiante
+  const codigoInvalido = requiereCodigo && !CODIGO_PATTERN.test(codigo.trim())
 
   const handleContinue = () => {
-    if (selected > 0) {
-      onNext({ career: selected })
+    if (selected > 0 && !codigoInvalido) {
+      onNext({ career: selected, codigo_estudiante: codigo.trim() || undefined })
     }
   }
 
@@ -66,6 +71,37 @@ export function CareerStep({ data, onNext, careers }: CareerStepProps) {
           Con esto armamos tu malla curricular personalizada.
         </p>
       </div>
+
+      {/* Código universitario: obligatorio solo si el usuario aún no lo tiene
+          (p. ej. Google SSO, que no lo provee). El registro manual llega con él. */}
+      {requiereCodigo && (
+        <div className="space-y-1.5">
+          <label htmlFor="codigo-estudiante" className="block text-sm font-medium text-muted-foreground">
+            Código Universitario
+          </label>
+          <div className="relative">
+            <Hash className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              id="codigo-estudiante"
+              type="text"
+              inputMode="numeric"
+              placeholder="20241092E"
+              value={codigo}
+              onChange={(e) => setCodigo(e.target.value)}
+              className={`w-full pl-9 pr-4 py-3 bg-input border rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all ${
+                codigo && codigoInvalido ? "border-destructive" : "border-border"
+              }`}
+            />
+          </div>
+          {codigo && codigoInvalido ? (
+            <p className="text-xs text-destructive">{MSG_CODIGO_INVALIDO}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              8 dígitos y una letra verificadora (ej. 20241092E).
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {careers.map((career) => {
@@ -116,7 +152,7 @@ export function CareerStep({ data, onNext, careers }: CareerStepProps) {
         <button
           type="button"
           onClick={handleContinue}
-          disabled={!selected}
+          disabled={!selected || codigoInvalido}
           className="px-8 py-3 rounded-xl font-semibold text-sm text-primary-foreground gradient-login-btn disabled:opacity-40 disabled:pointer-events-none transition-all shadow-lg shadow-accent/20 active:scale-[0.99] flex items-center gap-2"
         >
           <span>Continuar</span>

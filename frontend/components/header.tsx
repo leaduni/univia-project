@@ -17,7 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 
 import { useAuth } from "@/components/providers/auth-context"
 
@@ -153,6 +153,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                 aria-label={`Menú de ${nombre}`}
               >
                 <Avatar className="w-8 h-8">
+                  <AvatarImage src={user?.avatar_url} alt={user?.nombre_completo} />
                   <AvatarFallback className="gradient-brand-br text-primary-foreground text-xs font-semibold">
                     {iniciales(user?.nombre_completo)}
                   </AvatarFallback>
@@ -162,6 +163,7 @@ export function Header({ onMenuClick }: HeaderProps) {
             <DropdownMenuContent align="end" className="w-60">
               <div className="flex items-center gap-2 p-2">
                 <Avatar className="w-10 h-10">
+                  <AvatarImage src={user?.avatar_url} alt={user?.nombre_completo} />
                   <AvatarFallback className="gradient-brand-br text-primary-foreground text-sm font-semibold">
                     {iniciales(user?.nombre_completo)}
                   </AvatarFallback>

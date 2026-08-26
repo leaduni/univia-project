@@ -264,10 +264,15 @@ async def get_profile(user_data = Depends(get_current_user)):
 
     # Sin fila en 'perfiles' (o con la consulta fallida) se responde lo que sí
     # consta en auth, para que la sesión siga siendo usable.
+    # Google SSO expone `full_name` y `avatar_url` en los metadatos; el registro
+    # manual usa `nombre_completo`. Se leen ambos para alimentar el onboarding.
     return {
         "id": user.id,
         "email": user.email,
-        "nombre_completo": user.user_metadata.get("nombre_completo", ""),
+        "nombre_completo": user.user_metadata.get("full_name")
+            or user.user_metadata.get("nombre_completo")
+            or "",
+        "avatar_url": user.user_metadata.get("avatar_url"),
         "onboarding_completado": False,
     }
 

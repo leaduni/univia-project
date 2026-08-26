@@ -3,7 +3,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { CheckCircle2, ArrowRight, ChevronRight, Eye, EyeOff, Loader2 } from "lucide-react"
+import { CheckCircle2, ArrowRight, ChevronRight, Eye, EyeOff, Loader2, Info } from "lucide-react"
 import { AuthErrorBanner } from "@/app/auth/auth-error-banner"
 import { BrandLogo } from "@/app/auth/brand-logo"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { apiService } from "@/lib/api-service"
+import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import {
   CODIGO_PATTERN,
@@ -117,6 +118,27 @@ export default function SignupPage() {
     }
   }
 
+  const handleGoogleSignup = async () => {
+    setIsLoading(true)
+    setError("")
+    try {
+      await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            hd: "uni.pe", // Restringe el selector de cuentas al dominio uni.pe
+          },
+        },
+      })
+      // signInWithOAuth redirige al proveedor; si vuelve aquí sin navegar fue
+      // porque la URL no devolvió la sesión (p. ej. popup bloqueado).
+    } catch (err: any) {
+      setError(err.message || "No pudimos iniciar sesión con Google.")
+      setIsLoading(false)
+    }
+  }
+
   if (success) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -197,6 +219,40 @@ export default function SignupPage() {
           </div>
 
           {error && <AuthErrorBanner message={error} />}
+
+          {/* ACCIÓN PRINCIPAL: Google SSO (comunidad UNI) */}
+          <Button
+            type="button"
+            disabled={isLoading}
+            onClick={handleGoogleSignup}
+            className="w-full py-4 2xl:py-5 px-4 gradient-login-btn text-primary-foreground font-semibold rounded-xl text-sm 2xl:text-base transition-all duration-200 shadow-lg shadow-accent/20 active:scale-[0.99] h-auto"
+          >
+            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
+              <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z" />
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z" />
+            </svg>
+            Registrarse con Correo Institucional UNI
+          </Button>
+
+          {/* ACCESO SECUNDARIO: manual (desarrolladores / invitados) */}
+          <div className="flex items-center gap-3 pt-1">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">
+              ¿Acceso para desarrolladores e invitados?
+            </span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          <div className="p-4 2xl:p-5 bg-card border border-border rounded-xl flex items-start gap-3">
+            <Info className="w-5 h-5 text-accent shrink-0 mt-0.5" />
+            <p className="text-xs 2xl:text-sm text-muted-foreground leading-relaxed">
+              UniVia está disponible exclusivamente para la comunidad UNI a través
+              del correo institucional <strong className="text-foreground font-medium">@uni.pe</strong>.
+              El ingreso manual está reservado para cuentas de prueba e invitados especiales.
+            </p>
+          </div>
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

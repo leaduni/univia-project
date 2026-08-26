@@ -570,6 +570,8 @@ export const apiService = {
         malla_id?: number;
         ciclo_actual: number;
         cursos_inscritos: number[];
+        /** Código universitario para quien no lo tiene (Google SSO). */
+        codigo_estudiante?: string;
         /** Historial declarado en el wizard: cursos de ciclos previos ya aprobados. */
         cursos_aprobados?: number[];
     }) {

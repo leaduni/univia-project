@@ -1,6 +1,8 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import List
 
+from app.core.validators import es_codigo_estudiante
+
 # Cota defensiva del ciclo. El límite real es 'duracion_ciclos' de la carrera
 # elegida y se verifica en el router, que es quien puede consultarla.
 CICLO_MAXIMO_ADMITIDO = 20
@@ -43,6 +45,20 @@ class OnboardingCompleteRequest(SeleccionCursosBase):
 
     carrera_id: int = Field(gt=0)
     malla_id: int | None = None
+    # Campo opcional para completar la ficha de usuarios que entran por Google
+    # SSO (que no traen código): se valida su formato y se persiste en perfiles.
+    codigo_estudiante: str | None = None
+
+    @field_validator("codigo_estudiante")
+    @classmethod
+    def validar_codigo_estudiante(cls, v: str | None) -> str | None:
+        if v is None or not str(v).strip():
+            return None
+        if not es_codigo_estudiante(str(v)):
+            raise ValueError(
+                "El código universitario debe tener 8 dígitos y una letra verificadora (ej. 20210001U)."
+            )
+        return str(v).strip()
 
 
 class ActualizarCursosRequest(SeleccionCursosBase):

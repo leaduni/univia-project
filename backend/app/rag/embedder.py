@@ -1,5 +1,12 @@
 """
-Generador de embeddings usando Gemini Embedding v2.
+Generador de embeddings usando OpenAI text-embedding-3-small.
+
+Claude no expone API de embeddings, así que esta pieza de la ingesta va por
+OpenAI. El modelo devuelve 1536 dimensiones nativas, que es justo el ancho de
+la columna pgvector de `resource_chunks`.
+
+Los vectores de modelos distintos NO son comparables: si se cambia el modelo
+hay que re-vectorizar todo el corpus, no solo lo nuevo.
 
 Hito 1.1 — Quick Wins:
   - batch_size configurable (default 20).
@@ -13,8 +20,7 @@ import os
 import random
 import time
 
-from google import genai
-from google.genai import types
+from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -36,11 +42,11 @@ def _es_rate_limit(error: Exception) -> bool:
 
 
 class SyllabusEmbedder:
-    """Genera embeddings con Gemini y caché opcional."""
+    """Genera embeddings con OpenAI y caché opcional."""
 
     def __init__(
         self,
-        model_name: str = "models/gemini-embedding-2",
+        model_name: str = None,
         expected_dimensions: int = 1536,
         batch_size: int = 20,
         max_retries: int = 5,
@@ -50,7 +56,7 @@ class SyllabusEmbedder:
     ):
         """
         Args:
-            model_name: Modelo de embedding de Gemini.
+            model_name: Modelo de embedding de OpenAI.
             expected_dimensions: Dimensión del vector de salida.
             batch_size: Chunks por lote enviados a la API (default 20).
             max_retries: Reintentos máximos ante 429 (default 5).
@@ -58,12 +64,14 @@ class SyllabusEmbedder:
             max_delay: Cota superior de espera en segundos (default 60.0).
             cache: Instancia opcional de EmbeddingCache.
         """
-        api_key = os.getenv("GEMINI_API_KEY")
+        api_key = os.getenv("OPEN_AI_INGEST_API_KEY")
         if not api_key:
-            logger.error("GEMINI_API_KEY no configurada.")
+            logger.error("OPEN_AI_INGEST_API_KEY no configurada.")
 
-        self.client = genai.Client(api_key=api_key)
-        self.model_name = model_name
+        self.client = OpenAI(api_key=api_key)
+        self.model_name = model_name or os.getenv(
+            "OPENAI_EMBED_MODEL", "text-embedding-3-small"
+        )
         self.expected_dimensions = expected_dimensions
         self.batch_size = batch_size
         self.max_retries = max_retries
@@ -72,13 +80,15 @@ class SyllabusEmbedder:
         self.cache = cache
 
     def _llamar_api(self, textos: list) -> list:
-        """Llama a Gemini Embedding y devuelve los vectores."""
-        result = self.client.models.embed_content(
+        """Llama a la API de embeddings y devuelve los vectores."""
+        resultado = self.client.embeddings.create(
             model=self.model_name,
-            contents=textos,
-            config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
+            input=textos,
         )
-        return [e.values[: self.expected_dimensions] for e in result.embeddings]
+        # La API devuelve los vectores en el mismo orden que la entrada, pero
+        # trae `index` explícito; se ordena por él para no depender de eso.
+        datos = sorted(resultado.data, key=lambda d: d.index)
+        return [d.embedding[: self.expected_dimensions] for d in datos]
 
     def _procesar_lote_con_cache(self, lote: list) -> list:
         """
@@ -114,7 +124,7 @@ class SyllabusEmbedder:
         if hits_cache or textos_miss:
             logger.info(
                 f"[Cache Embedding] {hits_cache} chunks recuperados de caché, "
-                f"{len(textos_miss)} enviados a Gemini API."
+                f"{len(textos_miss)} enviados a la API de embeddings."
             )
 
         if not textos_miss:
@@ -160,7 +170,7 @@ class SyllabusEmbedder:
 
     def embedding_generator(self, chunks: list) -> list:
         """
-        Convierte chunks en embeddings usando Gemini + caché.
+        Convierte chunks en embeddings usando OpenAI + caché.
 
         Comportamiento:
         - Procesa en lotes de tamaño self.batch_size.

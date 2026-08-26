@@ -1,39 +1,41 @@
 import os
 import random
-from google import genai
-from google.genai import types
+from openai import OpenAI
 from dotenv import load_dotenv
 from supabase import Client, create_client
 
 load_dotenv()
 
 class SyllabusRetriever:
-    def __init__(self, model_name="models/gemini-embedding-2", expected_dimensions=1536):
+    def __init__(self, model_name=None, expected_dimensions=1536):
         supabase_url = os.getenv("SUPABASE_URL")
         supabase_key = os.getenv("SUPABASE_ANON_KEY")
         if not supabase_url or not supabase_key:
             print("No se encontraron las credenciales de usuario para supabase. ")
 
-        api_key = os.getenv("GEMINI_API_KEY")
+        api_key = os.getenv("OPEN_AI_INGEST_API_KEY")
         if not api_key:
-            print("No se encontró la API KEY de Gemini. ")
+            print("No se encontró la API KEY de OpenAI para embeddings. ")
 
-        self.client = genai.Client(api_key=api_key)
+        self.client = OpenAI(api_key=api_key)
         self.supabase: Client = create_client(supabase_url, supabase_key)
         self.expected_dimensions = expected_dimensions
-        self.model_name = model_name
+        # Tiene que ser el MISMO modelo con el que se vectorizó el corpus:
+        # vectores de modelos distintos no son comparables entre sí.
+        self.model_name = model_name or os.getenv(
+            "OPENAI_EMBED_MODEL", "text-embedding-3-small"
+        )
 
     def vectorizar_pregunta(self, pregunta: str) -> list:
         print("Vectorizando el query ... ")
 
         try:
-            result = self.client.models.embed_content(
+            result = self.client.embeddings.create(
                 model=self.model_name,
-                contents=pregunta,
-                config=types.EmbedContentConfig(task_type="RETRIEVAL_QUERY")
+                input=pregunta,
             )
 
-            vector = result.embeddings[0].values
+            vector = result.data[0].embedding
             return vector[:self.expected_dimensions]
         except Exception as e:
             print(f"Error al vectorizar la pregunta: {e}")

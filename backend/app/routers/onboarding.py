@@ -5,7 +5,7 @@ from app.core.database import get_supabase
 from app.core.auth_utils import get_current_user
 from app.core.exceptions import raise_field_error
 from app.core.onboarding_service import build_onboarding_courses
-from app.core.prereqs import resolve_prereq_chain, check_course_status
+from app.core.prereqs import resolve_prereq_chain
 from app.schemas.onboarding import (
     CICLO_POR_DEFECTO,
     ActualizarCursosRequest,
@@ -480,32 +480,10 @@ async def actualizar_cursos_del_ciclo(
     a_cerrar = en_curso - nuevos_set
     aprobados_tras_cierre = aprobados | a_cerrar
 
-    prereq_map = _cargar_prerrequisitos(supabase, mc_data)
-
-    for curso_id in nuevos:
-        faltantes = [
-            pid
-            for pid in resolve_prereq_chain(curso_id, prereq_map)
-            if pid not in aprobados_tras_cierre and pid not in nuevos_set
-        ]
-        if faltantes:
-            raise_field_error(
-                "cursos_inscritos",
-                f"No puedes llevar '{nombre(curso_id)}': te falta aprobar "
-                + ", ".join(nombre(f) for f in faltantes)
-                + ".",
-                status_code=400,
-            )
-
-    for curso_id in nuevos:
-        for prereq_id in prereq_map.get(curso_id, []):
-            if prereq_id in nuevos_set:
-                raise_field_error(
-                    "cursos_inscritos",
-                    f"No puedes matricularte simultáneamente en "
-                    f"'{nombre(prereq_id)}' y '{nombre(curso_id)}'.",
-                    status_code=400,
-                )
+    # Los prerrequisitos NO bloquean la matrícula. El sistema no conoce
+    # convalidaciones, cursos dirigidos ni permisos de facultad, así que lo que
+    # el estudiante declara sobre su propia matrícula es el dato bueno; la malla
+    # los sigue usando para pintar el avance.
 
     try:
         if a_cerrar:
@@ -596,8 +574,6 @@ async def complete_onboarding(
 
         _validar_cursos_de_carrera(cursos_inscritos, cursos_en_carrera, carrera)
 
-        prereq_map = _cargar_prerrequisitos(supabase, mc_data)
-
         # Historial declarado en el wizard. Se ignoran los cursos ajenos a la
         # malla en vez de cortar con 400: cambiar de plan de estudios deja
         # marcados cursos que ya no existen en el nuevo, y eso no es culpa del
@@ -616,13 +592,10 @@ async def complete_onboarding(
                 status_code=400,
             )
 
-        # Aprobar un curso implica haber aprobado sus prerrequisitos. Se cierra
-        # la cadena aquí en vez de rechazar el envío: el historial resultante es
-        # el único coherente y evita dejar huecos que luego bloquean la malla.
-        for curso_id in list(declarados):
-            for prereq_id in resolve_prereq_chain(curso_id, prereq_map):
-                if prereq_id in cursos_en_carrera:
-                    declarados.add(prereq_id)
+        # El historial es exactamente lo que el estudiante marcó. Antes se
+        # cerraba la cadena de prerrequisitos por él, y eso daba por aprobados
+        # cursos que acababa de desmarcar a propósito (jalados, convalidados,
+        # aún pendientes). Quien marca la pantalla es quien sabe.
 
         progreso_db = supabase.table("progreso_cursos") \
             .select("curso_id, status") \
@@ -633,29 +606,12 @@ async def complete_onboarding(
         def nombre_curso(cid: int) -> str:
             return cursos_en_carrera.get(cid, {}).get("name", str(cid))
 
-        for curso_id in cursos_inscritos:
-            for prereq_id in prereq_map.get(curso_id, []):
-                if prereq_id in inscritos_set:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=(
-                            f"No puedes matricularte simultáneamente en "
-                            f"'{nombre_curso(prereq_id)}' y '{nombre_curso(curso_id)}'."
-                        ),
-                    )
-
         cursos_inscritos = [cid for cid in cursos_inscritos if cid not in db_status]
 
         if not cursos_inscritos:
             logger.info("All courses already persisted, skipping enrollment")
 
         cursos_a_completar: Set[int] = set(declarados)
-
-        for curso_id in cursos_inscritos:
-            chain = resolve_prereq_chain(curso_id, prereq_map)
-            for prereq_id in chain:
-                if prereq_id in cursos_en_carrera:
-                    cursos_a_completar.add(prereq_id)
 
         # Quien vuelve a este paso desde "Actualizar situación académica" ya
         # tiene filas en progreso_cursos: los cursos del ciclo que terminó están

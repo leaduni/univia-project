@@ -160,11 +160,11 @@ class TestLoteMixtoCache:
 # ══════════════════════════════════════════════════════════════════════
 
 @pytest.fixture(autouse=True)
-def _patch_genai_client(monkeypatch):
-    """Evita que SyllabusEmbedder.__init__ intente crear genai.Client real."""
+def _patch_cliente_embeddings(monkeypatch):
+    """Evita que SyllabusEmbedder.__init__ cree un cliente de OpenAI real."""
     import app.rag.embedder as embedder_mod
     mock_client = MagicMock()
-    monkeypatch.setattr(embedder_mod.genai, "Client", MagicMock(return_value=mock_client))
+    monkeypatch.setattr(embedder_mod, "OpenAI", MagicMock(return_value=mock_client))
 
 
 class TestEmbedderNoSleepOnSuccess:

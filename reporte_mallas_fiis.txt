@@ -1,0 +1,109 @@
+REPORTE DE CORRECCIÓN DE MALLAS — FIIS
+=======================================================================
+Salida del dry-run de `python -m scripts_manuales.cargar_mallas fiis`
+TOMADA ANTES DE EJECUTAR LA CARGA: es el registro de qué estaba mal en la
+base respecto de los documentos oficiales de `mallas_curriculares/FIIS/`.
+
+La carga YA SE EJECUTÓ. Re-ejecutar el dry-run hoy sale todo en cero.
+=======================================================================
+
+=== Validación de datos (FIIS) ===
+  sin errores
+
+=== DRY-RUN (no escribe) ===
+
+--- Facultad y carreras ---
+  facultad FIIS ya existe (id=1)
+  carrera IND ya existe (id=6)
+  carrera SI ya existe (id=7)
+  carrera SW ya existe (id=5)
+  carrera IA ya existe (id=13)
+
+--- Cursos ---
+  cursos ya en la base y reutilizados: 189
+    ~ GE904: 'Proyecto de Tesis en Ingeniería Industrial I' -> 'Taller de Proyecto de Investigación'
+  cursos nuevos a crear: 112
+
+--- SI (Ingeniería de Sistemas) · plan 2018-II ---
+  malla id=4: codigo_plan 'CLASICO' -> '2018-II'
+  malla 2018-II ya existe (id=4)
+    ~ se actualiza {'nombre': 'Plan de Estudios 2018-II', 'es_vigente': False}
+  67 cursos en la malla, 197 créditos, 67 prerrequisitos
+  36 electivos (solo en `cursos`)
+    malla_cursos: 6 a insertar, 5 a corregir, 7 a borrar
+      ~ BIC01: {'credits': 3} -> {'credits': 2}
+      ~ SI301: {'credits': 3} -> {'credits': 2}
+      ~ SI604: {'credits': 3} -> {'credits': 4}
+      ~ SI705: {'credits': 3} -> {'credits': 2}
+      ~ SI805: {'credits': 3} -> {'credits': 2}
+      - TE703 'Ingeniería de Procesos' (ciclo 5) ya no está en el plan
+      - ELEC-C7 'Electivo (Ciclo 7)' (ciclo 7) ya no está en el plan
+      - ELEC-C8 'Electivo (Ciclo 8)' (ciclo 8) ya no está en el plan
+      - SI901 '?' (ciclo 9) ya no está en el plan
+      - ELEC-C9 'Electivo (Ciclo 9)' (ciclo 9) ya no está en el plan
+      - SI035 '?' (ciclo 10) ya no está en el plan
+      - ELEC-C10 'Electivo (Ciclo 10)' (ciclo 10) ya no está en el plan
+
+--- SI (Ingeniería de Sistemas) · plan 2026-1 ---
+  malla 2026-1 ya existe (id=3)
+  64 cursos en la malla, 205 créditos, 61 prerrequisitos
+  0 electivos (solo en `cursos`)
+    malla_cursos: 2 a insertar, 1 a corregir, 2 a borrar
+      ~ ELEC-C7: {'credits': 3} -> {'credits': 6}
+      - GE003-2 '?' (ciclo 9) ya no está en el plan
+      - GE004 'Taller de Investigación' (ciclo 10) ya no está en el plan
+
+--- IND (Ingeniería Industrial) · plan 2020-II ---
+  malla id=16: codigo_plan '2020-2' -> '2020-II'
+  malla 2020-II ya existe (id=16)
+    ~ se actualiza {'nombre': 'Plan de Estudios 2020-II', 'es_vigente': False}
+  62 cursos en la malla, 192 créditos, 62 prerrequisitos
+  30 electivos (solo en `cursos`)
+    malla_cursos: 7 a insertar, 0 a corregir, 9 a borrar
+      - ELEC-C8 'Electivo (Ciclo 8)' (ciclo 8) ya no está en el plan
+      - ELEC-C9 'Electivo (Ciclo 9)' (ciclo 9) ya no está en el plan
+      - GE606 'Costos y Presupuestos' (ciclo 7) ya no está en el plan
+      - ELEC-C6 'Electivo (Ciclo 6)' (ciclo 6) ya no está en el plan
+      - ELEC-C7 'Electivo (Ciclo 7)' (ciclo 7) ya no está en el plan
+      - ELEC-C10 'Electivo (Ciclo 10)' (ciclo 10) ya no está en el plan
+      - TE703 'Ingeniería de Procesos' (ciclo 7) ya no está en el plan
+      - GE904 'Taller de Proyecto de Investigación' (ciclo 9) ya no está en el plan
+      - GE001 '?' (ciclo 10) ya no está en el plan
+
+--- IND (Ingeniería Industrial) · plan 2026-I ---
+  malla id=15: codigo_plan '2026-2' -> '2026-I'
+  malla 2026-I ya existe (id=15)
+    ~ se actualiza {'nombre': 'Plan de Estudios 2026-I'}
+  65 cursos en la malla, 207 créditos, 65 prerrequisitos
+  30 electivos (solo en `cursos`)
+    malla_cursos: 1 a insertar, 1 a corregir, 1 a borrar
+      ~ TE302: {'credits': 2} -> {'credits': 3}
+      - GE003-2 '?' (ciclo 9) ya no está en el plan
+
+--- SW (Ingeniería de Software) · plan 2023-II ---
+  malla id=17: codigo_plan '2021' -> '2023-II'
+  malla 2023-II ya existe (id=17)
+    ~ se actualiza {'nombre': 'Plan de Estudios 2023-II'}
+  65 cursos en la malla, 200 créditos, 60 prerrequisitos
+  24 electivos (solo en `cursos`)
+    malla_cursos: 7 a insertar, 8 a corregir, 5 a borrar
+      ~ BMA03: {'credits': 3} -> {'credits': 4}
+      ~ TE205: {'credits': 3} -> {'credits': 2}
+      ~ BEG01: {'credits': 2} -> {'credits': 3}
+      ~ BRN01: {'credits': 2} -> {'credits': 3}
+      ~ SI505: {'credits': 4} -> {'credits': 3}
+      ~ SW003: {'credits': 2} -> {'credits': 3}
+      ~ SW004: {'credits': 2} -> {'credits': 3}
+      ~ SW005: {'credits': 3} -> {'credits': 2}
+      - SI605-SF '?' (ciclo 6) ya no está en el plan
+      - HW801 '?' (ciclo 8) ya no está en el plan
+      - SW601 '?' (ciclo 6) ya no está en el plan
+      - SW401 '?' (ciclo 4) ya no está en el plan
+      - GW804 '?' (ciclo 8) ya no está en el plan
+
+--- IA (Ingeniería de Inteligencia Artificial) · plan 2025-II ---
+  malla 2025-II se crearía (Plan de Estudios 2025-II)
+  60 cursos en la malla, 185 créditos, 53 prerrequisitos
+  22 electivos (solo en `cursos`)
+
+Dry-run terminado. Repite con --ejecutar para escribir.

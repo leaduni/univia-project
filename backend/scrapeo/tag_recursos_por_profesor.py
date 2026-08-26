@@ -23,15 +23,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-from google import genai
 
 from app.core.database import get_admin_client
+from app.core.llm import MODELO_INGESTA, generar_ingesta, get_openai, texto_ingesta
 
-MODEL_NAME = "gemini-2.5-flash"
+MODEL_NAME = MODELO_INGESTA
 MAX_CARACTERES_CONTEXTO = 4000
-# La cuota gratis de Gemini es de 5 peticiones/minuto para gemini-2.5-flash;
-# 13s de pausa deja margen sobre ese límite.
-PAUSA = 13
+# Pausa entre llamadas para no golpear el rate limit del proveedor.
+PAUSA = 2
 MAX_REINTENTOS = 3
 
 
@@ -62,7 +61,7 @@ def obtener_contenido_recurso(sb, recurso_id: int) -> str:
     return texto[:MAX_CARACTERES_CONTEXTO]
 
 
-def preguntar_profesor(client, titulo: str, contenido: str, candidatos: list) -> str | None:
+def preguntar_profesor(titulo: str, contenido: str, candidatos: list) -> str | None:
     nombres = [c["nombre_completo"] for c in candidatos]
     prompt = f"""Eres un asistente que identifica al autor de un documento académico.
 
@@ -83,8 +82,9 @@ Ante la duda, responde null — es preferible no etiquetar a etiquetar mal."""
 
     for intento in range(MAX_REINTENTOS):
         try:
-            respuesta = client.models.generate_content(model=MODEL_NAME, contents=prompt)
-            texto = (respuesta.text or "").strip()
+            texto = texto_ingesta(
+                generar_ingesta(prompt=prompt, max_tokens=200, modelo=MODEL_NAME)
+            ).strip()
             texto = texto.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
             data = json.loads(texto)
             nombre = data.get("profesor")
@@ -110,12 +110,10 @@ def main():
     parser.add_argument("--curso-id", type=int, default=None, help="Limita a un curso (materia) específico, para pilotos.")
     args = parser.parse_args()
 
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        print("Falta GEMINI_API_KEY en el .env")
+    if not get_openai():
+        print("Falta OPEN_AI_INGEST_API_KEY en el .env")
         return
 
-    client = genai.Client(api_key=api_key)
     sb = get_admin_client()
 
     candidatos_por_curso = obtener_candidatos_por_curso(sb)
@@ -151,7 +149,7 @@ def main():
             continue
 
         time.sleep(PAUSA)
-        nombre = preguntar_profesor(client, r["titulo"] or "", contenido, candidatos)
+        nombre = preguntar_profesor(r["titulo"] or "", contenido, candidatos)
 
         if nombre:
             profesor_id = next(c["id"] for c in candidatos if c["nombre_completo"] == nombre)

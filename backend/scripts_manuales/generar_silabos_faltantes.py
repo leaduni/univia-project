@@ -14,7 +14,7 @@ inserta las filas en learning_path_steps.
 Deduplicación: cuando el mismo PDF de sílabo aparece en varios cursos (un
 código compartido entre carreras, ej. FB303_SIS/_SOFT/_IND), se extrae y
 estructura UNA sola vez, y el mismo resultado se inserta para cada curso_id
-real que lo necesita — evita triplicar el costo de Gemini/OpenAI.
+real que lo necesita — evita triplicar el costo de la ingesta.
 
 Alcance: solo cursos que hoy no tienen NINGUNA fila en learning_path_steps
 Y que tienen un recurso tipo Silabo con drive_file_id. Los demás (sin
@@ -32,16 +32,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import requests
 from dotenv import load_dotenv
-from openai import OpenAI
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 from app.core.database import get_admin_client
+from app.core.llm import generar_ingesta, texto_ingesta
 from app.rag.extractor import SyllabusExtractor
 
 API_KEY_DRIVE = os.getenv("GOOGLE_DRIVE_API_KEY")
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-OPENAI_MODEL = "gpt-4o-mini"
+
 
 PROMPT_ESTRUCTURAR = """Eres un asistente que convierte el contenido de un sílabo universitario (en Markdown) en una ruta de aprendizaje semana a semana.
 
@@ -74,16 +73,12 @@ def descargar_pdf(drive_file_id: str) -> str:
 
 
 def estructurar_silabo(markdown: str) -> list:
-    resp = openai_client.chat.completions.create(
-        model=OPENAI_MODEL,
-        response_format={"type": "json_object"},
-        temperature=0.2,
-        messages=[
-            {"role": "system", "content": "Responde ÚNICAMENTE con JSON válido."},
-            {"role": "user", "content": PROMPT_ESTRUCTURAR + markdown[:12000]},
-        ],
-    )
-    data = json.loads(resp.choices[0].message.content)
+    crudo = texto_ingesta(generar_ingesta(
+        prompt=PROMPT_ESTRUCTURAR + markdown[:12000],
+        system="Responde ÚNICAMENTE con JSON válido, sin texto adicional ni bloques de código.",
+        max_tokens=8000,
+    ))
+    data = json.loads(crudo)
     return data.get("unidades", [])
 
 

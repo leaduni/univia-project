@@ -1,0 +1,92 @@
+"""Re-vectoriza `resource_chunks` con el modelo de embeddings actual.
+
+Los vectores de dos modelos distintos no son comparables: si se cambia el
+modelo de embeddings y solo se vectoriza lo nuevo, la búsqueda semántica
+devuelve resultados sin sentido porque compara vectores de espacios distintos.
+Este script recorre TODOS los chunks y los vuelve a vectorizar.
+
+Uso:
+    python -m scripts_manuales.revectorizar_chunks            # dry-run
+    python -m scripts_manuales.revectorizar_chunks --ejecutar # escribe
+
+Se puede relanzar sin miedo: re-vectorizar un chunk que ya estaba al día da el
+mismo vector, así que volver a correrlo completo no rompe nada (y con 811
+chunks cuesta un par de centavos). Procesa por lotes y solo escribe el lote que
+ya obtuvo su vector, así que un corte a mitad deja la base consistente.
+"""
+
+import argparse
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app.core.database import get_admin_client  # noqa: E402
+from app.rag.embedder import SyllabusEmbedder  # noqa: E402
+
+TAMANO_LOTE = 100
+
+
+def traer_chunks(sb) -> list:
+    filas, off = [], 0
+    while True:
+        lote = (
+            sb.table("resource_chunks")
+            .select("id,contenido")
+            .order("id")
+            .range(off, off + 999)
+            .execute()
+            .data
+        )
+        filas.extend(lote)
+        if len(lote) < 1000:
+            return filas
+        off += 1000
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--ejecutar", action="store_true", help="escribe en la base")
+    args = parser.parse_args()
+
+    sb = get_admin_client()
+    embedder = SyllabusEmbedder()
+
+    chunks = [c for c in traer_chunks(sb) if c.get("contenido")]
+    caracteres = sum(len(c["contenido"]) for c in chunks)
+    # ~4 caracteres por token en prosa académica; sirve para estimar el costo.
+    tokens_aprox = caracteres // 4
+    print(f"chunks a re-vectorizar: {len(chunks)}")
+    print(f"caracteres: {caracteres:,} (~{tokens_aprox:,} tokens)")
+    print(f"modelo: {embedder.model_name}")
+    print(f"costo estimado: ${tokens_aprox / 1_000_000 * 0.02:.4f} USD")
+
+    if not args.ejecutar:
+        print("\nDry-run. Repite con --ejecutar para escribir.")
+        return
+
+    hechos, fallidos = 0, []
+    for i in range(0, len(chunks), TAMANO_LOTE):
+        lote = chunks[i : i + TAMANO_LOTE]
+        try:
+            vectores = embedder._llamar_api([c["contenido"] for c in lote])
+        except Exception as e:
+            fallidos.extend(c["id"] for c in lote)
+            print(f"  lote {i // TAMANO_LOTE + 1}: FALLÓ ({type(e).__name__}: {e})")
+            continue
+
+        for chunk, vector in zip(lote, vectores):
+            sb.table("resource_chunks").update({"embedding": vector}).eq(
+                "id", chunk["id"]
+            ).execute()
+        hechos += len(lote)
+        print(f"  {hechos}/{len(chunks)} chunks (último id {lote[-1]['id']})")
+
+    print(f"\nlisto: {hechos} re-vectorizados, {len(fallidos)} fallidos")
+    if fallidos:
+        print(f"ids fallidos: {fallidos[:20]}{' ...' if len(fallidos) > 20 else ''}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

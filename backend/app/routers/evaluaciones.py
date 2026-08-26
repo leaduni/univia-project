@@ -11,10 +11,10 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Union, AsyncGenerator
-from openai import OpenAI
 from dotenv import load_dotenv
 load_dotenv()
 
+from app.core.llm import MODELO_GENERACION, generar, get_claude
 from app.rag.retriever import SyllabusRetriever
 
 logger = logging.getLogger("evaluaciones_tracer")
@@ -43,10 +43,9 @@ def get_retriever() -> Optional[SyllabusRetriever]:
             return None
     return _retriever
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
-OPENAI_MODEL = "gpt-4o-mini"
+
+
 
 # Modelos de datos
 class ConfiguracionEvaluacion(BaseModel):
@@ -837,6 +836,59 @@ def _asignar_origen(preguntas: List[Pregunta], contexto: List[Dict[str, Any]]) -
 
 # ─── ENDPOINTS ────────────────────────────────────────────────────────
 
+SYSTEM_MSG_EVALUACION = (
+    "Eres un profesor de la UNI (Universidad Nacional de Ingeniería, Perú). "
+    "Tu única función es generar preguntas de examen IDÉNTICAS en complejidad a los ejercicios reales proporcionados. "
+    "NUNCA simplifiques. Transforma los ejercicios de referencia cambiando solo los valores numéricos. "
+    "LaTeX KaTeX ÚNICAMENTE: \\frac, \\vec, \\mathbf, \\overline, \\left(, \\right), \\mid, \\mathbb, \\sqrt, \\alpha, \\beta, \\theta, \\perp, \\in. "
+    "PROHIBIDO ABSOLUTO (rompen KaTeX): \\begin, \\end, \\matrix, \\Bmatrix, \\bigg, \\Big, \\rfloor, \\lfloor, \\textbf, \\bar, \\dfrac, \\text. "
+    "Rectas vectoriales: '$(2,1) + t(3,n),\\ t \\in \\mathbb{R}$' — NUNCA \\begin{Bmatrix}. "
+    "Prosa FUERA de $...$: escribe texto normal entre expresiones math. "
+    "Formatea toda expresión matemática en notación KaTeX válida delimitada ÚNICAMENTE por $ para expresiones inline "
+    "(ej. $f(x) = \\sin(x)$) o $$ para ecuaciones centradas en bloque. "
+    "Queda estrictamente prohibido usar corchetes en lugar de llaves en fracciones (usa siempre \\frac{a}{b}). "
+    "Genera un conjunto de N preguntas estrictamente ÚNICAS y DISTINTAS entre sí. "
+    "Está prohibido repetir el mismo ejercicio o generar variantes triviales del mismo problema dentro del mismo lote. "
+    "INSTRUCCIONES UNIVERSALES DE FORMATO Y ESTRUCTURA (MULTICURSO): "
+    "1. SINTAXIS LATEX EN TODO EL EXAMEN: Cualquier fórmula matemática, expresión algebraica, "
+    "ecuación, integral, matriz o vector DEBE IR DENTRO DE $...$. "
+    "CORRECTO: \"Calcule $\\int_0^1 x^2 dx$\" / \"Determine el valor de $k$\". "
+    "PROHIBIDO escribir \\frac, \\sqrt, \\int, \\vec, \\matrix sin $...$. "
+    "Usa estrictamente $...$ para matemáticas en línea y $$...$$ para bloques independientes. "
+    "NUNCA uses triple dólar ($$$) ni pegues palabras de texto plano a comandos LaTeX "
+    "(ejemplo correcto: 'Halle $\\vec{QS}$', incorrecto: 'Halle\\vec{QS}'). "
+    "Asegúrate de cerrar todos los delimitadores matemáticos abiertos antes de finalizar cada respuesta. "
+    "2. COHERENCIA COMPLETA ENTRE PREGUNTA Y OPCIONES: Si la pregunta pide N variables, "
+    "CADA opción DEBE dar la solución completa. "
+    "PROHIBIDO etiquetar problemas de cálculo complejo como verdadero/falso. "
+    "3. DIVERSIDAD ESTRICTA DE ENUNCIADOS Y PLANTILLAS: Queda PROHIBIDO repetir la misma "
+    "plantilla en más de UNA pregunta. Cada pregunta DEBE explorar un subtema distinto. "
+    "Alterna entre problemas teóricos, de aplicación directa, numéricos y de interpretación. "
+    "REGLA DE AISLAMIENTO DE OPCIONES (CRÍTICO): "
+    "1. Si el contexto RAG contiene una página con varios ejercicios, debes elegir ÚNICAMENTE UN ejercicio. "
+    "2. El arreglo 'opciones' DEBE CONTENER EXACTAMENTE 4 ELEMENTOS. "
+    "3. Queda ESTRICTAMENTE PROHIBIDO concatenar opciones de otros ejercicios vecinos. "
+    "4. NO incluyas letras de prefijo como 'A)', 'a.', '1.' dentro del texto de la opción. Pon solo la expresión o respuesta directas. "
+    "El campo 'explicacion' DEBE seguir estrictamente esta estructura Markdown con doble salto de línea entre pasos:\n"
+    "\n"
+    "### Paso 1: Planteamiento e Identificación de Datos\n"
+    "[Explicación con fórmulas en $...$]\n"
+    "\n"
+    "### Paso 2: Desarrollo algebraico detallado\n"
+    "[Explicación paso a paso con fórmulas en $...$]\n"
+    "\n"
+    "### Paso 3: Conclusión\n"
+    "[Respuesta final clara]\n"
+    "\n"
+    "REGLA CRÍTICA PARA LA SOLUCIÓN (explicacion): CADA variable, fórmula o comando LaTeX "
+    "(\\vec, \\sqrt, \\frac, \\text, etc.) DEBE estar estrictamente envuelto entre signos de dólar ($ ... $). "
+    "Separa siempre con un espacio en blanco los delimitadores de las palabras en español. "
+    "CORRECTO: 'La recta $L_1$ pasa por $A=(2,3)$'. INCORRECTO: 'La recta$L_1$pasa por$A$'. "
+    "NUNCA generes comandos LaTeX sueltos sin delimitador $. "
+    "REGLA ESTRICTA: Queda PROHIBIDO mencionar 'opción 0', 'opción 1', 'opción A', etc. Menciona únicamente el valor o vector solución final. "
+    "Responde ÚNICAMENTE con JSON válido, sin texto adicional."
+)
+
 @router.post("/evaluaciones/generar", response_model=Evaluacion)
 async def generar_evaluacion(config: ConfiguracionEvaluacion):
     """
@@ -844,8 +896,8 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion):
     basada en el módulo, temas y configuración del estudiante
     """
     
-    if not openai_client:
-        raise HTTPException(status_code=500, detail="API Key de OpenAI no configurada")
+    if not get_claude():
+        raise HTTPException(status_code=500, detail="API Key de Claude no configurada")
 
     try:
         if len(config.temas) == 1:
@@ -864,77 +916,14 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion):
         else:
             prompt = generar_prompt_teorico(config, contexto)
 
-        stream = openai_client.chat.completions.create(
-            model=OPENAI_MODEL,
+        # El system prompt va aparte y se cachea: son >2.000 tokens que se
+        # reenvían idénticos en cada generación (ver app/core/llm.py).
+        raw_content = generar(
+            prompt=prompt,
+            system=SYSTEM_MSG_EVALUACION,
             max_tokens=16000,
             stream=True,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Eres un profesor de la UNI (Universidad Nacional de Ingeniería, Perú). "
-                        "Tu única función es generar preguntas de examen IDÉNTICAS en complejidad a los ejercicios reales proporcionados. "
-                        "NUNCA simplifiques. Transforma los ejercicios de referencia cambiando solo los valores numéricos. "
-                        "LaTeX KaTeX ÚNICAMENTE: \\frac, \\vec, \\mathbf, \\overline, \\left(, \\right), \\mid, \\mathbb, \\sqrt, \\alpha, \\beta, \\theta, \\perp, \\in. "
-                        "PROHIBIDO ABSOLUTO (rompen KaTeX): \\begin, \\end, \\matrix, \\Bmatrix, \\bigg, \\Big, \\rfloor, \\lfloor, \\textbf, \\bar, \\dfrac, \\text. "
-                        "Rectas vectoriales: '$(2,1) + t(3,n),\\ t \\in \\mathbb{R}$' — NUNCA \\begin{Bmatrix}. "
-                        "Prosa FUERA de $...$: escribe texto normal entre expresiones math. "
-                        "Formatea toda expresión matemática en notación KaTeX válida delimitada ÚNICAMENTE por $ para expresiones inline "
-                        "(ej. $f(x) = \\sin(x)$) o $$ para ecuaciones centradas en bloque. "
-                        "Queda estrictamente prohibido usar corchetes en lugar de llaves en fracciones (usa siempre \\frac{a}{b}). "
-                        "Genera un conjunto de N preguntas estrictamente ÚNICAS y DISTINTAS entre sí. "
-                        "Está prohibido repetir el mismo ejercicio o generar variantes triviales del mismo problema dentro del mismo lote. "
-                        "INSTRUCCIONES UNIVERSALES DE FORMATO Y ESTRUCTURA (MULTICURSO): "
-                        "1. SINTAXIS LATEX EN TODO EL EXAMEN: Cualquier fórmula matemática, expresión algebraica, "
-                        "ecuación, integral, matriz o vector DEBE IR DENTRO DE $...$. "
-                        "CORRECTO: \"Calcule $\\int_0^1 x^2 dx$\" / \"Determine el valor de $k$\". "
-                        "PROHIBIDO escribir \\frac, \\sqrt, \\int, \\vec, \\matrix sin $...$. "
-                        "Usa estrictamente $...$ para matemáticas en línea y $$...$$ para bloques independientes. "
-                        "NUNCA uses triple dólar ($$$) ni pegues palabras de texto plano a comandos LaTeX "
-                        "(ejemplo correcto: 'Halle $\\vec{QS}$', incorrecto: 'Halle\\vec{QS}'). "
-                        "Asegúrate de cerrar todos los delimitadores matemáticos abiertos antes de finalizar cada respuesta. "
-                        "2. COHERENCIA COMPLETA ENTRE PREGUNTA Y OPCIONES: Si la pregunta pide N variables, "
-                        "CADA opción DEBE dar la solución completa. "
-                        "PROHIBIDO etiquetar problemas de cálculo complejo como verdadero/falso. "
-                        "3. DIVERSIDAD ESTRICTA DE ENUNCIADOS Y PLANTILLAS: Queda PROHIBIDO repetir la misma "
-                        "plantilla en más de UNA pregunta. Cada pregunta DEBE explorar un subtema distinto. "
-                        "Alterna entre problemas teóricos, de aplicación directa, numéricos y de interpretación. " 
-                        "REGLA DE AISLAMIENTO DE OPCIONES (CRÍTICO): "
-                        "1. Si el contexto RAG contiene una página con varios ejercicios, debes elegir ÚNICAMENTE UN ejercicio. "
-                        "2. El arreglo 'opciones' DEBE CONTENER EXACTAMENTE 4 ELEMENTOS. "
-                        "3. Queda ESTRICTAMENTE PROHIBIDO concatenar opciones de otros ejercicios vecinos. "
-                        "4. NO incluyas letras de prefijo como 'A)', 'a.', '1.' dentro del texto de la opción. Pon solo la expresión o respuesta directas. "
-                        "El campo 'explicacion' DEBE seguir estrictamente esta estructura Markdown con doble salto de línea entre pasos:\n"
-                        "\n"
-                        "### Paso 1: Planteamiento e Identificación de Datos\n"
-                        "[Explicación con fórmulas en $...$]\n"
-                        "\n"
-                        "### Paso 2: Desarrollo algebraico detallado\n"
-                        "[Explicación paso a paso con fórmulas en $...$]\n"
-                        "\n"
-                        "### Paso 3: Conclusión\n"
-                        "[Respuesta final clara]\n"
-                        "\n"
-                        "REGLA CRÍTICA PARA LA SOLUCIÓN (explicacion): CADA variable, fórmula o comando LaTeX "
-                        "(\\vec, \\sqrt, \\frac, \\text, etc.) DEBE estar estrictamente envuelto entre signos de dólar ($ ... $). "
-                        "Separa siempre con un espacio en blanco los delimitadores de las palabras en español. "
-                        "CORRECTO: 'La recta $L_1$ pasa por $A=(2,3)$'. INCORRECTO: 'La recta$L_1$pasa por$A$'. "
-                        "NUNCA generes comandos LaTeX sueltos sin delimitador $. "
-                        "REGLA ESTRICTA: Queda PROHIBIDO mencionar 'opción 0', 'opción 1', 'opción A', etc. Menciona únicamente el valor o vector solución final. "
-                        "Responde ÚNICAMENTE con JSON válido, sin texto adicional."
-                    )
-                },
-                {"role": "user", "content": prompt}
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.4,
         )
-
-        raw_content = ""
-        for chunk in stream:
-            delta = chunk.choices[0].delta.content
-            if delta:
-                raw_content += delta
 
         data = parse_llm_json_response(raw_content)
         
@@ -1195,16 +1184,7 @@ async def _generar_una_pregunta(idx: int, prompt: str, tipo_real: str) -> dict:
     loop = asyncio.get_running_loop()
 
     def _call():
-        resp = openai_client.chat.completions.create(
-            model=OPENAI_MODEL,
-            max_tokens=4000,
-            messages=[
-                {"role": "system", "content": SYSTEM_MSG_TEORICO},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.4,
-        )
-        return resp.choices[0].message.content
+        return generar(prompt=prompt, system=SYSTEM_MSG_TEORICO, max_tokens=4000)
 
     ultimo_error = None
     for intento in range(3):
@@ -1226,9 +1206,9 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion):
     logger.info(f"PASO 1: Nueva petición recibida | curso_id={config.curso_id}, modulo='{config.modulo}', "
                 f"temas={config.temas}, num_preguntas={config.num_preguntas}")
 
-    if not openai_client:
-        logger.error("PASO 1 ERROR: OpenAI client no inicializado - API Key no configurada")
-        raise HTTPException(status_code=500, detail="API Key de OpenAI no configurada")
+    if not get_claude():
+        logger.error("PASO 1 ERROR: cliente de Claude no inicializado - API Key no configurada")
+        raise HTTPException(status_code=500, detail="API Key de Claude no configurada")
 
     try:
         logger.info("PASO 2: Buscando contexto semántico / sílabo (RAG)...")
@@ -1251,11 +1231,10 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion):
         else:
             logger.warning("PASO 2 ALERTA: No se recuperó contexto RAG. Continuando sin él...")
 
-        logger.info("PASO 3: Verificando cliente OpenAI...")
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            logger.error("PASO 3 ERROR: OPENAI_API_KEY no está configurada en variables de entorno.")
-            raise HTTPException(status_code=500, detail="Falta configuración de API Key de OpenAI en el servidor.")
+        logger.info("PASO 3: Verificando cliente de Claude...")
+        if not get_claude():
+            logger.error("PASO 3 ERROR: CLAUDE_GEN_API_KEY no está configurada en variables de entorno.")
+            raise HTTPException(status_code=500, detail="Falta configuración de API Key de Claude en el servidor.")
         logger.info(f"PASO 3 OK: API Key presente (primeros caracteres: {api_key[:8]}...)")
 
     except Exception as e:
@@ -1280,15 +1259,11 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion):
                 prompt_prog = generar_prompt_programacion(cfg1, contexto)
                 loop = asyncio.get_running_loop()
                 def _call_prog():
-                    resp = openai_client.chat.completions.create(
-                        model=OPENAI_MODEL, max_tokens=6000,
-                        messages=[
-                            {"role": "system", "content": "Eres un arquitecto de software senior. Responde ÚNICAMENTE con JSON válido."},
-                            {"role": "user", "content": prompt_prog},
-                        ],
-                        response_format={"type": "json_object"}, temperature=0.4,
+                    return generar(
+                        prompt=prompt_prog,
+                        system="Eres un arquitecto de software senior. Responde ÚNICAMENTE con JSON válido, sin texto adicional ni bloques de código.",
+                        max_tokens=6000,
                     )
-                    return resp.choices[0].message.content
 
                 raw = await loop.run_in_executor(None, _call_prog)
                 logger.info(f"PASO 5 COMPLETADO: Respuesta cruda recibida ({len(raw)} caracteres).")
@@ -1444,7 +1419,7 @@ async def generar_retroalimentacion(
     basada en los resultados del estudiante
     """
     
-    if not openai_client:
+    if not get_claude():
         return "Retroalimentación no disponible"
 
     temas_dificultad = []
@@ -1472,32 +1447,26 @@ Para cualquier fórmula matemática, usa la sintaxis de LaTeX: $...$ para fórmu
 """
 
     try:
-        response = openai_client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
-        )
-        return response.choices[0].message.content
-    except Exception as e:
+        return generar(prompt=prompt, max_tokens=1500)
+    except Exception:
         return f"Retroalimentación automática: Has obtenido un {porcentaje:.1f}%. {'¡Excelente trabajo!' if porcentaje >= 70 else 'Sigue practicando para mejorar.'}"
 
 @router.get("/evaluaciones/test")
-async def test_openai():
-    """Endpoint de prueba para verificar que OpenAI está funcionando"""
+async def test_claude():
+    """Endpoint de prueba para verificar que la generación con Claude funciona."""
 
-    if not openai_client:
-        return {"status": "error", "message": "API Key de OpenAI no configurada"}
+    if not get_claude():
+        return {"status": "error", "message": "API Key de Claude no configurada"}
 
     try:
-        response = openai_client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[{"role": "user", "content": "Di 'Hola, UniVia está listo para generar evaluaciones!'"}],
-            temperature=0.5,
+        texto = generar(
+            prompt="Di 'Hola, UniVia está listo para generar evaluaciones!'",
+            max_tokens=100,
         )
         return {
             "status": "success",
-            "message": "OpenAI API funcionando correctamente",
-            "response": response.choices[0].message.content
+            "message": f"Claude ({MODELO_GENERACION}) funcionando correctamente",
+            "response": texto,
         }
     except Exception as e:
         return {

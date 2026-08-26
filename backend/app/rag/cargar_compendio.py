@@ -18,7 +18,7 @@ load_dotenv()
 
 
 def _validar_env():
-    faltantes = [k for k in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "GEMINI_API_KEY") if not os.getenv(k)]
+    faltantes = [k for k in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "OPEN_AI_INGEST_API_KEY", "CLAUDE_GEN_API_KEY") if not os.getenv(k)]
     if faltantes:
         raise RuntimeError(f"Variables de entorno faltantes: {', '.join(faltantes)}")
     return os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_KEY")

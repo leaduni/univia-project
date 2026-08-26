@@ -1,3 +1,5 @@
+import base64
+import io as _io
 import os
 import re
 import time
@@ -6,9 +8,10 @@ import logging
 from pathlib import Path
 from typing import Optional, Tuple
 
-import google.generativeai as genai
 from pdf2image import convert_from_path, pdfinfo_from_path
 from dotenv import load_dotenv
+
+from app.core.llm import MODELO_INGESTA, generar_ingesta, get_openai, texto_ingesta
 
 
 for candidate in [
@@ -24,6 +27,13 @@ else:
     load_dotenv()
 
 POPPLER_PATH = os.getenv("POPPLER_PATH") or None
+
+# Más de ~1568 px de lado largo no mejora el OCR y sí cuesta más tokens de
+# imagen, así que la página se reescala antes de mandarla.
+MAX_LADO_IMAGEN = 1568
+# JPEG en vez de PNG: una página escaneada pesa varias veces menos y el OCR
+# no nota la diferencia a esta calidad.
+CALIDAD_JPEG = 90
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger(__name__)
@@ -90,12 +100,11 @@ def limpiar(texto: str) -> str:
 
 
 class SyllabusExtractor:
-    def __init__(self, model_name="gemini-2.5-flash", rpm=8, max_retries=6, timeout=120):
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError("GEMINI_API_KEY no configurada en .env")
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(model_name)
+    def __init__(self, model_name=None, rpm=8, max_retries=6, timeout=120):
+        model_name = model_name or MODELO_INGESTA
+        if get_openai() is None:
+            raise RuntimeError("OPEN_AI_INGEST_API_KEY no configurada en .env")
+        self.model_name = model_name
         self.min_interval = 60.0 / max(1, rpm)
         self.max_retries = max_retries
         self.timeout = timeout
@@ -118,15 +127,29 @@ class SyllabusExtractor:
         s = str(e).lower()
         return any(k in s for k in ["429", "quota", "resourceexhausted", "503", "500", "timeout", "overloaded"])
 
-    def _llamar_gemini(self, prompt, image, page_num):
+    @staticmethod
+    def _imagen_b64(image) -> str:
+        """Página (PIL Image) reescalada y codificada en JPEG base64."""
+        img = image.convert("RGB")
+        lado = max(img.size)
+        if lado > MAX_LADO_IMAGEN:
+            factor = MAX_LADO_IMAGEN / lado
+            img = img.resize((int(img.width * factor), int(img.height * factor)))
+        buffer = _io.BytesIO()
+        img.save(buffer, format="JPEG", quality=CALIDAD_JPEG)
+        return base64.standard_b64encode(buffer.getvalue()).decode()
+
+    def _llamar_modelo(self, prompt, image, page_num):
         last_exc = None
         for attempt in range(1, self.max_retries + 1):
             try:
                 self._throttle()
-                try:
-                    return self.model.generate_content([prompt, image], request_options={"timeout": self.timeout})
-                except TypeError:
-                    return self.model.generate_content([prompt, image])
+                return generar_ingesta(
+                    prompt=prompt,
+                    imagen_b64=self._imagen_b64(image),
+                    max_tokens=8000,
+                    modelo=self.model_name,
+                )
             except Exception as e:
                 last_exc = e
                 if self._es_cuota_diaria(e):
@@ -144,18 +167,21 @@ class SyllabusExtractor:
 
     @staticmethod
     def _get_text(response) -> Tuple[Optional[str], Optional[str]]:
-        if not getattr(response, "candidates", None):
-            motivo = getattr(getattr(response, "prompt_feedback", None), "block_reason", "SIN_CANDIDATOS")
-            return None, str(motivo)
-        finish = getattr(response.candidates[0], "finish_reason", None)
-        finish = finish.name if finish else "DESCONOCIDO"
-        if finish == "SAFETY":
-            return None, "SAFETY_FILTER"
+        """(texto, None) si la página se leyó; (None, motivo) si no."""
         try:
-            texto = response.text
-            return (limpiar(texto), None) if texto and texto.strip() else (None, f"VACIA ({finish})")
+            eleccion = response.choices[0]
+        except (AttributeError, IndexError):
+            return None, "SIN_RESPUESTA"
+        motivo_corte = getattr(eleccion, "finish_reason", None) or "DESCONOCIDO"
+        if motivo_corte == "content_filter":
+            return None, "FILTRO_DE_CONTENIDO"
+        try:
+            texto = texto_ingesta(response)
         except (ValueError, AttributeError) as exc:
-            return None, f"ERROR_TEXTO ({finish}): {exc}"
+            return None, f"ERROR_TEXTO ({motivo_corte}): {exc}"
+        if not texto or not texto.strip():
+            return None, f"VACIA ({motivo_corte})"
+        return limpiar(texto), None
 
     @staticmethod
     def _find_completed_pages(texto: str) -> set:
@@ -222,7 +248,7 @@ class SyllabusExtractor:
             cuota_diaria = False
 
             try:
-                response = self._llamar_gemini(prompt, image, n)
+                response = self._llamar_modelo(prompt, image, n)
                 texto, motivo = self._get_text(response)
 
                 if texto and not es_sospechosa(texto):
@@ -230,7 +256,7 @@ class SyllabusExtractor:
                     logger.info(f"[Extracción] Página {n}/{total} OK ({len(texto)} caracteres)")
                 elif salvage and modo == "examenes":
                     logger.warning(f"[Extracción] Página {n}/{total} vacía/sospechosa ({motivo}). Intentando rescate...")
-                    response2 = self._llamar_gemini(PROMPT_SALVAGE, image, n)
+                    response2 = self._llamar_modelo(PROMPT_SALVAGE, image, n)
                     texto2, motivo2 = self._get_text(response2)
                     if texto2 and not es_sospechosa(texto2):
                         bloque = self._bloque_ok(n, texto2)
@@ -473,7 +499,7 @@ class SyllabusExtractor:
 
         bloque = ""
         try:
-            response = self._llamar_gemini(prompt, image, page_num)
+            response = self._llamar_modelo(prompt, image, page_num)
             texto, motivo = self._get_text(response)
 
             if texto and not es_sospechosa(texto):
@@ -481,7 +507,7 @@ class SyllabusExtractor:
                 logger.info(f"[Extracción] Pagina {page_num}/{total} OK ({len(texto)} caracteres)")
             elif salvage and modo == "examenes":
                 logger.warning(f"[Extracción] Pagina {page_num}/{total} sospechosa. Rescate...")
-                response2 = self._llamar_gemini(PROMPT_SALVAGE, image, page_num)
+                response2 = self._llamar_modelo(PROMPT_SALVAGE, image, page_num)
                 texto2, motivo2 = self._get_text(response2)
                 if texto2 and not es_sospechosa(texto2):
                     bloque = self._bloque_ok(page_num, texto2)

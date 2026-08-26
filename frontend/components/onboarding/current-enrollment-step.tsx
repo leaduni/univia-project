@@ -6,7 +6,6 @@ import {
   ChevronLeft,
   ChevronDown,
   CheckCircle2,
-  Lock,
   Loader2,
   Circle,
   ArrowRight,
@@ -54,59 +53,24 @@ interface CicloGroup {
   courses: CursoItem[]
 }
 
-function resolvePrereqs(courseId: number, prereqMap: Record<number, number[]>): Set<number> {
-  const visited = new Set<number>()
-  const queue = [courseId]
-  while (queue.length > 0) {
-    const curr = queue.shift()!
-    for (const pid of prereqMap[curr] || []) {
-      if (!visited.has(pid)) {
-        visited.add(pid)
-        queue.push(pid)
-      }
-    }
-  }
-  return visited
-}
-
-function resolveSuccessors(courseId: number, prereqMap: Record<number, number[]>): Set<number> {
-  const reverse: Record<number, number[]> = {}
-  for (const [cid, prereqs] of Object.entries(prereqMap)) {
-    for (const pid of prereqs) {
-      if (!reverse[pid]) reverse[pid] = []
-      reverse[pid].push(Number(cid))
-    }
-  }
-
-  const visited = new Set<number>()
-  const queue = [courseId]
-  while (queue.length > 0) {
-    const curr = queue.shift()!
-    for (const dep of reverse[curr] || []) {
-      if (!visited.has(dep)) {
-        visited.add(dep)
-        queue.push(dep)
-      }
-    }
-  }
-  return visited
-}
-
-export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id, malla_id }: CurrentEnrollmentStepProps) {
+export function CurrentEnrollmentStep({
+  data,
+  onNext,
+  onBack,
+  carrera_id,
+  malla_id,
+}: CurrentEnrollmentStepProps) {
   const cicloActual = Number(data.semester) || 1
 
   const [cursos, setCursos] = useState<CursoItem[]>([])
   // Historial declarado. El sistema no tiene de dónde deducirlo: `progreso_cursos`
-  // está vacía en el onboarding, así que sin este paso todo curso con
-  // prerrequisito le aparecería bloqueado a quien no empieza en el ciclo 1.
+  // está vacía en el onboarding, así que solo lo sabe el estudiante.
   const [aprobados, setAprobados] = useState<Set<number>>(new Set())
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [busqueda, setBusqueda] = useState("")
-  // Curso bloqueado sobre el que se pidió explicación. Un `title` no sirve:
-  // en móvil no hay hover y el estudiante se queda sin saber por qué no puede.
-  const [motivoVisible, setMotivoVisible] = useState<number | null>(null)
+  const [ciclosCerrados, setCiclosCerrados] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     if (!carrera_id || carrera_id <= 0) return
@@ -162,45 +126,37 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id, malla_
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [carrera_id, malla_id, data.malla_id, cicloActual])
 
-  const prereqMap = useMemo(() => {
-    const map: Record<number, number[]> = {}
-    for (const c of cursos) {
-      if (c.prerrequisito_ids.length > 0) {
-        map[c.id] = c.prerrequisito_ids
-      }
-    }
-    return map
-  }, [cursos])
-
   const cursosPorId = useMemo(() => {
     const map = new Map<number, CursoItem>()
     for (const c of cursos) map.set(c.id, c)
     return map
   }, [cursos])
 
-  /**
-   * Prerrequisitos que le faltan a un curso según el historial declarado.
-   * Se calcula aquí y no en el backend porque durante el onboarding
-   * `progreso_cursos` está vacía: el único historial que existe es el que el
-   * estudiante acaba de marcar en esta pantalla.
-   */
-  const faltantesPara = (courseId: number, historial: Set<number>): CursoItem[] =>
-    Array.from(resolvePrereqs(courseId, prereqMap))
-      .filter((pid) => cursosPorId.has(pid) && !historial.has(pid))
-      .map((pid) => cursosPorId.get(pid)!)
-
   const cursosPrevios = useMemo(
     () => cursos.filter((c) => c.ciclo < cicloActual),
     [cursos, cicloActual],
   )
 
-  /** Cursos ofertables: los del ciclo declarado más los previos no aprobados.
-   *  Los de ciclos posteriores quedan fuera: nadie se matricula en un ciclo que
-   *  todavía no alcanza, y colarlos llenaba la lista de cursos imposibles. */
+  /**
+   * Lo que se puede elegir: TODO el ciclo declarado, siempre, más los cursos
+   * de ciclos anteriores que el estudiante no marcó como aprobados (arrastres).
+   * Nada se oculta ni se bloquea por prerrequisitos: convalidaciones, cursos
+   * dirigidos y permisos de facultad existen y el sistema no los conoce. Si
+   * falta un prerrequisito se avisa, pero la última palabra es del estudiante.
+   */
   const cursosOfertados = useMemo(
-    () => cursos.filter((c) => c.ciclo <= cicloActual && !aprobados.has(c.id)),
+    () =>
+      cursos.filter(
+        (c) => c.ciclo === cicloActual || (c.ciclo < cicloActual && !aprobados.has(c.id)),
+      ),
     [cursos, cicloActual, aprobados],
   )
+
+  /** Prerrequisitos directos que no figuran en el historial declarado. */
+  const faltantesPara = (course: CursoItem): CursoItem[] =>
+    course.prerrequisito_ids
+      .filter((pid) => cursosPorId.has(pid) && !aprobados.has(pid))
+      .map((pid) => cursosPorId.get(pid)!)
 
   const historialPorCiclo = useMemo(() => {
     const groups: Record<number, CicloGroup> = {}
@@ -218,8 +174,6 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id, malla_
     }
     return Object.values(groups).sort((a, b) => a.cicloNum - b.cicloNum)
   }, [cursosPrevios])
-
-  const [ciclosCerrados, setCiclosCerrados] = useState<Set<number>>(new Set())
 
   const ofertadosFiltrados = useMemo(() => {
     const termino = busqueda.trim().toLowerCase()
@@ -251,86 +205,63 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id, malla_
 
   const topeAlcanzado = selected.size >= MAX_CURSOS_INSCRITOS
 
-  /**
-   * Marca/desmarca un curso del historial arrastrando sus dependencias: no
-   * tiene sentido aprobar Cálculo 2 sin Cálculo 1, ni conservar Cálculo 2 tras
-   * desmarcar Cálculo 1. El backend rechaza esos historiales incoherentes.
-   */
+  /** Marca o desmarca un curso del historial. Solo ese: nada en cascada. */
   const toggleAprobado = (courseId: number) => {
-    const curso = cursosPorId.get(courseId)
     // Un curso ya aprobado en la base no se puede desaprobar desde aquí. Los
     // `in_progress` sí se tocan: al actualizar la situación académica, los
     // cursos del ciclo que acaba de terminar son justamente los que el
     // estudiante viene a declarar como aprobados o jalados.
-    if (curso?.status === "completed") return
+    if (cursosPorId.get(courseId)?.status === "completed") return
 
-    const next = new Set(aprobados)
-    if (next.has(courseId)) {
-      next.delete(courseId)
-      for (const sucesor of resolveSuccessors(courseId, prereqMap)) next.delete(sucesor)
-    } else {
-      next.add(courseId)
-      for (const previo of resolvePrereqs(courseId, prereqMap)) {
-        if (cursosPorId.has(previo)) next.add(previo)
-      }
-    }
-
-    // Un curso aprobado ya no se lleva, y cambiar el historial puede dejar sin
-    // requisitos a algo ya marcado: se poda para no enviar una selección que el
-    // backend rechazaría.
-    setSelected((prev) => {
-      const podado = new Set<number>()
-      for (const cid of prev) {
-        if (next.has(cid)) continue
-        if (faltantesPara(cid, next).length > 0) continue
-        podado.add(cid)
-      }
-      return podado
+    setAprobados((prev) => {
+      const next = new Set(prev)
+      if (next.has(courseId)) next.delete(courseId)
+      else next.add(courseId)
+      return next
     })
-
-    setAprobados(next)
-    setMotivoVisible(null)
+    // Un curso aprobado ya no se lleva; lo demás se respeta tal cual.
+    setSelected((prev) => {
+      if (!prev.has(courseId)) return prev
+      const next = new Set(prev)
+      next.delete(courseId)
+      return next
+    })
   }
 
   const marcarCicloCompleto = (cicloNum: number, marcar: boolean) => {
-    const delCiclo = cursosPrevios.filter((c) => c.ciclo === cicloNum)
-    const next = new Set(aprobados)
-    for (const curso of delCiclo) {
-      if (curso.status === "completed") continue
-      if (marcar) {
-        next.add(curso.id)
-        for (const previo of resolvePrereqs(curso.id, prereqMap)) {
-          if (cursosPorId.has(previo)) next.add(previo)
-        }
-      } else {
-        next.delete(curso.id)
-        for (const sucesor of resolveSuccessors(curso.id, prereqMap)) next.delete(sucesor)
+    const delCiclo = cursosPrevios.filter(
+      (c) => c.ciclo === cicloNum && c.status !== "completed",
+    )
+    setAprobados((prev) => {
+      const next = new Set(prev)
+      for (const curso of delCiclo) {
+        if (marcar) next.add(curso.id)
+        else next.delete(curso.id)
       }
-    }
-    setSelected((prev) => {
-      const podado = new Set<number>()
-      for (const cid of prev) {
-        if (next.has(cid)) continue
-        if (faltantesPara(cid, next).length > 0) continue
-        podado.add(cid)
-      }
-      return podado
+      return next
     })
-    setAprobados(next)
+    if (marcar) {
+      setSelected((prev) => {
+        const next = new Set(prev)
+        for (const curso of delCiclo) next.delete(curso.id)
+        return next
+      })
+    }
   }
 
   const handleToggleCourse = (courseId: number) => {
-    const newSelected = new Set(selected)
-    if (newSelected.has(courseId)) {
-      newSelected.delete(courseId)
-    } else {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(courseId)) {
+        next.delete(courseId)
+        return next
+      }
       // El backend rechaza más de 12 cursos: cortarlo aquí evita que el
       // estudiante arme toda su inscripción y recién falle al enviarla.
-      if (topeAlcanzado) return
-      newSelected.add(courseId)
-    }
-    setSelected(newSelected)
-    setMotivoVisible(null)
+      if (prev.size >= MAX_CURSOS_INSCRITOS) return prev
+      next.add(courseId)
+      return next
+    })
   }
 
   const handleContinue = () => {
@@ -346,11 +277,25 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id, malla_
   const isValidEnrollment = selected.size >= 1
 
   const toggleCiclo = (cicloNum: number) => {
-    const next = new Set(ciclosCerrados)
-    if (next.has(cicloNum)) next.delete(cicloNum)
-    else next.add(cicloNum)
-    setCiclosCerrados(next)
+    setCiclosCerrados((prev) => {
+      const next = new Set(prev)
+      if (next.has(cicloNum)) next.delete(cicloNum)
+      else next.add(cicloNum)
+      return next
+    })
   }
+
+  /** Cursos elegidos a los que les falta algún prerrequisito en el historial. */
+  const avisosPrereq = useMemo(
+    () =>
+      Array.from(selected)
+        .map((id) => cursosPorId.get(id))
+        .filter((c): c is CursoItem => !!c)
+        .map((c) => ({ curso: c, faltantes: faltantesPara(c) }))
+        .filter((x) => x.faltantes.length > 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selected, aprobados, cursosPorId],
+  )
 
   if (loading) {
     return (
@@ -383,9 +328,6 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id, malla_
       </div>
     )
   }
-
-  const explicacion = motivoVisible !== null ? cursosPorId.get(motivoVisible) : null
-  const faltantesExplicacion = explicacion ? faltantesPara(explicacion.id, aprobados) : []
 
   return (
     <div className="space-y-6">
@@ -511,7 +453,7 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id, malla_
                   Cursos que llevas este ciclo
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Sugeridos de tu Ciclo {aRomano(cicloActual)}, más lo que dejaste pendiente
+                  Todo el Ciclo {aRomano(cicloActual)} de tu plan, más lo que dejaste pendiente
                 </p>
               </div>
               <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-primary/15 text-primary border border-primary/30">
@@ -539,40 +481,30 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id, malla_
             ) : (
               <div className="flex flex-wrap gap-2">
                 {ofertadosFiltrados.map((course) => {
-                  const faltantes = faltantesPara(course.id, aprobados)
-                  const isLocked = faltantes.length > 0
                   const isSelected = selected.has(course.id)
                   const esDeCicloPrevio = course.ciclo < cicloActual
-                  const bloqueadoPorTope = topeAlcanzado && !isSelected && !isLocked
-                  const seleccionable = !isLocked && !bloqueadoPorTope
+                  const bloqueadoPorTope = topeAlcanzado && !isSelected
+                  const leFalta = faltantesPara(course).length > 0
 
                   const estilo = isSelected
                     ? "border-accent bg-accent/15 text-foreground ring-1 ring-accent"
-                    : isLocked || bloqueadoPorTope
-                      ? "border-border/50 bg-card/40 text-muted-foreground"
+                    : bloqueadoPorTope
+                      ? "border-border/50 bg-card/40 text-muted-foreground cursor-not-allowed"
                       : "border-border bg-card text-foreground hover:border-accent/50"
 
                   return (
                     <button
                       key={course.id}
                       type="button"
-                      onClick={() => {
-                        if (seleccionable) handleToggleCourse(course.id)
-                        else if (isLocked) {
-                          setMotivoVisible(motivoVisible === course.id ? null : course.id)
-                        }
-                      }}
+                      onClick={() => handleToggleCourse(course.id)}
+                      disabled={bloqueadoPorTope}
                       aria-pressed={isSelected}
                       title={`${course.code} · ${course.name} · ${course.credits} créditos`}
-                      className={`inline-flex items-center gap-2 pl-3 pr-3.5 py-2 rounded-full border text-left transition-all duration-200 ${estilo} ${
-                        seleccionable || isLocked ? "" : "cursor-not-allowed"
-                      }`}
+                      className={`inline-flex items-center gap-2 pl-3 pr-3.5 py-2 rounded-full border text-left transition-all duration-200 ${estilo}`}
                     >
                       <span className="shrink-0">
                         {isSelected ? (
                           <CheckCircle2 className="w-4 h-4 text-accent" />
-                        ) : isLocked ? (
-                          <Lock className="w-4 h-4" />
                         ) : (
                           <Circle className="w-4 h-4 text-muted-foreground/60" />
                         )}
@@ -584,28 +516,42 @@ export function CurrentEnrollmentStep({ data, onNext, onBack, carrera_id, malla_
                           Ciclo {aRomano(course.ciclo)}
                         </span>
                       )}
+                      {leFalta && (
+                        <span
+                          className="text-[10px] font-semibold uppercase tracking-wider text-amber-500"
+                          title="Según lo que marcaste, te falta un prerrequisito"
+                        >
+                          Requisito
+                        </span>
+                      )}
                     </button>
                   )
                 })}
               </div>
             )}
-
-            {/* Explicación del bloqueo, contra el historial recién declarado. */}
-            {explicacion && (
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-muted/60 border border-border text-xs text-muted-foreground">
-                <Info className="w-4 h-4 text-accent shrink-0 mt-0.5" />
-                <p className="leading-relaxed">
-                  <span className="font-semibold text-foreground">{explicacion.name}</span>{" "}
-                  está bloqueado porque marcaste como no aprobado:{" "}
-                  <span className="text-foreground">
-                    {faltantesExplicacion.map((p) => `${p.code} ${p.name}`).join(", ")}
-                  </span>
-                  . Márcalo arriba si ya lo aprobaste.
-                </p>
-              </div>
-            )}
           </div>
         </section>
+
+        {/* Aviso, no bloqueo: el estudiante puede tener convalidación o permiso. */}
+        {avisosPrereq.length > 0 && (
+          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-muted/60 border border-border text-xs text-muted-foreground">
+            <Info className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <div className="space-y-1 leading-relaxed">
+              <p>
+                Elegiste cursos cuyo prerrequisito no marcaste como aprobado. Puedes
+                llevarlos igual si tienes convalidación o permiso de tu facultad.
+              </p>
+              <ul className="space-y-0.5">
+                {avisosPrereq.map(({ curso, faltantes }) => (
+                  <li key={curso.id}>
+                    <span className="font-semibold text-foreground">{curso.name}</span> requiere{" "}
+                    {faltantes.map((f) => `${f.code} ${f.name}`).join(", ")}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="max-w-3xl mx-auto p-4 rounded-2xl bg-card border border-border flex flex-wrap items-center justify-between gap-3">

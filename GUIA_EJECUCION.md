@@ -41,7 +41,8 @@ Edita `backend/.env` y completa con TUS propios valores. Debería lucir así:
 ```
 SUPABASE_URL="tu_url_de_supabase_aqui"
 SUPABASE_ANON_KEY="tu_anon_key_aqui"
-GEMINI_API_KEY="tu_api_key_de_gemini_aqui"
+GEMINI_INGEST_API_KEY="tu_api_key_de_gemini_aqui"
+CLAUDE_GEN_API_KEY="tu_api_key_de_claude_aqui"
 ```
 
 **Frontend:**
@@ -55,7 +56,11 @@ NEXT_PUBLIC_API_URL="http://localhost:8000"
 
 > ⚠️ **IMPORTANTE:** Nunca compartas tus API keys ni las subas al repositorio. El archivo `.env` está en `.gitignore` por esta razón. Cada desarrollador debe usar sus propias credenciales.
 - `SUPABASE_URL` y `SUPABASE_ANON_KEY`: Las encuentras en tu dashboard de Supabase > Settings > API.
-- `GEMINI_API_KEY`: Obtén la tuya desde [Google AI Studio](https://aistudio.google.com/app/apikey).
+- `GEMINI_INGEST_API_KEY`: ingesta (OCR de documentos y embeddings). Obtén la tuya desde
+  [Google AI Studio](https://aistudio.google.com/app/apikey). Necesita facturación activa
+  en el proyecto de Google Cloud: con el tier gratis la cuota se agota enseguida.
+- `CLAUDE_GEN_API_KEY`: generación (evaluaciones y tutor RAG). Obtén la tuya desde
+  [console.anthropic.com](https://console.anthropic.com) y carga saldo en Billing.
 ---
 
 ## 🎯 CÓMO EJECUTAR EL SISTEMA

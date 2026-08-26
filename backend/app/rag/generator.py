@@ -1,18 +1,16 @@
-import os
 from dotenv import load_dotenv
-from google import genai
+
+from app.core.llm import MODELO_GENERACION, generar
 from app.rag.retriever import SyllabusRetriever
 
 load_dotenv()
 
-class SyllabusGenerator:
-    def __init__(self, model_name="gemini-2.5-flash"):
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            print("No se encontró la API KEY de Gemini. ")
 
-        self.client = genai.Client(api_key=api_key)
-        self.model_name = model_name
+class SyllabusGenerator:
+    """Tutor RAG: recupera contexto con Gemini (embeddings) y responde con Claude."""
+
+    def __init__(self, model_name=None):
+        self.model_name = model_name or MODELO_GENERACION
         self.retriever = SyllabusRetriever()
 
     def generar_respuesta(self, pregunta: str) -> str:
@@ -26,7 +24,7 @@ class SyllabusGenerator:
         for i, frag in enumerate(fragmentos):
             contexto_unido += f"--- Fragmento {i+1} ---\n{frag.get('contenido')}\n\n"
 
-        prompt_maestro = f"""
+        SYSTEM_TUTOR = """
         Eres un tutor académico virtual especializado en cursos universitarios de ciencias e ingeniería.
         Tu tarea es responder utilizando PRIORITARIAMENTE la información recuperada desde los documentos académicos vectorizados del sistema RAG.
         INSTRUCCIONES IMPORTANTES:
@@ -68,23 +66,24 @@ class SyllabusGenerator:
         * intenta igualmente ayudar utilizando los fragmentos más cercanos encontrados en la base vectorial,
         * en lugar de rechazar la consulta inmediatamente.
         12. Prioriza siempre ayudar al estudiante a comprender y continuar el ejercicio, incluso si el documento original no incluye la solución completa.
-
-        CONTEXTO RECUPERADO:
-        {contexto_unido}
-
-        PREGUNTA DEL USUARIO:
-        {pregunta}
-
-        RESPUESTA:
-
         """
+
+        mensaje = f"""CONTEXTO RECUPERADO:
+{contexto_unido}
+
+PREGUNTA DEL USUARIO:
+{pregunta}
+
+RESPUESTA:"""
+
         print("Generando respuesta ...")
         try:
-            respuesta = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt_maestro
+            return generar(
+                prompt=mensaje,
+                system=SYSTEM_TUTOR,
+                max_tokens=8000,
+                modelo=self.model_name,
             )
-            return respuesta.text
         except Exception as e:
             print(f"Error generando la respuesta: {e}")
             return "Hubo un error interno al intentar procesar la respuesta. "

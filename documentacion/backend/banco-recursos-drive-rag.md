@@ -116,7 +116,7 @@ exitoso completo. Queda pendiente correrlo cuando haya cuota disponible.
 2. **Correr `generar_silabos_faltantes.py`** para los 16 cursos con sílabo
    disponible (aún sin un caso exitoso confirmado — revisar el primer
    resultado con cuidado antes de soltar el resto).
-3. Ambos comparten `GEMINI_API_KEY` — tiene cuota diaria en el free tier.
+3. Ambos comparten `GEMINI_INGEST_API_KEY` — sin facturación activa la cuota se agota enseguida.
    No conviene correr los dos scripts a la vez: se agota más rápido.
 4. Los 17 cursos sin sílabo en Drive y los recursos huérfanos (`curso_id NULL`)
    quedan sin resolver — necesitan que alguien suba el material faltante a

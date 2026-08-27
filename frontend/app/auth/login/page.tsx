@@ -7,6 +7,7 @@ import { Sparkles, ChevronRight, Loader2, Eye, EyeOff, Info } from "lucide-react
 import { BrandLogo } from "@/app/auth/brand-logo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
@@ -23,9 +24,9 @@ import {
   MSG_PASSWORD_VACIA,
 } from "@/lib/validaciones"
 
-// El backend admite correo institucional o código UNI (RF-01). No se aplica
-// aquí la política de complejidad de contraseña: hay cuentas creadas antes de
-// esa regla y quedarían fuera al intentar entrar.
+// El formulario admite correo electrónico de cualquier dominio o el código UNI.
+// No se aplica aquí la política de complejidad de contraseña: hay cuentas creadas
+// antes de esa regla y quedarían fuera al intentar entrar.
 const loginSchema = z.object({
   identificador: z.string().refine(
     (v) => esEmailInstitucional(v) || esCodigoEstudiante(v),
@@ -51,6 +52,14 @@ function LoginPageContent() {
   const [error, setError] = useState("")
   const [showSuccessToast, setShowSuccessToast] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [accesoInvitadoAbierto, setAccesoInvitadoAbierto] = useState(false)
+  const [enviandoInvitado, setEnviandoInvitado] = useState(false)
+  const [invitado, setInvitado] = useState({
+    nombre_completo: "",
+    email_contacto: "",
+    universidad_empresa: "",
+    motivo_solicitud: "",
+  })
 
   useEffect(() => {
     if (searchParams.get("registered") === "true") {
@@ -103,6 +112,26 @@ function LoginPageContent() {
     } catch (err: any) {
       setError(err.message || "No pudimos iniciar sesión con Google.")
       setIsLoading(false)
+    }
+  }
+
+  const enviarSolicitudInvitado = async () => {
+    setEnviandoInvitado(true)
+    setError("")
+    try {
+      await apiService.solicitarInvitado({
+        nombreCompleto: invitado.nombre_completo,
+        emailContacto: invitado.email_contacto,
+        universidadEmpresa: invitado.universidad_empresa,
+        motivoSolicitud: invitado.motivo_solicitud,
+      })
+      setAccesoInvitadoAbierto(false)
+      toast.success("Solicitud recibida. Te contactaremos por correo.")
+      setInvitado({ nombre_completo: "", email_contacto: "", universidad_empresa: "", motivo_solicitud: "" })
+    } catch (err: any) {
+      setError(err.message || "No pudimos enviar tu solicitud.")
+    } finally {
+      setEnviandoInvitado(false)
     }
   }
 
@@ -178,22 +207,12 @@ function LoginPageContent() {
             Ingresar con Correo Institucional UNI
           </Button>
 
-          {/* ACCESO SECUNDARIO: manual (desarrolladores / invitados) */}
-          <div className="flex items-center gap-3 pt-1">
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">
-              ¿Acceso para desarrolladores e invitados?
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-white/[0.10]" />
+            <span className="text-xs font-medium uppercase text-muted-foreground">
+              o ingresa con tus credenciales
             </span>
-            <div className="flex-1 h-px bg-border" />
-          </div>
-
-          <div className="p-4 2xl:p-5 bg-card border border-border rounded-xl flex items-start gap-3">
-            <Info className="w-5 h-5 text-accent shrink-0 mt-0.5" />
-            <p className="text-xs 2xl:text-sm text-muted-foreground leading-relaxed">
-              UniVia está disponible exclusivamente para la comunidad UNI a través
-              del correo institucional <strong className="text-foreground font-medium">@uni.pe</strong>.
-              El ingreso manual está reservado para cuentas de prueba e invitados especiales.
-            </p>
+            <span className="h-px flex-1 bg-white/[0.10]" />
           </div>
 
           <Form {...form}>
@@ -266,16 +285,19 @@ function LoginPageContent() {
             </form>
           </Form>
 
-          <div className="flex items-center justify-between text-xs 2xl:text-sm text-muted-foreground pt-1">
+          <div className="text-xs 2xl:text-sm text-muted-foreground pt-1">
             <Link href="/auth/forgot-password" className="hover:text-foreground transition-colors">
               ¿Olvidaste tu contraseña?
             </Link>
-            <Link className="text-accent hover:text-accent/80 font-medium transition-colors" href="/auth/signup">
-              Crear cuenta
+          </div>
+
+          <div className="text-xs 2xl:text-sm text-muted-foreground pt-1">
+            <Link href="/auth/signup" className="hover:text-foreground transition-colors">
+              ¿No tienes una cuenta? <span className="font-bold text-[#d93340]">Registrate aquí</span>
             </Link>
           </div>
 
-          <div className="p-4 2xl:p-5 bg-card border border-border rounded-xl flex items-start gap-3">
+          <div className="p-4 2xl:p-5 bg-white/[0.04] border border-white/[0.10] rounded-xl flex items-start gap-3">
             <svg className="w-5 h-5 text-accent shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>

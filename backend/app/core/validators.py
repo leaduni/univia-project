@@ -15,7 +15,7 @@ import re
 # --- Correo institucional (RF-EST-02) ---
 
 DOMINIO_INSTITUCIONAL = "uni.pe"
-EMAIL_PATTERN = re.compile(rf"^[a-zA-Z0-9._%+-]+@{re.escape(DOMINIO_INSTITUCIONAL)}$")
+EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 
 MSG_EMAIL_INVALIDO = (
     "El correo electrónico debe ser una cuenta institucional válida "

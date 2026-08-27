@@ -69,7 +69,10 @@ async function fetchWithAuth(url: string, options: RequestInit = {}, customToken
  * qué corregir.
  */
 function extraerMensajeError(body: any): string | null {
-    return body?.errors?.[0]?.message || body?.detail || null;
+    const mensaje = body?.errors?.[0]?.message || body?.detail || null;
+    return typeof mensaje === 'string'
+        ? mensaje.replace(/^Value error,\s*/i, '')
+        : mensaje;
 }
 
 /**
@@ -208,6 +211,64 @@ export const apiService = {
         const body = await response.json().catch(() => null);
         if (!response.ok) {
             throw new Error(extraerMensajeError(body) || 'No se pudo actualizar tu contraseña.');
+        }
+
+        if (body?.access_token && body?.refresh_token) {
+            await supabase.auth.setSession({
+                access_token: body.access_token,
+                refresh_token: body.refresh_token,
+            });
+        }
+
+        invalidarClave("profile");
+        return body;
+    },
+
+    /** Envía una solicitud de acceso como invitado (sin sesión). */
+    async solicitarInvitado(data: {
+        nombreCompleto: string;
+        emailContacto: string;
+        universidadEmpresa: string;
+        motivoSolicitud: string;
+    }) {
+        try {
+            const response = await fetch(`${API_URL}/auth/solicitar-invitado`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    nombre_completo: data.nombreCompleto,
+                    email_contacto: data.emailContacto,
+                    universidad_empresa: data.universidadEmpresa,
+                    motivo_solicitud: data.motivoSolicitud,
+                }),
+            });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                const detalle = body?.detail;
+                const mensaje = Array.isArray(detalle)
+                    ? detalle[0]?.msg || "No pudimos procesar tu solicitud."
+                    : typeof detalle === 'string'
+                        ? detalle
+                        : body?.errors?.[0]?.message || "No pudimos procesar tu solicitud.";
+                const errorMensaje = mensaje.replace(/^Value error,\s*/i, '');
+                return { ok: false, error: errorMensaje };
+            }
+            return { ok: true, data: body };
+        } catch (error: any) {
+            return { ok: false, error: error.message || "No pudimos procesar tu solicitud." };
+        }
+    },
+
+    /** Asigna una contraseña manual a un usuario autenticado (Google SSO híbrido). */
+    async establecerPassword(passwordNueva: string) {
+        const response = await fetchWithAuth(`${API_URL}/usuarios/establecer-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password_nueva: passwordNueva }),
+        });
+        const body = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(extraerMensajeError(body) || 'No se pudo asignar la contraseña.');
         }
         invalidarClave("profile");
         return body;

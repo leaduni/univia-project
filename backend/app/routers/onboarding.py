@@ -580,6 +580,9 @@ async def complete_onboarding(
         carrera = _obtener_carrera(supabase, carrera_id)
         _validar_ciclo(carrera, ciclo_actual)
 
+        metadata = getattr(user, "user_metadata", {}) or {}
+        avatar_url = metadata.get("avatar_url") or metadata.get("picture")
+
         if not malla_id:
             raise_field_error("malla_id", "No se encontró una malla curricular activa para esta carrera.", status_code=400)
 
@@ -667,6 +670,8 @@ async def complete_onboarding(
             "onboarding_completado": True,
             "updated_at": "now()",
         }
+        if avatar_url:
+            perfil_update["avatar_url"] = avatar_url
         # Los usuarios de Google SSO no traen código: se completa aquí. Se omite
         # si viene vacío para no pisar el código ya registrado (registro manual).
         if data.codigo_estudiante:

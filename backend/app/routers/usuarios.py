@@ -13,6 +13,7 @@ from app.schemas.usuarios import (
     RegistroEstudiante,
     RegistroCompleto,
     LoginRequest,
+    RegistroInvitado,
     SolicitudRecuperacion,
     RestablecerPassword,
 )
@@ -26,31 +27,114 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
 # Mensaje único para credenciales inválidas: no revela si el correo o el código existe.
 CREDENCIALES_INVALIDAS = "El correo/código o la contraseña son incorrectos."
 
+# Cuenta creada por Google SSO que aún no tiene contraseña manual asignada.
+MSJ_GOOGLE_SIN_CLAVE = (
+    "Esta cuenta fue creada con Google y aún no posee clave manual. "
+    "Inicia sesión con el botón de Google o crea una clave desde tu perfil."
+)
+
 
 def _resolver_email(identificador: str, es_email: bool) -> str | None:
-    """Traduce un código universitario a su correo institucional (RF-01).
+    """Traduce un identificador de login a un correo válido.
+
+    Si el usuario escribe una cadena con @, se trata como correo y se
+    normaliza en minúsculas sin importar el dominio. Si no lleva @, se
+    mantiene la búsqueda por código universitario en la tabla perfiles.
 
     Usa el cliente admin porque el login ocurre sin sesión activa y RLS
     bloquearía la lectura de 'perfiles' con la llave anónima.
     """
-    if es_email:
-        return identificador
+    valor = (identificador or "").strip()
+    if "@" in valor:
+        return valor.lower()
 
     try:
         resp = (
             get_admin_client()
             .table("perfiles")
             .select("email")
-            .eq("codigo_estudiante", identificador)
+            .eq("codigo_estudiante", valor)
             .maybe_single()
             .execute()
         )
     except Exception as e:
-        logger.error(f"[LOGIN] Error resolviendo código {identificador}: {e}")
+        logger.error(f"[LOGIN] Error resolviendo código {valor}: {e}")
         return None
 
     data = getattr(resp, "data", None) if resp else None
     return data.get("email") if data else None
+
+
+def _buscar_cuenta_por_email(correo: str):
+    """Busca la cuenta de Supabase Auth por email (cliente admin) o None.
+
+    Distingue un email no registrado de una cuenta nacida en Google SSO (sin
+    contraseña), cuyo sign_in manual lanza la misma excepción genérica que una
+    contraseña incorrecta.
+    """
+    try:
+        adm = get_admin_client()
+        pagina = 1
+        while True:
+            usuarios = adm.auth.list_users(page=pagina, per_page=200) or []
+            for u in usuarios:
+                if (u.email or "").lower() == correo.lower():
+                    return u
+            if len(usuarios) < 200:
+                break
+            pagina += 1
+    except Exception as e:
+        logger.warning(f"[LOGIN] Error consultando cuenta para {correo}: {e}")
+    return None
+
+
+def _usuario_tiene_password(user_id: str) -> bool:
+    """Detecta si el usuario de Auth ya posee contraseña manual configurada.
+
+    La detección primero mira user_metadata.has_password, luego confirma
+    mediante identidad email, proveedores o `encrypted_password`.
+    """
+    try:
+        resp = get_admin_client().auth.admin.get_user_by_id(user_id)
+        user = getattr(resp, "user", None)
+        if user is None:
+            return False
+
+        metadata = getattr(user, "user_metadata", None) or {}
+        if isinstance(metadata, dict) and metadata.get("has_password") is True:
+            return True
+
+        identities = getattr(user, "identities", None) or []
+        if isinstance(identities, list):
+            for item in identities:
+                provider = getattr(item, "provider", None)
+                if isinstance(item, dict):
+                    provider = item.get("provider")
+                if str(provider or "").lower() == "email":
+                    return True
+
+        app_meta = getattr(user, "app_metadata", None) or {}
+        providers = None
+        if isinstance(app_meta, dict):
+            providers = app_meta.get("providers") or app_meta.get("provider")
+        providers_from_user = getattr(user, "providers", None)
+        if providers_from_user:
+            providers = providers_from_user
+
+        if isinstance(providers, str):
+            providers = [providers]
+        if isinstance(providers, (list, tuple, set)):
+            valores_providers = [str(p).lower() for p in providers if p]
+            if "email" in valores_providers:
+                return True
+
+        encrypted_password = getattr(user, "encrypted_password", None)
+        if isinstance(encrypted_password, str) and encrypted_password.strip():
+            return True
+    except Exception as e:
+        logger.warning(f"[PERFIL] No pude detectar has_password para {user_id}: {e}")
+
+    return False
 
 
 def _cargar_carrera_y_plan(token: str, carrera_id: int | None, malla_id: int | None = None) -> tuple[dict | None, dict | None]:
@@ -123,6 +207,8 @@ def _cargar_carrera_y_plan(token: str, carrera_id: int | None, malla_id: int | N
 async def login(data: LoginRequest):
     """Inicia sesión con correo institucional o código universitario (RF-01)."""
     email = _resolver_email(data.identificador, data.es_email)
+    logger.error(f"[LOGIN DEBUG] Identificador recibido: {data.identificador} | es_email: {getattr(data, 'es_email', None)}")
+    logger.error(f"[LOGIN DEBUG] Email resuelto: {email}")
     if not email:
         raise_field_error("identificador", CREDENCIALES_INVALIDAS, status_code=401)
 
@@ -131,7 +217,13 @@ async def login(data: LoginRequest):
             {"email": email, "password": data.password}
         )
     except Exception as e:
-        logger.warning(f"[LOGIN] Credenciales rechazadas para {email}: {e}")
+        logger.error(f"[LOGIN DEBUG] Error Supabase Auth para {email}: {str(e)}")
+        # Una cuenta creada solo por Google aún no tiene clave manual: el login
+        # con contraseña entra aquí. Se distingue mirando el provider en
+        # app_metadata del usuario de Supabase Auth.
+        cuenta = _buscar_cuenta_por_email(email)
+        if cuenta and "google" in str(cuenta.app_metadata.get("provider", "")).lower():
+            raise HTTPException(status_code=400, detail=MSJ_GOOGLE_SIN_CLAVE)
         raise_field_error("identificador", CREDENCIALES_INVALIDAS, status_code=401)
 
     session = getattr(auth_resp, "session", None)
@@ -179,6 +271,92 @@ async def login(data: LoginRequest):
         "carrera": carrera,
         "plan_estudios": plan_estudios,
         "onboarding_completado": bool(perfil.get("onboarding_completado")),
+    }
+
+
+def _notificar_solicitud_invitado(data: RegistroInvitado) -> bool:
+    """Envía un correo transaccional a DEV_NOTIFICATION_EMAILS con la solicitud.
+
+    Lee la configuración SMTP de las variables de entorno. Si SMTP o los
+    destinatarios no están configurados, registra el aviso y devuelve False (el
+    endpoint responderá 500). No escribe nada en Supabase.
+    """
+    destinos = [
+        d.strip()
+        for d in os.getenv("DEV_NOTIFICATION_EMAILS", "").split(",")
+        if d.strip()
+    ]
+    if not destinos:
+        logger.warning("[INVITADO] DEV_NOTIFICATION_EMAILS no configurado.")
+        return False
+    host = os.getenv("SMTP_HOST", "")
+    if not host:
+        logger.warning("[INVITADO] SMTP_HOST no configurado; no se envió notificación.")
+        return False
+    try:
+        import smtplib
+        from email.message import EmailMessage
+
+        msg = EmailMessage()
+        msg["Subject"] = "[UniVia] Solicitud de acceso como invitado"
+        msg["From"] = os.getenv("SMTP_FROM", "no-reply@univiap.pe")
+        msg["To"] = ", ".join(destinos)
+        msg.set_content(
+            "Solicitud de acceso invitado:\n\n"
+            f"Nombre completo: {data.nombre_completo}\n"
+            f"Correo de contacto: {data.email_contacto}\n"
+            f"Universidad/Empresa: {data.universidad_empresa}\n"
+            f"Motivo: {data.motivo_solicitud}\n"
+        )
+        with smtplib.SMTP(host, int(os.getenv("SMTP_PORT", "587"))) as s:
+            s.starttls()
+            usuario = os.getenv("SMTP_USER", "")
+            if usuario:
+                s.login(usuario, os.getenv("SMTP_PASS", ""))
+            s.send_message(msg)
+        logger.info(f"[INVITADO] Notificación enviada a {len(destinos)} destinatario(s).")
+        return True
+    except Exception as e:
+        logger.error(f"[INVITADO] Error enviando notificación: {e}")
+        return False
+
+
+@router.post("/auth/solicitar-invitado")
+async def solicitar_invitado(data: RegistroInvitado):
+    """Notifica a los desarrolladores una solicitud de acceso invitado (sin BD)."""
+    if not _notificar_solicitud_invitado(data):
+        raise HTTPException(
+            status_code=500, detail="No se pudo enviar la notificación. Inténtalo luego."
+        )
+    return {
+        "status": "success",
+        "message": "Solicitud recibida",
+    }
+
+
+@router.post("/usuarios/establecer-password")
+async def establecer_password(
+    data: RestablecerPassword,
+    user_data=Depends(get_current_user),
+):
+    """Asigna una clave manual a un usuario autenticado (Google SSO híbrido)."""
+    user, _ = user_data
+    metadata = dict(getattr(user, "user_metadata", {}) or {})
+    metadata["has_password"] = True
+    try:
+        get_admin_client().auth.admin.update_user_by_id(
+            user.id,
+            {
+                "password": data.password_nueva,
+                "user_metadata": metadata,
+            },
+        )
+    except Exception as e:
+        logger.error(f"[SET-PASSWORD] Error asignando clave a {user.id}: {e}")
+        raise HTTPException(status_code=400, detail="No se pudo asignar la contraseña.")
+    return {
+        "status": "success",
+        "message": "Clave asignada correctamente. Ya puedes ingresar manualmente.",
     }
 
 @router.post("/auth/recuperar-password")
@@ -243,7 +421,7 @@ async def restablecer_password(
 async def get_profile(user_data = Depends(get_current_user)):
     user, token = user_data
     supabase = get_supabase(token)
-    
+
     try:
         profile_response = (
             supabase.table("perfiles")
@@ -259,21 +437,32 @@ async def get_profile(user_data = Depends(get_current_user)):
         logger.error(f"[PERFIL] Error cargando perfil de {user.id}: {e}")
         perfil = None
 
+    # Evaluar primero el metadato de Auth. Si ya está marcado explícitamente,
+    # no se necesita consultar identidades ni la clave cifrada.
+    metadata = getattr(user, "user_metadata", {}) or {}
+    has_password = bool(metadata.get("has_password") is True)
+    if not has_password:
+        has_password = _usuario_tiene_password(user.id)
+
+    user_avatar = (metadata.get("avatar_url") or metadata.get("picture")) if isinstance(metadata, dict) else None
+
     if perfil:
+        perfil["has_password"] = has_password
+        if not perfil.get("avatar_url"):
+            perfil["avatar_url"] = user_avatar
         return perfil
 
     # Sin fila en 'perfiles' (o con la consulta fallida) se responde lo que sí
     # consta en auth, para que la sesión siga siendo usable.
-    # Google SSO expone `full_name` y `avatar_url` en los metadatos; el registro
-    # manual usa `nombre_completo`. Se leen ambos para alimentar el onboarding.
     return {
         "id": user.id,
         "email": user.email,
         "nombre_completo": user.user_metadata.get("full_name")
             or user.user_metadata.get("nombre_completo")
             or "",
-        "avatar_url": user.user_metadata.get("avatar_url"),
+        "avatar_url": user_avatar,
         "onboarding_completado": False,
+        "has_password": has_password,
     }
 
 
@@ -442,9 +631,21 @@ async def cambiar_password(
             "password_actual", "Tu contraseña actual no es correcta.", status_code=401
         )
 
+    metadata = dict(getattr(user, "user_metadata", {}) or {})
+    metadata["has_password"] = True
+
     try:
-        supabase = get_supabase(token)
-        supabase.auth.update_user({"password": data.password_nueva})
+        get_admin_client().auth.admin.update_user_by_id(
+            user.id,
+            {
+                "password": data.password_nueva,
+                "user_metadata": metadata,
+            },
+        )
+        nueva_sesion = get_supabase().auth.sign_in_with_password({
+            "email": user.email,
+            "password": data.password_nueva,
+        })
     except Exception as e:
         logger.error(f"[PERFIL] Error cambiando contraseña de {user.id}: {e}")
         raise HTTPException(
@@ -453,8 +654,9 @@ async def cambiar_password(
 
     logger.info(f"[PERFIL] Contraseña cambiada por el propio usuario {user.id}")
     return {
-        "status": "success",
         "message": "Tu contraseña se actualizó.",
+        "access_token": getattr(nueva_sesion.session, "access_token", None),
+        "refresh_token": getattr(nueva_sesion.session, "refresh_token", None),
     }
 
 
@@ -484,11 +686,15 @@ async def register(
     if codigo_check and getattr(codigo_check, 'data', None):
         raise_field_error("codigo_estudiante", "Este código universitario ya se encuentra registrado en el sistema.")
 
+    metadata = dict(getattr(user, "user_metadata", {}) or {})
+    avatar_url = metadata.get("avatar_url") or metadata.get("picture")
+
     payload = {
         "id": user.id,
         "email": data.email,
         "codigo_estudiante": data.codigo_estudiante,
         "nombre_completo": data.nombre_completo,
+        "avatar_url": avatar_url,
         "onboarding_completado": True,
         "malla_id": None,  # NULL: la malla se asigna al completar el onboarding.
         "updated_at": "now()",

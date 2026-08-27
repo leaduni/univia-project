@@ -21,6 +21,7 @@ __all__ = [
     "RegistroEstudiante",
     "RegistroCompleto",
     "LoginRequest",
+    "RegistroInvitado",
     "SolicitudRecuperacion",
     "RestablecerPassword",
     "PerfilUpdate",
@@ -81,8 +82,8 @@ class LoginRequest(BaseModel):
         if es_codigo_estudiante(v):
             return normalizar_codigo(v)
         raise ValueError(
-            "Ingresa tu correo institucional (@uni.pe) o tu código universitario "
-            "de 8 números y 1 letra (ej. 20210001K)."
+            "Ingresa tu correo electrónico o código universitario de 8 números y 1 letra "
+            "(ej. 20210001K)."
         )
 
     @field_validator("password")
@@ -98,6 +99,50 @@ class LoginRequest(BaseModel):
     @property
     def es_email(self) -> bool:
         return es_email_institucional(self.identificador)
+
+
+class RegistroInvitado(BaseModel):
+    """Solicitud de acceso como invitado (POST /auth/solicitar-invitado).
+
+    No crea cuenta ni escribe en Supabase: solo se notifica a los
+    desarrolladores por correo.
+    """
+
+    nombre_completo: str
+    email_contacto: str
+    universidad_empresa: str
+    motivo_solicitud: str
+
+    @field_validator("nombre_completo")
+    @classmethod
+    def validar_nombre(cls, v: str) -> str:
+        return validar_nombre_completo(v)
+
+    @field_validator("email_contacto")
+    @classmethod
+    def validar_contacto(cls, v: str) -> str:
+        v = (v or "").strip()
+        if "@" not in v or "." not in v.split("@")[-1]:
+            raise ValueError("Ingresa un correo de contacto válido.")
+        return v
+
+    @field_validator("universidad_empresa")
+    @classmethod
+    def validar_institucion(cls, v: str) -> str:
+        v = (v or "").strip()
+        if len(v) < 2:
+            raise ValueError("Indica tu universidad o empresa.")
+        return v
+
+    @field_validator("motivo_solicitud")
+    @classmethod
+    def validar_motivo(cls, v: str) -> str:
+        v = (v or "").strip()
+        if len(v) < 10:
+            raise ValueError(
+                "Cuéntanos brevemente el motivo de tu solicitud (mínimo 10 caracteres)."
+            )
+        return v
 
 
 class PerfilUpdate(BaseModel):

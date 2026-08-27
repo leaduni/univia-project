@@ -7,6 +7,7 @@ import { Check, Layers, Loader2, LogOut, Pencil, X } from "lucide-react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { useAuth } from "@/components/providers/auth-context"
 import { CambiarPasswordForm } from "@/components/perfil/cambiar-password-form"
+import { EstablecerPasswordForm } from "@/components/perfil/establecer-password-form"
 import { PreferenciasCard } from "@/components/perfil/preferencias-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,6 +29,7 @@ interface Perfil {
   carrera_id?: number
   malla_id?: number
   ciclo_actual?: number
+  has_password?: boolean
 }
 
 function iniciales(nombre?: string): string {
@@ -424,9 +426,19 @@ export default function PerfilPage() {
           </TabsContent>
 
           <TabsContent value="seguridad">
-            <div className="bg-card border border-border p-6 rounded-2xl">
-              <CambiarPasswordForm />
-            </div>
+            {perfil?.has_password === true ? (
+              <div className="bg-card border border-border p-6 rounded-2xl">
+                <CambiarPasswordForm />
+              </div>
+            ) : (
+              <div className="bg-card border border-border p-6 rounded-2xl">
+                <EstablecerPasswordForm
+                  onPasswordSet={() => {
+                    setPerfil((prev) => ({ ...(prev ?? {}), has_password: true }) as Perfil)
+                  }}
+                />
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="preferencias">

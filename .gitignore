@@ -42,3 +42,5 @@ desktop.ini
 
 # agentes
 .agents/
+.claude/
+skills-lock.json

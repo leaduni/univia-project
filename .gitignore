@@ -44,3 +44,4 @@ desktop.ini
 .agents/
 .claude/
 skills-lock.json
+.merge-tmp/

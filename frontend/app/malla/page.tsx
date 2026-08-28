@@ -3,9 +3,10 @@
 
 import { useEffect, useState } from "react"
 import dynamic from "next/dynamic"
-import { AlertCircle, Loader2 } from "lucide-react"
+import { AlertCircle, Loader2, RotateCcw } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/dashboard-layout"
-import { apiService } from "@/lib/api-service"
+import { apiService, mensajeAmigableError } from "@/lib/api-service"
 import type { AvanceCarrera, CicloDetail } from "@/types/malla"
 
 // Los estilos de React Flow son globales: solo se cargan en esta ruta.
@@ -28,6 +29,8 @@ export default function MallaPage() {
   const [avance, setAvance] = useState<any>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Cambiarlo reejecuta el efecto de carga: reintentar sin recargar el navegador.
+  const [intento, setIntento] = useState(0)
 
   useEffect(() => {
     let activo = true
@@ -47,7 +50,7 @@ export default function MallaPage() {
         setAvance(resumenAvance)
       } catch (err: any) {
         if (!activo) return
-        setError(err.message || "No pudimos cargar tu malla curricular.")
+        setError(mensajeAmigableError(err))
       } finally {
         if (activo) setCargando(false)
       }
@@ -57,7 +60,7 @@ export default function MallaPage() {
     return () => {
       activo = false
     }
-  }, [])
+  }, [intento])
 
   return (
     <DashboardLayout>
@@ -82,6 +85,14 @@ export default function MallaPage() {
               </h2>
               <p className="text-sm text-muted-foreground max-w-sm">{error}</p>
             </div>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => setIntento((n) => n + 1)}
+            >
+              <RotateCcw className="w-4 h-4" />
+              Reintentar
+            </Button>
           </div>
         ) : cargando ? (
           <div className="flex flex-col items-center justify-center gap-4 py-16">

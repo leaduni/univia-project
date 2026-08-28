@@ -6,6 +6,144 @@ import { leerOCache, invalidarClave, invalidarPrefijo, limpiarCache, TTL } from 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API_URL = BASE_URL.endsWith('/api') ? BASE_URL : `${BASE_URL}/api`;
 
+// Toda petición se corta a los 15s. Sin esto, una red que no responde deja al
+// usuario en un spinner indefinido: fetch no tiene timeout propio.
+const TIMEOUT_MS = 15000;
+const MAX_REINTENTOS_GET = 2;
+
+/** Marca los fallos de red/timeout, que son los únicos que vale reintentar. */
+interface ErrorDeRed extends Error {
+    esFalloDeRed?: boolean;
+}
+
+function esFalloDeRed(error: unknown): boolean {
+    if ((error as ErrorDeRed)?.esFalloDeRed) return true;
+    // El fetch del navegador reporta los fallos de red como TypeError.
+    return error instanceof TypeError && error.message.toLowerCase().includes('fetch');
+}
+
+/**
+ * Traduce cualquier error a algo que un estudiante pueda entender.
+ *
+ * Los `catch` visibles mostraban el mensaje técnico tal cual ("TypeError:
+ * Failed to fetch", JSON crudo del backend), que no le dice nada a quien lo
+ * lee ni sugiere qué hacer.
+ */
+export function mensajeAmigableError(error: unknown): string {
+    if (!error) return 'Ocurrió un error inesperado. Vuelve a intentarlo.';
+
+    const err = error as ApiError & ErrorDeRed & { name?: string; message?: string };
+
+    // Cancelación por timeout o por abortar la petición.
+    if (err.name === 'AbortError') {
+        return 'La operación tardó demasiado y se canceló. Revisa tu conexión e inténtalo de nuevo.';
+    }
+
+    if (esFalloDeRed(error)) {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            return 'Parece que no tienes conexión a internet. Reconéctate e inténtalo de nuevo.';
+        }
+        return 'No pudimos conectar con el servidor de UniVia. Revisa tu conexión e inténtalo de nuevo.';
+    }
+
+    // Respuesta HTTP de error: el código dice más que el cuerpo.
+    switch (err.status) {
+        case 401:
+            return 'Tu sesión expiró. Vuelve a iniciar sesión para continuar.';
+        case 403:
+            return 'No tienes permiso para ver este contenido.';
+        case 404:
+            return 'No encontramos lo que buscabas. Puede que ya no esté disponible.';
+        case 429:
+            return 'Hiciste demasiadas peticiones seguidas. Espera un momento e inténtalo de nuevo.';
+    }
+    if (typeof err.status === 'number' && err.status >= 500) {
+        return 'El servidor tuvo un problema al procesar tu solicitud. Inténtalo de nuevo en unos momentos.';
+    }
+
+    // Respuesta que no era JSON válido (backend caído devolviendo HTML, proxy).
+    if (error instanceof SyntaxError) {
+        return 'El servidor respondió de forma inesperada. Inténtalo de nuevo en unos momentos.';
+    }
+
+    const mensaje = typeof err.message === 'string' ? err.message.trim() : '';
+    if (!mensaje) return 'Ocurrió un error inesperado. Vuelve a intentarlo.';
+
+    // Los mensajes técnicos en inglés que vienen del navegador o de un throw
+    // interno no se muestran: solo pasa el texto que el backend escribió para
+    // el usuario (en español y sin jerga).
+    const esTecnico = /^(TypeError|SyntaxError|ReferenceError|Error:)|failed to fetch|networkerror|load failed|Error fetching|Unexpected token/i.test(mensaje);
+    if (esTecnico) {
+        return 'Ocurrió un error al procesar tu solicitud. Inténtalo de nuevo.';
+    }
+
+    return mensaje;
+}
+
+/**
+ * fetch con tiempo límite, respaldado por AbortController.
+ *
+ * Si el llamador trae su propio `signal` (streaming, cancelación manual) se
+ * respeta y no se impone timeout: ese caso lo controla quien llama.
+ */
+async function fetchConTimeout(
+    url: string,
+    options: RequestInit = {},
+    timeoutMs: number = TIMEOUT_MS,
+): Promise<Response> {
+    if (options.signal) return fetch(url, options);
+
+    const controlador = new AbortController();
+    const temporizador = setTimeout(() => controlador.abort(), timeoutMs);
+
+    try {
+        return await fetch(url, { ...options, signal: controlador.signal });
+    } catch (error) {
+        if (controlador.signal.aborted) {
+            const timeout: ErrorDeRed = new Error(
+                `La petición tardó más de ${timeoutMs / 1000}s y se canceló. Revisa tu conexión e inténtalo de nuevo.`
+            );
+            timeout.esFalloDeRed = true;
+            throw timeout;
+        }
+        throw error;
+    } finally {
+        clearTimeout(temporizador);
+    }
+}
+
+/**
+ * fetchConTimeout con reintentos acotados.
+ *
+ * Solo reintenta GET: repetir un POST duplicaría la escritura. Tampoco
+ * reintenta cuando el servidor sí respondió (4xx/5xx son respuestas, no
+ * fallos de red) — eso lo decide cada llamador.
+ */
+async function fetchConReintentos(
+    url: string,
+    options: RequestInit = {},
+    timeoutMs: number = TIMEOUT_MS,
+): Promise<Response> {
+    const metodo = (options.method || 'GET').toUpperCase();
+    const reintentable = metodo === 'GET' && !options.signal;
+    const intentosMaximos = reintentable ? MAX_REINTENTOS_GET + 1 : 1;
+
+    let ultimoError: unknown;
+    for (let intento = 0; intento < intentosMaximos; intento++) {
+        try {
+            return await fetchConTimeout(url, options, timeoutMs);
+        } catch (error) {
+            ultimoError = error;
+            if (!esFalloDeRed(error) || intento === intentosMaximos - 1) throw error;
+            // Backoff creciente: 300ms, 900ms.
+            const espera = 300 * Math.pow(3, intento);
+            console.warn(`Reintentando GET ${url} en ${espera}ms (intento ${intento + 2}/${intentosMaximos}).`);
+            await new Promise((resolver) => setTimeout(resolver, espera));
+        }
+    }
+    throw ultimoError;
+}
+
 // Memoización de getSession: N llamadas paralelas a getAuthToken comparten una
 // sola lectura de sesión (y un solo posible refresh del token).
 let sesionEnCurso: ReturnType<typeof supabase.auth.getSession> | null = null;
@@ -38,8 +176,12 @@ function manejarNoAutorizado() {
     // En páginas de autenticación no hay sesión que invalidar.
     if (window.location.pathname.startsWith("/auth/")) return;
 
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
+    // Modo privado o almacenamiento restringido hacen que removeItem lance;
+    // el cierre de sesión debe continuar igual.
+    try {
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+    } catch { /* nada que limpiar */ }
     // signOut dispara SIGNED_OUT y el auth-context limpia su estado;
     // la recarga que trae assign() resetea el flag por sí sola.
     supabase.auth.signOut().catch(() => {});
@@ -53,7 +195,7 @@ async function fetchWithAuth(url: string, options: RequestInit = {}, customToken
         'Authorization': token ? `Bearer ${token}` : '',
     };
 
-    const response = await fetch(url, { ...options, headers });
+    const response = await fetchConReintentos(url, { ...options, headers });
     if (response.status === 401) {
         manejarNoAutorizado();
     }
@@ -234,7 +376,7 @@ export const apiService = {
         motivoSolicitud: string;
     }) {
         try {
-            const response = await fetch(`${API_URL}/auth/solicitar-invitado`, {
+            const response = await fetchConTimeout(`${API_URL}/auth/solicitar-invitado`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -304,7 +446,11 @@ export const apiService = {
             return await leerOCache("test-nivel", async () => {
                 const response = await fetchWithAuth(`${API_URL}/dashboard/test-nivel`);
                 if (!response.ok) {
-                    if (response.status === 401) return null;
+                    // Un 401 transitorio no se cachea como "sin diagnóstico":
+                    // se lanza para que el próximo acceso vuelva a pedirlo.
+                    if (response.status === 401) {
+                        throw await errorDeRespuesta(response, 'Tu sesión expiró. Vuelve a iniciar sesión.');
+                    }
                     const apiError = await errorDeRespuesta(response, 'No se pudo cargar tu diagnóstico académico.');
                     // Onboarding pendiente (400 + field carrera_id) es un estado normal
                     // de la cuenta, no un fallo: se devuelve null, sin lanzar.
@@ -493,7 +639,7 @@ export const apiService = {
     async downloadPlancha(courseId: string | number, filename: string) {
         try {
             const url = `${API_URL}/curso/${courseId}/plancha/${encodeURIComponent(filename)}`;
-            const response = await fetch(url);
+            const response = await fetchConReintentos(url);
             if (!response.ok) throw new Error('Error al descargar el archivo');
             const blob = await response.blob();
             const downloadUrl = URL.createObjectURL(blob);
@@ -506,7 +652,8 @@ export const apiService = {
             URL.revokeObjectURL(downloadUrl);
         } catch (error) {
             console.error('Error downloading plancha:', error);
-            throw error;
+            // Se relanza ya traducido: quien llama lo muestra tal cual.
+            throw new Error(mensajeAmigableError(error));
         }
     },
 
@@ -515,16 +662,28 @@ export const apiService = {
      * la biblioteca se bajaba el catálogo entero y filtraba en el navegador.
      */
     async getRecursosPaginados(filters: RecursoFiltros = {}): Promise<RecursosPagina> {
-        const vacia: RecursosPagina = { items: [], total: 0, sinCursosActivos: false, facultad: null };
         try {
             const params = construirParamsRecursos(filters);
 
             return await leerOCache(`recursos:${params.toString()}`, async () => {
                 const token = await getAuthToken();
-                if (!token) return vacia;
+                // Antes se devolvía la página vacía, y la caché la guardaba 5
+                // minutos: el estudiante veía "0 recursos" aunque sí tuviera.
+                // Lanzando, no se cachea nada y el siguiente acceso reintenta
+                // cuando la sesión ya esté restaurada.
+                if (!token) {
+                    const sinSesion = new Error('Tu sesión aún no está lista. Inténtalo de nuevo en un momento.') as ApiError;
+                    sinSesion.status = 401;
+                    sinSesion.sesionInvalida = true;
+                    throw sinSesion;
+                }
 
                 const response = await fetchWithAuth(`${API_URL}/recursos?${params.toString()}`, {}, token);
-                if (response.status === 401) return vacia;
+                if (response.status === 401) {
+                    // Mismo motivo: un 401 transitorio no debe quedar cacheado
+                    // como una biblioteca vacía.
+                    throw await errorDeRespuesta(response, 'Tu sesión expiró. Vuelve a iniciar sesión.');
+                }
                 if (!response.ok) {
                     throw new Error(`Error fetching recursos: ${response.statusText}`);
                 }
@@ -673,7 +832,7 @@ export const apiService = {
      */
     async login(credentials: { identificador: string; password: string }) {
         try {
-            const response = await fetch(`${API_URL}/auth/login`, {
+            const response = await fetchConTimeout(`${API_URL}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(credentials),
@@ -704,8 +863,14 @@ export const apiService = {
             }
 
             if (typeof window !== 'undefined') {
-                localStorage.setItem('user', JSON.stringify(body.usuario));
-                localStorage.setItem('token', body.access_token);
+                // El caché es un extra y setSession() ya tuvo éxito: si el
+                // navegador no deja escribir, el login no debe abortarse.
+                try {
+                    localStorage.setItem('user', JSON.stringify(body.usuario));
+                    localStorage.setItem('token', body.access_token);
+                } catch (error) {
+                    console.warn("No se pudo cachear la sesión en localStorage.", error);
+                }
             }
 
             // Sesión nueva: nada de lo cacheado del usuario anterior aplica.
@@ -736,7 +901,7 @@ export const apiService = {
      */
     async solicitarRecuperacion(email: string) {
         try {
-            const response = await fetch(`${API_URL}/auth/recuperar-password`, {
+            const response = await fetchConTimeout(`${API_URL}/auth/recuperar-password`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email }),
@@ -804,7 +969,7 @@ export const apiService = {
     async signup(data: { email: string; password: string; fullName: string; codigoUni: string }) {
 
         try {
-            const response = await fetch(`${API_URL}/auth/register-user`, {
+            const response = await fetchConTimeout(`${API_URL}/auth/register-user`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

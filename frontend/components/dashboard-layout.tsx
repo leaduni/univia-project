@@ -5,9 +5,11 @@ import type React from "react"
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import { WifiOff } from "lucide-react"
 import { Header } from "./header"
 import { useAuth } from "./providers/auth-context"
 import { apiService } from "@/lib/api-service"
+import { useOnline } from "@/lib/use-online"
 
 interface DashboardLayoutProps {
   children?: React.ReactNode
@@ -17,6 +19,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [, setIsCollapsed] = useState(true)
   const [isRedirecting, setIsRedirecting] = useState(false)
   const { user, session, isLoading: isAuthLoading } = useAuth()
+  const enLinea = useOnline()
   const router = useRouter()
   // Una sola vez por montaje: evita repetir el prefetch ante cada evento de
   // auth (p. ej. TOKEN_REFRESHED al volver a la pestaña).
@@ -106,6 +109,20 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <Header onMenuClick={handleToggle} />
         <main className="w-full h-full overflow-y-auto custom-scrollbar pt-20 px-4 pb-6">{children}</main>
       </div>
+
+      {/* Aviso de conexión perdida: sutil, no bloquea la vista ni la navegación. */}
+      {!enLinea && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 backdrop-blur-md shadow-lg"
+        >
+          <WifiOff className="w-4 h-4 text-amber-400 flex-shrink-0" />
+          <p className="text-xs font-medium text-amber-200">
+            Sin conexión a internet. Tus cambios podrían no guardarse.
+          </p>
+        </div>
+      )}
     </div>
   )
 }

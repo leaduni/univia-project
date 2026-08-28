@@ -5,11 +5,13 @@
 import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { FileText, BookOpen } from "lucide-react"
-import { apiService } from "@/lib/api-service"
+import { Button } from "@/components/ui/button"
+import { AlertCircle, BookOpen, FileText, RotateCcw } from "lucide-react"
+import { apiService, mensajeAmigableError } from "@/lib/api-service"
 import { RecursoCard } from "@/components/recursos/recurso-card"
 import type { Recurso } from "@/types/recurso"
 import { useAuth } from "@/components/providers/auth-context"
+import { toast } from "sonner"
 
 // Todas las planchas de Geometría Analítica del repositorio local (sin
 // equivalente en Drive todavía, se sirven desde ingesta_silabos/planchas).
@@ -44,6 +46,11 @@ export function ExamBank({ courseId, onCountChange }: { courseId: string; onCoun
   const [filterType, setFilterType] = useState<Recurso["tipo"] | null>(null)
   const [recursos, setRecursos] = useState<Recurso[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  // Incrementarlo reejecuta el fetch del efecto: reintentar sin recargar.
+  const [reintento, setReintento] = useState(0)
+  // Id del recurso cuya plancha local está en descarga (evita el doble clic).
+  const [descargando, setDescargando] = useState<string | null>(null)
 
   const isGA = COURSE_IDS_GA.includes(courseId)
 
@@ -59,6 +66,7 @@ export function ExamBank({ courseId, onCountChange }: { courseId: string; onCoun
     const fetchRecursos = async () => {
       try {
         setIsLoading(true)
+        setError(null)
         const cleanId = courseId.toString().startsWith("c") ? courseId.toString().substring(1) : courseId
         const data = await apiService.getRecursos({ curso_id: Number(cleanId) })
         if (activo) {
@@ -67,6 +75,7 @@ export function ExamBank({ courseId, onCountChange }: { courseId: string; onCoun
       } catch (err) {
         if (activo) {
           console.error("Error fetching recursos del curso:", err)
+          setError(mensajeAmigableError(err))
         }
       } finally {
         if (activo) {
@@ -78,7 +87,7 @@ export function ExamBank({ courseId, onCountChange }: { courseId: string; onCoun
     return () => {
       activo = false
     }
-  }, [courseId, userId])
+  }, [courseId, userId, reintento])
 
   const allRecursos = useMemo(() => {
     const lista = [...recursos]
@@ -111,6 +120,19 @@ export function ExamBank({ courseId, onCountChange }: { courseId: string; onCoun
   useEffect(() => {
     onCountChange?.(allRecursos.length)
   }, [allRecursos, onCountChange])
+
+  const descargarArchivo = async (archivoLocal: string, id: string | number) => {
+    if (descargando) return
+    setDescargando(String(id))
+    try {
+      await apiService.downloadPlancha(courseId, archivoLocal)
+      toast.success("Plancha descargada correctamente.")
+    } catch (err) {
+      toast.error(mensajeAmigableError(err))
+    } finally {
+      setDescargando(null)
+    }
+  }
 
   const filteredRecursos = allRecursos.filter((r) => {
     const matchesSearch = r.titulo.toLowerCase().includes(searchTerm.toLowerCase())
@@ -164,6 +186,22 @@ export function ExamBank({ courseId, onCountChange }: { courseId: string; onCoun
       <div className="space-y-3">
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Cargando recursos...</p>
+        ) : error ? (
+          <div className="flex flex-col items-center text-center gap-4 py-10">
+            <AlertCircle className="w-8 h-8 text-destructive" />
+            <div className="space-y-1">
+              <p className="font-poppins font-semibold text-base text-foreground">No pudimos cargar los recursos</p>
+              <p className="text-sm text-muted-foreground max-w-sm mx-auto">{error}</p>
+            </div>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => setReintento((n) => n + 1)}
+            >
+              <RotateCcw className="w-4 h-4" />
+              Reintentar
+            </Button>
+          </div>
         ) : filteredRecursos.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="py-12 text-center">
@@ -179,7 +217,8 @@ export function ExamBank({ courseId, onCountChange }: { courseId: string; onCoun
                 <RecursoCard
                   key={recurso.id}
                   recurso={recurso}
-                  onDownload={archivoLocal ? () => apiService.downloadPlancha(courseId, archivoLocal) : undefined}
+                  descargando={descargando === String(recurso.id)}
+                  onDownload={archivoLocal ? () => descargarArchivo(archivoLocal, recurso.id) : undefined}
                 />
               )
             })}

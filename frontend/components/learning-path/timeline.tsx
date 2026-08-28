@@ -6,7 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CheckCircle2, PlayCircle, Lock, BookOpen, Code, FileText, Download, ArrowRight, ArrowLeft, Loader2 } from "lucide-react"
-import { apiService } from "@/lib/api-service"
+import { apiService, mensajeAmigableError } from "@/lib/api-service"
+import { toast } from "sonner"
 
 interface Plancha {
   nombre: string
@@ -43,6 +44,9 @@ export function LearningTimeline({
   const [selectedStep, setSelectedStep] = useState<TimelineStep | null>(null)
   const [completingStep, setCompletingStep] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Archivo cuya descarga está en curso: bloquea el doble clic y deja ver
+  // cuál se está bajando. Permite además pintar el spinner en esa fila.
+  const [estaDescargando, setEstaDescargando] = useState<string | null>(null)
   // Estado local: permite marcar pasos como completados de forma optimista
   // sin recargar la página. Se sincroniza si el padre vuelve a pedir la ruta.
   const [steps, setSteps] = useState<TimelineStep[]>(timeline)
@@ -95,6 +99,19 @@ export function LearningTimeline({
     } catch (err: any) {
       setError(err.message)
       setCompletingStep(null)
+    }
+  }
+
+  const handleDescargarPlancha = async (archivo: string) => {
+    if (estaDescargando) return
+    setEstaDescargando(archivo)
+    try {
+      await apiService.downloadPlancha(courseId, archivo)
+      toast.success(`"${archivo}" descargado correctamente.`)
+    } catch (err) {
+      toast.error(mensajeAmigableError(err))
+    } finally {
+      setEstaDescargando(null)
     }
   }
 
@@ -167,24 +184,34 @@ export function LearningTimeline({
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {selectedStep.planchas.map((plancha, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => apiService.downloadPlancha(courseId, plancha.archivo)}
-                    className="w-full flex items-center gap-4 p-4 rounded-lg border border-border hover:bg-secondary/50 transition-colors text-left group"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                      <FileText className="w-5 h-5 text-blue-500" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-foreground group-hover:text-accent transition-colors truncate">
-                        Práctica Dirigida: {plancha.nombre}
-                      </p>
-                      <p className="text-xs text-muted-foreground">PDF - Haz clic para descargar</p>
-                    </div>
-                    <Download className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                  </button>
-                ))}
+                {selectedStep.planchas.map((plancha, idx) => {
+                  const descargandoEsta = estaDescargando === plancha.archivo
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => handleDescargarPlancha(plancha.archivo)}
+                      disabled={descargandoEsta}
+                      className="w-full flex items-center gap-4 p-4 rounded-lg border border-border hover:bg-secondary/50 transition-colors text-left group disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-5 h-5 text-blue-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground group-hover:text-accent transition-colors truncate">
+                          Práctica Dirigida: {plancha.nombre}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {descargandoEsta ? "Descargando..." : "PDF - Haz clic para descargar"}
+                        </p>
+                      </div>
+                      {descargandoEsta ? (
+                        <Loader2 className="w-5 h-5 text-accent animate-spin flex-shrink-0" />
+                      ) : (
+                        <Download className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                      )}
+                    </button>
+                  )
+                })}
               </div>
             </CardContent>
           </Card>

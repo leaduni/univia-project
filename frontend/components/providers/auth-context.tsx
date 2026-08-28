@@ -11,6 +11,29 @@ import { User, Session } from '@supabase/supabase-js';
 // componente para sobrevivir a los re-renders del provider.
 let perfilEnVuelo: Promise<void> | null = null;
 
+// Segundos que se espera a que Supabase restaure la sesión antes de liberar la
+// pantalla de carga por nuestra cuenta.
+const TIMEOUT_SESION_MS = 8000;
+
+// El navegador en modo privado, o con el almacenamiento restringido o lleno,
+// hace que setItem/removeItem lancen. El localStorage aquí es solo un caché de
+// respaldo, así que un fallo al escribirlo no debe cortar el flujo de auth.
+const guardarLocal = (clave: string, valor: string) => {
+    try {
+        localStorage.setItem(clave, valor);
+    } catch (error) {
+        console.warn(`No se pudo guardar "${clave}" en localStorage.`, error);
+    }
+};
+
+const borrarLocal = (clave: string) => {
+    try {
+        localStorage.removeItem(clave);
+    } catch {
+        // Si no se puede leer ni escribir, tampoco hay nada que limpiar.
+    }
+};
+
 interface AuthContextType {
     user: any | null;
     supabaseUser: User | null;
@@ -56,8 +79,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const profile = await apiService.getProfile(token);
                 setUser(profile);
                 if (typeof window !== 'undefined') {
-                    localStorage.setItem('user', JSON.stringify(profile));
-                    localStorage.setItem('token', token);
+                    guardarLocal('user', JSON.stringify(profile));
+                    guardarLocal('token', token);
                 }
             } catch (error: any) {
                 // Si el error es de red (backend no disponible), lo logueamos
@@ -85,15 +108,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     useEffect(() => {
+        // Red de seguridad. `isLoading` se libera desde onAuthStateChange, así
+        // que si getSession() se cuelga, el evento no llega o fetchProfile se
+        // queda esperando a la red, la pantalla se congela en "Cargando tu
+        // sesión..." para siempre. Pasado el límite se libera la carga y la app
+        // sigue: las rutas protegidas redirigen al login por sí solas.
+        let temporizadorSesion: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+            temporizadorSesion = null;
+            console.warn(
+                `La restauración de sesión no respondió en ${TIMEOUT_SESION_MS} ms; se libera la pantalla de carga.`
+            );
+            setIsLoading(false);
+        }, TIMEOUT_SESION_MS);
+
+        const cancelarTemporizador = () => {
+            if (temporizadorSesion) {
+                clearTimeout(temporizadorSesion);
+                temporizadorSesion = null;
+            }
+        };
+
         // Initial session check
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session) {
                 guardarSesion(session);
                 // No llamamos a fetchProfile aquí porque onAuthStateChange
                 // disparará el evento INITIAL_SESSION inmediatamente después.
+                // El temporizador sigue vivo a propósito: quien libera la carga
+                // es ese evento, y también puede no llegar.
             } else {
+                cancelarTemporizador();
                 setIsLoading(false);
             }
+        }).catch((error) => {
+            // Sin esto un fallo de getSession() deja isLoading en true.
+            console.error("Error al restaurar la sesión:", error);
+            cancelarTemporizador();
+            setIsLoading(false);
         });
 
         // Listen for changes on auth state
@@ -111,14 +162,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 tokenPerfilCargado.current = null;
                 setUser(null);
                 if (typeof window !== 'undefined') {
-                    localStorage.removeItem('user');
-                    localStorage.removeItem('token');
+                    borrarLocal('user');
+                    borrarLocal('token');
                 }
             }
+            cancelarTemporizador();
             setIsLoading(false);
         });
 
-        return () => subscription.unsubscribe();
+        return () => {
+            cancelarTemporizador();
+            subscription.unsubscribe();
+        };
     }, []);
 
     const signOut = async () => {
@@ -128,8 +183,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(null);
 
         if (typeof window !== 'undefined') {
-            localStorage.removeItem('user');
-            localStorage.removeItem('token');
+            borrarLocal('user');
+            borrarLocal('token');
         }
 
         await supabase.auth.signOut();

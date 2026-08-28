@@ -56,7 +56,9 @@ def get_claude() -> Optional[anthropic.Anthropic]:
         logger.error("CLAUDE_GEN_API_KEY no configurada: la generación con IA queda deshabilitada.")
         return None
 
-    _cliente = anthropic.Anthropic(api_key=api_key)
+    # timeout duro y reintentos acotados: sin esto una petición colgada se
+    # queda tomando un worker hasta 10 minutos (default del SDK).
+    _cliente = anthropic.Anthropic(api_key=api_key, timeout=90.0, max_retries=2)
     return _cliente
 
 

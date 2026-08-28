@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Download, Eye, FileCheck, Star, FileText, BookOpen, GraduationCap, Video, Sparkles, FolderArchive } from "lucide-react"
+import { Download, Eye, FileCheck, Star, FileText, BookOpen, GraduationCap, Video, Sparkles, FolderArchive, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import type { Recurso } from "@/types/recurso"
@@ -10,9 +10,12 @@ interface RecursoCardProps {
   // sobreescribir la descarga para recursos que no vienen de Drive, como las
   // planchas locales de Geometría Analítica.
   onDownload?: () => void
+  // true mientras la descarga de este recurso está en curso: deshabilita las
+  // acciones de la tarjeta y muestra un spinner en el botón principal.
+  descargando?: boolean
 }
 
-export function RecursoCard({ recurso, onDownload }: RecursoCardProps) {
+export function RecursoCard({ recurso, onDownload, descargando }: RecursoCardProps) {
   const puedeAbrir = Boolean(onDownload || recurso.url_drive)
   const [previewError, setPreviewError] = useState(false)
 
@@ -202,7 +205,7 @@ export function RecursoCard({ recurso, onDownload }: RecursoCardProps) {
               size="icon"
               variant="ghost"
               className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary"
-              disabled={!puedeAbrir}
+              disabled={!puedeAbrir || descargando}
               onClick={previsualizar}
               title="Previsualizar"
             >
@@ -213,11 +216,15 @@ export function RecursoCard({ recurso, onDownload }: RecursoCardProps) {
           <Button
             size="sm"
             className="w-full gap-1.5 h-8 text-[11.5px] font-semibold gradient-brand-hover text-white rounded-xl border-0 shadow-sm"
-            disabled={!puedeAbrir}
+            disabled={!puedeAbrir || descargando}
             onClick={descargar}
           >
-            <Download className="w-3.5 h-3.5" />
-            Descargar
+            {descargando ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Download className="w-3.5 h-3.5" />
+            )}
+            {descargando ? "Descargando..." : "Descargar"}
           </Button>
         </div>
       </div>

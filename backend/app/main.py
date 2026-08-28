@@ -82,6 +82,24 @@ async def http_exception_handler(request, exc: HTTPException):
         content=ErrorResponse(errors=[ErrorDetail(field="general", message=str(exc.detail))]).model_dump(),
     )
 
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request, exc: Exception):
+    """Último recinto: cualquier error no controlado sale como 500 estructurado.
+
+    Sin esto Starlette devuelve texto plano y el frontend, que espera el shape
+    de ErrorResponse, no puede mostrar nada útil.
+    """
+    logger.exception("Error no controlado en %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content=ErrorResponse(errors=[ErrorDetail(
+            field="general",
+            message="Ocurrió un error interno. Intenta de nuevo en unos momentos.",
+        )]).model_dump(),
+    )
+
+
 @app.get("/")
 async def root():
     return {"message": "UniVia API v2.0 - Online", "status": "healthy"}

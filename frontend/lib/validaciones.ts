@@ -10,8 +10,8 @@
 
 export const DOMINIO_INSTITUCIONAL = "uni.pe"
 
-/** Correo institucional: cualquier usuario, pero solo dominio @uni.pe. */
-export const EMAIL_PATTERN = /^[a-zA-Z0-9._%+-]+@uni\.pe$/
+/** Correo electrónico: cualquier dominio válido (no solo @uni.pe). */
+export const EMAIL_PATTERN = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
 
 /** Código UNI: 8 dígitos y 1 letra verificadora (ej. 20210001K). */
 export const CODIGO_PATTERN = /^[0-9]{8}[A-Za-z]$/
@@ -32,9 +32,9 @@ export const MSG_PASSWORD_SIN_LETRA = "La contraseña debe incluir al menos una 
 export const MSG_PASSWORD_SIN_NUMERO = "La contraseña debe incluir al menos un número."
 export const MSG_PASSWORD_VACIA = "La contraseña es obligatoria."
 
-/** Al iniciar sesión se admite el correo institucional o el código UNI. */
+/** Al iniciar sesión se admite cualquier correo electrónico válido o el código UNI. */
 export const MSG_IDENTIFICADOR_INVALIDO =
-  "Ingresa tu correo institucional (@uni.pe) o tu código universitario de 8 números y 1 letra (ej. 20210001K)."
+  "Ingresa tu correo electrónico o tu código universitario de 8 números y 1 letra (ej. 20210001K)."
 
 /** Nombres y apellidos (RF-PRF-02). Espejo de `validar_nombre_completo`. */
 export const NOMBRE_MIN_LENGTH = 3

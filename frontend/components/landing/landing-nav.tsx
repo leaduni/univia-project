@@ -131,16 +131,17 @@ export function LandingNav() {
                   alignItems: "center",
                   justifyContent: "center",
                   height: 40,
-                  padding: "0 22px",
+                  padding: "0 20px",
+                  border: "none",
                   borderRadius: 8,
                   fontSize: 14,
                   fontWeight: 500,
                   color: "#ffffff",
-                  backgroundImage: "linear-gradient(135deg, #d93340, #a6249d, #7957f1)",
+                  backgroundImage: "linear-gradient(135deg, #d93340, #7957f1)",
                   boxShadow: "0 4px 18px rgba(121, 87, 241, 0.28)",
-                  transition: "box-shadow 200ms ease, transform 200ms ease",
+                  transition: "all 200ms ease-in-out",
                 }}
-                hoverStyle={{ boxShadow: "0 6px 26px rgba(121, 87, 241, 0.45)", color: "#ffffff" }}
+                hoverStyle={{ transform: "translateY(-2px)", boxShadow: "0 6px 22px rgba(121, 87, 241, 0.45)", color: "#ffffff" }}
               >
                 Sign in
               </Hoverable>

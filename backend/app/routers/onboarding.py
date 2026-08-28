@@ -108,12 +108,17 @@ def _validar_cursos_de_carrera(
         )
 
 
-def _verificar_perfil_minimo(supabase, user) -> dict:
+def _verificar_perfil_minimo(supabase, user, codigo_entrante: str | None = None) -> dict:
     """Exige que el perfil traiga los datos mínimos antes de cerrar el registro.
 
     RF-EST-01 pide código, correo y nombres; esos se capturan en el registro.
     Si faltan, el onboarding no debe marcarse como completado, porque dejaría
     un perfil a medias que la malla y el dashboard no pueden usar.
+
+    `codigo_entrante` es el valor que viene en el POST de finalización del
+    onboarding y que va a persistirse en `perfiles.codigo_estudiante`. Se cuenta
+    como presente para no bloquear a los usuarios de Google SSO antes de que
+    ese valor se guarde.
     """
     try:
         resp = (
@@ -137,10 +142,12 @@ def _verificar_perfil_minimo(supabase, user) -> dict:
         etiqueta
         for campo, etiqueta in (
             ("email", "correo institucional"),
+            # El código puede venir ya en el perfil (registro manual) o en la
+            # propia petición de cierre (Google SSO, aún sin persistir).
             ("codigo_estudiante", "código universitario"),
             ("nombre_completo", "nombres y apellidos"),
         )
-        if not perfil.get(campo)
+        if not (perfil.get(campo) or (campo == "codigo_estudiante" and codigo_entrante))
     ]
     if faltantes:
         raise_field_error(
@@ -547,9 +554,12 @@ async def complete_onboarding(
         cursos_inscritos = data.cursos_inscritos
         inscritos_set: Set[int] = set(cursos_inscritos)
 
-        perfil = _verificar_perfil_minimo(supabase, user)
+        perfil = _verificar_perfil_minimo(supabase, user, codigo_entrante=data.codigo_estudiante)
         carrera = _obtener_carrera(supabase, carrera_id)
         _validar_ciclo(carrera, ciclo_actual)
+
+        metadata = getattr(user, "user_metadata", {}) or {}
+        avatar_url = metadata.get("avatar_url") or metadata.get("picture")
 
         if not malla_id:
             raise_field_error("malla_id", "No se encontró una malla curricular activa para esta carrera.", status_code=400)
@@ -655,13 +665,20 @@ async def complete_onboarding(
         if progreso_items:
             supabase.table("progreso_cursos").insert(progreso_items).execute()
 
-        supabase.table("perfiles").update({
+        perfil_update: dict = {
             "carrera_id": carrera_id,
             "malla_id": malla_id,
             "ciclo_actual": ciclo_actual,
             "onboarding_completado": True,
             "updated_at": "now()",
-        }).eq("id", user.id).execute()
+        }
+        if avatar_url:
+            perfil_update["avatar_url"] = avatar_url
+        # Los usuarios de Google SSO no traen código: se completa aquí. Se omite
+        # si viene vacío para no pisar el código ya registrado (registro manual).
+        if data.codigo_estudiante:
+            perfil_update["codigo_estudiante"] = data.codigo_estudiante
+        supabase.table("perfiles").update(perfil_update).eq("id", user.id).execute()
 
         try:
             supabase.table("logros_usuarios").upsert({

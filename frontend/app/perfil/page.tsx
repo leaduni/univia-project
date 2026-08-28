@@ -7,11 +7,13 @@ import { Check, Layers, Loader2, LogOut, Pencil, X } from "lucide-react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { useAuth } from "@/components/providers/auth-context"
 import { CambiarPasswordForm } from "@/components/perfil/cambiar-password-form"
+import { EstablecerPasswordForm } from "@/components/perfil/establecer-password-form"
 import { PreferenciasCard } from "@/components/perfil/preferencias-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { apiService } from "@/lib/api-service"
 import { aRomano } from "@/lib/ciclos"
 import { calcularRacha } from "@/lib/racha"
@@ -23,9 +25,11 @@ interface Perfil {
   email?: string
   nombre_completo?: string
   codigo_estudiante?: string
+  avatar_url?: string
   carrera_id?: number
   malla_id?: number
   ciclo_actual?: number
+  has_password?: boolean
 }
 
 function iniciales(nombre?: string): string {
@@ -192,10 +196,13 @@ export default function PerfilPage() {
         {/* Cabecera */}
         <div className="bg-card border border-border p-6 lg:p-8 rounded-3xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="flex items-center gap-5 min-w-0">
-            <div className="w-20 h-20 rounded-full gradient-brand-br p-0.5 shrink-0">
-              <div className="w-full h-full bg-card rounded-full flex items-center justify-center font-heading text-2xl font-bold text-foreground">
-                {iniciales(perfil.nombre_completo)}
-              </div>
+            <div className="w-20 h-20 shrink-0">
+              <Avatar className="w-20 h-20 rounded-full">
+                <AvatarImage src={perfil.avatar_url} alt={perfil.nombre_completo} />
+                <AvatarFallback className="gradient-brand-br text-primary-foreground font-heading text-2xl font-bold">
+                  {iniciales(perfil.nombre_completo)}
+                </AvatarFallback>
+              </Avatar>
             </div>
 
             <div className="space-y-1.5 min-w-0">
@@ -419,9 +426,19 @@ export default function PerfilPage() {
           </TabsContent>
 
           <TabsContent value="seguridad">
-            <div className="bg-card border border-border p-6 rounded-2xl">
-              <CambiarPasswordForm />
-            </div>
+            {perfil?.has_password === true ? (
+              <div className="bg-card border border-border p-6 rounded-2xl">
+                <CambiarPasswordForm />
+              </div>
+            ) : (
+              <div className="bg-card border border-border p-6 rounded-2xl">
+                <EstablecerPasswordForm
+                  onPasswordSet={() => {
+                    setPerfil((prev) => ({ ...(prev ?? {}), has_password: true }) as Perfil)
+                  }}
+                />
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="preferencias">

@@ -3,15 +3,17 @@
 
 import { Suspense, useState, useEffect } from "react"
 import Link from "next/link"
-import { Sparkles, ChevronRight, Loader2, Eye, EyeOff } from "lucide-react"
+import { Sparkles, ChevronRight, Loader2, Eye, EyeOff, Info } from "lucide-react"
 import { BrandLogo } from "@/app/auth/brand-logo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { apiService } from "@/lib/api-service"
+import { supabase } from "@/lib/supabase"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { AuthErrorBanner } from "@/app/auth/auth-error-banner"
@@ -22,9 +24,9 @@ import {
   MSG_PASSWORD_VACIA,
 } from "@/lib/validaciones"
 
-// El backend admite correo institucional o código UNI (RF-01). No se aplica
-// aquí la política de complejidad de contraseña: hay cuentas creadas antes de
-// esa regla y quedarían fuera al intentar entrar.
+// El formulario admite correo electrónico de cualquier dominio o el código UNI.
+// No se aplica aquí la política de complejidad de contraseña: hay cuentas creadas
+// antes de esa regla y quedarían fuera al intentar entrar.
 const loginSchema = z.object({
   identificador: z.string().refine(
     (v) => esEmailInstitucional(v) || esCodigoEstudiante(v),
@@ -50,6 +52,14 @@ function LoginPageContent() {
   const [error, setError] = useState("")
   const [showSuccessToast, setShowSuccessToast] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [accesoInvitadoAbierto, setAccesoInvitadoAbierto] = useState(false)
+  const [enviandoInvitado, setEnviandoInvitado] = useState(false)
+  const [invitado, setInvitado] = useState({
+    nombre_completo: "",
+    email_contacto: "",
+    universidad_empresa: "",
+    motivo_solicitud: "",
+  })
 
   useEffect(() => {
     if (searchParams.get("registered") === "true") {
@@ -81,6 +91,47 @@ function LoginPageContent() {
       setError(err.message || "No pudimos validar tus credenciales académicas.")
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleGoogleLogin = async () => {
+    setIsLoading(true)
+    setError("")
+    try {
+      await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            hd: "uni.pe", // Restringe el selector de cuentas al dominio uni.pe
+          },
+        },
+      })
+      // signInWithOAuth redirige al proveedor; si vuelve aquí sin navegar fue
+      // porque la URL no devolvió la sesión (p. ej. popup bloqueado).
+    } catch (err: any) {
+      setError(err.message || "No pudimos iniciar sesión con Google.")
+      setIsLoading(false)
+    }
+  }
+
+  const enviarSolicitudInvitado = async () => {
+    setEnviandoInvitado(true)
+    setError("")
+    try {
+      await apiService.solicitarInvitado({
+        nombreCompleto: invitado.nombre_completo,
+        emailContacto: invitado.email_contacto,
+        universidadEmpresa: invitado.universidad_empresa,
+        motivoSolicitud: invitado.motivo_solicitud,
+      })
+      setAccesoInvitadoAbierto(false)
+      toast.success("Solicitud recibida. Te contactaremos por correo.")
+      setInvitado({ nombre_completo: "", email_contacto: "", universidad_empresa: "", motivo_solicitud: "" })
+    } catch (err: any) {
+      setError(err.message || "No pudimos enviar tu solicitud.")
+    } finally {
+      setEnviandoInvitado(false)
     }
   }
 
@@ -139,6 +190,30 @@ function LoginPageContent() {
           </div>
 
           {error && <AuthErrorBanner message={error} />}
+
+          {/* ACCIÓN PRINCIPAL: Google SSO (comunidad UNI) */}
+          <Button
+            type="button"
+            disabled={isLoading}
+            onClick={handleGoogleLogin}
+            className="w-full py-4 2xl:py-5 px-4 gradient-login-btn text-primary-foreground font-semibold rounded-xl text-sm 2xl:text-base transition-all duration-200 shadow-lg shadow-accent/20 active:scale-[0.99] h-auto"
+          >
+            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
+              <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z" />
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z" />
+            </svg>
+            Ingresar con Correo Institucional UNI
+          </Button>
+
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-white/[0.10]" />
+            <span className="text-xs font-medium uppercase text-muted-foreground">
+              o ingresa con tus credenciales
+            </span>
+            <span className="h-px flex-1 bg-white/[0.10]" />
+          </div>
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
@@ -210,16 +285,19 @@ function LoginPageContent() {
             </form>
           </Form>
 
-          <div className="flex items-center justify-between text-xs 2xl:text-sm text-muted-foreground pt-1">
+          <div className="text-xs 2xl:text-sm text-muted-foreground pt-1">
             <Link href="/auth/forgot-password" className="hover:text-foreground transition-colors">
               ¿Olvidaste tu contraseña?
             </Link>
-            <Link className="text-accent hover:text-accent/80 font-medium transition-colors" href="/auth/signup">
-              Crear cuenta
+          </div>
+
+          <div className="text-xs 2xl:text-sm text-muted-foreground pt-1">
+            <Link href="/auth/signup" className="hover:text-foreground transition-colors">
+              ¿No tienes una cuenta? <span className="font-bold text-[#d93340]">Registrate aquí</span>
             </Link>
           </div>
 
-          <div className="p-4 2xl:p-5 bg-card border border-border rounded-xl flex items-start gap-3">
+          <div className="p-4 2xl:p-5 bg-white/[0.04] border border-white/[0.10] rounded-xl flex items-start gap-3">
             <svg className="w-5 h-5 text-accent shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>

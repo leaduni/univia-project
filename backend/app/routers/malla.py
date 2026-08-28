@@ -44,6 +44,9 @@ def _obtener_malla_del_perfil(supabase, user) -> tuple[int, int]:
     carrera_id = perfil.get("carrera_id")
     malla_id = perfil.get("malla_id")
 
+    if carrera_id is None:
+        return None, None
+
     if not malla_id and carrera_id:
         try:
             m_resp = (
@@ -60,7 +63,7 @@ def _obtener_malla_del_perfil(supabase, user) -> tuple[int, int]:
         except Exception as e:
             logger.error(f"Error buscando malla vigente de carrera {carrera_id}: {e}")
 
-    if not carrera_id or not malla_id:
+    if not malla_id:
         raise_field_error(
             "malla_id",
             "Aún no eliges tu carrera o plan de estudios. Completa tu onboarding para ver tu malla.",
@@ -108,6 +111,14 @@ async def get_avance_carrera(user_data=Depends(get_current_user)) -> dict:
     supabase = get_supabase(token)
 
     carrera_id, malla_id = _obtener_malla_del_perfil(supabase, user)
+    if carrera_id is None:
+        return {
+            "carrera_id": None,
+            "malla_id": None,
+            "porcentaje_avance": 0,
+            "creditos_totales": 0,
+            "creditos_aprobados": 0,
+        }
 
     try:
         avance = cargar_avance(supabase, user.id, malla_id)
@@ -139,6 +150,8 @@ async def get_malla(user_data=Depends(get_current_user)) -> List[CicloDetail]:
     supabase = get_supabase(token)
 
     carrera_id, malla_id = _obtener_malla_del_perfil(supabase, user)
+    if carrera_id is None:
+        return []
 
     try:
         mc_resp = (

@@ -4,5 +4,12 @@
     "Antes de escribir cualquier consulta SQL, modelo Pydantic o endpoint en el Backend:",
     "1. Consulta OBLIGATORIAMENTE el archivo documentacion/esquema-db-actual.md.",
     "2. NO inventes nombres de tablas ni columnas que no existan en dicho archivo."
-  ]
+  ],
+  "mcp": {
+    "supabase": {
+      "type": "remote",
+      "url": "https://mcp.supabase.com/mcp?project_ref=pggpscrbpcasbgjhjigw&features=docs%2Caccount%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching",
+      "enabled": true
+    }
+  }
 }

@@ -3,7 +3,8 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { CheckCircle2, ArrowRight, ChevronRight, Eye, EyeOff, Loader2 } from "lucide-react"
+import { CheckCircle2, ArrowRight, ChevronRight, Eye, EyeOff, Loader2, Info } from "lucide-react"
+import { toast } from "sonner"
 import { AuthErrorBanner } from "@/app/auth/auth-error-banner"
 import { BrandLogo } from "@/app/auth/brand-logo"
 import { Button } from "@/components/ui/button"
@@ -13,6 +14,7 @@ import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { apiService } from "@/lib/api-service"
+import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import {
   CODIGO_PATTERN,
@@ -49,6 +51,10 @@ const signupSchema = z.object({
 
 type SignupFormValues = z.infer<typeof signupSchema>
 
+const invitadoSchema = z.object({
+  motivoSolicitud: z.string().min(10, "Cuéntanos brevemente el motivo de tu solicitud (mínimo 10 caracteres)."),
+})
+
 export default function SignupPage() {
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
@@ -56,6 +62,13 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
+  const [enviandoInvitado, setEnviandoInvitado] = useState(false)
+  const [invitado, setInvitado] = useState({
+    nombreCompleto: "",
+    emailContacto: "",
+    universidadEmpresa: "",
+    motivoSolicitud: "",
+  })
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -117,6 +130,59 @@ export default function SignupPage() {
     }
   }
 
+  const handleGoogleSignup = async () => {
+    setIsLoading(true)
+    setError("")
+    try {
+      await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            hd: "uni.pe", // Restringe el selector de cuentas al dominio uni.pe
+          },
+        },
+      })
+      // signInWithOAuth redirige al proveedor; si vuelve aquí sin navegar fue
+      // porque la URL no devolvió la sesión (p. ej. popup bloqueado).
+    } catch (err: any) {
+      setError(err.message || "No pudimos iniciar sesión con Google.")
+      setIsLoading(false)
+    }
+  }
+
+  const enviarSolicitudInvitado = async (event: any) => {
+    event.preventDefault()
+    setEnviandoInvitado(true)
+    setError("")
+    try {
+      const res = await apiService.solicitarInvitado({
+        nombreCompleto: invitado.nombreCompleto,
+        emailContacto: invitado.emailContacto,
+        universidadEmpresa: invitado.universidadEmpresa,
+        motivoSolicitud: invitado.motivoSolicitud,
+      })
+      if (!res.ok) {
+        toast.error(res.error)
+        setError(res.error)
+        return
+      }
+      toast.success("Los desarrolladores revisarán la solicitud.")
+      setInvitado({
+        nombreCompleto: "",
+        emailContacto: "",
+        universidadEmpresa: "",
+        motivoSolicitud: "",
+      })
+    } catch (error: any) {
+      const msg = error?.message || "No pudimos enviar tu solicitud."
+      toast.error(msg)
+      setError(msg)
+    } finally {
+      setEnviandoInvitado(false)
+    }
+  }
+
   if (success) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -145,232 +211,129 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-background grid grid-cols-1 lg:grid-cols-12 text-foreground font-sans selection:bg-accent/30 selection:text-foreground">
-      {/* SECCIÓN IZQUIERDA: HERO / BRANDING */}
-      <div className="hidden lg:flex lg:col-span-5 flex-col justify-between bg-card border-r border-border p-8 xl:p-12 2xl:p-16 3xl:p-24 relative overflow-hidden min-h-screen">
-        <div className="absolute -top-24 -left-24 w-96 h-96 2xl:w-[500px] 2xl:h-[500px] bg-accent/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-96 h-96 2xl:w-[500px] 2xl:h-[500px] bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen w-full bg-background text-foreground font-sans selection:bg-accent/30 selection:text-foreground">
+      <div className="pointer-events-none absolute -left-24 -top-10 h-80 w-80 rounded-full bg-[#d93340]/10 blur-3xl" aria-hidden="true" />
+      <div className="pointer-events-none absolute -right-16 bottom-0 h-96 w-96 rounded-full bg-[#7957f1]/10 blur-3xl" aria-hidden="true" />
 
-        <BrandLogo />
-
-        <div className="z-10 my-auto max-w-md space-y-6">
-          <h1 className="font-heading text-3xl xl:text-4xl 2xl:text-5xl 3xl:text-6xl font-bold tracking-tight leading-tight text-foreground">
-            Únete a la<br />
-            <span className="gradient-brand-text">
-              Revolución Académica.
-            </span>
-          </h1>
-          <p className="text-muted-foreground text-sm xl:text-base 2xl:text-lg leading-relaxed">
-            Acceso a herramientas inteligentes que transformarán tu trayectoria universitaria en una experiencia de aprendizaje personalizada.
-          </p>
-          <div className="space-y-3 pt-2">
-            <div className="flex items-center gap-3 p-3 2xl:p-4 bg-card border border-border rounded-xl">
-              <div className="p-2 rounded-lg bg-primary/10 text-primary text-lg">📚</div>
-              <div>
-                <p className="text-xs 2xl:text-sm font-semibold text-foreground">Malla Curricular Inteligente</p>
-                <p className="text-[11px] 2xl:text-xs text-muted-foreground">Visualiza tu progreso y planifica tu ciclo.</p>
-              </div>
+      <div className="min-h-screen w-full flex flex-col justify-center bg-background p-6 sm:p-8">
+        <div className="max-w-5xl mx-auto w-full">
+          <div className="mb-8 text-center">
+            <div className="font-heading text-xl font-bold tracking-tight text-foreground/90">
+              UniVia - Plataforma académica · LEAD UNI
             </div>
-            <div className="flex items-center gap-3 p-3 2xl:p-4 bg-card border border-border rounded-xl">
-              <div className="p-2 rounded-lg bg-accent/10 text-accent text-lg">🤖</div>
-              <div>
-                <p className="text-xs 2xl:text-sm font-semibold text-foreground">Evaluaciones adaptativas con IA</p>
-                <p className="text-[11px] 2xl:text-xs text-muted-foreground">Practica con exámenes alineados a tu syllabus.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <p className="text-xs text-muted-foreground/70 z-10">
-          © 2026 LEAD UNI — Plataforma de Gestión Académica Superior.
-        </p>
-      </div>
-
-      {/* SECCIÓN DERECHA: FORMULARIO DE REGISTRO */}
-      <div className="col-span-1 lg:col-span-7 bg-background flex flex-col justify-center items-center p-6 sm:p-12 xl:p-16 2xl:p-24 min-h-screen">
-        <div className="w-full max-w-md xl:max-w-lg 2xl:max-w-xl space-y-6 2xl:space-y-8">
-          <div className="space-y-2">
-            <h2 className="font-heading text-2xl xl:text-3xl 2xl:text-4xl font-bold tracking-tight text-foreground">Regístrate</h2>
-            <p className="text-sm xl:text-base 2xl:text-lg text-muted-foreground">
-              Completa tus datos para acceder a UniVia y transformar tu experiencia.
-            </p>
           </div>
 
           {error && <AuthErrorBanner message={error} />}
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="fullName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="block text-xs 2xl:text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                      Nombre Completo
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Juan Carlos Pérez García"
-                        className="w-full px-4 py-2.5 2xl:py-4 bg-input border border-border rounded-xl text-sm 2xl:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 h-auto"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage className="text-xs text-destructive" />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="studentCode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="block text-xs 2xl:text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                        Código UNI
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="20241000"
-                          className="w-full px-4 py-2.5 2xl:py-4 bg-input border border-border rounded-xl text-sm 2xl:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 h-auto"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage className="text-xs text-destructive" />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="block text-xs 2xl:text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                        Correo Institucional
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          type="email"
-                          placeholder="nombre@uni.pe"
-                          className="w-full px-4 py-2.5 2xl:py-4 bg-input border border-border rounded-xl text-sm 2xl:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 h-auto"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage className="text-xs text-destructive" />
-                    </FormItem>
-                  )}
-                />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+            <section className="relative rounded-3xl border border-[#7957f1]/70 bg-card p-8 shadow-[0_0_30px_rgba(121,87,241,0.45)] shadow-black/20">
+              <div className="absolute top-0 left-0 h-1 w-full rounded-t-3xl bg-gradient-to-r from-[#d93340] via-[#7957f1] to-[#4ade80]" />
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-accent">
+                  <span className="h-2 w-2 rounded-full bg-gradient-to-r from-[#d93340] to-[#7957f1] shadow-[0_0_8px_#7957f1]" />
+                  Estudiante UNI
+                </span>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="block text-xs 2xl:text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                        Contraseña
-                      </FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input
-                            type={showPassword ? "text" : "password"}
-                            placeholder="••••••••"
-                            className="w-full px-4 py-2.5 2xl:py-4 bg-input border border-border rounded-xl text-sm 2xl:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 pr-10 h-auto"
-                            {...field}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                          >
-                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </FormControl>
-                      <FormMessage className="text-xs text-destructive" />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="confirmPassword"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="block text-xs 2xl:text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                        Confirmar Contraseña
-                      </FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input
-                            type={showConfirmPassword ? "text" : "password"}
-                            placeholder="••••••••"
-                            className="w-full px-4 py-2.5 2xl:py-4 bg-input border border-border rounded-xl text-sm 2xl:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 pr-10 h-auto"
-                            {...field}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            aria-label={showConfirmPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                          >
-                            {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </FormControl>
-                      <FormMessage className="text-xs text-destructive" />
-                    </FormItem>
-                  )}
-                />
+              <div className="mt-6">
+                <h1 className="font-heading text-3xl font-bold tracking-tight text-foreground">
+                  Registrarse con Correo Institucional UNI
+                </h1>
+                <p className="mt-4 text-sm text-muted-foreground leading-relaxed">
+                  Accede instantáneamente con tu correo institucional @uni.pe y empieza a aprender sin crear una contraseña manual.
+                </p>
               </div>
+              <div className="mt-8">
+                <Button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={handleGoogleSignup}
+                  className="w-full py-4 px-4 gradient-login-btn text-primary-foreground font-semibold rounded-xl text-sm transition-all duration-200 shadow-lg shadow-accent/20 active:scale-[0.99] h-auto"
+                >
+                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z" />
+                  </svg>
+                  Registrarse con Correo Institucional UNI
+                </Button>
+              </div>
+            </section>
 
-              <FormField
-                control={form.control}
-                name="acceptTerms"
-                render={({ field }) => (
-                  <FormItem className="flex items-start gap-3 pt-2">
-                    <FormControl>
-                      <input
-                        type="checkbox"
-                        className="mt-1 rounded border-border bg-input text-accent focus:ring-ring focus:ring-offset-0 cursor-pointer"
-                        checked={field.value}
-                        onChange={field.onChange}
-                        onBlur={field.onBlur}
-                        name={field.name}
-                        ref={field.ref}
-                      />
-                    </FormControl>
-                    <div className="flex-1">
-                      <label className="text-xs 2xl:text-sm text-muted-foreground cursor-pointer leading-relaxed">
-                        Acepto los <a href="#" className="text-accent underline">términos y condiciones</a> y la <a href="#" className="text-accent underline">política de privacidad</a> de LEAD UNI.
-                      </label>
-                      <FormMessage className="text-xs text-destructive mt-1" />
-                    </div>
-                  </FormItem>
-                )}
-              />
+            <section className="rounded-3xl border border-white/[0.09] bg-white/[0.04] backdrop-blur-xl p-8 shadow-2xl shadow-black/30">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-[0.2em] text-accent">Invitado / Desarrollador</span>
+              </div>
+              <div className="mt-6">
+                <h2 className="font-heading text-3xl font-bold tracking-tight text-foreground">
+                  Solicitar acceso como invitado
+                </h2>
+                <p className="mt-4 text-sm text-muted-foreground leading-relaxed">
+                  Si necesitas evaluar la plataforma o colaborar con el equipo, completa la solicitud y los desarrolladores revisarán tu acceso.
+                </p>
+              </div>
+              <details className="mt-8 rounded-2xl border border-white/[0.09] bg-background/60 p-4">
+                <summary className="cursor-pointer list-none text-sm font-medium text-foreground">
+                  Enviar solicitud
+                </summary>
+                <form className="mt-4 space-y-4" onSubmit={enviarSolicitudInvitado}>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider">Nombre Completo</label>
+                    <Input
+                      className="mt-2 w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.10] rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:border-[#7957f1] focus:ring-[#7957f1]/50"
+                      placeholder="Nombre Completo"
+                      value={invitado.nombreCompleto}
+                      onChange={(e) => setInvitado({ ...invitado, nombreCompleto: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider">Correo de Contacto</label>
+                    <Input
+                      className="mt-2 w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.10] rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:border-[#7957f1] focus:ring-[#7957f1]/50"
+                      placeholder="correo@ejemplo.com"
+                      value={invitado.emailContacto}
+                      onChange={(e) => setInvitado({ ...invitado, emailContacto: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider">Universidad/Empresa</label>
+                    <Input
+                      className="mt-2 w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.10] rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:border-[#7957f1] focus:ring-[#7957f1]/50"
+                      placeholder="Universidad/Empresa"
+                      value={invitado.universidadEmpresa}
+                      onChange={(e) => setInvitado({ ...invitado, universidadEmpresa: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider">Motivo de Solicitud</label>
+                    <Input
+                      className="mt-2 w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.10] rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:border-[#7957f1] focus:ring-[#7957f1]/50"
+                      placeholder="Motivo de Solicitud"
+                      value={invitado.motivoSolicitud}
+                      onChange={(e) => setInvitado({ ...invitado, motivoSolicitud: e.target.value })}
+                    />
+                    {form.formState.errors.motivoSolicitud?.message && (
+                      <p className="text-xs font-medium text-red-500 mt-1">
+                        {String(form.formState.errors.motivoSolicitud.message)}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={enviandoInvitado}
+                    className="w-full py-3 px-4 rounded-xl border border-white/[0.09] bg-gradient-to-r from-[#d93340] to-[#7957f1] text-white font-semibold hover:opacity-95 transition-all duration-200"
+                  >
+                    {enviandoInvitado ? "Enviando..." : "Enviar solicitud"}
+                  </Button>
+                </form>
+              </details>
+            </section>
+          </div>
 
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-3.5 2xl:py-4 px-4 gradient-login-btn text-foreground font-semibold rounded-xl text-sm 2xl:text-base transition-all duration-200 shadow-lg shadow-accent/20 active:scale-[0.99] mt-2 h-auto"
-              >
-                {isLoading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin mr-2" />Creando cuenta...</>
-                ) : (
-                  <>Crear Cuenta Académica <ChevronRight className="w-4 h-4 ml-1" /></>
-                )}
-              </Button>
-            </form>
-          </Form>
-
-          <div className="text-center text-xs 2xl:text-sm text-muted-foreground pt-2">
-            ¿Ya tienes cuenta?{" "}
-            <Link className="text-accent hover:text-accent/80 font-medium transition-colors" href="/auth/login">
-              Inicia sesión aquí →
+          <div className="mt-8 text-center text-sm text-muted-foreground">
+            ¿Ya tienes cuenta? {" "}
+            <Link className="bg-gradient-to-r from-[#d93340] to-[#7957f1] bg-clip-text text-transparent hover:opacity-90 transition-colors font-medium" href="/auth/login">
+              Iniciar sesión
             </Link>
           </div>
         </div>

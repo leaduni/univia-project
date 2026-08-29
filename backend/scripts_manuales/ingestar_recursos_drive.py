@@ -22,6 +22,7 @@ import os
 import re
 import sys
 from collections import defaultdict
+from typing import Optional
 
 sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))

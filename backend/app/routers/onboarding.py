@@ -90,6 +90,33 @@ def _validar_ciclo(carrera: dict, ciclo_actual: int) -> None:
         )
 
 
+def _validar_ciclo_no_retrocede(perfil: dict, ciclo_actual: int) -> None:
+    """El ciclo declarado solo puede avanzar, nunca bajar.
+
+    Bajarlo dejaba la cuenta incoherente: `perfiles.ciclo_actual` retrocedía,
+    pero los cursos aprobados y los créditos se calculan sobre `progreso_cursos`
+    y ningún flujo los borra, así que el dashboard seguía mostrando el avance y
+    los cursos del ciclo alto contra un ciclo declarado bajo.
+
+    No cierra ningún caso legítimo: quien jaló un curso no necesita volver a su
+    ciclo, porque los arrastres de ciclos anteriores se eligen igual en el paso
+    de cursos. Solo aplica a quien ya tiene carrera registrada; en el registro
+    inicial no hay ciclo previo contra el cual comparar.
+    """
+    if not perfil.get("carrera_id"):
+        return
+
+    previo = perfil.get("ciclo_actual")
+    if previo and ciclo_actual < previo:
+        raise_field_error(
+            "ciclo_actual",
+            f"Ya estás registrado en el ciclo {previo} y el ciclo solo avanza. "
+            f"Si te quedaron cursos de ciclos anteriores, puedes inscribirlos "
+            f"sin cambiar tu ciclo.",
+            status_code=400,
+        )
+
+
 def _validar_cursos_de_carrera(
     cursos_inscritos: List[int], cursos_en_carrera: Dict[int, dict], carrera: dict
 ) -> None:
@@ -435,6 +462,7 @@ async def actualizar_cursos_del_ciclo(
 
     carrera = _obtener_carrera(supabase, carrera_id)
     _validar_ciclo(carrera, data.ciclo_actual)
+    _validar_ciclo_no_retrocede(perfil, data.ciclo_actual)
 
     try:
         mc_resp = (
@@ -557,6 +585,7 @@ async def complete_onboarding(
         perfil = _verificar_perfil_minimo(supabase, user, codigo_entrante=data.codigo_estudiante)
         carrera = _obtener_carrera(supabase, carrera_id)
         _validar_ciclo(carrera, ciclo_actual)
+        _validar_ciclo_no_retrocede(perfil, ciclo_actual)
 
         metadata = getattr(user, "user_metadata", {}) or {}
         avatar_url = metadata.get("avatar_url") or metadata.get("picture")
@@ -588,8 +617,9 @@ async def complete_onboarding(
         # malla en vez de cortar con 400: cambiar de plan de estudios deja
         # marcados cursos que ya no existen en el nuevo, y eso no es culpa del
         # estudiante ni debe bloquearle el registro.
+        declara_historial = data.cursos_aprobados is not None
         declarados: Set[int] = {
-            cid for cid in data.cursos_aprobados if cid in cursos_en_carrera
+            cid for cid in (data.cursos_aprobados or []) if cid in cursos_en_carrera
         }
         solapados = declarados & inscritos_set
         if solapados:
@@ -616,10 +646,75 @@ async def complete_onboarding(
         def nombre_curso(cid: int) -> str:
             return cursos_en_carrera.get(cid, {}).get("name", str(cid))
 
-        cursos_inscritos = [cid for cid in cursos_inscritos if cid not in db_status]
+        # Un curso no se puede llevar sin su prerrequisito aprobado. El wizard
+        # ya lo bloquea, pero la regla tiene que vivir aquí: el endpoint es
+        # público para cualquier cliente y una matrícula inválida corrompe el
+        # avance y la ruta de aprendizaje que se calculan sobre estos datos.
+        # Cuenta como aprobado lo que el estudiante declaró más lo que ya
+        # figura completado en su progreso: si tiene convalidación o permiso de
+        # facultad, la declara en el paso de historial y el curso se habilita.
+        aprobados_efectivos = declarados | {
+            cid for cid, st in db_status.items() if st == "completed"
+        }
+        prereq_map = _cargar_prerrequisitos(supabase, mc_data)
+        sin_requisito: List[str] = []
+        for cid in inscritos_set:
+            faltantes = [
+                p for p in prereq_map.get(cid, [])
+                if p in cursos_en_carrera and p not in aprobados_efectivos
+            ]
+            if faltantes:
+                sin_requisito.append(
+                    f"{nombre_curso(cid)} (requiere "
+                    + ", ".join(nombre_curso(p) for p in sorted(faltantes))
+                    + ")"
+                )
+        if sin_requisito:
+            raise_field_error(
+                "cursos_inscritos",
+                "No puedes llevar cursos sin aprobar su prerrequisito: "
+                + "; ".join(sorted(sin_requisito))
+                + ".",
+                status_code=400,
+            )
 
-        if not cursos_inscritos:
-            logger.info("All courses already persisted, skipping enrollment")
+        # `cursos_inscritos` no es "cursos que añado", es "los que llevo este
+        # ciclo": una foto completa, no un incremento. Antes solo se insertaban
+        # los que no tenían fila, así que un curso que el estudiante dejaba de
+        # llevar seguía 'in_progress' para siempre y el dashboard lo mostraba
+        # como activo, y uno que ya constaba aprobado no podía volver a llevarse.
+        #
+        # El alcance de esa foto es el mismo que ofrece el wizard: el ciclo
+        # declarado más los arrastres de ciclos anteriores. Un adelanto de un
+        # ciclo superior no aparece ahí, así que no se toca.
+        en_alcance = {
+            cid
+            for cid, info in cursos_en_carrera.items()
+            if (info.get("ciclo") or 0) <= ciclo_actual
+        }
+
+        # Cursos que se dejan de llevar: estaban en curso, están dentro de lo
+        # que el estudiante acaba de declarar, y ya no figuran ni matriculados
+        # ni aprobados. Vuelven a 'available' (ni aprobado ni cursando).
+        a_desmatricular = {
+            cid
+            for cid, st in db_status.items()
+            if st == "in_progress"
+            and cid in en_alcance
+            and cid not in inscritos_set
+            and cid not in declarados
+        }
+
+        # Cursos que se vuelven a llevar teniendo ya una fila que no es
+        # 'in_progress' (p. ej. un aprobado que ahora se repite porque lo jaló).
+        a_reinscribir = {
+            cid
+            for cid in inscritos_set
+            if db_status.get(cid) not in (None, "in_progress")
+        }
+
+        # Solo los que no tienen fila alguna necesitan INSERT.
+        cursos_inscritos = [cid for cid in cursos_inscritos if cid not in db_status]
 
         cursos_a_completar: Set[int] = set(declarados)
 
@@ -635,6 +730,28 @@ async def complete_onboarding(
             if db_status.get(cid) not in (None, "completed")
         }
         cursos_a_completar = {cid for cid in cursos_a_completar if cid not in db_status}
+
+        # El reverso del ascenso: un curso que figura aprobado pero que el
+        # estudiante acaba de desmarcar (lo jaló, o lo había declarado mal) debe
+        # dejar de contar. Sin esto los créditos solo sabían subir, y "actualizar
+        # mi situación académica" no reflejaba el jalado.
+        #
+        # Se limita a ciclos ANTERIORES al declarado porque es exactamente lo
+        # que la tarjeta de historial del wizard pone sobre la mesa: los cursos
+        # del ciclo en curso y los de ciclos superiores (adelantos) no aparecen
+        # ahí, así que su ausencia del payload no significa "no aprobado".
+        # Se degrada a 'available' —no aprobado, disponible para llevar— porque
+        # el esquema no tiene un estado 'jalado'.
+        a_degradar: Set[int] = set()
+        if declara_historial:
+            a_degradar = {
+                cid
+                for cid, st in db_status.items()
+                if st == "completed"
+                and cid not in declarados
+                and cid not in inscritos_set
+                and (cursos_en_carrera.get(cid, {}).get("ciclo") or 0) < ciclo_actual
+            }
 
         progreso_items: List[dict] = []
 
@@ -662,6 +779,41 @@ async def complete_onboarding(
                 .execute()
             )
 
+        if a_degradar:
+            (
+                supabase.table("progreso_cursos")
+                .update({"status": "available", "fecha_completado": None})
+                .eq("perfil_id", user.id)
+                .in_("curso_id", list(a_degradar))
+                .execute()
+            )
+            logger.info(
+                f"Cursos desaprobados por declaración del estudiante. "
+                f"Usuario={user.id}, cursos={[nombre_curso(c) for c in a_degradar]}"
+            )
+
+        if a_desmatricular:
+            (
+                supabase.table("progreso_cursos")
+                .update({"status": "available", "fecha_completado": None})
+                .eq("perfil_id", user.id)
+                .in_("curso_id", list(a_desmatricular))
+                .execute()
+            )
+            logger.info(
+                f"Cursos que el estudiante deja de llevar. "
+                f"Usuario={user.id}, cursos={[nombre_curso(c) for c in a_desmatricular]}"
+            )
+
+        if a_reinscribir:
+            (
+                supabase.table("progreso_cursos")
+                .update({"status": "in_progress", "fecha_completado": None})
+                .eq("perfil_id", user.id)
+                .in_("curso_id", list(a_reinscribir))
+                .execute()
+            )
+
         if progreso_items:
             supabase.table("progreso_cursos").insert(progreso_items).execute()
 
@@ -678,7 +830,24 @@ async def complete_onboarding(
         # si viene vacío para no pisar el código ya registrado (registro manual).
         if data.codigo_estudiante:
             perfil_update["codigo_estudiante"] = data.codigo_estudiante
-        supabase.table("perfiles").update(perfil_update).eq("id", user.id).execute()
+        perfil_resp = (
+            supabase.table("perfiles").update(perfil_update).eq("id", user.id).execute()
+        )
+        # Sin filas afectadas el perfil no existe o RLS bloqueó la escritura.
+        # Devolver éxito aquí es lo que hacía que "Actualizar situación
+        # académica" pareciera guardar y no cambiara nada: el estudiante volvía
+        # a su perfil y seguía viendo el ciclo anterior, sin ningún aviso.
+        if not (getattr(perfil_resp, "data", None) or []):
+            logger.error(
+                f"perfiles.update no afectó filas. Usuario={user.id}, "
+                f"ciclo={ciclo_actual}, carrera={carrera_id}"
+            )
+            raise_field_error(
+                "perfil",
+                "No pudimos guardar tu situación académica. Vuelve a iniciar sesión "
+                "e inténtalo de nuevo.",
+                status_code=400,
+            )
 
         try:
             supabase.table("logros_usuarios").upsert({

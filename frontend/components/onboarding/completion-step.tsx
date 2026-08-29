@@ -36,6 +36,10 @@ export function CompletionStep({
   const cursos = data.cursosInscritos?.length || 0
   const creditos = data.creditosInscritos || 0
   const aprobados = data.cursosAprobados?.length || 0
+  // Quien recién entra no tiene historial: mostrarle una tarjeta "Ya aprobados"
+  // junto a los cursos que acaba de elegir da a entender que esos mismos cursos
+  // se están declarando como aprobados.
+  const esPrimerCiclo = (Number(data.semester) || 1) <= 1
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
@@ -69,8 +73,10 @@ export function CompletionStep({
           <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             Ciclo actual
           </span>
+          {/* El total va en arábigo: "I de X" se lee como un placeholder sin
+              reemplazar, no como "el primero de diez". */}
           <p className="font-heading text-sm font-bold text-foreground">
-            {aRomano(data.semester)} de {aRomano(maxCiclos)}
+            {aRomano(data.semester)} de {maxCiclos}
           </p>
         </div>
         <div className="p-4 rounded-2xl bg-card border border-border text-center space-y-1">
@@ -83,11 +89,23 @@ export function CompletionStep({
           )}
         </div>
         <div className="p-4 rounded-2xl bg-card border border-border text-center space-y-1">
-          <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-            Ya aprobados
-          </span>
-          <p className="font-heading text-sm font-bold text-foreground">{aprobados}</p>
-          <p className="text-xs text-muted-foreground">de ciclos anteriores</p>
+          {esPrimerCiclo ? (
+            <>
+              <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                Punto de partida
+              </span>
+              <p className="font-heading text-sm font-bold text-foreground">Inicio de carrera</p>
+              <p className="text-xs text-muted-foreground">sin cursos previos</p>
+            </>
+          ) : (
+            <>
+              <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                Ya aprobados
+              </span>
+              <p className="font-heading text-sm font-bold text-foreground">{aprobados}</p>
+              <p className="text-xs text-muted-foreground">de ciclos anteriores</p>
+            </>
+          )}
         </div>
       </div>
 

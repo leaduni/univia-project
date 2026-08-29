@@ -27,6 +27,10 @@ export function OnboardingWizard() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  /** El estudiante ya tiene perfil académico: viene a actualizarlo, no a crearlo. */
+  const [modoActualizacion, setModoActualizacion] = useState(false)
+  /** Ciclo que consta hoy en su perfil, para avisar si elige uno anterior. */
+  const [cicloRegistrado, setCicloRegistrado] = useState<number | undefined>()
   const [onboardingMeta, setOnboardingMeta] = useState<{
     careers: Carrera[]
     facultades: Facultad[]
@@ -62,11 +66,41 @@ export function OnboardingWizard() {
     const fetchOnboardingMeta = async () => {
       try {
         setLoading(true)
-        const result: OnboardingDataResponse = await apiService.getOnboardingData()
+        // El perfil se pide junto al catálogo porque este mismo wizard sirve
+        // para "Actualizar situación académica" desde /perfil. Sin él, la
+        // pantalla arrancaba siempre en Ciclo I con la carrera sin elegir: el
+        // estudiante de ciclo VI veía Ciclo I premarcado, daba Continuar
+        // creyendo que reflejaba su situación, y el guardado le devolvía el
+        // ciclo a I. Desde su lado "no se actualiza nada".
+        const [metaRes, perfilRes] = await Promise.allSettled([
+          apiService.getOnboardingData(),
+          apiService.getProfile(),
+        ])
+
+        const result: OnboardingDataResponse | null =
+          metaRes.status === "fulfilled" ? metaRes.value : null
+        const carreras = result?.carreras ?? []
         setOnboardingMeta({
-          careers: result?.carreras ?? [],
+          careers: carreras,
           facultades: result?.facultades ?? [],
         })
+
+        const perfil = perfilRes.status === "fulfilled" ? perfilRes.value : null
+        // Solo se precarga a quien ya tiene un perfil académico que actualizar.
+        // Para el registro inicial el wizard sigue empezando en blanco.
+        if (perfil?.carrera_id) {
+          const carrera = carreras.find((c: Carrera) => c.id === perfil.carrera_id)
+          setModoActualizacion(true)
+          setCicloRegistrado(perfil.ciclo_actual ?? undefined)
+          setData((prev) => ({
+            ...prev,
+            facultad: carrera?.facultad?.id ?? prev.facultad,
+            career: perfil.carrera_id,
+            malla_id: perfil.malla_id ?? prev.malla_id,
+            semester: perfil.ciclo_actual ?? prev.semester,
+            codigo_estudiante: perfil.codigo_estudiante ?? prev.codigo_estudiante,
+          }))
+        }
       } catch (error) {
         console.error("Error fetching onboarding meta:", error)
       } finally {
@@ -77,6 +111,10 @@ export function OnboardingWizard() {
   }, [])
 
   const handleNext = (stepData: Partial<OnboardingData>) => {
+    // El error del intento anterior describe datos que el estudiante acaba de
+    // cambiar. Dejarlo en pantalla lo hace contradecir al resumen que tiene al
+    // lado (p. ej. "6 cursos solapados" junto a una tarjeta que dice 1).
+    setSubmitError(null)
     setData((prev) => {
       const siguiente = { ...prev, ...stepData }
       // Cambiar de facultad invalida la carrera elegida (ya no pertenece a la
@@ -104,6 +142,7 @@ export function OnboardingWizard() {
   }
 
   const handleBack = () => {
+    setSubmitError(null)
     setStep((prev) => Math.max(prev - 1, 0))
   }
 
@@ -117,11 +156,17 @@ export function OnboardingWizard() {
         ciclo_actual: data.semester,
         codigo_estudiante: data.codigo_estudiante || undefined,
         cursos_inscritos: data.cursosInscritos,
-        cursos_aprobados: data.cursosAprobados ?? [],
+        // Se envía tal cual, sin convertir undefined en []: el backend
+        // distingue "no declaro historial" (undefined → no toca lo aprobado) de
+        // "no aprobé nada" ([] → lo desaprueba). Aplanarlo a [] aquí borraría
+        // el avance de quien nunca llegó a ver el paso de historial.
+        cursos_aprobados: data.cursosAprobados,
       }
       await apiService.completeOnboarding(payload)
       await refreshProfile()
-      router.push("/dashboard")
+      // Quien vino a actualizar su situación vuelve a donde la ve reflejada;
+      // mandarlo al dashboard lo deja sin confirmación de que algo cambió.
+      router.push(modoActualizacion ? "/perfil" : "/dashboard")
     } catch (error: any) {
       console.error("Error completing onboarding:", error)
       // Se muestra dentro del paso final: un alert() del navegador tapa la
@@ -141,6 +186,13 @@ export function OnboardingWizard() {
    * onboarding para el próximo ingreso.
    */
   const handleOmitir = async () => {
+    // Quien viene de "Actualizar situación académica" ya tiene un perfil válido:
+    // solo está cancelando la edición. Cerrarle la sesión por arrepentirse sería
+    // desproporcionado; vuelve a su perfil y no se toca nada.
+    if (modoActualizacion) {
+      router.push("/perfil")
+      return
+    }
     // El dashboard rebota a quien no terminó el onboarding (ver `dashboard-layout`),
     // así que "omitir" no puede llevar a la app. Se cierra la sesión (signOut ya
     // reenvía a la portada pública /) y el onboarding queda para el próximo ingreso.
@@ -162,7 +214,7 @@ export function OnboardingWizard() {
             onClick={handleOmitir}
             className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0"
           >
-            Omitir por ahora
+            {modoActualizacion ? "Cancelar" : "Omitir por ahora"}
           </button>
         </div>
 
@@ -210,6 +262,7 @@ export function OnboardingWizard() {
                   onNext={handleNext}
                   onBack={handleBack}
                   maxCiclos={maxCiclos}
+                  cicloRegistrado={cicloRegistrado}
                 />
               )}
               {step === 4 && (

@@ -230,3 +230,177 @@ async def test_invalid_curso_id_returns_400(client, mock_get_supabase):
     assert errors[0]["field"] == "cursos_inscritos", (
         f"Expected field=cursos_inscritos, got {errors[0]}"
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Prerrequisitos — no se puede llevar un curso sin aprobar lo que exige
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _mock_con_prereqs(progreso=None, prereqs=None):
+    """101 (ciclo 1) es prerrequisito de 201 (ciclo 2)."""
+    return _build_supabase_mock(
+        perfil={
+            "id": "fake-user-id",
+            "email": "test@uni.edu.pe",
+            "codigo_estudiante": "20240001",
+            "nombre_completo": "Test User",
+            "carrera_id": 1,
+            "ciclo_actual": 1,
+        },
+        carrera={"id": 1, "codigo": "FIIS-01", "name": "Ing. Sistemas", "duracion_ciclos": 10},
+        malla_cursos=[
+            {"id": 901, "curso_id": 101, "ciclo": 1, "credits": 4,
+             "cursos": {"code": "CS101", "name": "Curso A"}},
+            {"id": 902, "curso_id": 201, "ciclo": 2, "credits": 4,
+             "cursos": {"code": "CS201", "name": "Curso B"}},
+        ],
+        malla_prereqs=prereqs if prereqs is not None else [
+            {"malla_curso_id": 902, "prerrequisito_malla_curso_id": 901},
+        ],
+        progreso=progreso or [],
+    )
+
+
+@pytest.mark.anyio
+async def test_curso_sin_prerrequisito_aprobado_returns_400(client, mock_get_supabase):
+    """Inscribirse en 201 sin aprobar 101 → 400 con error estructurado."""
+    mock_get_supabase(_mock_con_prereqs())
+
+    response = await client.post("/api/onboarding/complete", json={
+        "carrera_id": 1, "ciclo_actual": 2,
+        "cursos_inscritos": [201], "cursos_aprobados": [],
+    })
+
+    assert response.status_code == 400, response.text
+    body = response.json()
+    assert body["errors"][0]["field"] == "cursos_inscritos"
+    assert "Curso B" in body["errors"][0]["message"]
+    assert "Curso A" in body["errors"][0]["message"]
+
+
+@pytest.mark.anyio
+async def test_prerrequisito_declarado_habilita_el_curso(client, mock_get_supabase):
+    """Declarar 101 aprobado en el wizard basta para poder llevar 201."""
+    mock_get_supabase(_mock_con_prereqs())
+
+    response = await client.post("/api/onboarding/complete", json={
+        "carrera_id": 1, "ciclo_actual": 2,
+        "cursos_inscritos": [201], "cursos_aprobados": [101],
+    })
+
+    assert response.status_code == 200, response.text
+
+
+@pytest.mark.anyio
+async def test_prerrequisito_ya_completado_en_bd_habilita_el_curso(client, mock_get_supabase):
+    """Un 101 ya 'completed' en progreso_cursos también habilita 201."""
+    mock_get_supabase(_mock_con_prereqs(progreso=[{"curso_id": 101, "status": "completed"}]))
+
+    response = await client.post("/api/onboarding/complete", json={
+        "carrera_id": 1, "ciclo_actual": 2,
+        "cursos_inscritos": [201], "cursos_aprobados": [],
+    })
+
+    assert response.status_code == 200, response.text
+
+
+@pytest.mark.anyio
+async def test_prerrequisito_solo_en_curso_no_habilita(client, mock_get_supabase):
+    """101 'in_progress' no cuenta: aún no está aprobado."""
+    mock_get_supabase(_mock_con_prereqs(progreso=[{"curso_id": 101, "status": "in_progress"}]))
+
+    response = await client.post("/api/onboarding/complete", json={
+        "carrera_id": 1, "ciclo_actual": 2,
+        "cursos_inscritos": [201], "cursos_aprobados": [],
+    })
+
+    assert response.status_code == 400, response.text
+
+
+@pytest.mark.anyio
+async def test_curso_sin_prerrequisitos_no_se_bloquea(client, mock_get_supabase):
+    """Sin relaciones de prerrequisito, la matrícula pasa como antes."""
+    mock_get_supabase(_mock_con_prereqs(prereqs=[]))
+
+    response = await client.post("/api/onboarding/complete", json={
+        "carrera_id": 1, "ciclo_actual": 2,
+        "cursos_inscritos": [201], "cursos_aprobados": [],
+    })
+
+    assert response.status_code == 200, response.text
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# El ciclo solo avanza — no se puede retroceder a un ciclo ya cursado
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _mock_en_ciclo(ciclo_previo, carrera_id=1):
+    return _build_supabase_mock(
+        perfil={
+            "id": "fake-user-id",
+            "email": "test@uni.edu.pe",
+            "codigo_estudiante": "20240001",
+            "nombre_completo": "Test User",
+            "carrera_id": carrera_id,
+            "ciclo_actual": ciclo_previo,
+        },
+        carrera={"id": 1, "codigo": "FIIS-01", "name": "Ing. Sistemas", "duracion_ciclos": 10},
+        malla_cursos=[
+            {"id": 901, "curso_id": 101, "ciclo": 1, "credits": 4,
+             "cursos": {"code": "CS101", "name": "Curso A"}},
+            {"id": 907, "curso_id": 701, "ciclo": 7, "credits": 4,
+             "cursos": {"code": "CS701", "name": "Curso G"}},
+        ],
+        progreso=[],
+    )
+
+
+@pytest.mark.anyio
+async def test_retroceder_de_ciclo_returns_400(client, mock_get_supabase):
+    """Cuenta en ciclo 5 que declara ciclo 1 → 400, no un guardado incoherente."""
+    mock_get_supabase(_mock_en_ciclo(5))
+
+    response = await client.post("/api/onboarding/complete", json={
+        "carrera_id": 1, "ciclo_actual": 1, "cursos_inscritos": [101],
+    })
+
+    assert response.status_code == 400, response.text
+    body = response.json()
+    assert body["errors"][0]["field"] == "ciclo_actual"
+    assert "solo avanza" in body["errors"][0]["message"]
+
+
+@pytest.mark.anyio
+async def test_quedarse_en_el_mismo_ciclo_es_valido(client, mock_get_supabase):
+    """Actualizar sin cambiar de ciclo (p. ej. declarar arrastres) sigue pasando."""
+    mock_get_supabase(_mock_en_ciclo(1))
+
+    response = await client.post("/api/onboarding/complete", json={
+        "carrera_id": 1, "ciclo_actual": 1, "cursos_inscritos": [101],
+    })
+
+    assert response.status_code == 200, response.text
+
+
+@pytest.mark.anyio
+async def test_avanzar_de_ciclo_es_valido(client, mock_get_supabase):
+    """Pasar de ciclo 5 a 7 es el caso normal de 'actualizar situación'."""
+    mock_get_supabase(_mock_en_ciclo(5))
+
+    response = await client.post("/api/onboarding/complete", json={
+        "carrera_id": 1, "ciclo_actual": 7, "cursos_inscritos": [701],
+    })
+
+    assert response.status_code == 200, response.text
+
+
+@pytest.mark.anyio
+async def test_registro_inicial_puede_elegir_cualquier_ciclo(client, mock_get_supabase):
+    """Sin carrera registrada no hay ciclo previo: se puede declarar el que sea."""
+    mock_get_supabase(_mock_en_ciclo(5, carrera_id=None))
+
+    response = await client.post("/api/onboarding/complete", json={
+        "carrera_id": 1, "ciclo_actual": 1, "cursos_inscritos": [101],
+    })
+
+    assert response.status_code == 200, response.text

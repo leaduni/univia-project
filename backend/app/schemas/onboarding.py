@@ -52,11 +52,19 @@ class OnboardingCompleteRequest(SeleccionCursosBase):
     # Historial que el estudiante declara en el wizard. No se puede deducir:
     # `progreso_cursos` está vacía al registrarse, así que sin este dato quien
     # entra en un ciclo avanzado quedaba sin ningún curso previo aprobado.
-    cursos_aprobados: List[int] = []
+    #
+    # None y [] NO son lo mismo, y la diferencia es la que evita una pérdida de
+    # datos: `None` es "no declaro historial" (un cliente que ni envía el campo)
+    # y deja intacto lo ya aprobado; `[]` es "declaro que no aprobé nada" y sí
+    # desaprueba lo anterior. Sin esa distinción, una petición sin el campo
+    # habría borrado el avance del estudiante.
+    cursos_aprobados: List[int] | None = None
 
     @field_validator("cursos_aprobados")
     @classmethod
-    def validar_aprobados(cls, v: List[int]) -> List[int]:
+    def validar_aprobados(cls, v: List[int] | None) -> List[int] | None:
+        if v is None:
+            return None
         if len(set(v)) != len(v):
             raise ValueError("Hay cursos repetidos en tu historial académico.")
         if any(cid <= 0 for cid in v):

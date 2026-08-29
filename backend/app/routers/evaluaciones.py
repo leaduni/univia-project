@@ -7,7 +7,7 @@ import traceback
 import sys
 import random
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Union, AsyncGenerator
@@ -16,6 +16,7 @@ load_dotenv()
 
 from app.core.llm import MODELO_GENERACION, generar, get_claude
 from app.rag.retriever import SyllabusRetriever
+from app.core.auth_utils import get_current_user
 
 logger = logging.getLogger("evaluaciones_tracer")
 logger.setLevel(logging.DEBUG)
@@ -32,9 +33,19 @@ router = APIRouter()
 
 _retriever: Optional[SyllabusRetriever] = None
 
-def get_retriever() -> Optional[SyllabusRetriever]:
-    """Inicializa el retriever de RAG de forma diferida (lazy) y reutilizable."""
+def get_retriever(token: Optional[str] = None) -> Optional[SyllabusRetriever]:
+    """Inicializa el retriever de RAG de forma diferida (lazy) y reutilizable.
+
+    Si se recibe un token de sesión se devuelve un retriever autenticado con la
+    identidad del usuario (las RPC de búsqueda respetan las políticas RLS).
+    """
     global _retriever
+    if token:
+        try:
+            return SyllabusRetriever(token=token)
+        except Exception as e:
+            print(f"Error al inicializar SyllabusRetriever autenticado: {e}")
+            return None
     if _retriever is None:
         try:
             _retriever = SyllabusRetriever()
@@ -114,7 +125,7 @@ class ResultadoEvaluacion(BaseModel):
 # pasaron a ser una sola materia cada una, así que la lista se redujo.
 CURSOS_PROGRAMACION_IDS = [19, 2, 25, 3, 22]
 
-def obtener_nombre_curso(curso_id: int) -> Optional[str]:
+def obtener_nombre_curso(curso_id: int, token: Optional[str] = None) -> Optional[str]:
     """Resuelve el nombre de la materia a partir de su id (cursos.id).
 
     Se usa para recuperar contexto por NOMBRE de curso: la materia es
@@ -124,7 +135,7 @@ def obtener_nombre_curso(curso_id: int) -> Optional[str]:
     """
     try:
         from app.core.database import get_supabase
-        supabase = get_supabase()
+        supabase = get_supabase(token)
         respuesta = supabase.table("cursos").select("name").eq("id", curso_id).limit(1).execute()
         if respuesta.data:
             return respuesta.data[0]["name"]
@@ -133,7 +144,7 @@ def obtener_nombre_curso(curso_id: int) -> Optional[str]:
     return None
 
 def recuperar_contexto_semantico(
-    tema_consulta: str, curso_id: int, profesor_id: Optional[int] = None
+    tema_consulta: str, curso_id: int, profesor_id: Optional[int] = None, token: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """Usa el SyllabusRetriever del módulo RAG para buscar los fragmentos más relevantes del curso.
 
@@ -144,25 +155,30 @@ def recuperar_contexto_semantico(
     etiquetados para el tema, el resultado queda vacío en vez de caer de
     vuelta a la búsqueda sin filtrar — el llamador decide qué hacer con eso.
     """
-    retriever = get_retriever()
+    retriever = get_retriever(token)
     if not retriever:
         return []
 
-    curso_nombre = obtener_nombre_curso(curso_id)
+    curso_nombre = obtener_nombre_curso(curso_id, token)
     if not curso_nombre:
         print(f"No se pudo resolver el nombre del curso {curso_id}; se omite el filtro por nombre.")
 
     try:
-        # Recuperar pool ampliado (hasta 15) y elegir muestra aleatoria
+        # Recuperar pool de alta calidad (hasta 10, umbral 0.4) y muestrear de
+        # forma inteligente: el fragmento de mayor similitud (rank #1, primero
+        # del resultado ordenado de la RPC) siempre se incluye; los otros 4 se
+        # sortean del resto del pool.
         resultados = retriever.buscar_contexto_por_nombre(
             tema_consulta,
             curso_nombre=curso_nombre,
-            limit=15,
-            umbral_similitud=0.1,
+            limit=10,
+            umbral_similitud=0.4,
             profesor_id=profesor_id,
         )
         if len(resultados) > 5:
-            resultados = random.sample(resultados, k=5)
+            mejor_fragmento = resultados[0]
+            resto = random.sample(resultados[1:], k=4)
+            resultados = [mejor_fragmento] + resto
         return resultados
 
     except Exception as e:
@@ -210,6 +226,15 @@ def DIVERSIDAD_POR_INDICE_BLOQUE(num_preguntas: int) -> str:
         "(no reutilices el mismo tipo de figura, situación o nombres de variables "
         "cambiando solo las letras).\n"
     )
+
+
+DIRECTIVA_VARIABILIDAD_PREGUNTAS = (
+    "DIRECTIVA DE VARIABILIDAD ENTRE PREGUNTAS: si varias preguntas de la "
+    "evaluación versan sobre un mismo tema, DEBES variar los enfoques y "
+    "profundizar en distintos aspectos del contexto recuperado. En ejercicios "
+    "prácticos, altera los datos/valores numéricos del material de referencia "
+    "y entre pregunta y pregunta, para evitar preguntas idénticas o repetitivas."
+)
 
 
 def generar_prompt_teorico(config: ConfiguracionEvaluacion, contexto_recuperado: List[str] = None) -> str:
@@ -265,6 +290,7 @@ Cada pregunta DEBE cumplir TODOS estos requisitos:
 6. PROHIBIDO ABSOLUTAMENTE: "halla la pendiente de y=mx+b", "dados dos puntos halla la recta", definiciones, fórmulas directas. Si una pregunta se puede resolver en 1 paso, DESÉCHALA.
 7. Genera un conjunto de N preguntas estrictamente ÚNICAS y DISTINTAS entre sí. Está prohibido repetir el mismo ejercicio o generar variantes triviales del mismo problema dentro del mismo lote.
 {DIVERSIDAD_POR_INDICE_BLOQUE(config.num_preguntas)}
+{DIRECTIVA_VARIABILIDAD_PREGUNTAS}
 
 FORMATO LaTeX — KaTeX COMPATIBLE ÚNICAMENTE:
 COMANDOS PERMITIDOS: \frac, \vec, \mathbf, \overline, \left(, \right), \mid, \mathbb, \sqrt, \cdot, \times, \alpha, \beta, \theta, \pi, \perp, \parallel, \in, \mathbb{{R}}, \leq, \geq, \neq, \pm
@@ -361,6 +387,8 @@ A continuación tienes material de referencia para que el estilo, nivel de dific
 ---
 Utiliza este contexto como inspiración para formular el reto de código. No copies exactamente, pero mantén la misma temática y nivel.
 """
+
+    prompt += f"\n{DIRECTIVA_VARIABILIDAD_PREGUNTAS}\n"
 
     prompt += """
 IMPORTANTE: La respuesta debe ser un objeto JSON válido.
@@ -890,12 +918,14 @@ SYSTEM_MSG_EVALUACION = (
 )
 
 @router.post("/evaluaciones/generar", response_model=Evaluacion)
-async def generar_evaluacion(config: ConfiguracionEvaluacion):
+async def generar_evaluacion(config: ConfiguracionEvaluacion, user_data=Depends(get_current_user)):
     """
     RF-APR-02, RF-APR-03, RF-APR-04: Genera una evaluación con IA
     basada en el módulo, temas y configuración del estudiante
     """
     
+    user, token = user_data
+
     if not get_claude():
         raise HTTPException(status_code=500, detail="API Key de Claude no configurada")
 
@@ -904,7 +934,7 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion):
             tema_completo = config.temas[0]
         else:
             tema_completo = f"{config.modulo}: {', '.join(config.temas)}"
-        contexto = recuperar_contexto_semantico(tema_completo, config.curso_id, config.profesor_id)
+        contexto = recuperar_contexto_semantico(tema_completo, config.curso_id, config.profesor_id, token)
 
         print("\n" + "="*50)
         print(f"RAG: Se recuperaron {len(contexto)} fragmentos del PDF.")
@@ -1067,6 +1097,8 @@ No reutilices el mismo tipo de figura, situación o nombres de variables que
 usarías para un enfoque distinto (ej. evita repetir "sea el cuadrado ABCD..."
 con solo las letras cambiadas).
 
+{DIRECTIVA_VARIABILIDAD_PREGUNTAS}
+
 ### ESTÁNDAR DE DIFICULTAD OBLIGATORIO ###
 - Mínimo 4 datos numéricos concretos en el enunciado.
 - Mínimo 4 pasos algebraicos encadenados para resolver.
@@ -1199,8 +1231,9 @@ async def _generar_una_pregunta(idx: int, prompt: str, tipo_real: str) -> dict:
 
 
 @router.post("/evaluaciones/generar-stream")
-async def generar_evaluacion_stream(config: ConfiguracionEvaluacion):
+async def generar_evaluacion_stream(config: ConfiguracionEvaluacion, user_data=Depends(get_current_user)):
     """Genera cada pregunta en paralelo (1 llamada por pregunta) y las envía por SSE conforme llegan."""
+    user, token = user_data
 
     logger.info("=" * 60)
     logger.info(f"PASO 1: Nueva petición recibida | curso_id={config.curso_id}, modulo='{config.modulo}', "
@@ -1214,7 +1247,7 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion):
         logger.info("PASO 2: Buscando contexto semántico / sílabo (RAG)...")
         es_programacion = config.curso_id in CURSOS_PROGRAMACION_IDS
         tema_completo = config.temas[0] if len(config.temas) == 1 else f"{config.modulo}: {', '.join(config.temas)}"
-        contexto = recuperar_contexto_semantico(tema_completo, config.curso_id, config.profesor_id)
+        contexto = recuperar_contexto_semantico(tema_completo, config.curso_id, config.profesor_id, token)
         temas_str = config.temas[0] if len(config.temas) == 1 else ', '.join(config.temas)
 
         contexto_bloque = ""

@@ -23,64 +23,6 @@ function esFalloDeRed(error: unknown): boolean {
 }
 
 /**
- * Traduce cualquier error a algo que un estudiante pueda entender.
- *
- * Los `catch` visibles mostraban el mensaje técnico tal cual ("TypeError:
- * Failed to fetch", JSON crudo del backend), que no le dice nada a quien lo
- * lee ni sugiere qué hacer.
- */
-export function mensajeAmigableError(error: unknown): string {
-    if (!error) return 'Ocurrió un error inesperado. Vuelve a intentarlo.';
-
-    const err = error as ApiError & ErrorDeRed & { name?: string; message?: string };
-
-    // Cancelación por timeout o por abortar la petición.
-    if (err.name === 'AbortError') {
-        return 'La operación tardó demasiado y se canceló. Revisa tu conexión e inténtalo de nuevo.';
-    }
-
-    if (esFalloDeRed(error)) {
-        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-            return 'Parece que no tienes conexión a internet. Reconéctate e inténtalo de nuevo.';
-        }
-        return 'No pudimos conectar con el servidor de UniVia. Revisa tu conexión e inténtalo de nuevo.';
-    }
-
-    // Respuesta HTTP de error: el código dice más que el cuerpo.
-    switch (err.status) {
-        case 401:
-            return 'Tu sesión expiró. Vuelve a iniciar sesión para continuar.';
-        case 403:
-            return 'No tienes permiso para ver este contenido.';
-        case 404:
-            return 'No encontramos lo que buscabas. Puede que ya no esté disponible.';
-        case 429:
-            return 'Hiciste demasiadas peticiones seguidas. Espera un momento e inténtalo de nuevo.';
-    }
-    if (typeof err.status === 'number' && err.status >= 500) {
-        return 'El servidor tuvo un problema al procesar tu solicitud. Inténtalo de nuevo en unos momentos.';
-    }
-
-    // Respuesta que no era JSON válido (backend caído devolviendo HTML, proxy).
-    if (error instanceof SyntaxError) {
-        return 'El servidor respondió de forma inesperada. Inténtalo de nuevo en unos momentos.';
-    }
-
-    const mensaje = typeof err.message === 'string' ? err.message.trim() : '';
-    if (!mensaje) return 'Ocurrió un error inesperado. Vuelve a intentarlo.';
-
-    // Los mensajes técnicos en inglés que vienen del navegador o de un throw
-    // interno no se muestran: solo pasa el texto que el backend escribió para
-    // el usuario (en español y sin jerga).
-    const esTecnico = /^(TypeError|SyntaxError|ReferenceError|Error:)|failed to fetch|networkerror|load failed|Error fetching|Unexpected token/i.test(mensaje);
-    if (esTecnico) {
-        return 'Ocurrió un error al procesar tu solicitud. Inténtalo de nuevo.';
-    }
-
-    return mensaje;
-}
-
-/**
  * fetch con tiempo límite, respaldado por AbortController.
  *
  * Si el llamador trae su propio `signal` (streaming, cancelación manual) se
@@ -446,11 +388,7 @@ export const apiService = {
             return await leerOCache("test-nivel", async () => {
                 const response = await fetchWithAuth(`${API_URL}/dashboard/test-nivel`);
                 if (!response.ok) {
-                    // Un 401 transitorio no se cachea como "sin diagnóstico":
-                    // se lanza para que el próximo acceso vuelva a pedirlo.
-                    if (response.status === 401) {
-                        throw await errorDeRespuesta(response, 'Tu sesión expiró. Vuelve a iniciar sesión.');
-                    }
+                    if (response.status === 401) return null;
                     const apiError = await errorDeRespuesta(response, 'No se pudo cargar tu diagnóstico académico.');
                     // Onboarding pendiente (400 + field carrera_id) es un estado normal
                     // de la cuenta, no un fallo: se devuelve null, sin lanzar.
@@ -652,8 +590,7 @@ export const apiService = {
             URL.revokeObjectURL(downloadUrl);
         } catch (error) {
             console.error('Error downloading plancha:', error);
-            // Se relanza ya traducido: quien llama lo muestra tal cual.
-            throw new Error(mensajeAmigableError(error));
+            throw error;
         }
     },
 
@@ -662,28 +599,16 @@ export const apiService = {
      * la biblioteca se bajaba el catálogo entero y filtraba en el navegador.
      */
     async getRecursosPaginados(filters: RecursoFiltros = {}): Promise<RecursosPagina> {
+        const vacia: RecursosPagina = { items: [], total: 0, sinCursosActivos: false, facultad: null };
         try {
             const params = construirParamsRecursos(filters);
 
             return await leerOCache(`recursos:${params.toString()}`, async () => {
                 const token = await getAuthToken();
-                // Antes se devolvía la página vacía, y la caché la guardaba 5
-                // minutos: el estudiante veía "0 recursos" aunque sí tuviera.
-                // Lanzando, no se cachea nada y el siguiente acceso reintenta
-                // cuando la sesión ya esté restaurada.
-                if (!token) {
-                    const sinSesion = new Error('Tu sesión aún no está lista. Inténtalo de nuevo en un momento.') as ApiError;
-                    sinSesion.status = 401;
-                    sinSesion.sesionInvalida = true;
-                    throw sinSesion;
-                }
+                if (!token) return vacia;
 
                 const response = await fetchWithAuth(`${API_URL}/recursos?${params.toString()}`, {}, token);
-                if (response.status === 401) {
-                    // Mismo motivo: un 401 transitorio no debe quedar cacheado
-                    // como una biblioteca vacía.
-                    throw await errorDeRespuesta(response, 'Tu sesión expiró. Vuelve a iniciar sesión.');
-                }
+                if (response.status === 401) return vacia;
                 if (!response.ok) {
                     throw new Error(`Error fetching recursos: ${response.statusText}`);
                 }
@@ -969,7 +894,7 @@ export const apiService = {
     async signup(data: { email: string; password: string; fullName: string; codigoUni: string }) {
 
         try {
-            const response = await fetchConTimeout(`${API_URL}/auth/register-user`, {
+            const response = await fetch(`${API_URL}/auth/register-user`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

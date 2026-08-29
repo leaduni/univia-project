@@ -168,6 +168,35 @@ def parse_year(text: str):
     return int(m.group(0)) if m else None
 
 
+def ids_recursos_a_actualizar(sb, rows: list) -> set:
+    """IDs de `recursos` cuyo (drive_file_id, curso_id) ya existe antes del
+    upsert -> esas filas serán actualizadas y deben re-ingestar sus chunks."""
+    if not rows:
+        return set()
+    fids = {r["drive_file_id"] for r in rows}
+    resp = (
+        sb.table("recursos")
+        .select("id, drive_file_id, curso_id")
+        .in_("drive_file_id", list(fids))
+        .execute()
+    )
+    claves = {(r["drive_file_id"], r["curso_id"]) for r in rows}
+    return {
+        f["id"] for f in resp.data or []
+        if (f["drive_file_id"], f["curso_id"]) in claves
+    }
+
+
+def limpiar_chunks_recursos(sb, ids_recursos: set) -> int:
+    """Elimina los chunks de `resource_chunks` de los recursos reemplazados
+    para evitar datos desalineados con el nuevo contenido. Devuelve cuántas
+    filas de chunks se borraron."""
+    if not ids_recursos:
+        return 0
+    resp = sb.table("resource_chunks").delete().in_("recurso_id", list(ids_recursos)).execute()
+    return len(resp.data or [])
+
+
 def main():
     parser = argparse.ArgumentParser(description="Ingesta de recursos desde una carpeta de Drive.")
     parser.add_argument(
@@ -222,7 +251,8 @@ def main():
     print(f"  {len(folders)} carpetas encontradas en la raíz.")
 
     rows = []
-    stats = {"carpetas_ok": 0, "carpetas_sin_match": 0, "carpetas_omitidas": 0, "archivos": 0}
+    stats = {"carpetas_ok": 0, "carpetas_sin_match": 0, "carpetas_omitidas": 0, "archivos": 0,
+             "recursos_reemplazados": 0, "chunks_eliminados": 0}
     omitidos = {"no_pdf": 0}
 
     for folder in folders:
@@ -281,6 +311,11 @@ def main():
     rows_con_curso = [r for r in rows if r["curso_id"] is not None]
     rows_huerfanas = [r for r in rows if r["curso_id"] is None]
 
+    # Recursos cuyo (drive_file_id, curso_id) ya existe: el upsert los
+    # actualizará y sus chunks previos deben limpiarse para re-vectorizarse.
+    ids_a_actualizar = ids_recursos_a_actualizar(sb, rows_con_curso)
+    ids_huerfanas_actualizados = []
+
     insertadas = 0
     actualizadas = 0
 
@@ -293,6 +328,7 @@ def main():
         print(f"Carpetas omitidas: {stats['carpetas_omitidas']}")
         print(f"Archivos procesados: {stats['archivos']}")
         print(f"Archivos ignorados por no ser PDF: {omitidos['no_pdf']}")
+        print(f"Recursos existentes que se actualizarían (chunks por re-generar): {len(ids_a_actualizar)}")
         print("No se escribió nada en la base.")
         return
 
@@ -301,6 +337,13 @@ def main():
     if rows_con_curso:
         sb.table("recursos").upsert(rows_con_curso, on_conflict="drive_file_id,curso_id").execute()
         actualizadas += len(rows_con_curso)
+
+    # Re-ingesta: un PDF reemplazado (misma clave drive_file_id+curso_id) deja
+    # chunks viejos en resource_chunks; se limpian para que el pipeline los
+    # re-vectorice con el contenido nuevo (evita desalineación/duplicados).
+    if ids_a_actualizar:
+        stats["recursos_reemplazados"] = len(ids_a_actualizar)
+        stats["chunks_eliminados"] = limpiar_chunks_recursos(sb, ids_a_actualizar)
 
     for row in rows_huerfanas:
         existente = (
@@ -313,9 +356,16 @@ def main():
         if existente.data:
             sb.table("recursos").update(row).eq("id", existente.data[0]["id"]).execute()
             actualizadas += 1
+            ids_huerfanas_actualizados.append(existente.data[0]["id"])
         else:
             sb.table("recursos").insert(row).execute()
             insertadas += 1
+
+    # Las huérfanas actualizadas (misma drive_file_id con curso_id NULL) también
+    # purgan sus chunks previos para no arrastrar contenido desalineado.
+    if ids_huerfanas_actualizados:
+        stats["recursos_reemplazados"] += len(ids_huerfanas_actualizados)
+        stats["chunks_eliminados"] += limpiar_chunks_recursos(sb, set(ids_huerfanas_actualizados))
 
     print("\n=== Resumen ===")
     print(f"Carpetas emparejadas: {stats['carpetas_ok']}")
@@ -325,6 +375,8 @@ def main():
     print(f"Archivos ignorados por no ser PDF: {omitidos['no_pdf']}")
     print(f"Filas nuevas insertadas: {insertadas}")
     print(f"Filas existentes actualizadas: {actualizadas}")
+    print(f"Recursos reemplazados (chunks limpiados): {stats['recursos_reemplazados']}")
+    print(f"Chunks eliminados de resource_chunks: {stats['chunks_eliminados']}")
 
 
 if __name__ == "__main__":

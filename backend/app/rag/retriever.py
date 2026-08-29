@@ -1,24 +1,31 @@
 import os
 import random
+import logging
 from openai import OpenAI
 from dotenv import load_dotenv
 from supabase import Client, create_client
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 class SyllabusRetriever:
-    def __init__(self, model_name=None, expected_dimensions=1536):
+    def __init__(self, model_name=None, expected_dimensions=1536, token=None):
         supabase_url = os.getenv("SUPABASE_URL")
         supabase_key = os.getenv("SUPABASE_ANON_KEY")
         if not supabase_url or not supabase_key:
-            print("No se encontraron las credenciales de usuario para supabase. ")
+            logger.error("No se encontraron las credenciales de usuario para supabase.")
 
         api_key = os.getenv("OPEN_AI_INGEST_API_KEY")
         if not api_key:
-            print("No se encontró la API KEY de OpenAI para embeddings. ")
+            logger.error("No se encontró la API KEY de OpenAI para embeddings.")
 
-        self.client = OpenAI(api_key=api_key)
+        self.client = OpenAI(api_key=api_key, timeout=10.0)
         self.supabase: Client = create_client(supabase_url, supabase_key)
+        if token:
+            # Consulta la base de datos con la sesión del usuario autenticado
+            # (se respetan las políticas RLS) en vez de la clave anónima.
+            self.supabase.postgrest.auth(token)
         self.expected_dimensions = expected_dimensions
         # Tiene que ser el MISMO modelo con el que se vectorizó el corpus:
         # vectores de modelos distintos no son comparables entre sí.
@@ -27,7 +34,7 @@ class SyllabusRetriever:
         )
 
     def vectorizar_pregunta(self, pregunta: str) -> list:
-        print("Vectorizando el query ... ")
+        logger.debug("Vectorizando el query ...")
 
         try:
             result = self.client.embeddings.create(
@@ -38,7 +45,7 @@ class SyllabusRetriever:
             vector = result.data[0].embedding
             return vector[:self.expected_dimensions]
         except Exception as e:
-            print(f"Error al vectorizar la pregunta: {e}")
+            logger.error(f"Error al vectorizar la pregunta: {e}")
             return []
 
     def buscar_contexto(self, pregunta: str, limit: int = 5, umbral_similitud: float = 0.5, curso_id: int = None) -> list:
@@ -47,7 +54,7 @@ class SyllabusRetriever:
         if not pregunta_vectorizada:
             return []
 
-        print(f"Buscando en supabase los {limit} fragmentos más relevantes ...")
+        logger.info(f"Buscando en supabase los {limit} fragmentos más relevantes ...")
 
         try:
             respuesta = self.supabase.rpc(
@@ -63,13 +70,13 @@ class SyllabusRetriever:
             resultados = respuesta.data
 
             if not resultados:
-                print("No se encontró información suficientemente relevante. ")
+                logger.warning("No se encontró información suficientemente relevante.")
 
-            print(f"Se encontraron {len(resultados)} fragmentos de contexto.")
+            logger.info(f"Se encontraron {len(resultados)} fragmentos de contexto.")
             return resultados
 
         except Exception as e:
-            print(f"Error en la base de datos al buscar contexto: {e}")
+            logger.error(f"Error en la base de datos al buscar contexto: {e}")
             return []
 
     def buscar_contexto_por_nombre(self, pregunta: str, curso_nombre: str = None, limit: int = 5, umbral_similitud: float = 0.5, profesor_id: int = None) -> list:
@@ -78,8 +85,8 @@ class SyllabusRetriever:
         if not pregunta_vectorizada:
             return []
 
-        print(f"Buscando en supabase los {limit} fragmentos más relevantes para el curso '{curso_nombre}'"
-              + (f" (profesor_id={profesor_id})" if profesor_id else "") + " ...")
+        logger.info(f"Buscando en supabase los {limit} fragmentos más relevantes para el curso '{curso_nombre}'"
+                    + (f" (profesor_id={profesor_id})" if profesor_id else "") + " ...")
 
         try:
             respuesta = self.supabase.rpc(
@@ -96,13 +103,13 @@ class SyllabusRetriever:
             resultados = respuesta.data
 
             if not resultados:
-                print("No se encontró información suficientemente relevante. ")
+                logger.warning("No se encontró información suficientemente relevante.")
 
-            print(f"Se encontraron {len(resultados)} fragmentos de contexto.")
+            logger.info(f"Se encontraron {len(resultados)} fragmentos de contexto.")
             return resultados
 
         except Exception as e:
-            print(f"Error en la base de datos al buscar contexto por nombre: {e}")
+            logger.error(f"Error en la base de datos al buscar contexto por nombre: {e}")
             return []
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import MarkdownRenderer from "@/components/ui/markdown-renderer"
 import { useAuth } from "@/components/providers/auth-context"
-import { apiService, mensajeAmigableError } from "@/lib/api-service"
+import { apiService } from "@/lib/api-service"
 import { EvaluationResultsView } from "@/components/learning-path/evaluation-results-view"
 import type { EvaluationResultData, QuestionDetail } from "@/types/evaluation"
 
@@ -136,19 +136,6 @@ export function EvaluacionIA({
       .catch((err: unknown) => console.error("Error cargando profesores del curso:", err))
   }, [courseId])
 
-  // Controlador del stream SSE en curso. En un ref y no en estado porque
-  // cambiarlo no debe re-renderizar, y el cleanup necesita el valor vigente.
-  const streamControllerRef = useRef<AbortController | null>(null)
-
-  // Si el estudiante navega fuera mientras se genera, la petición seguiría
-  // viva consumiendo backend y escribiendo en un componente desmontado.
-  useEffect(() => {
-    return () => {
-      streamControllerRef.current?.abort()
-      streamControllerRef.current = null
-    }
-  }, [])
-
   // Determinar qué módulos están disponibles según progreso
   interface ModuloDisponible extends ModuloInfo {
     disabled: boolean
@@ -174,14 +161,10 @@ export function EvaluacionIA({
     setExecutionResults(prev => ({ ...prev, [preguntaId]: { isLoading: true, output: undefined, error: undefined } }));
 
     try {
-        // Vía el backend y no directo a Judge0: 127.0.0.1 solo resuelve en la
-        // máquina del desarrollador, y bajo HTTPS el navegador bloquearía la
-        // llamada por contenido mixto.
-        const response = await fetch(`${API_URL}/api/evaluaciones/ejecutar-codigo`, {
+        const response = await fetch("http://127.0.0.1:2358/submissions?base64_encoded=false&wait=true", {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': session?.access_token ? `Bearer ${session.access_token}` : "",
             },
             body: JSON.stringify({
                 source_code: sourceCode,
@@ -192,15 +175,15 @@ export function EvaluacionIA({
 
         // Handle non-2xx responses first
         if (!response.ok) {
-            // El cuerpo del error (posible JSON de Judge0) no se incrusta en el
-            // mensaje: mensajeAmigableError lo traduce a un texto legible.
-            throw new Error(`El servidor de ejecución respondió con un error ${response.status}.`);
+            const errorText = await response.text().catch(() => "No se pudo leer el cuerpo del error.");
+            throw new Error(`El servidor de ejecución respondió con un error ${response.status}. ${errorText}`);
         }
 
         // Handle successful responses
         let data;
         try {
             data = await response.json();
+            console.log('Respuesta de Judge0:', data);
         } catch (jsonError) {
              throw new Error("Error: La respuesta del servidor de ejecución no es un JSON válido.");
         }
@@ -233,9 +216,15 @@ export function EvaluacionIA({
 
     } catch (err: any) {
         console.error('Error en handleEjecutarCodigo:', err);
+        // Distinguish between network errors and other errors
+        const isNetworkError = err.message.toLowerCase().includes('failed to fetch');
+        const errorMessage = isNetworkError
+            ? "Error de Red: No se pudo conectar al motor de ejecución local (Judge0). Revisa que esté activo en Docker y que no haya un firewall bloqueando la conexión."
+            : err.message;
+
         setExecutionResults(prev => ({
             ...prev,
-            [preguntaId]: { error: mensajeAmigableError(err), isLoading: false }
+            [preguntaId]: { error: errorMessage, isLoading: false }
         }));
     }
   };
@@ -251,14 +240,8 @@ export function EvaluacionIA({
       const token = session?.access_token
       if (!token) { console.error("No active authentication token found."); return }
 
-      // Un stream anterior que siguiera abierto se cancela antes de abrir otro.
-      streamControllerRef.current?.abort()
-      const controller = new AbortController()
-      streamControllerRef.current = controller
-
       const response = await fetch(`${API_URL}/api/evaluaciones/generar-stream`, {
         method: "POST",
-        signal: controller.signal,
         headers: {
           "Content-Type": "application/json",
           "Authorization": token ? `Bearer ${token}` : "",
@@ -285,48 +268,26 @@ export function EvaluacionIA({
       let preguntasRecibidas = 0
       let buffer = ""
 
-      // Watchdog: si no llega ningún dato nuevo en 45s, la conexión se
-      // considera muerta y se aborta. Sin esto reader.read() espera para
-      // siempre y el usuario queda atrapado en "Generando evaluación...".
-      const WATCHDOG_MS = 45000
-      let watchdog: ReturnType<typeof setTimeout> | null = null
-      const rearmarWatchdog = () => {
-        if (watchdog) clearTimeout(watchdog)
-        watchdog = setTimeout(() => controller.abort(), WATCHDOG_MS)
-      }
-      const detenerWatchdog = () => {
-        if (watchdog) clearTimeout(watchdog)
-        watchdog = null
-      }
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        // Acumula en buffer y procesa solo eventos SSE completos (separados por \n\n)
+        buffer += decoder.decode(value, { stream: true })
+        const eventos = buffer.split("\n\n")
+        buffer = eventos.pop() ?? "" // el último puede estar incompleto
 
-      try {
-        rearmarWatchdog()
-
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          // Llegó tráfico: el reloj vuelve a empezar.
-          rearmarWatchdog()
-          // Acumula en buffer y procesa solo eventos SSE completos (separados por \n\n)
-          buffer += decoder.decode(value, { stream: true })
-          const eventos = buffer.split("\n\n")
-          buffer = eventos.pop() ?? "" // el último puede estar incompleto
-
-          for (const evento of eventos) {
-            const linea = evento.split("\n").find((l) => l.startsWith("data: "))
-            if (!linea) continue
-            let payload: any
-            try { payload = JSON.parse(linea.slice(6)) } catch { continue }
-            if (payload.error) throw new Error(payload.error)
-            if (payload.pregunta) {
-              preguntasRecibidas++
-              setError(`Generando... ${preguntasRecibidas}/${payload.total ?? numPreguntas} preguntas listas`)
-            }
-            if (payload.done && payload.result) data = payload.result
+        for (const evento of eventos) {
+          const linea = evento.split("\n").find((l) => l.startsWith("data: "))
+          if (!linea) continue
+          let payload: any
+          try { payload = JSON.parse(linea.slice(6)) } catch { continue }
+          if (payload.error) throw new Error(payload.error)
+          if (payload.pregunta) {
+            preguntasRecibidas++
+            setError(`Generando... ${preguntasRecibidas}/${payload.total ?? numPreguntas} preguntas listas`)
           }
+          if (payload.done && payload.result) data = payload.result
         }
-      } finally {
-        detenerWatchdog()
       }
 
       setError(null)
@@ -336,15 +297,9 @@ export function EvaluacionIA({
       setStep("evaluacion")
     } catch (err: any) {
       if (onResultsChange) onResultsChange(false)
-      if (err?.name === "AbortError") {
-        // Watchdog o desmontaje del componente.
-        setError("Se interrumpió la conexión mientras se generaba la evaluación. Vuelve a intentarlo.")
-      } else {
-        setError(`Error al procesar la evaluación: ${err.message}. Asegúrate de que la respuesta de la IA sea un JSON válido.`)
-      }
+      setError(`Error al procesar la evaluación: ${err.message}. Asegúrate de que la respuesta de la IA sea un JSON válido.`)
       setStep("config")
     } finally {
-      streamControllerRef.current = null
       setIsLoading(false)
     }
   }

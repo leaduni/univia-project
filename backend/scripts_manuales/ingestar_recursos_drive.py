@@ -90,7 +90,7 @@ def drive_list(folder_id: str) -> list:
         params = {
             "q": f"'{folder_id}' in parents and trashed=false",
             "key": API_KEY,
-            "fields": "nextPageToken, files(id,name,mimeType,createdTime)",
+            "fields": "nextPageToken, files(id,name,mimeType,createdTime,modifiedTime)",
             "pageSize": 1000,
         }
         if page_token:
@@ -115,7 +115,7 @@ PROFUNDIDAD_POR_DEFECTO = 8
 
 
 def collect_pdfs(folder_id: str, depth: int = 1, max_depth: int = PROFUNDIDAD_POR_DEFECTO,
-                 omitidos: Optional[dict] = None) -> list:
+                 omitidos: Optional[dict] = None, parent_path: str = "") -> list:
     """Recolecta PDFs de una carpeta, bajando hasta max_depth niveles.
 
     `omitidos` acumula, si se pasa, cuántos archivos que no son PDF quedaron
@@ -123,7 +123,12 @@ def collect_pdfs(folder_id: str, depth: int = 1, max_depth: int = PROFUNDIDAD_PO
     otro modo desaparecen sin dejar rastro en el resumen.
     """
     items = drive_list(folder_id)
-    pdfs = [f for f in items if f.get("mimeType") == MIME_PDF]
+    pdfs = []
+    for item in items:
+        if item.get("mimeType") == MIME_PDF:
+            pdf = item.copy()
+            pdf["drive_path"] = parent_path
+            pdfs.append(pdf)
     subfolders = [f for f in items if f.get("mimeType") == MIME_FOLDER]
 
     if omitidos is not None:
@@ -136,29 +141,44 @@ def collect_pdfs(folder_id: str, depth: int = 1, max_depth: int = PROFUNDIDAD_PO
               f"{[f['name'] for f in subfolders]}")
     else:
         for sf in subfolders:
-            pdfs.extend(collect_pdfs(sf["id"], depth + 1, max_depth, omitidos))
+            child_path = f"{parent_path}/{sf['name']}" if parent_path else sf["name"]
+            pdfs.extend(collect_pdfs(
+                sf["id"], depth + 1, max_depth, omitidos, child_path
+            ))
     return pdfs
 
 
-def inferir_tipo(filename: str) -> str:
+def inferir_tipo(filename: str, drive_path: str = "") -> tuple[str, str]:
+    """Clasifica solo con señales inequívocas y devuelve tipo + motivo."""
     name = filename.lower()
-    # Abreviaturas típicas de la UNI: EP/EF/ES = Examen Parcial/Final/Sustitutorio,
-    # PC(n) = Práctica Calificada, PD(n) = Práctica Dirigida.
-    if any(k in name for k in ("examen", "parcial", "final")) or re.search(r"\b(ep|ef|es)\b", name):
-        return "examen"
-    if "practica" in name or "práctica" in name or re.search(r"\bp[cd]\d*\b", name):
-        return "practica"
+    path = drive_path.lower()
+    contexto = f"{path}/{name}"
+    negativos = (
+        "libro", "texto", "teoria", "teoría", "apunte", "clase",
+        "silabo", "sílabo", "formulario", "laboratorio", "reporte",
+    )
+
+    # Una señal negativa en el título evita heredar una carpeta de evaluación.
+    if any(k in name for k in negativos):
+        contexto = name
+
+    if any(k in contexto for k in ("examen", "parcial", "final", "sustitutorio")) \
+            or re.search(r"\b(ep|ef|es)\b", contexto):
+        return "examen", "señal inequívoca en ruta/título"
+    if "practica" in contexto or "práctica" in contexto \
+            or re.search(r"\bp[cd]\d*\b", contexto):
+        return "practica", "señal inequívoca en ruta/título"
     if "silabo" in name or "sílabo" in name:
-        return "silabo"
+        return "silabo", "señal en título"
     if "compendio" in name:
-        return "compendio"
+        return "compendio", "señal en título"
     if "libro" in name or "texto" in name:
-        return "libro"
+        return "libro", "señal en título"
     if any(k in name for k in ("apunte", "clase", "teoria", "teoría")):
-        return "apunte"
+        return "apunte", "señal en título"
     if "video" in name:
-        return "video"
-    return "pdf"
+        return "video", "señal en título"
+    return "pdf", "ambiguo: sin señal de alta confianza"
 
 
 def parse_year(text: str):
@@ -168,33 +188,20 @@ def parse_year(text: str):
     return int(m.group(0)) if m else None
 
 
-def ids_recursos_a_actualizar(sb, rows: list) -> set:
-    """IDs de `recursos` cuyo (drive_file_id, curso_id) ya existe antes del
-    upsert -> esas filas serán actualizadas y deben re-ingestar sus chunks."""
-    if not rows:
-        return set()
-    fids = {r["drive_file_id"] for r in rows}
-    resp = (
-        sb.table("recursos")
-        .select("id, drive_file_id, curso_id")
-        .in_("drive_file_id", list(fids))
-        .execute()
-    )
-    claves = {(r["drive_file_id"], r["curso_id"]) for r in rows}
-    return {
-        f["id"] for f in resp.data or []
-        if (f["drive_file_id"], f["curso_id"]) in claves
-    }
-
-
-def limpiar_chunks_recursos(sb, ids_recursos: set) -> int:
-    """Elimina los chunks de `resource_chunks` de los recursos reemplazados
-    para evitar datos desalineados con el nuevo contenido. Devuelve cuántas
-    filas de chunks se borraron."""
-    if not ids_recursos:
-        return 0
-    resp = sb.table("resource_chunks").delete().in_("recurso_id", list(ids_recursos)).execute()
-    return len(resp.data or [])
+def obtener_tipos_existentes(sb, rows: list) -> dict:
+    """Carga tipos actuales por lotes para auditar transiciones antes→después."""
+    resultado = {}
+    fids = sorted({row["drive_file_id"] for row in rows})
+    for inicio in range(0, len(fids), 200):
+        resp = (
+            sb.table("recursos")
+            .select("drive_file_id, curso_id, tipo")
+            .in_("drive_file_id", fids[inicio:inicio + 200])
+            .execute()
+        )
+        for existente in resp.data or []:
+            resultado[(existente["drive_file_id"], existente["curso_id"])] = existente["tipo"]
+    return resultado
 
 
 def main():
@@ -251,8 +258,9 @@ def main():
     print(f"  {len(folders)} carpetas encontradas en la raíz.")
 
     rows = []
-    stats = {"carpetas_ok": 0, "carpetas_sin_match": 0, "carpetas_omitidas": 0, "archivos": 0,
-             "recursos_reemplazados": 0, "chunks_eliminados": 0}
+    stats = {"carpetas_ok": 0, "carpetas_sin_match": 0, "carpetas_omitidas": 0, "archivos": 0}
+    clasificacion = defaultdict(int)
+    ambiguos = []
     omitidos = {"no_pdf": 0}
 
     for folder in folders:
@@ -282,12 +290,19 @@ def main():
             stats["carpetas_sin_match"] += 1
             target_cursos = [None]
 
-        pdfs = collect_pdfs(folder["id"], max_depth=args.profundidad, omitidos=omitidos)
+        pdfs = collect_pdfs(
+            folder["id"], max_depth=args.profundidad, omitidos=omitidos,
+            parent_path=nombre_carpeta,
+        )
         print(f"  {len(pdfs)} PDFs encontrados.")
 
         for pdf in pdfs:
             titulo = re.sub(r"\.pdf$", "", pdf["name"], flags=re.IGNORECASE)
-            tipo = normalizar_tipo(inferir_tipo(pdf["name"]))
+            tipo_inferido, _motivo = inferir_tipo(pdf["name"], pdf.get("drive_path", ""))
+            tipo = normalizar_tipo(tipo_inferido)
+            clasificacion[tipo] += 1
+            if tipo == normalizar_tipo("pdf") and len(ambiguos) < 50:
+                ambiguos.append(f"{pdf.get('drive_path', '')}/{pdf['name']}")
             has_solucionario = bool(re.search(r"solucionario|resuelto", pdf["name"], re.IGNORECASE))
             year = parse_year(pdf["name"]) or parse_year(pdf.get("createdTime", ""))
             url_drive = f"https://drive.google.com/file/d/{pdf['id']}/view"
@@ -302,6 +317,8 @@ def main():
                     "url_drive": url_drive,
                     "preview_url": url_drive,
                     "drive_file_id": pdf["id"],
+                    "drive_path": pdf.get("drive_path"),
+                    "drive_modified_time": pdf.get("modifiedTime"),
                     "nombre_curso": nombre_curso,
                     "codigo_curso": codigo_folder,
                     "has_solucionario": has_solucionario,
@@ -310,11 +327,11 @@ def main():
 
     rows_con_curso = [r for r in rows if r["curso_id"] is not None]
     rows_huerfanas = [r for r in rows if r["curso_id"] is None]
-
-    # Recursos cuyo (drive_file_id, curso_id) ya existe: el upsert los
-    # actualizará y sus chunks previos deben limpiarse para re-vectorizarse.
-    ids_a_actualizar = ids_recursos_a_actualizar(sb, rows_con_curso)
-    ids_huerfanas_actualizados = []
+    tipos_existentes = obtener_tipos_existentes(sb, rows)
+    transiciones = defaultdict(int)
+    for row in rows:
+        anterior = tipos_existentes.get((row["drive_file_id"], row["curso_id"]), "NUEVO")
+        transiciones[f"{anterior} → {row['tipo']}"] += 1
 
     insertadas = 0
     actualizadas = 0
@@ -328,7 +345,12 @@ def main():
         print(f"Carpetas omitidas: {stats['carpetas_omitidas']}")
         print(f"Archivos procesados: {stats['archivos']}")
         print(f"Archivos ignorados por no ser PDF: {omitidos['no_pdf']}")
-        print(f"Recursos existentes que se actualizarían (chunks por re-generar): {len(ids_a_actualizar)}")
+        print(f"Clasificación resultante: {dict(sorted(clasificacion.items()))}")
+        print(f"Transiciones de tipo: {dict(sorted(transiciones.items()))}")
+        if ambiguos:
+            print("Primeros PDF ambiguos para revisión:")
+            for ruta in ambiguos:
+                print(f"  - {ruta}")
         print("No se escribió nada en la base.")
         return
 
@@ -337,13 +359,6 @@ def main():
     if rows_con_curso:
         sb.table("recursos").upsert(rows_con_curso, on_conflict="drive_file_id,curso_id").execute()
         actualizadas += len(rows_con_curso)
-
-    # Re-ingesta: un PDF reemplazado (misma clave drive_file_id+curso_id) deja
-    # chunks viejos en resource_chunks; se limpian para que el pipeline los
-    # re-vectorice con el contenido nuevo (evita desalineación/duplicados).
-    if ids_a_actualizar:
-        stats["recursos_reemplazados"] = len(ids_a_actualizar)
-        stats["chunks_eliminados"] = limpiar_chunks_recursos(sb, ids_a_actualizar)
 
     for row in rows_huerfanas:
         existente = (
@@ -356,16 +371,9 @@ def main():
         if existente.data:
             sb.table("recursos").update(row).eq("id", existente.data[0]["id"]).execute()
             actualizadas += 1
-            ids_huerfanas_actualizados.append(existente.data[0]["id"])
         else:
             sb.table("recursos").insert(row).execute()
             insertadas += 1
-
-    # Las huérfanas actualizadas (misma drive_file_id con curso_id NULL) también
-    # purgan sus chunks previos para no arrastrar contenido desalineado.
-    if ids_huerfanas_actualizados:
-        stats["recursos_reemplazados"] += len(ids_huerfanas_actualizados)
-        stats["chunks_eliminados"] += limpiar_chunks_recursos(sb, set(ids_huerfanas_actualizados))
 
     print("\n=== Resumen ===")
     print(f"Carpetas emparejadas: {stats['carpetas_ok']}")
@@ -375,8 +383,12 @@ def main():
     print(f"Archivos ignorados por no ser PDF: {omitidos['no_pdf']}")
     print(f"Filas nuevas insertadas: {insertadas}")
     print(f"Filas existentes actualizadas: {actualizadas}")
-    print(f"Recursos reemplazados (chunks limpiados): {stats['recursos_reemplazados']}")
-    print(f"Chunks eliminados de resource_chunks: {stats['chunks_eliminados']}")
+    print(f"Clasificación resultante: {dict(sorted(clasificacion.items()))}")
+    print(f"Transiciones de tipo: {dict(sorted(transiciones.items()))}")
+    if ambiguos:
+        print("Primeros PDF ambiguos para revisión:")
+        for ruta in ambiguos:
+            print(f"  - {ruta}")
 
 
 if __name__ == "__main__":

@@ -62,6 +62,17 @@ class HybridRouter:
 
         return self._decide(native_text, corruption, image_area)
 
+    async def route_page_async(
+        self, pdf_path: str, page_num: int
+    ) -> RoutingDecision:
+        """Ejecuta el enrutamiento con I/O de pypdf fuera del event loop."""
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            None, self.route_page, pdf_path, page_num
+        )
+
     def _decide(
         self,
         native_text: str,

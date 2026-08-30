@@ -36,8 +36,15 @@ class ExtractionCheckpoint:
         pages = set()
         for f in self.checkpoint_dir.glob("pagina_*.md"):
             m = re.match(r"pagina_(\d+)\.md", f.name)
-            if m:
-                pages.add(int(m.group(1)))
+            if not m:
+                continue
+            page_num = int(m.group(1))
+            content = f.read_text(encoding="utf-8")
+            if (
+                f"INICIO PAGINA {page_num}" in content
+                and f"FIN PAGINA {page_num}" in content
+            ):
+                pages.add(page_num)
         return pages
 
     def page_exists(self, page_num: int) -> bool:

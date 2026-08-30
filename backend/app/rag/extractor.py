@@ -109,6 +109,7 @@ class SyllabusExtractor:
         self.max_retries = max_retries
         self.timeout = timeout
         self._last_call = 0.0
+        self.last_run_stats = {}
         logger.info(f"Extractor listo | modelo={model_name} rpm={rpm} reintentos={max_retries}")
 
     def _throttle(self):
@@ -366,6 +367,15 @@ class SyllabusExtractor:
 
         prompt = MODOS.get(modo, PROMPT_SILABO)
         completed = checkpoint.completed_pages()
+        self.last_run_stats = {
+            "total_pages": total_pages,
+            "resumed_pages": len(completed),
+            "native_pages": 0,
+            "vision_pages": 0,
+            "vision_calls": 0,
+            "completed_pages": len(completed),
+            "failed_pages": 0,
+        }
         if completed:
             logger.info(
                 f"[Checkpoint] {len(completed)} pagina(s) encontrada(s) en "
@@ -407,6 +417,8 @@ class SyllabusExtractor:
                         checkpoint=checkpoint,
                         router=router,
                     )
+                    if n in checkpoint.completed_pages():
+                        sem.maybe_recover()
                     elapsed = round(time.time() - t_start, 2)
                     logger.info(f"[Async Extractor] Pagina {n}/{total_pages} completada en {elapsed}s.")
                 except Exception as e:
@@ -429,6 +441,8 @@ class SyllabusExtractor:
 
         result = checkpoint.read_all()
         final_completed = checkpoint.completed_pages()
+        self.last_run_stats["completed_pages"] = len(final_completed)
+        self.last_run_stats["failed_pages"] = total_pages - len(final_completed)
 
         if quota_exhausted and len(final_completed) < total_pages:
             logger.warning(
@@ -461,7 +475,7 @@ class SyllabusExtractor:
 
         # Hybrid routing: si el router decide NATIVE, usar texto directo
         if router is not None:
-            decision = router.route_page(pdf_path, page_num)
+            decision = await router.route_page_async(pdf_path, page_num)
             ruta = decision.route.upper()
             razon = decision.reason
             logger.info(
@@ -469,6 +483,7 @@ class SyllabusExtractor:
                 f"(Razon: {razon})"
             )
             if decision.route == "native":
+                self.last_run_stats["native_pages"] += 1
                 bloque = (
                     f"\n\n<!-- === INICIO PAGINA {page_num} === -->\n\n"
                     f"{decision.native_text}\n\n"
@@ -482,6 +497,7 @@ class SyllabusExtractor:
                 return
 
         # Vision path
+        self.last_run_stats["vision_pages"] += 1
         loop = asyncio.get_running_loop()
         try:
             image = await loop.run_in_executor(
@@ -499,6 +515,7 @@ class SyllabusExtractor:
 
         bloque = ""
         try:
+            self.last_run_stats["vision_calls"] += 1
             response = self._llamar_modelo(prompt, image, page_num)
             texto, motivo = self._get_text(response)
 
@@ -507,6 +524,7 @@ class SyllabusExtractor:
                 logger.info(f"[Extracción] Pagina {page_num}/{total} OK ({len(texto)} caracteres)")
             elif salvage and modo == "examenes":
                 logger.warning(f"[Extracción] Pagina {page_num}/{total} sospechosa. Rescate...")
+                self.last_run_stats["vision_calls"] += 1
                 response2 = self._llamar_modelo(PROMPT_SALVAGE, image, page_num)
                 texto2, motivo2 = self._get_text(response2)
                 if texto2 and not es_sospechosa(texto2):

@@ -16,7 +16,9 @@ ya obtuvo su vector, así que un corte a mitad deja la base consistente.
 """
 
 import argparse
+import re
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -25,6 +27,21 @@ from app.core.database import get_admin_client  # noqa: E402
 from app.rag.embedder import SyllabusEmbedder  # noqa: E402
 
 TAMANO_LOTE = 100
+MAX_REINTENTOS = 6
+
+
+def _es_rate_limit(e: Exception) -> bool:
+    s = str(e).lower()
+    return "429" in s or "resource_exhausted" in s or "quota" in s
+
+
+def _retry_delay_sugerido(e: Exception, intento: int) -> float:
+    """Usa el retryDelay que la API sugiere (Gemini lo trae en el error);
+    si no viene, backoff exponencial simple."""
+    m = re.search(r"retryDelay['\"]?:\s*['\"]?(\d+(?:\.\d+)?)s", str(e))
+    if m:
+        return float(m.group(1)) + 1.0
+    return min(60.0, 5.0 * intento)
 
 
 def traer_chunks(sb) -> list:
@@ -68,11 +85,24 @@ def main():
     hechos, fallidos = 0, []
     for i in range(0, len(chunks), TAMANO_LOTE):
         lote = chunks[i : i + TAMANO_LOTE]
-        try:
-            vectores = embedder._llamar_api([c["contenido"] for c in lote])
-        except Exception as e:
-            fallidos.extend(c["id"] for c in lote)
-            print(f"  lote {i // TAMANO_LOTE + 1}: FALLÓ ({type(e).__name__}: {e})")
+        lote_num = i // TAMANO_LOTE + 1
+
+        vectores = None
+        for intento in range(1, MAX_REINTENTOS + 1):
+            try:
+                vectores = embedder._llamar_api([c["contenido"] for c in lote])
+                break
+            except Exception as e:
+                if _es_rate_limit(e) and intento < MAX_REINTENTOS:
+                    espera = _retry_delay_sugerido(e, intento)
+                    print(f"  lote {lote_num}: rate limit, reintento {intento}/{MAX_REINTENTOS} en {espera:.1f}s")
+                    time.sleep(espera)
+                    continue
+                fallidos.extend(c["id"] for c in lote)
+                print(f"  lote {lote_num}: FALLÓ ({type(e).__name__}: {e})")
+                break
+
+        if vectores is None:
             continue
 
         for chunk, vector in zip(lote, vectores):

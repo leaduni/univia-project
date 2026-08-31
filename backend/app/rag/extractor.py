@@ -11,7 +11,10 @@ from typing import Optional, Tuple
 from pdf2image import convert_from_path, pdfinfo_from_path
 from dotenv import load_dotenv
 
-from app.core.llm import MODELO_INGESTA, generar_ingesta, get_openai, texto_ingesta
+from app.core.llm import (
+    MODELO_INGESTA, MODELO_VISION_GEMINI, generar_ingesta, generar_ingesta_gemini,
+    get_gemini_vision, get_openai, texto_ingesta,
+)
 
 
 for candidate in [
@@ -100,17 +103,32 @@ def limpiar(texto: str) -> str:
 
 
 class SyllabusExtractor:
-    def __init__(self, model_name=None, rpm=8, max_retries=6, timeout=120):
-        model_name = model_name or MODELO_INGESTA
-        if get_openai() is None:
-            raise RuntimeError("OPEN_AI_INGEST_API_KEY no configurada en .env")
+    def __init__(self, model_name=None, rpm=8, max_retries=6, timeout=120, proveedor_vision=None):
+        # Gemini es el proveedor por defecto para el OCR de Vision (cuenta
+        # separada de la de OpenAI, que se agota más rápido por volumen). Si
+        # GEMINI_VISION_API_KEY no está configurada, cae a OpenAI para no
+        # romper entornos que todavía no la tienen.
+        self.proveedor_vision = proveedor_vision or ("gemini" if get_gemini_vision() is not None else "openai")
+
+        if self.proveedor_vision == "gemini":
+            if get_gemini_vision() is None:
+                raise RuntimeError("GEMINI_VISION_API_KEY no configurada en .env")
+            model_name = model_name or MODELO_VISION_GEMINI
+        else:
+            if get_openai() is None:
+                raise RuntimeError("OPEN_AI_INGEST_API_KEY no configurada en .env")
+            model_name = model_name or MODELO_INGESTA
+
         self.model_name = model_name
         self.min_interval = 60.0 / max(1, rpm)
         self.max_retries = max_retries
         self.timeout = timeout
         self._last_call = 0.0
         self.last_run_stats = {}
-        logger.info(f"Extractor listo | modelo={model_name} rpm={rpm} reintentos={max_retries}")
+        logger.info(
+            f"Extractor listo | proveedor={self.proveedor_vision} modelo={model_name} "
+            f"rpm={rpm} reintentos={max_retries}"
+        )
 
     def _throttle(self):
         wait = self.min_interval - (time.monotonic() - self._last_call)
@@ -141,11 +159,12 @@ class SyllabusExtractor:
         return base64.standard_b64encode(buffer.getvalue()).decode()
 
     def _llamar_modelo(self, prompt, image, page_num):
+        llamar = generar_ingesta_gemini if self.proveedor_vision == "gemini" else generar_ingesta
         last_exc = None
         for attempt in range(1, self.max_retries + 1):
             try:
                 self._throttle()
-                return generar_ingesta(
+                return llamar(
                     prompt=prompt,
                     imagen_b64=self._imagen_b64(image),
                     max_tokens=8000,

@@ -59,7 +59,20 @@ La clasificación puede ser un primer llamado ligero a Groq (function calling / 
 
 ### Paso 4 — Handlers por intent
 - [ ] `recurso`: parsear qué curso/tipo de archivo pide, llamar a la lógica de `recursos.py` (reusar `_alcance_de_facultad` + filtros), devolver tarjetas `{titulo, tipo, url_drive, curso}` que el frontend renderiza como botón de descarga.
-- [ ] `duda_academica`: `SyllabusRetriever.buscar_contexto(pregunta, curso_id?)`, inyectar los fragmentos como contexto al prompt de Groq, citar la fuente si es posible.
+- [x] `duda_academica`: `SyllabusRetriever.buscar_contexto(pregunta, curso_id?)`, inyectar los fragmentos como contexto al prompt de Groq.
+
+#### Arreglo del RAG (hecho durante el Paso 4)
+
+El handler no recuperaba nada por un bug anterior al chatbot: **el corpus se ingería con Gemini y las consultas se vectorizaban con OpenAI**. Vectores de espacios distintos no son comparables, así que las similitudes no significaban nada — y encima esa cuenta de OpenAI no tenía crédito (`insufficient_quota`), de modo que la búsqueda devolvía vacío siempre. Nada de esto fallaba de forma visible.
+
+Diagnóstico del corpus (medido, no supuesto): de los **1.137 chunks**, **300 (26%)** tenían vectores incompatibles con Gemini. Se detectan por la norma del vector — OpenAI los devuelve normalizados (‖v‖≈1) y Gemini truncado a 1536 no — y se confirmó re-embebiendo chunks y comparando por coseno.
+
+Qué se cambió:
+- `app/rag/embedder.py`: `_llamar_api` acepta `task_type`, y se agrega `vectorizar_consulta()` que usa `RETRIEVAL_QUERY` (los documentos siguen con `RETRIEVAL_DOCUMENT`; la asimetría es lo que recomienda el modelo).
+- `app/rag/retriever.py`: deja de crear su propio cliente de OpenAI y delega en `SyllabusEmbedder`. **Ahora hay un solo lugar que elige proveedor**, que era la raíz del problema.
+- Se re-vectorizó el corpus completo con `scripts_manuales/revectorizar_chunks.py --ejecutar`.
+
+Efecto lateral bueno: `evaluaciones.py` usa el mismo retriever, así que su RAG (que estaba igual de roto) también quedó funcionando.
 - [ ] `estado_academico`: reusar los endpoints/queries de `malla.py` y `dashboard.py` (progreso, prerrequisitos faltantes) para el `user.id` autenticado.
 - [ ] `navegacion_ayuda`: prompt del sistema con un mapa fijo de secciones de la app (dashboard, malla, recursos, perfil) — no requiere BD.
 - [ ] `general`: llamada directa a Groq sin contexto adicional, con system prompt que fije el tono "asistente de UniVia".

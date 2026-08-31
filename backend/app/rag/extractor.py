@@ -2,6 +2,7 @@ import base64
 import io as _io
 import os
 import re
+import threading
 import time
 import random
 import logging
@@ -103,7 +104,21 @@ def limpiar(texto: str) -> str:
 
 
 class SyllabusExtractor:
-    def __init__(self, model_name=None, rpm=8, max_retries=6, timeout=120, proveedor_vision=None):
+    """OCR de páginas en cascada de tres niveles (ver docs/PLAN_CHATBOT.md):
+
+        0. Texto nativo del PDF  -> HybridRouter (pypdf). Gratis, instantáneo.
+                                    Lo decide quien llama, con hybrid=True.
+        1. Gemini Vision         -> free tier. Para páginas escaneadas.
+        2. OpenAI Vision         -> pagado. Solo cuando Gemini agota su cuota
+                                    diaria, para que la corrida no se corte.
+
+    El nivel 2 importa porque la cuota diaria de Gemini (1.000 req/día en el
+    free tier) se agota a mitad de un backlog grande: sin este fallback la
+    ingesta se detenía y había que esperar al reset del día siguiente.
+    """
+
+    def __init__(self, model_name=None, rpm=8, max_retries=6, timeout=120,
+                 proveedor_vision=None, permitir_fallback_openai=True):
         # Gemini es el proveedor por defecto para el OCR de Vision (cuenta
         # separada de la de OpenAI, que se agota más rápido por volumen). Si
         # GEMINI_VISION_API_KEY no está configurada, cae a OpenAI para no
@@ -120,6 +135,13 @@ class SyllabusExtractor:
             model_name = model_name or MODELO_INGESTA
 
         self.model_name = model_name
+        # Proveedor EN USO. Arranca igual que proveedor_vision pero puede
+        # cambiar a "openai" a mitad de corrida si Gemini agota su cuota
+        # diaria; proveedor_vision guarda con cuál se empezó.
+        self.proveedor_actual = self.proveedor_vision
+        self.permitir_fallback_openai = permitir_fallback_openai
+        self._lock_fallback = threading.Lock()
+
         self.min_interval = 60.0 / max(1, rpm)
         self.max_retries = max_retries
         self.timeout = timeout
@@ -127,8 +149,32 @@ class SyllabusExtractor:
         self.last_run_stats = {}
         logger.info(
             f"Extractor listo | proveedor={self.proveedor_vision} modelo={model_name} "
-            f"rpm={rpm} reintentos={max_retries}"
+            f"rpm={rpm} reintentos={max_retries} fallback_openai={permitir_fallback_openai}"
         )
+
+    def _cambiar_a_openai(self) -> bool:
+        """Pasa el OCR a OpenAI tras agotarse la cuota diaria de Gemini.
+
+        Devuelve True si a partir de ahora se usa OpenAI (recién cambiado o ya
+        cambiado por otra página en paralelo), False si no hay a dónde caer.
+
+        Va con lock porque el camino async procesa varias páginas a la vez y
+        todas chocan contra la misma cuota casi al mismo tiempo: sin esto se
+        registraría el cambio una vez por página en vuelo.
+        """
+        with self._lock_fallback:
+            if self.proveedor_actual == "openai":
+                return True
+            if not self.permitir_fallback_openai or get_openai() is None:
+                return False
+
+            self.proveedor_actual = "openai"
+            self.model_name = MODELO_INGESTA
+            logger.warning(
+                "[Fallback] Cuota diaria de Gemini agotada. El OCR continúa con "
+                f"OpenAI ({MODELO_INGESTA}), que es de pago."
+            )
+            return True
 
     def _throttle(self):
         wait = self.min_interval - (time.monotonic() - self._last_call)
@@ -159,21 +205,37 @@ class SyllabusExtractor:
         return base64.standard_b64encode(buffer.getvalue()).decode()
 
     def _llamar_modelo(self, prompt, image, page_num):
-        llamar = generar_ingesta_gemini if self.proveedor_vision == "gemini" else generar_ingesta
+        # La imagen se codifica una sola vez aunque haya reintentos o cambio de
+        # proveedor: el JPEG en base64 es idéntico para Gemini y para OpenAI.
+        imagen_b64 = self._imagen_b64(image)
         last_exc = None
         for attempt in range(1, self.max_retries + 1):
+            # Se resuelve en cada vuelta, no antes del bucle: otra página en
+            # paralelo puede haber cambiado el proveedor mientras esperábamos.
+            llamar = generar_ingesta_gemini if self.proveedor_actual == "gemini" else generar_ingesta
             try:
                 self._throttle()
+                # Se cuenta por proveedor: las páginas que atendió Gemini son
+                # gratis y las de OpenAI se pagan, así que este desglose es lo
+                # que permite saber cuánto costó una corrida.
+                clave = f"vision_calls_{self.proveedor_actual}"
+                self.last_run_stats[clave] = self.last_run_stats.get(clave, 0) + 1
                 return llamar(
                     prompt=prompt,
-                    imagen_b64=self._imagen_b64(image),
+                    imagen_b64=imagen_b64,
                     max_tokens=8000,
                     modelo=self.model_name,
                 )
             except Exception as e:
                 last_exc = e
                 if self._es_cuota_diaria(e):
-                    logger.error(f"[p{page_num}] Cuota DIARIA agotada. Progreso guardado. Reintenta mañana.")
+                    # Nivel 2 de la cascada: la cuota diaria de Gemini no se
+                    # recupera esperando, así que reintentar contra él es
+                    # tiempo perdido. Se pasa a OpenAI y se reintenta ya.
+                    if self._cambiar_a_openai():
+                        logger.info(f"[p{page_num}] Reintentando la página con OpenAI.")
+                        continue
+                    logger.error(f"[p{page_num}] Cuota DIARIA agotada y sin fallback. Progreso guardado. Reintenta mañana.")
                     raise
                 if "safety" in str(e).lower() or "blocked" in str(e).lower():
                     raise
@@ -392,6 +454,9 @@ class SyllabusExtractor:
             "native_pages": 0,
             "vision_pages": 0,
             "vision_calls": 0,
+            # Desglose por proveedor: gemini es gratis, openai se paga.
+            "vision_calls_gemini": 0,
+            "vision_calls_openai": 0,
             "completed_pages": len(completed),
             "failed_pages": 0,
         }
@@ -470,9 +535,15 @@ class SyllabusExtractor:
                 f"Ejecuta con --resume para continuar mas tarde."
             )
 
+        s = self.last_run_stats
         logger.info(
             f"[Extraccion Async] Finalizada | {len(result)} caracteres totales | "
             f"{len(final_completed)}/{total_pages} paginas OK"
+        )
+        logger.info(
+            f"[Cascada] nativo(gratis)={s['native_pages']} | "
+            f"gemini(gratis)={s['vision_calls_gemini']} | "
+            f"openai(pagado)={s['vision_calls_openai']} llamada(s)"
         )
         return result
 

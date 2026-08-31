@@ -27,7 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.chatbot import intents
+from app.chatbot import handlers, intents
 from app.core.auth_utils import get_current_user
 from app.core.database import get_supabase
 from app.core.llm import chatear, get_groq
@@ -184,23 +184,23 @@ def _tocar_conversacion(supabase, conversacion_id: int, titulo: Optional[str] = 
 # Generación
 # ---------------------------------------------------------------------------
 
-def _responder(mensajes: list):
+def _responder(mensajes: list, system_extra: str = ""):
     """Llama al modelo y devuelve el iterador de chunks.
 
-    Punto de enganche del Paso 4: aquí es donde se inyectará el contexto propio
-    de cada intent (tarjetas de recurso, fragmentos del RAG, expediente del
-    estudiante) antes de generar. Hoy el intent ya viene clasificado y se
-    registra, pero todas las ramas responden en modo conversación.
+    `system_extra` son las instrucciones que aporta el handler del intent (de
+    dónde salieron los datos, qué no debe inventar). Van al final del system
+    prompt para que pesen más que las reglas generales cuando se contradigan.
     """
+    system = f"{SYSTEM_PROMPT}\n\n{system_extra}".strip() if system_extra else SYSTEM_PROMPT
     return chatear(
         mensajes,
-        system=SYSTEM_PROMPT,
+        system=system,
         max_tokens=MAX_TOKENS_RESPUESTA,
         stream=True,
     )
 
 
-async def _chunks_sin_bloquear(mensajes: list) -> AsyncGenerator[str, None]:
+async def _chunks_sin_bloquear(mensajes: list, system_extra: str = "") -> AsyncGenerator[str, None]:
     """Itera el stream de Groq sin bloquear el event loop.
 
     El SDK es síncrono: recorrerlo directamente dentro del generador async
@@ -214,7 +214,7 @@ async def _chunks_sin_bloquear(mensajes: list) -> AsyncGenerator[str, None]:
 
     def _consumir():
         try:
-            for chunk in _responder(mensajes):  # type: ignore[union-attr]
+            for chunk in _responder(mensajes, system_extra):  # type: ignore[union-attr]
                 delta = chunk.choices[0].delta.content
                 if delta:
                     loop.call_soon_threadsafe(cola.put_nowait, delta)
@@ -333,7 +333,9 @@ async def enviar_mensaje(datos: NuevoMensaje, user_data=Depends(get_current_user
                                 petición). El intent viaja aquí porque llega
                                 antes que el texto y decide cómo se pinta el
                                 turno (una respuesta de `recurso` se renderiza
-                                como tarjetas, no como párrafo).
+                                como tarjetas, no como párrafo). Trae también
+                                "adjuntos" cuando el handler encontró algo que
+                                pintar: {"recursos": [...], "curso": {...}}.
         {"delta": "..."}        fragmento de texto, conforme llega.
         {"done": true}          fin, con la respuesta completa.
         {"error": "..."}        algo falló a mitad del stream.
@@ -375,14 +377,50 @@ async def enviar_mensaje(datos: NuevoMensaje, user_data=Depends(get_current_user
     # no lanza, así que en el peor caso devuelve el intent por defecto.
     intent = intents.clasificar(mensaje, historial)
 
-    mensajes = historial + [{"role": "user", "content": mensaje}]
+    # El handler consulta la fuente que corresponda (biblioteca, RAG, expediente)
+    # y devuelve el contexto con el que se generará. Tampoco lanza.
+    contexto = handlers.construir_contexto(intent, mensaje, supabase, user, token)
+
+    # El turno actual se le pasa al modelo con el bloque de datos por delante,
+    # pero en el historial ya quedó guardado el mensaje limpio: lo que el
+    # estudiante escribió no es lo mismo que lo que se le manda al modelo.
+    turno = f"{contexto.bloque}\n\n{mensaje}" if contexto.bloque else mensaje
+    mensajes = historial + [{"role": "user", "content": turno}]
+
+    def _persistir(respuesta: str) -> None:
+        """Guarda el turno del asistente. Los fallos se registran, no se propagan.
+
+        La respuesta ya se le mostró al usuario: perderla del historial es peor
+        experiencia, pero no motivo para romper el turno.
+        """
+        try:
+            _guardar_mensaje(
+                supabase, conversacion_id, user.id, "assistant", respuesta,
+                intent=intent, metadata=contexto.adjuntos,
+            )
+            _tocar_conversacion(supabase, conversacion_id)
+        except Exception as e:
+            logger.error(f"No se pudo guardar la respuesta del asistente: {e}")
 
     async def event_generator() -> AsyncGenerator[str, None]:
-        yield f"data: {json.dumps({'conversacion_id': conversacion_id, 'intent': intent})}\n\n"
+        cabecera: dict = {"conversacion_id": conversacion_id, "intent": intent}
+        if contexto.adjuntos:
+            # Viajan antes que el texto para que el frontend pueda montar las
+            # tarjetas mientras la respuesta todavía se está escribiendo.
+            cabecera["adjuntos"] = contexto.adjuntos
+        yield f"data: {json.dumps(cabecera)}\n\n"
+
+        # Respuesta que no depende del modelo (hoy, soporte_humano): se emite
+        # entera y se ahorra la llamada, que en el free tier no es gratis.
+        if contexto.respuesta_fija:
+            _persistir(contexto.respuesta_fija)
+            yield f"data: {json.dumps({'delta': contexto.respuesta_fija})}\n\n"
+            yield f"data: {json.dumps({'done': True, 'respuesta': contexto.respuesta_fija})}\n\n"
+            return
 
         partes: list[str] = []
         try:
-            async for delta in _chunks_sin_bloquear(mensajes):
+            async for delta in _chunks_sin_bloquear(mensajes, contexto.system_extra):
                 partes.append(delta)
                 yield f"data: {json.dumps({'delta': delta})}\n\n"
 
@@ -394,15 +432,7 @@ async def enviar_mensaje(datos: NuevoMensaje, user_data=Depends(get_current_user
             # Se persiste al final y no por fragmento: un turno a medias no es
             # un turno, y guardarlo dejaría el historial con respuestas cortadas
             # que después se le reenvían al modelo como si fueran válidas.
-            try:
-                _guardar_mensaje(
-                    supabase, conversacion_id, user.id, "assistant", respuesta, intent=intent,
-                )
-                _tocar_conversacion(supabase, conversacion_id)
-            except Exception as e:
-                # La respuesta ya se le mostró al usuario; perderla del historial
-                # es peor experiencia, pero no motivo para romper el turno.
-                logger.error(f"No se pudo guardar la respuesta del asistente: {e}")
+            _persistir(respuesta)
 
             yield f"data: {json.dumps({'done': True, 'respuesta': respuesta})}\n\n"
 

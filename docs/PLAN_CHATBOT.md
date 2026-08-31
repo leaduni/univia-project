@@ -58,8 +58,12 @@ La clasificación puede ser un primer llamado ligero a Groq (function calling / 
 - [ ] Empezar simple (prompt corto a Groq pidiendo una sola palabra de las 6 categorías) y ajustar con casos reales de prueba.
 
 ### Paso 4 — Handlers por intent
-- [ ] `recurso`: parsear qué curso/tipo de archivo pide, llamar a la lógica de `recursos.py` (reusar `_alcance_de_facultad` + filtros), devolver tarjetas `{titulo, tipo, url_drive, curso}` que el frontend renderiza como botón de descarga.
 - [x] `duda_academica`: `SyllabusRetriever.buscar_contexto(pregunta, curso_id?)`, inyectar los fragmentos como contexto al prompt de Groq.
+- [x] `recurso`: hecho (`app/chatbot/handlers.py:_handler_recurso`).
+- [x] `estado_academico`: hecho (`app/chatbot/handlers.py:_handler_estado_academico`).
+- [x] `navegacion_ayuda`: hecho (`app/chatbot/handlers.py:_handler_navegacion_ayuda`, mapa fijo `MAPA_DE_LA_APP`).
+- [x] `general`: hecho (`app/chatbot/handlers.py:_handler_general`, sin contexto extra).
+- [x] `soporte_humano`: hecho (`app/chatbot/handlers.py:_handler_soporte_humano`, respuesta fija sin LLM; canal vía `SOPORTE_CONTACTO`).
 
 #### Arreglo del RAG (hecho durante el Paso 4)
 
@@ -73,27 +77,27 @@ Qué se cambió:
 - Se re-vectorizó el corpus completo con `scripts_manuales/revectorizar_chunks.py --ejecutar`.
 
 Efecto lateral bueno: `evaluaciones.py` usa el mismo retriever, así que su RAG (que estaba igual de roto) también quedó funcionando.
-- [ ] `estado_academico`: reusar los endpoints/queries de `malla.py` y `dashboard.py` (progreso, prerrequisitos faltantes) para el `user.id` autenticado.
-- [ ] `navegacion_ayuda`: prompt del sistema con un mapa fijo de secciones de la app (dashboard, malla, recursos, perfil) — no requiere BD.
-- [ ] `general`: llamada directa a Groq sin contexto adicional, con system prompt que fije el tono "asistente de UniVia".
-- [ ] `soporte_humano`: respuesta fija (no LLM) con el canal de contacto real (definir cuál: correo, WhatsApp, formulario).
 
 ### Paso 5 — Prompt del sistema y guardarraíles
-- [ ] Redactar system prompt único que defina identidad, tono, límites (no inventar notas/cursos, no dar información de otros alumnos, redirigir a soporte humano ante ambigüedad sensible).
-- [ ] Sanitizar/truncar el historial que se manda a Groq (ventana de contexto limitada del free tier).
+- [x] Redactar system prompt único que defina identidad, tono, límites (no inventar notas/cursos, no dar información de otros alumnos, redirigir a soporte humano ante ambigüedad sensible). Ver `SYSTEM_PROMPT` en `app/routers/chatbot.py`.
+- [x] Sanitizar/truncar el historial que se manda a Groq (ventana de contexto limitada del free tier). `MAX_TURNOS_CONTEXTO` recorta por cantidad de turnos y `MAX_CARACTERES_POR_TURNO_HISTORIAL` acota cada mensaje individual, en `app/routers/chatbot.py:_historial`.
 
 ### Paso 6 — Frontend: círculo flotante y panel de chat
-- [ ] `components/chatbot/chat-bubble.tsx` — el círculo flotante (posición fija, badge de "no leído", animación de apertura).
-- [ ] `components/chatbot/chat-panel.tsx` — panel del chat (mensajes, input, estado de "escribiendo…").
-- [ ] `components/chatbot/message-bubble.tsx` — burbuja de mensaje, con variante especial para tarjetas de recurso descargable.
-- [ ] `lib/chatbot-service.ts` — función que hace `fetch` al stream SSE (con auth header, `AbortController`, parseo de eventos), siguiendo el estilo de `api-service.ts`.
-- [ ] Montar el círculo en `app/layout.tsx` (o en el layout del dashboard) para que esté disponible en toda la app autenticada.
-- [ ] Pasada de diseño con las skills `ui-ux-pro-max` / `frontend-design` antes de dar por cerrado el UI.
+- [x] `components/chatbot/chat-bubble.tsx` — el círculo flotante (posición fija, badge de "no leído", animación de apertura). También hace de composition root: guarda mensajes/`conversacion_id`/estado de envío y habla con `lib/chatbot-service.ts`.
+- [x] `components/chatbot/chat-panel.tsx` — panel del chat (mensajes, input, estado de "escribiendo…"). Puramente presentacional, recibe todo por props.
+- [x] `components/chatbot/message-bubble.tsx` — burbuja de mensaje, con variante especial para tarjetas de recurso descargable (`adjuntos.recursos` del intent `recurso`).
+- [x] `lib/chatbot-service.ts` — `enviarMensajeChat()` hace `fetch` al stream SSE (con auth header, `AbortController`, parseo de eventos), siguiendo el estilo de `api-service.ts` (no lo reutiliza directamente: necesita leer el body como stream, cosa que `fetchWithAuth` no soporta).
+- [x] Montado en `app/layout.tsx` (no en `DashboardLayout`): cada página instancia su propio `DashboardLayout`, así que montar ahí perdería el hilo de la conversación en cada cambio de ruta. `ChatBubble` decide sola cuándo mostrarse (sesión activa + onboarding completo).
+- [ ] Pasada de diseño con las skills `ui-ux-pro-max` / `frontend-design`: **pendiente**, `ui-ux-pro-max` existe en `.claude/skills/` del repo pero no apareció disponible en esta sesión (posible problema de registro/scope) — hay que invocarla explícitamente en una sesión donde sí figure antes de dar el UI por cerrado.
+
+Verificación hecha en esta sesión (sin cuenta de prueba a mano): `npx tsc --noEmit` no agrega errores nuevos (los que ya había son de otros módulos, ninguno toca `chatbot`); `npm run dev` compila y sirve `/` y `/dashboard` con 200 y sin errores de servidor ni de hidratación (el spinner de "Cargando tu sesión…" aparece como se espera sin sesión, y `ChatBubble` no se renderiza — comportamiento correcto). No se pudo tomar un screenshot real del panel abierto: el entorno no tiene `chromium-cli`, Playwright ni Xvfb instalados, y no había credenciales de prueba en `.env.example`/fixtures para loguear. Falta una verificación visual manual con sesión real antes de cerrar el paso del todo.
+
+Revisión manual de calidad (sin la skill de diseño, que sigue sin aparecer disponible): se agregó cierre del panel con Escape y con clic fuera (`chat-bubble.tsx`, antes solo cerraba con el botón X) y el textarea del input ahora crece con el contenido en vez de quedarse fijo a una línea (`chat-panel.tsx`). Ambos eran gaps reales de UX que una pasada de diseño habría señalado.
 
 ### Paso 7 — Manejo de estados y errores (frontend)
-- [ ] Estado offline/timeout (reusar `use-online.ts` si aplica).
-- [ ] Reintento manual si el stream se corta.
-- [ ] Persistencia local del `conversacion_id` activo (localStorage) para retomar el hilo al recargar.
+- [x] Estado offline/timeout: `useOnline()` corta el envío antes de intentar la red y deshabilita el input con un aviso inline (`chat-panel.tsx`); `lib/chatbot-service.ts` agrega un timeout de 20s solo para la conexión inicial (clasificar + arrancar el handler), no para la respuesta completa, que puede demorar por el LLM.
+- [x] Reintento manual si el stream se corta: todo mensaje de error guarda `textoOrigen` (el turno que lo originó) y `message-bubble.tsx` pinta un botón "Reintentar" que reenvía ese mismo texto. Cubre timeout, sin conexión, y cualquier error que devuelva el backend a mitad de stream.
+- [x] Persistencia local del `conversacion_id` activo (localStorage, por usuario) para retomar el hilo al recargar. Al montar, `ChatBubble` intenta reconstruir el hilo guardado vía `GET /chatbot/conversaciones/{id}` (`apiService.obtenerConversacionChat`); si ya no existe (borrado, o expiró por la retención de 30 días) se descarta en silencio y se empieza un hilo nuevo.
 
 ### Paso 8 — Pruebas
 - [ ] Backend: tests del clasificador de intent con casos representativos de cada categoría.

@@ -23,6 +23,8 @@ import time
 from openai import OpenAI
 from dotenv import load_dotenv
 
+from app.rag.cost_tracker import cost_tracker
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -85,6 +87,7 @@ class SyllabusEmbedder:
             model=self.model_name,
             input=textos,
         )
+        cost_tracker.registrar_embeddings(resultado.usage.prompt_tokens)
         # La API devuelve los vectores en el mismo orden que la entrada, pero
         # trae `index` explícito; se ordena por él para no depender de eso.
         datos = sorted(resultado.data, key=lambda d: d.index)

@@ -48,10 +48,12 @@ from app.rag.extractor import SyllabusExtractor
 from app.rag.extraction_checkpoint import ExtractionCheckpoint
 from app.rag.chunker import SyllabusChunker
 from app.rag.embedder import SyllabusEmbedder
+from app.rag.cost_tracker import cost_tracker
 from app.rag.ingest import SyllabusIngestor
 
 API_KEY = os.getenv("GOOGLE_DRIVE_API_KEY")
-TIPOS_OBJETIVO = ["Examen", "Practica", "examen", "practica"]
+TIPOS_OBJETIVO = ["Silabo", "Libro", "Teoria", "Apunte", "Compendio", "Examen", "Practica", "examen", "practica"]
+TIPOS_NATIVOS = {"Silabo", "Libro", "Teoria", "Apunte", "Compendio"}
 MAX_FALLOS_SEGUIDOS = 3  # señal heurística de cuota diaria agotada
 DOWNLOAD_DIR = Path(tempfile.gettempdir()) / "univia_rag_drive"
 
@@ -121,7 +123,7 @@ def obtener_candidatos(
         query = (
             sb.table("recursos")
             .select(
-                "id, titulo, curso_id, drive_file_id, drive_modified_time, "
+                "id, titulo, tipo, curso_id, drive_file_id, drive_modified_time, "
                 "rag_status, rag_processed_modified_time"
             )
             .in_("tipo", TIPOS_OBJETIVO)
@@ -279,6 +281,7 @@ def main():
                 tmp_path,
                 modo="examenes",
                 hybrid=True,
+                forzar_nativo=recurso["tipo"] in TIPOS_NATIVOS,
                 max_concurrency=args.max_concurrency,
             ))
             tiempo_extraccion = time.perf_counter() - inicio_extraccion
@@ -345,13 +348,14 @@ def main():
 
             procesados += 1
             fallos_seguidos = 0
-            costo = metricas.get("vision_calls", 0) * args.vision_cost_per_call
             print(
                 f"  OK: {insertados} chunks | páginas native/vision: "
                 f"{metricas.get('native_pages', 0)}/{metricas.get('vision_pages', 0)} | "
                 f"tiempos descarga/extracción/embedding/BD: {tiempo_descarga:.1f}s/"
                 f"{tiempo_extraccion:.1f}s/{tiempo_embeddings:.1f}s/{tiempo_insercion:.1f}s | "
-                f"costo estimado Vision: ${costo:.4f}"
+                f"tokens input/output/embeddings: {cost_tracker.tokens_vision_input}/"
+                f"{cost_tracker.tokens_vision_output}/{cost_tracker.tokens_embeddings} | "
+                f"costo acumulado: ${cost_tracker.obtener_costo_total_usd():.4f} USD"
             )
 
         except RecursoInaccesible as e:
@@ -372,10 +376,13 @@ def main():
     print(f"Recursos failed: {fallidos}")
     print(f"Recursos skipped_permissions: {omitidos}")
     print(f"Recursos omitidos por reclamo de otro worker: {omitidos_reclamo}")
-    print(f"Páginas nativas: {paginas_nativas}")
-    print(f"Páginas Vision: {paginas_vision}")
+    print(f"Páginas pypdf_nativo: {paginas_nativas}")
+    print(f"Páginas gpt-4.1-mini: {paginas_vision}")
     print(f"Llamadas Vision: {llamadas_vision}")
-    print(f"Costo Vision estimado: ${llamadas_vision * args.vision_cost_per_call:.4f}")
+    print(f"Tokens Vision input: {cost_tracker.tokens_vision_input}")
+    print(f"Tokens Vision output: {cost_tracker.tokens_vision_output}")
+    print(f"Tokens embeddings: {cost_tracker.tokens_embeddings}")
+    print(f"Costo total acumulado: ${cost_tracker.obtener_costo_total_usd():.4f} USD")
     print(f"Tiempo total: {time.perf_counter() - inicio_corrida:.1f}s")
 
 

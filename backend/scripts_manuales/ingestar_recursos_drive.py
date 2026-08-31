@@ -20,6 +20,7 @@ así que correrlo de nuevo no duplica filas.
 import argparse
 import os
 import re
+import time
 import sys
 from collections import defaultdict
 from typing import Optional
@@ -95,10 +96,17 @@ def drive_list(folder_id: str) -> list:
         }
         if page_token:
             params["pageToken"] = page_token
-        resp = requests.get(
-            "https://www.googleapis.com/drive/v3/files", params=params, timeout=30
-        )
-        resp.raise_for_status()
+        for intento in range(3):
+            try:
+                resp = requests.get(
+                    "https://www.googleapis.com/drive/v3/files", params=params, timeout=30
+                )
+                resp.raise_for_status()
+                break
+            except (requests.exceptions.RequestException, ConnectionResetError):
+                if intento == 2:
+                    return []
+                time.sleep(2)
         data = resp.json()
         items.extend(data.get("files", []))
         page_token = data.get("nextPageToken")

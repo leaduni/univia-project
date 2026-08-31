@@ -32,7 +32,9 @@ interface Pregunta {
   id: number;
   pregunta: string;
   tipo: "multiple" | "unica" | "verdadero_falso" | "codigo";
-  opciones: string[];
+  // El backend lo define como Optional[List[str]]; llega ausente en algunas
+  // respuestas del LLM (p. ej. flujo de programación), así que debe ser opcional.
+  opciones?: string[];
   respuesta_correcta: number | number[] | string;
   explicacion: string;
   codigo_base?: string;
@@ -48,11 +50,13 @@ interface Pregunta {
 }
 
 interface Evaluacion {
-  curso_id: number
-  modulo: string
-  temas: string[]
-  preguntas: Pregunta[]
-  tiempo_estimado: number
+  // Todas opcionales: el flujo de programación del backend emite el JSON crudo
+  // del LLM (parse_llm_json_response), que puede omitir campos secundarios.
+  curso_id?: number
+  modulo?: string
+  temas?: string[]
+  preguntas?: Pregunta[]
+  tiempo_estimado?: number
 }
 
 interface ModuloInfo {
@@ -109,6 +113,16 @@ export function EvaluacionIA({
     if (typeof topics === "string") return topics.split(",").map(s => s.trim()).filter(Boolean)
     return []
   }
+
+  // Defiende contra evaluaciones que omitan campos: garantiza un estado inicial
+  // seguro antes de setear la evaluación, sin romper el flujo de UI.
+  const normalizarEvaluacion = (data: any): Evaluacion => ({
+    curso_id: data?.curso_id,
+    modulo: data?.modulo || "",
+    temas: normalizeTopics(data?.temas),
+    preguntas: Array.isArray(data?.preguntas) ? data.preguntas : [],
+    tiempo_estimado: data?.tiempo_estimado ?? 0,
+  })
 
   // Pre-seleccionar módulo cuando viene desde la ruta de aprendizaje
   const hasProcessedPreselection = useRef(false)
@@ -293,11 +307,11 @@ export function EvaluacionIA({
       setError(null)
       if (!data) throw new Error("No se recibió respuesta de la IA")
 
-      setEvaluacion(data)
+      setEvaluacion(normalizarEvaluacion(data))
       setStep("evaluacion")
     } catch (err: any) {
       if (onResultsChange) onResultsChange(false)
-      setError(`Error al procesar la evaluación: ${err.message}. Asegúrate de que la respuesta de la IA sea un JSON válido.`)
+      setError(`No se pudo generar la evaluación: ${err.message}`)
       setStep("config")
     } finally {
       setIsLoading(false)
@@ -311,7 +325,7 @@ export function EvaluacionIA({
       setIsLoading(true)
       setError(null)
 
-      const respuestasArray = evaluacion.preguntas.map((pregunta) => {
+      const respuestasArray = (evaluacion.preguntas || []).map((pregunta) => {
         const preguntaId = pregunta.id;
         let respuestaParaEnviar: any;
 
@@ -605,7 +619,8 @@ export function EvaluacionIA({
 
   // Paso 3: Evaluación
   if (step === "evaluacion" && evaluacion) {
-    const todasRespondidas = evaluacion.preguntas.every((p) => {
+    const todasRespondidas = (evaluacion.preguntas?.length ?? 0) > 0 &&
+      (evaluacion.preguntas || []).every((p) => {
       if (p.tipo === 'codigo') {
         const hasCode = respuestas[p.id] !== undefined && (respuestas[p.id] as string).trim() !== '';
         const hasSuccessfulResult = executionResults[p.id] && executionResults[p.id].output !== undefined && !executionResults[p.id].error;
@@ -625,10 +640,10 @@ export function EvaluacionIA({
               <div>
                 <h3 className="text-xl font-bold mb-2">{evaluacion.modulo}</h3>
                 <p className="text-sm text-muted-foreground">
-                  {evaluacion.preguntas.length} preguntas • {evaluacion.tiempo_estimado} minutos estimados
+                  {(evaluacion.preguntas || []).length} preguntas • {evaluacion.tiempo_estimado ?? 0} minutos estimados
                 </p>
                 <div className="flex flex-wrap gap-2 mt-3">
-                  {evaluacion.temas.map((tema, i) => (
+                  {(evaluacion?.temas || []).map((tema, i) => (
                     <Badge key={i} variant="secondary">
                       {tema}
                     </Badge>
@@ -638,12 +653,18 @@ export function EvaluacionIA({
               <div className="text-right">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Clock className="w-4 h-4" />
-                  {evaluacion.tiempo_estimado} min
+                  {evaluacion.tiempo_estimado ?? 0} min
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
+
+        {(!evaluacion.preguntas || evaluacion.preguntas.length === 0) && (
+          <div className="text-sm text-destructive/90 bg-destructive/10 border border-destructive/20 rounded-lg p-3">
+            No se recibieron preguntas válidas para esta evaluación. Reinicia e intenta de nuevo.
+          </div>
+        )}
 
         {error && (
           <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20">
@@ -652,7 +673,7 @@ export function EvaluacionIA({
         )}
 
         <div className="space-y-4">
-          {evaluacion.preguntas.map((pregunta, idx) => {
+          {(evaluacion.preguntas || []).map((pregunta, idx) => {
             const executionResult = executionResults[pregunta.id];
             return (
               <Card key={pregunta.id} className={pregunta.tipo === 'codigo' ? "overflow-hidden" : ""}>

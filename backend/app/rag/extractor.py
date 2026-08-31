@@ -12,6 +12,7 @@ from pdf2image import convert_from_path, pdfinfo_from_path
 from dotenv import load_dotenv
 
 from app.core.llm import MODELO_INGESTA, generar_ingesta, get_openai, texto_ingesta
+from app.rag.cost_tracker import cost_tracker
 
 
 for candidate in [
@@ -145,12 +146,18 @@ class SyllabusExtractor:
         for attempt in range(1, self.max_retries + 1):
             try:
                 self._throttle()
-                return generar_ingesta(
+                response = generar_ingesta(
                     prompt=prompt,
                     imagen_b64=self._imagen_b64(image),
                     max_tokens=8000,
                     modelo=self.model_name,
                 )
+                usage = getattr(response, "usage", None)
+                cost_tracker.registrar_vision(
+                    getattr(usage, "prompt_tokens", 0) or 0,
+                    getattr(usage, "completion_tokens", 0) or 0,
+                )
+                return response
             except Exception as e:
                 last_exc = e
                 if self._es_cuota_diaria(e):
@@ -302,6 +309,7 @@ class SyllabusExtractor:
         salvage: bool = True,
         max_concurrency: int = 8,
         hybrid: bool = False,
+        forzar_nativo: bool = False,
     ) -> str:
         """
         Extrae texto de un PDF de forma asincrona con checkpoints por pagina.
@@ -348,6 +356,7 @@ class SyllabusExtractor:
             max_concurrency=max_concurrency,
             checkpoint=checkpoint,
             router=router,
+            forzar_nativo=forzar_nativo,
         )
 
     async def _run_async_extraction(
@@ -360,6 +369,7 @@ class SyllabusExtractor:
         max_concurrency: int,
         checkpoint,
         router=None,
+        forzar_nativo: bool = False,
     ) -> str:
         """Core asincrono: lanza tareas por pagina con AdaptiveSemaphore."""
         import asyncio
@@ -416,6 +426,7 @@ class SyllabusExtractor:
                         salvage=salvage,
                         checkpoint=checkpoint,
                         router=router,
+                        forzar_nativo=forzar_nativo,
                     )
                     if n in checkpoint.completed_pages():
                         sem.maybe_recover()
@@ -468,10 +479,27 @@ class SyllabusExtractor:
         salvage: bool,
         checkpoint,
         router=None,
+        forzar_nativo: bool = False,
     ) -> None:
         """Extrae una sola pagina de forma asincrona y guarda checkpoint."""
         import asyncio
         from pdf2image import convert_from_path
+
+        if forzar_nativo:
+            from app.rag.hybrid_router import HybridRouter
+
+            loop = asyncio.get_running_loop()
+            native_text = await loop.run_in_executor(
+                None, HybridRouter.extract_native_text, pdf_path, page_num
+            )
+            self.last_run_stats["native_pages"] += 1
+            cost_tracker.registrar_nativo(1)
+            checkpoint.save_page(page_num, self._bloque_ok(page_num, native_text))
+            logger.info(
+                f"[Nativo forzado] Pagina {page_num}/{total} guardada "
+                f"({len(native_text)} chars, costo $0)"
+            )
+            return
 
         # Hybrid routing: si el router decide NATIVE, usar texto directo
         if router is not None:
@@ -484,6 +512,7 @@ class SyllabusExtractor:
             )
             if decision.route == "native":
                 self.last_run_stats["native_pages"] += 1
+                cost_tracker.registrar_nativo(1)
                 bloque = (
                     f"\n\n<!-- === INICIO PAGINA {page_num} === -->\n\n"
                     f"{decision.native_text}\n\n"

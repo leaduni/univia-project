@@ -14,7 +14,7 @@ from typing import List, Optional, Dict, Any, Union, AsyncGenerator
 from dotenv import load_dotenv
 load_dotenv()
 
-from app.core.llm import MODELO_GENERACION, generar, get_claude
+from app.core.llm import MODELO_GENERACION, generar, get_openai_generacion
 from app.rag.retriever import SyllabusRetriever
 from app.core.auth_utils import get_current_user
 
@@ -837,6 +837,51 @@ def _limpiar_opciones(preguntas: List[Pregunta]) -> List[Pregunta]:
     return resultado
 
 
+# Patrones del chunker para la sanitización del contexto RAG (app/rag/chunker.py).
+_PATRON_METADATA_CHUNK = re.compile(
+    r"^\[[^\]]*(?:Tema Principal|Subtema|Ejercicio_o_Seccion)[^\]]*\]$"
+)
+_PATRON_SEPARADOR = re.compile(r"^-{3,}$")
+
+
+def _sanitizar_contexto_rag(texto: str) -> str:
+    """Limpia el bloque RAG ensamblado sin perder contenido pedagógico.
+
+    Los fragmentos salen del chunker con un prefijo de metadatos `[...]` que se
+    repite en cada chunk de la misma sección y con solape entre fragmentos
+    (chunk_overlap). Esta función elimina solo lo redundante:
+
+      - cabeceras de metadatos del chunker (Tema Principal/Subtema/Sección);
+      - rachas de separadores `---` de ensamblado (deja uno por corte);
+      - líneas duplicadas consecutivas (overlap de chunks);
+      - exceso de saltos de línea (3+ consecutivos -> uno).
+
+    El cuerpo de cada fragmento se conserva intacto.
+    """
+    if not texto:
+        return texto
+
+    normalizado = texto.replace("\r\n", "\n").replace("\r", "\n")
+    salida = []
+    for linea in normalizado.split("\n"):
+        t = linea.strip()
+        if _PATRON_METADATA_CHUNK.match(t):
+            continue
+        if _PATRON_SEPARADOR.match(t):
+            # Una sola raya por corte: se colapsan las rachas repetidas.
+            if salida and _PATRON_SEPARADOR.match(salida[-1].strip()):
+                continue
+            salida.append("---")
+            continue
+        if salida and t and t == salida[-1].strip():
+            continue
+        salida.append(linea.rstrip())
+
+    resultado = "\n".join(salida)
+    resultado = re.sub(r"\n{3,}", "\n\n", resultado)
+    return resultado.strip()
+
+
 def _asignar_origen(preguntas: List[Pregunta], contexto: List[Dict[str, Any]]) -> List[Pregunta]:
     """Asigna origen y fuente_detalle a cada pregunta según disponibilidad de contexto RAG."""
     if contexto and len(contexto) > 0:
@@ -926,8 +971,8 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion, user_data=Depends(
     
     user, token = user_data
 
-    if not get_claude():
-        raise HTTPException(status_code=500, detail="API Key de Claude no configurada")
+    if not get_openai_generacion():
+        raise HTTPException(status_code=500, detail="API Key de OpenAI no configurada")
 
     try:
         if len(config.temas) == 1:
@@ -953,6 +998,7 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion, user_data=Depends(
             system=SYSTEM_MSG_EVALUACION,
             max_tokens=16000,
             stream=True,
+            json_mode=True,
         )
 
         data = parse_llm_json_response(raw_content)
@@ -1239,9 +1285,9 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion, user_data=D
     logger.info(f"PASO 1: Nueva petición recibida | curso_id={config.curso_id}, modulo='{config.modulo}', "
                 f"temas={config.temas}, num_preguntas={config.num_preguntas}")
 
-    if not get_claude():
-        logger.error("PASO 1 ERROR: cliente de Claude no inicializado - API Key no configurada")
-        raise HTTPException(status_code=500, detail="API Key de Claude no configurada")
+    if not get_openai_generacion():
+        logger.error("PASO 1 ERROR: cliente de OpenAI no inicializado - API Key no configurada")
+        raise HTTPException(status_code=500, detail="API Key de OpenAI no configurada")
 
     try:
         logger.info("PASO 2: Buscando contexto semántico / sílabo (RAG)...")
@@ -1262,13 +1308,21 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion, user_data=D
             )
             logger.info(f"PASO 2 COMPLETADO: {len(contexto)} fragmentos recuperados ({len(contexto_str)} caracteres).")
         else:
-            logger.warning("PASO 2 ALERTA: No se recuperó contexto RAG. Continuando sin él...")
+            logger.warning("PASO 2 ALERTA: No se recuperó contexto RAG. Continuando en modo fallback con generación sintética...")
+            contexto_bloque = (
+                "### MODO FALLBACK (SIN REFERENCIAS RAG) ###\n"
+                "No hay ejercicios de referencia cargados para este curso.\n"
+                "Construye UNA pregunta original con nivel de exigencia alto (UNI) que cumpla estrictamente el estándar de dificultad solicitado.\n"
+                "MANTÉN SIEMPRE LA ESTRUCTURA DE MARCADORES @@PREGUNTA@@ ... @@FIN@@ EXACTAMENTE COMO SE INDICA ABAJO.\n\n"
+            )
 
-        logger.info("PASO 3: Verificando cliente de Claude...")
-        if not get_claude():
-            logger.error("PASO 3 ERROR: CLAUDE_GEN_API_KEY no está configurada en variables de entorno.")
-            raise HTTPException(status_code=500, detail="Falta configuración de API Key de Claude en el servidor.")
-        logger.info(f"PASO 3 OK: API Key presente (primeros caracteres: {api_key[:8]}...)")
+        logger.info("PASO 3: Verificando cliente de OpenAI...")
+        if not get_openai_generacion():
+            logger.error("PASO 3 ERROR: OPENAI_API_KEY no está configurada en variables de entorno.")
+            raise HTTPException(status_code=500, detail="Falta configuración de API Key de OpenAI en el servidor.")
+        _key_env = os.getenv("OPENAI_API_KEY") or ""
+        _key_preview = f"{_key_env[:8]}..." if _key_env else "Presente"
+        logger.info(f"PASO 3 OK: API Key verificada ({_key_preview})")
 
     except Exception as e:
         stack_trace = traceback.format_exc()
@@ -1290,12 +1344,20 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion, user_data=D
                     tipo_evaluacion=config.tipo_evaluacion,
                 )
                 prompt_prog = generar_prompt_programacion(cfg1, contexto)
+                if contexto == []:
+                    prompt_prog += (
+                        "\n\nNo existe código ni ejercicio de referencia para este curso. "
+                        "Genera preguntas conceptuales o prácticas originales sin presuponer "
+                        "un código base. Responde estrictamente con el objeto JSON solicitado, "
+                        "sin texto adicional ni bloques Markdown."
+                    )
                 loop = asyncio.get_running_loop()
                 def _call_prog():
                     return generar(
                         prompt=prompt_prog,
                         system="Eres un arquitecto de software senior. Responde ÚNICAMENTE con JSON válido, sin texto adicional ni bloques de código.",
                         max_tokens=6000,
+                        json_mode=True,
                     )
 
                 raw = await loop.run_in_executor(None, _call_prog)
@@ -1320,6 +1382,13 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion, user_data=D
                 return
 
             logger.info(f"PASO 5: Generando {config.num_preguntas} preguntas teóricas en paralelo...")
+
+            # Sanitiza el contexto RAG una sola vez antes del bucle paralelo:
+            # se eliminan metadatos redundantes del chunker, saltos de línea
+            # repetidos y duplicaciones de estructura (overlap) sin recortar
+            # contenido pedagógico ni hacer llamadas extra a la API.
+            contexto_bloque = _sanitizar_contexto_rag(contexto_bloque)
+
             prompts_tipos = [
                 _prompt_una_pregunta_teorica(i, temas_str, config.tipo_evaluacion, contexto_bloque)
                 for i in range(config.num_preguntas)
@@ -1452,7 +1521,7 @@ async def generar_retroalimentacion(
     basada en los resultados del estudiante
     """
     
-    if not get_claude():
+    if not get_openai_generacion():
         return "Retroalimentación no disponible"
 
     temas_dificultad = []
@@ -1486,10 +1555,10 @@ Para cualquier fórmula matemática, usa la sintaxis de LaTeX: $...$ para fórmu
 
 @router.get("/evaluaciones/test")
 async def test_claude():
-    """Endpoint de prueba para verificar que la generación con Claude funciona."""
+    """Endpoint legado de prueba para verificar la generación con OpenAI."""
 
-    if not get_claude():
-        return {"status": "error", "message": "API Key de Claude no configurada"}
+    if not get_openai_generacion():
+        return {"status": "error", "message": "API Key de OpenAI no configurada"}
 
     try:
         texto = generar(
@@ -1498,7 +1567,7 @@ async def test_claude():
         )
         return {
             "status": "success",
-            "message": f"Claude ({MODELO_GENERACION}) funcionando correctamente",
+            "message": f"OpenAI ({MODELO_GENERACION}) funcionando correctamente",
             "response": texto,
         }
     except Exception as e:

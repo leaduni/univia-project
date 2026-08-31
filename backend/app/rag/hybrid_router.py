@@ -41,9 +41,9 @@ class HybridRouter:
 
     def __init__(
         self,
-        min_chars: int = 100,
+        min_chars: int = 50,
         max_corruption_ratio: float = 0.03,
-        max_image_area_ratio: float = 0.20,
+        max_image_area_ratio: float = 0.32,
     ):
         self.min_chars = min_chars
         self.max_corruption_ratio = max_corruption_ratio

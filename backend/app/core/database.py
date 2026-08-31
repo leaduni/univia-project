@@ -1,5 +1,5 @@
 import os
-from supabase import create_client, Client
+from supabase import create_client, Client, ClientOptions
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,15 +14,15 @@ if not url or not key:
 if not service_key:
     raise ValueError("SUPABASE_SERVICE_ROLE_KEY debe estar configurado en el archivo .env")
 
-supabase: Client = create_client(url, key)
+supabase: Client = create_client(url, key, options=ClientOptions(postgrest_client_timeout=120))
 
 def get_supabase(token: str = None):
     if token:
-        client = create_client(url, key)
+        client = create_client(url, key, options=ClientOptions(postgrest_client_timeout=120))
         client.postgrest.auth(token)
         return client
     return supabase
 
 
 def get_admin_client() -> Client:
-    return create_client(url, service_key)
+    return create_client(url, service_key, options=ClientOptions(postgrest_client_timeout=120))

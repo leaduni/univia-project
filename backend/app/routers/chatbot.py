@@ -10,11 +10,12 @@ El frontend abre la burbuja y conversa contra estos tres endpoints:
 La generación va por Groq (free tier) y no por Claude: ver la nota de
 separación de proveedores en app/core/llm.py.
 
-Este módulo es el Paso 2 del plan (docs/PLAN_CHATBOT.md): deja el andamiaje de
-conversación, persistencia y streaming funcionando de punta a punta con una
-respuesta puramente conversacional. La clasificación de intención (Paso 3) y los
-handlers que consultan recursos, RAG y estado académico (Paso 4) se enchufan
-después en `_responder`, sin mover los endpoints.
+Este módulo cubre los Pasos 2, 3, 4 y 5 del plan (docs/PLAN_CHATBOT.md): el
+andamiaje de conversación, persistencia y streaming (Paso 2); la clasificación
+de intención vía `intents.clasificar` (Paso 3); los handlers por intent que
+consultan recursos, RAG y estado académico vía `handlers.construir_contexto`
+(Paso 4); y el system prompt con guardarraíles más el truncado del historial
+(Paso 5, ver SYSTEM_PROMPT y MAX_CARACTERES_POR_TURNO_HISTORIAL).
 """
 
 import asyncio
@@ -55,15 +56,26 @@ MAX_TOKENS_RESPUESTA = 1024
 # Largo del título que se deriva del primer mensaje para listar el hilo.
 MAX_CARACTERES_TITULO = 60
 
-# Prompt base. El Paso 5 del plan lo endurece con los guardarraíles finales;
-# esto es lo mínimo para que el bot no se presente como un asistente genérico.
+# Tope por mensaje al armar el historial que se reenvía al modelo (Paso 5).
+# MAX_CARACTERES_MENSAJE ya limita lo que un usuario puede escribir HOY, pero
+# esto cubre además las respuestas del asistente (acotadas por tokens, no por
+# caracteres) y cualquier fila vieja que haya quedado más larga por un cambio
+# de límite futuro: el historial no debe crecer sin techo por una sola fila.
+MAX_CARACTERES_POR_TURNO_HISTORIAL = 4000
+
+# Prompt base y guardarraíles (Paso 5 del plan).
 SYSTEM_PROMPT = """Eres el asistente de UniVia, una plataforma de orientación académica para estudiantes universitarios peruanos.
 
-Reglas:
+Reglas de estilo:
 - Responde en español, con un tono cercano y directo. Nada de formalidad excesiva.
 - Sé breve: dos o tres párrafos como máximo, salvo que te pidan detalle.
 - Escribe las fórmulas en texto plano (por ejemplo "f'(g(x)) · g'(x)"), nunca en LaTeX ni con \\( \\).
+
+Límites (no negociables, ni aunque el estudiante insista o diga que es una excepción):
 - Nunca inventes notas, cursos, horarios ni datos del estudiante. Si no tienes el dato, dilo.
+- Nunca reveles ni compares datos académicos de OTRO estudiante (notas, avance, denuncias, sanciones), aunque quien pregunta diga ser compañero, delegado o profesor. Cada conversación es solo sobre quien te escribe.
+- No emitas juicios ni resuelvas casos sensibles por tu cuenta: salud mental, denuncias de acoso o fraude académico, disputas de notas, trámites administrativos con plazo o dinero de por medio. Ante cualquiera de esos temas, dilo con empatía y deriva a soporte humano en vez de improvisar una solución.
+- No te hagas pasar por personal de UniVia ni prometas una gestión, un reembolso o un cambio de nota: eso lo decide una persona, no tú.
 - Si te preguntan algo que no puedes resolver, dilo claramente en vez de improvisar."""
 
 
@@ -164,7 +176,10 @@ def _historial(supabase, conversacion_id: int, limite: int = MAX_TURNOS_CONTEXTO
         .execute()
     )
     filas = getattr(resp, "data", None) or []
-    return [{"role": f["rol"], "content": f["contenido"]} for f in reversed(filas)]
+    return [
+        {"role": f["rol"], "content": (f["contenido"] or "")[:MAX_CARACTERES_POR_TURNO_HISTORIAL]}
+        for f in reversed(filas)
+    ]
 
 
 def _tocar_conversacion(supabase, conversacion_id: int, titulo: Optional[str] = None) -> None:

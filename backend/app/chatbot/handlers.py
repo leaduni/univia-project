@@ -80,6 +80,7 @@ _PALABRAS_VACIAS = {
     "porfa", "favor", "gracias", "hola", "examen", "examenes", "practica",
     "practicas", "silabo", "silabos", "libro", "libros", "apunte", "apuntes",
     "solucionario", "material", "materiales", "archivo", "archivos", "pdf",
+    "plancha", "planchas", "descargar", "descarga", "bajar",
 }
 
 
@@ -90,6 +91,9 @@ def _detectar_tipo(mensaje: str) -> Optional[str]:
     # atrapado por otra palabra del mensaje.
     for clave, tipo in (
         ("solucionario", "Examen"),
+        # "Plancha" es como se le dice coloquialmente en Perú a un examen
+        # pasado; el catálogo no tiene ese tipo, así que resuelve a Examen.
+        ("plancha", "Examen"),
         ("examen", "Examen"),
         ("parcial", "Examen"),
         ("final", "Examen"),
@@ -206,6 +210,11 @@ def _handler_recurso(mensaje: str, supabase, user, token: str) -> Contexto:
             supabase.table("recursos")
             .select("id, titulo, tipo, year, url_drive, has_solucionario")
             .eq("curso_id", curso["id"])
+            # Filas de antes del script de ingesta de Drive (o cargadas a mano)
+            # pueden no tener url_drive. La burbuja de descarga no tiene a
+            # dónde apuntar sin él: sin este filtro, el chat sugiere una
+            # tarjeta que el estudiante no puede abrir ni descargar.
+            .not_.is_("url_drive", "null")
         )
         if tipo:
             consulta = consulta.eq("tipo", tipo)

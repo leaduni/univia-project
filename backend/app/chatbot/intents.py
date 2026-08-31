@@ -77,7 +77,7 @@ TURNOS_DE_CONTEXTO = 4
 # clasificador en ~11 mensajes por minuto para toda la plataforma.
 PROMPT_CLASIFICADOR = """Clasifica el mensaje del estudiante de UniVia. Responde SOLO la etiqueta.
 
-recurso: pide un archivo (examen, práctica, sílabo, libro, solucionario).
+recurso: pide un archivo o dice "descargar"/"bajar" (examen, plancha, práctica, sílabo, libro, solucionario).
 duda_academica: pregunta por contenido o teoría de un curso, o qué entra en un examen.
 estado_academico: pregunta por SUS datos (sus notas, avance, créditos, si puede llevar un curso).
 navegacion_ayuda: cómo usar la web de UniVia o dónde encontrar una sección.

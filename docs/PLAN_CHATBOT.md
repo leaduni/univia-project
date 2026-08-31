@@ -89,7 +89,10 @@ La clasificación puede ser un primer llamado ligero a Groq (function calling / 
 - [ ] Prueba manual end-to-end: abrir el círculo, hacer una pregunta de cada categoría, verificar respuesta y, en el caso de recursos, que el botón de descarga funcione.
 
 ### Paso 9 — Cierre
-- [ ] Revisar límites del free tier de Groq (requests/min, tokens/día) y qué pasa si se agotan (fallback: mensaje de "vuelve a intentar en unos minutos", no un error crudo).
+- [ ] Revisar límites del free tier de Groq y qué pasa si se agotan (fallback: mensaje de "vuelve a intentar en unos minutos", no un error crudo).
+  - **Medido en el Paso 3:** el límite que muerde es **8.000 tokens por minuto, por modelo**. Cada turno gasta dos llamadas (clasificar + responder). El prompt del clasificador se dejó en ~250 tokens por esto; con la versión inicial de ~700 el sistema aguantaba solo ~11 mensajes por minuto en toda la plataforma.
+  - Clasificador y respuesta usan modelos distintos (`gpt-oss-20b` y `gpt-oss-120b`), así que cada uno tiene su propia cuota y no compiten entre sí.
+  - `intents.clasificar` ya reintenta ante 429 respetando el retraso que sugiere Groq; falta el equivalente en la generación de la respuesta.
 - [ ] Actualizar `README.md`/`GUIA_EJECUCION.md` con la env var nueva y cómo levantar el chatbot en local.
 - [ ] `/code-review` sobre el diff antes de mergear.
 

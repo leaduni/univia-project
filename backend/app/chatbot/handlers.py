@@ -471,6 +471,10 @@ from app.chatbot.skills import (
     _handler_flashcards,
     _handler_quiz,
 )
+from app.chatbot.consultas import (
+    _handler_consulta_docentes,
+    _handler_consulta_prerrequisitos,
+)
 
 
 _HANDLERS = {
@@ -478,6 +482,8 @@ _HANDLERS = {
     intents.DUDA_ACADEMICA: _handler_duda_academica,
     intents.ESTADO_ACADEMICO: _handler_estado_academico,
     intents.NAVEGACION_AYUDA: _handler_navegacion_ayuda,
+    intents.CONSULTA_DOCENTES: _handler_consulta_docentes,
+    intents.CONSULTA_PRERREQUISITOS: _handler_consulta_prerrequisitos,
     intents.SOPORTE_HUMANO: _handler_soporte_humano,
     intents.QUIZ: _handler_quiz,
     intents.CRONOGRAMA: _handler_cronograma,

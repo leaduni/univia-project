@@ -49,6 +49,8 @@ SOPORTE_HUMANO = "soporte_humano"
 QUIZ = "quiz"
 CRONOGRAMA = "cronograma"
 FLASHCARDS = "flashcards"
+CONSULTA_DOCENTES = "consulta_docentes"
+CONSULTA_PRERREQUISITOS = "consulta_prerrequisitos"
 
 INTENTS = {
     RECURSO,
@@ -60,6 +62,8 @@ INTENTS = {
     QUIZ,
     CRONOGRAMA,
     FLASHCARDS,
+    CONSULTA_DOCENTES,
+    CONSULTA_PRERREQUISITOS,
 }
 
 # Adónde cae lo que no se pudo clasificar. `general` es el único que no toca
@@ -92,12 +96,16 @@ soporte_humano: algo falla, un dato está mal, o pide hablar con una persona.
 quiz: pide una prueba, cuestionario, preguntas para practicar o autoevaluarse.
 cronograma: pide un plan, calendario u organización de estudio.
 flashcards: pide tarjetas de estudio, fichas de repaso o preguntas y respuestas breves.
+consulta_docentes: pregunta por quién dicta/enseña un curso o los docentes/profesores/catedráticos de una materia.
+consulta_prerrequisitos: pregunta por prerrequisitos, qué cursos hay que llevar antes de otro, requisitos previos de X.
 
 Desempate:
 - Pedir un archivo gana sobre explicar.
 - "mi/me/llevo/aprobé" indica estado_academico, SALVO que diga que el dato está mal o algo falla: eso es soporte_humano.
 - "cómo hago/genero/veo X" dentro de la plataforma es navegacion_ayuda, aunque mencione un examen o material.
-- Si pide explícitamente tarjetas, cuestionario o cronograma, usa respectivamente flashcards, quiz o cronograma, aunque mencione un curso."""
+- Si pide explícitamente tarjetas, cuestionario o cronograma, usa respectivamente flashcards, quiz o cronograma, aunque mencione un curso.
+- Si pregunta por quién dicta/enseña o los docentes de un curso, es consulta_docentes, aunque mencione exámenes o material.
+- "qué prerrequisitos tiene X" o "qué llevo antes de X" es consulta_prerrequisitos; "puedo llevar YO" o "mi avance" sigue siendo estado_academico."""
 
 
 def _normalizar(salida: Optional[str]) -> Optional[str]:

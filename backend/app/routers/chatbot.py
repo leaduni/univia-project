@@ -29,6 +29,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.chatbot import handlers, intents
+from app.chatbot.user_context import cargar_contexto_usuario
 from app.core.auth_utils import get_current_user
 from app.core.database import get_supabase
 from app.core.llm import chatear, get_groq
@@ -396,6 +397,34 @@ async def enviar_mensaje(datos: NuevoMensaje, user_data=Depends(get_current_user
     # y devuelve el contexto con el que se generará. Tampoco lanza.
     contexto = handlers.construir_contexto(intent, mensaje, supabase, user, token)
 
+    ctx_usuario = await cargar_contexto_usuario(supabase, user)
+
+    system_extra = contexto.system_extra
+    if ctx_usuario["disponible"]:
+        cursos_activos = (
+            "; ".join(ctx_usuario["cursos_activos"])
+            if ctx_usuario["cursos_activos"]
+            else "ninguno"
+        )
+        bloque_usuario = (
+            "CONTEXTO DEL USUARIO ACTUAL "
+            "(datos verificados de su cuenta; no inventes ni extiendas):\n"
+            f"- Nombre: {ctx_usuario['nombre'] or 'no disponible'}\n"
+            f"- Avance: {ctx_usuario['porcentaje']}% "
+            f"({ctx_usuario['creditos_aprobados']}/"
+            f"{ctx_usuario['creditos_totales']} créditos; "
+            f"{ctx_usuario['cursos_aprobados']}/"
+            f"{ctx_usuario['cursos_totales']} cursos)\n"
+            f"- Cursos activos: {cursos_activos}\n"
+            "- Recomendación académica: "
+            f"{ctx_usuario['recomendacion'] or 'no disponible'}"
+        )
+        system_extra = (
+            f"{bloque_usuario}\n\n{system_extra}".strip()
+            if system_extra
+            else bloque_usuario
+        )
+
     # El turno actual se le pasa al modelo con el bloque de datos por delante,
     # pero en el historial ya quedó guardado el mensaje limpio: lo que el
     # estudiante escribió no es lo mismo que lo que se le manda al modelo.
@@ -435,7 +464,7 @@ async def enviar_mensaje(datos: NuevoMensaje, user_data=Depends(get_current_user
 
         partes: list[str] = []
         try:
-            async for delta in _chunks_sin_bloquear(mensajes, contexto.system_extra):
+            async for delta in _chunks_sin_bloquear(mensajes, system_extra):
                 partes.append(delta)
                 yield f"data: {json.dumps({'delta': delta})}\n\n"
 

@@ -929,5 +929,27 @@ export const apiService = {
         const { error } = await supabase.auth.signOut();
         limpiarCache();
         if (error) console.error("Error signing out:", error);
-    }
+    },
+
+    /**
+     * Reconstruye un hilo del chatbot para retomarlo al recargar la página.
+     *
+     * Devuelve `null` (no lanza) ante un 404: un `conversacion_id` guardado en
+     * localStorage puede apuntar a un hilo ya borrado por el usuario o
+     * expirado por la retención de 30 días, y eso no es un error real — quien
+     * llama simplemente empieza un hilo nuevo.
+     */
+    async obtenerConversacionChat(id: number) {
+        try {
+            const response = await fetchWithAuth(`${API_URL}/chatbot/conversaciones/${id}`);
+            if (response.status === 404) return null;
+            if (!response.ok) {
+                throw new Error(`Error cargando la conversación ${id}: ${response.statusText}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error(`API Error (obtenerConversacionChat ${id}):`, error);
+            throw error;
+        }
+    },
 };

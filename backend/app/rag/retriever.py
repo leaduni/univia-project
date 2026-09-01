@@ -1,9 +1,9 @@
 import os
-import random
 import logging
-from openai import OpenAI
 from dotenv import load_dotenv
 from supabase import Client, create_client
+
+from app.rag.embedder import SyllabusEmbedder
 
 load_dotenv()
 
@@ -16,37 +16,25 @@ class SyllabusRetriever:
         if not supabase_url or not supabase_key:
             logger.error("No se encontraron las credenciales de usuario para supabase.")
 
-        api_key = os.getenv("OPEN_AI_INGEST_API_KEY")
-        if not api_key:
-            logger.error("No se encontró la API KEY de OpenAI para embeddings.")
-
-        self.client = OpenAI(api_key=api_key, timeout=10.0)
         self.supabase: Client = create_client(supabase_url, supabase_key)
         if token:
             # Consulta la base de datos con la sesión del usuario autenticado
             # (se respetan las políticas RLS) en vez de la clave anónima.
             self.supabase.postgrest.auth(token)
         self.expected_dimensions = expected_dimensions
-        # Tiene que ser el MISMO modelo con el que se vectorizó el corpus:
-        # vectores de modelos distintos no son comparables entre sí.
-        self.model_name = model_name or os.getenv(
-            "OPENAI_EMBED_MODEL", "text-embedding-3-small"
+
+        # La pregunta se vectoriza con el MISMO embedder que ingiere el corpus.
+        # No se elige proveedor acá: hacerlo por separado fue justo el bug que
+        # dejó el corpus en Gemini y las consultas en OpenAI, comparando
+        # vectores de espacios distintos sin que nada fallara visiblemente.
+        self.embedder = SyllabusEmbedder(
+            model_name=model_name, expected_dimensions=expected_dimensions,
         )
+        self.model_name = self.embedder.model_name
 
     def vectorizar_pregunta(self, pregunta: str) -> list:
         logger.debug("Vectorizando el query ...")
-
-        try:
-            result = self.client.embeddings.create(
-                model=self.model_name,
-                input=pregunta,
-            )
-
-            vector = result.data[0].embedding
-            return vector[:self.expected_dimensions]
-        except Exception as e:
-            logger.error(f"Error al vectorizar la pregunta: {e}")
-            return []
+        return self.embedder.vectorizar_consulta(pregunta)
 
     def buscar_contexto(self, pregunta: str, limit: int = 5, umbral_similitud: float = 0.5, curso_id: int = None) -> list:
         pregunta_vectorizada = self.vectorizar_pregunta(pregunta)

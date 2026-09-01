@@ -1,12 +1,14 @@
 """
-Generador de embeddings usando OpenAI text-embedding-3-small.
+Generador de embeddings: Gemini por defecto, OpenAI como respaldo.
 
-Claude no expone API de embeddings, así que esta pieza de la ingesta va por
-OpenAI. El modelo devuelve 1536 dimensiones nativas, que es justo el ancho de
-la columna pgvector de `resource_chunks`.
+Gemini (gemini-embedding-001) se pide con output_dimensionality=1536 para
+calzar exacto con la columna pgvector de `resource_chunks` sin migrar el
+esquema. Si GEMINI_VISION_API_KEY no está configurada, cae a OpenAI
+text-embedding-3-small (también 1536 nativas).
 
-Los vectores de modelos distintos NO son comparables: si se cambia el modelo
-hay que re-vectorizar todo el corpus, no solo lo nuevo.
+Los vectores de modelos distintos NO son comparables: si se cambia el
+proveedor hay que re-vectorizar todo el corpus con revectorizar_chunks.py,
+no solo lo nuevo.
 
 Hito 1.1 — Quick Wins:
   - batch_size configurable (default 20).
@@ -24,10 +26,13 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 from app.rag.cost_tracker import cost_tracker
+from app.core.llm import get_gemini_vision
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+GEMINI_EMBED_MODEL = os.getenv("GEMINI_EMBED_MODEL", "gemini-embedding-001")
 
 
 def _backoff_delay(attempt: int, base: float = 1.0, max_delay: float = 60.0) -> float:
@@ -55,34 +60,74 @@ class SyllabusEmbedder:
         base_delay: float = 1.0,
         max_delay: float = 60.0,
         cache=None,
+        proveedor=None,
     ):
         """
         Args:
-            model_name: Modelo de embedding de OpenAI.
+            model_name: Modelo de embedding (del proveedor activo).
             expected_dimensions: Dimensión del vector de salida.
             batch_size: Chunks por lote enviados a la API (default 20).
             max_retries: Reintentos máximos ante 429 (default 5).
             base_delay: Delay base en segundos para backoff (default 1.0).
             max_delay: Cota superior de espera en segundos (default 60.0).
             cache: Instancia opcional de EmbeddingCache.
-        """
-        api_key = os.getenv("OPEN_AI_INGEST_API_KEY")
-        if not api_key:
-            logger.error("OPEN_AI_INGEST_API_KEY no configurada.")
+            proveedor: "gemini" u "openai". Por defecto, EMBEDDINGS_PROVIDER del
+                .env ("openai" si no está seteada).
 
-        self.client = OpenAI(api_key=api_key)
-        self.model_name = model_name or os.getenv(
-            "OPENAI_EMBED_MODEL", "text-embedding-3-small"
-        )
+                No se elige en base a si hay GEMINI_VISION_API_KEY configurada
+                (esa key es del OCR, un problema totalmente aparte): atar el
+                proveedor de embeddings a la presencia de la key de OTRO
+                servicio fue justo el bug que dejó el corpus vectorizado con
+                Gemini y las consultas con OpenAI sin que nadie lo decidiera
+                a propósito. Ahora es una decisión explícita y única.
+        """
+        self.proveedor = proveedor or os.getenv("EMBEDDINGS_PROVIDER", "openai")
+
+        if self.proveedor == "gemini":
+            self.client = get_gemini_vision()
+            if self.client is None:
+                raise RuntimeError("GEMINI_VISION_API_KEY no configurada.")
+            self.model_name = model_name or GEMINI_EMBED_MODEL
+        else:
+            api_key = os.getenv("OPEN_AI_INGEST_API_KEY")
+            if not api_key:
+                logger.error("OPEN_AI_INGEST_API_KEY no configurada.")
+            self.client = OpenAI(api_key=api_key)
+            self.model_name = model_name or os.getenv(
+                "OPENAI_EMBED_MODEL", "text-embedding-3-small"
+            )
+
         self.expected_dimensions = expected_dimensions
         self.batch_size = batch_size
         self.max_retries = max_retries
         self.base_delay = base_delay
         self.max_delay = max_delay
         self.cache = cache
+        logger.info(f"Embedder listo | proveedor={self.proveedor} modelo={self.model_name}")
 
-    def _llamar_api(self, textos: list) -> list:
-        """Llama a la API de embeddings y devuelve los vectores."""
+    def _llamar_api(self, textos: list, task_type: str = "RETRIEVAL_DOCUMENT") -> list:
+        """Llama a la API de embeddings y devuelve los vectores.
+
+        Args:
+            textos: textos a vectorizar.
+            task_type: solo aplica a Gemini. Los documentos del corpus se
+                vectorizan como RETRIEVAL_DOCUMENT y las preguntas de búsqueda
+                como RETRIEVAL_QUERY. La asimetría es intencional del modelo:
+                ambos caen en el mismo espacio vectorial, pero cada lado se
+                optimiza para su papel. OpenAI no distingue y lo ignora.
+        """
+        if self.proveedor == "gemini":
+            from google.genai import types
+            resultado = self.client.models.embed_content(
+                model=self.model_name,
+                contents=textos,
+                config=types.EmbedContentConfig(
+                    output_dimensionality=self.expected_dimensions,
+                    task_type=task_type,
+                ),
+            )
+            return [list(e.values) for e in resultado.embeddings]
+
         resultado = self.client.embeddings.create(
             model=self.model_name,
             input=textos,
@@ -92,6 +137,28 @@ class SyllabusEmbedder:
         # trae `index` explícito; se ordena por él para no depender de eso.
         datos = sorted(resultado.data, key=lambda d: d.index)
         return [d.embedding[: self.expected_dimensions] for d in datos]
+
+    def vectorizar_consulta(self, pregunta: str) -> list:
+        """Vectoriza una pregunta para buscar en el corpus.
+
+        Es el lado de consulta de la búsqueda semántica, y existe aquí —y no en
+        el retriever— para que la pregunta y los documentos se vectoricen SIEMPRE
+        con el mismo proveedor y modelo. Cuando cada lado elegía por su cuenta,
+        el corpus terminó ingerido con Gemini y consultado con OpenAI: vectores
+        de espacios distintos, similitudes sin sentido y ningún error visible.
+
+        Returns:
+            El vector, o [] si la API falla (quien llama decide qué hacer).
+        """
+        try:
+            vectores = self._llamar_api([pregunta], task_type="RETRIEVAL_QUERY")
+        except Exception as e:
+            logger.error(f"Error vectorizando la consulta: {e}")
+            return []
+
+        if not vectores:
+            return []
+        return vectores[0][: self.expected_dimensions]
 
     def _procesar_lote_con_cache(self, lote: list) -> list:
         """

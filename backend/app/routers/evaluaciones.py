@@ -14,7 +14,7 @@ from typing import List, Optional, Dict, Any, Union, AsyncGenerator
 from dotenv import load_dotenv
 load_dotenv()
 
-from app.core.llm import MODELO_GENERACION, generar, get_openai_generacion
+from app.core.llm import MODELO_GENERACION_GPT, generar_gpt, get_openai
 from app.rag.retriever import SyllabusRetriever
 from app.core.auth_utils import get_current_user
 
@@ -971,7 +971,7 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion, user_data=Depends(
     
     user, token = user_data
 
-    if not get_openai_generacion():
+    if not get_openai():
         raise HTTPException(status_code=500, detail="API Key de OpenAI no configurada")
 
     try:
@@ -991,13 +991,10 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion, user_data=Depends(
         else:
             prompt = generar_prompt_teorico(config, contexto)
 
-        # El system prompt va aparte y se cachea: son >2.000 tokens que se
-        # reenvían idénticos en cada generación (ver app/core/llm.py).
-        raw_content = generar(
+        raw_content = generar_gpt(
             prompt=prompt,
             system=SYSTEM_MSG_EVALUACION,
             max_tokens=16000,
-            stream=True,
             json_mode=True,
         )
 
@@ -1262,7 +1259,7 @@ async def _generar_una_pregunta(idx: int, prompt: str, tipo_real: str) -> dict:
     loop = asyncio.get_running_loop()
 
     def _call():
-        return generar(prompt=prompt, system=SYSTEM_MSG_TEORICO, max_tokens=4000)
+        return generar_gpt(prompt=prompt, system=SYSTEM_MSG_TEORICO, max_tokens=4000)
 
     ultimo_error = None
     for intento in range(3):
@@ -1285,7 +1282,7 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion, user_data=D
     logger.info(f"PASO 1: Nueva petición recibida | curso_id={config.curso_id}, modulo='{config.modulo}', "
                 f"temas={config.temas}, num_preguntas={config.num_preguntas}")
 
-    if not get_openai_generacion():
+    if not get_openai():
         logger.error("PASO 1 ERROR: cliente de OpenAI no inicializado - API Key no configurada")
         raise HTTPException(status_code=500, detail="API Key de OpenAI no configurada")
 
@@ -1317,12 +1314,10 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion, user_data=D
             )
 
         logger.info("PASO 3: Verificando cliente de OpenAI...")
-        if not get_openai_generacion():
-            logger.error("PASO 3 ERROR: OPENAI_API_KEY no está configurada en variables de entorno.")
+        if not get_openai():
+            logger.error("PASO 3 ERROR: OPEN_AI_INGEST_API_KEY no está configurada en variables de entorno.")
             raise HTTPException(status_code=500, detail="Falta configuración de API Key de OpenAI en el servidor.")
-        _key_env = os.getenv("OPENAI_API_KEY") or ""
-        _key_preview = f"{_key_env[:8]}..." if _key_env else "Presente"
-        logger.info(f"PASO 3 OK: API Key verificada ({_key_preview})")
+        logger.info("PASO 3 OK: API Key presente.")
 
     except Exception as e:
         stack_trace = traceback.format_exc()
@@ -1353,7 +1348,7 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion, user_data=D
                     )
                 loop = asyncio.get_running_loop()
                 def _call_prog():
-                    return generar(
+                    return generar_gpt(
                         prompt=prompt_prog,
                         system="Eres un arquitecto de software senior. Responde ÚNICAMENTE con JSON válido, sin texto adicional ni bloques de código.",
                         max_tokens=6000,
@@ -1521,7 +1516,7 @@ async def generar_retroalimentacion(
     basada en los resultados del estudiante
     """
     
-    if not get_openai_generacion():
+    if not get_openai():
         return "Retroalimentación no disponible"
 
     temas_dificultad = []
@@ -1549,25 +1544,25 @@ Para cualquier fórmula matemática, usa la sintaxis de LaTeX: $...$ para fórmu
 """
 
     try:
-        return generar(prompt=prompt, max_tokens=1500)
+        return generar_gpt(prompt=prompt, max_tokens=1500)
     except Exception:
         return f"Retroalimentación automática: Has obtenido un {porcentaje:.1f}%. {'¡Excelente trabajo!' if porcentaje >= 70 else 'Sigue practicando para mejorar.'}"
 
 @router.get("/evaluaciones/test")
-async def test_claude():
-    """Endpoint legado de prueba para verificar la generación con OpenAI."""
+async def test_generacion():
+    """Endpoint de prueba para verificar que la generación con GPT funciona."""
 
-    if not get_openai_generacion():
+    if not get_openai():
         return {"status": "error", "message": "API Key de OpenAI no configurada"}
 
     try:
-        texto = generar(
+        texto = generar_gpt(
             prompt="Di 'Hola, UniVia está listo para generar evaluaciones!'",
             max_tokens=100,
         )
         return {
             "status": "success",
-            "message": f"OpenAI ({MODELO_GENERACION}) funcionando correctamente",
+            "message": f"GPT ({MODELO_GENERACION_GPT}) funcionando correctamente",
             "response": texto,
         }
     except Exception as e:

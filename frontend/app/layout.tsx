@@ -42,6 +42,7 @@ export const metadata: Metadata = {
 
 import { AuthProvider } from "@/components/providers/auth-context"
 import { ThemeProvider } from "@/components/theme-provider"
+import { ChatBubble } from "@/components/chatbot/chat-bubble"
 
 export default function RootLayout({
   children,
@@ -54,6 +55,12 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <AuthProvider>
             {children}
+            {/* Montado a nivel de layout raíz (no en DashboardLayout) para que
+                el hilo de la conversación sobreviva a la navegación entre
+                páginas: cada página instancia su propio DashboardLayout, que
+                se desmonta en cada cambio de ruta. ChatBubble decide sola
+                cuándo mostrarse (sesión + onboarding completo). */}
+            <ChatBubble />
           </AuthProvider>
         </ThemeProvider>
         <Toaster

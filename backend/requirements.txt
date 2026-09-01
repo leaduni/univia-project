@@ -11,7 +11,10 @@ httpx>=0.28.0
 langchain-text-splitters
 pdf2image
 anthropic>=1.0.0
+# Sirve para OpenAI y también para Groq (chatbot): su API es compatible y se
+# consume con este mismo SDK cambiando base_url. Ver app/core/llm.py.
 openai>=1.0.0
+google-genai>=1.10.0
 
 # Testing
 pytest>=8.0

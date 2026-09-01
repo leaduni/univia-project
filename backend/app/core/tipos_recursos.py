@@ -10,6 +10,9 @@ _ALIAS_A_CANONICO = {
     "examen": "Examen",
     "parcial": "Examen",
     "final": "Examen",
+    # Como se le dice coloquialmente en Perú a un examen pasado.
+    "plancha": "Examen",
+    "planchas": "Examen",
     "practica": "Practica",
     "práctica": "Practica",
     "silabo": "Silabo",

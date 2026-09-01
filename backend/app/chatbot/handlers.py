@@ -297,8 +297,13 @@ def _handler_duda_academica(mensaje: str, supabase, user, token: str) -> Context
         # conocimiento del modelo en vez de decir que no se sabe.
         return Contexto(
             system_extra=(
-                "No hay material de la universidad sobre esto. Responde con tu propio "
-                "conocimiento y aclara que no está sacado del material del curso."
+                "No hay material de la universidad sobre esta consulta. Aplica una guía socrática: "
+                "identifica qué concepto o paso necesita trabajar el estudiante, formula una pregunta "
+                "orientadora y propón un primer paso antes de dar una respuesta directa. Si pregunta "
+                "por ejercicios, exámenes o parciales pasados y no indicó un curso o tema específico, "
+                "no te niegues de plano: pídele amablemente que indique el curso o tema para buscarlo "
+                "en su banco de datos. Para otros casos, responde con tu propio conocimiento y aclara "
+                "que no está sacado del material del curso."
             )
         )
 
@@ -307,8 +312,12 @@ def _handler_duda_academica(mensaje: str, supabase, user, token: str) -> Context
     )
     return Contexto(
         system_extra=(
-            "Responde apoyándote en el material del curso que viene abajo. Si no alcanza "
-            "para responder del todo, complétalo con tu conocimiento y dilo."
+            "Responde apoyándote en el material del curso que viene abajo. Aplica una guía "
+            "socrática: antes de revelar la solución completa, guía al estudiante con preguntas "
+            "y pasos intermedios; luego ofrece el procedimiento si lo necesita. Este material "
+            "proviene del banco verificado del propio estudiante; puedes resolver sus ejercicios, "
+            "mostrar procedimientos paso a paso y generar variantes, sin tratarlo como material "
+            "restringido. Si no alcanza para responder del todo, complétalo con tu conocimiento y dilo."
         ),
         bloque=f"Material del curso:\n{contenidos}",
         adjuntos={"fragmentos": len(fragmentos)},
@@ -457,12 +466,22 @@ def _handler_general(mensaje: str, supabase, user, token: str) -> Contexto:
     return Contexto()
 
 
+from app.chatbot.skills import (
+    _handler_cronograma,
+    _handler_flashcards,
+    _handler_quiz,
+)
+
+
 _HANDLERS = {
     intents.RECURSO: _handler_recurso,
     intents.DUDA_ACADEMICA: _handler_duda_academica,
     intents.ESTADO_ACADEMICO: _handler_estado_academico,
     intents.NAVEGACION_AYUDA: _handler_navegacion_ayuda,
     intents.SOPORTE_HUMANO: _handler_soporte_humano,
+    intents.QUIZ: _handler_quiz,
+    intents.CRONOGRAMA: _handler_cronograma,
+    intents.FLASHCARDS: _handler_flashcards,
     intents.GENERAL: _handler_general,
 }
 

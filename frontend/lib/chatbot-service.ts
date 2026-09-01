@@ -18,7 +18,7 @@ const API_URL = BASE_URL.endsWith("/api") ? BASE_URL : `${BASE_URL}/api`
 // varios segundos en generar y streamea token a token, así que una vez que
 // `fetch()` resuelve con la respuesta, el temporizador se cancela y la
 // lectura del cuerpo no tiene límite propio.
-const TIMEOUT_CONEXION_MS = 20000
+const TIMEOUT_CONEXION_MS = 45000
 
 interface CabeceraStreamChat {
   conversacionId: number

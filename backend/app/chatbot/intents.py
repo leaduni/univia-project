@@ -46,6 +46,9 @@ ESTADO_ACADEMICO = "estado_academico"
 NAVEGACION_AYUDA = "navegacion_ayuda"
 GENERAL = "general"
 SOPORTE_HUMANO = "soporte_humano"
+QUIZ = "quiz"
+CRONOGRAMA = "cronograma"
+FLASHCARDS = "flashcards"
 
 INTENTS = {
     RECURSO,
@@ -54,6 +57,9 @@ INTENTS = {
     NAVEGACION_AYUDA,
     GENERAL,
     SOPORTE_HUMANO,
+    QUIZ,
+    CRONOGRAMA,
+    FLASHCARDS,
 }
 
 # Adónde cae lo que no se pudo clasificar. `general` es el único que no toca
@@ -83,11 +89,15 @@ estado_academico: pregunta por SUS datos (sus notas, avance, créditos, si puede
 navegacion_ayuda: cómo usar la web de UniVia o dónde encontrar una sección.
 general: cultura general, saludos, charla.
 soporte_humano: algo falla, un dato está mal, o pide hablar con una persona.
+quiz: pide una prueba, cuestionario, preguntas para practicar o autoevaluarse.
+cronograma: pide un plan, calendario u organización de estudio.
+flashcards: pide tarjetas de estudio, fichas de repaso o preguntas y respuestas breves.
 
 Desempate:
 - Pedir un archivo gana sobre explicar.
 - "mi/me/llevo/aprobé" indica estado_academico, SALVO que diga que el dato está mal o algo falla: eso es soporte_humano.
-- "cómo hago/genero/veo X" dentro de la plataforma es navegacion_ayuda, aunque mencione un examen o material."""
+- "cómo hago/genero/veo X" dentro de la plataforma es navegacion_ayuda, aunque mencione un examen o material.
+- Si pide explícitamente tarjetas, cuestionario o cronograma, usa respectivamente flashcards, quiz o cronograma, aunque mencione un curso."""
 
 
 def _normalizar(salida: Optional[str]) -> Optional[str]:

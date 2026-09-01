@@ -70,6 +70,7 @@ export function ChatBubble() {
   const { user, session } = useAuth()
   const enLinea = useOnline()
   const [abierto, setAbierto] = useState(false)
+  const [expandido, setExpandido] = useState(false)
   // Controla el pulso de "mírame" del botón; se apaga en la primera
   // interacción y no vuelve a mostrarse en este montaje.
   const [yaInteractuo, setYaInteractuo] = useState(false)
@@ -247,7 +248,14 @@ export function ChatBubble() {
   if (!user || !onboardingCompletado || !session?.access_token) return null
 
   return (
-    <div ref={contenedorRef} className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
+    <div
+      ref={contenedorRef}
+      className={
+        abierto && expandido
+          ? "fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          : "fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3"
+      }
+    >
       {abierto && (
         <ChatPanel
           mensajes={mensajes}
@@ -255,30 +263,34 @@ export function ChatBubble() {
           enLinea={enLinea}
           onEnviar={enviar}
           onCerrar={() => setAbierto(false)}
+          expandido={expandido}
+          onAlternarExpandido={() => setExpandido((previo) => !previo)}
         />
       )}
 
-      <button
-        type="button"
-        onClick={alternar}
-        aria-label={abierto ? "Cerrar el asistente" : "Abrir el asistente"}
-        aria-expanded={abierto}
-        className="relative w-14 h-14 rounded-full gradient-ai-neon text-white shadow-lg shadow-[var(--ai-neon-magenta)]/40 flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
-      >
-        {!yaInteractuo && !abierto && (
-          <span
-            className="absolute inset-0 rounded-full bg-[var(--ai-neon-pink)]/50 animate-ping"
-            aria-hidden="true"
-          />
-        )}
-        {sinVer && !abierto && (
-          <span
-            className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#0b0c16]"
-            aria-hidden="true"
-          />
-        )}
-        {abierto ? <X className="w-6 h-6" /> : <MessageCircle className="w-6 h-6" />}
-      </button>
+      {(!abierto || !expandido) && (
+        <button
+          type="button"
+          onClick={alternar}
+          aria-label={abierto ? "Cerrar el asistente" : "Abrir el asistente"}
+          aria-expanded={abierto}
+          className="relative w-14 h-14 rounded-full gradient-ai-neon text-white shadow-lg shadow-[var(--ai-neon-magenta)]/40 flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+        >
+          {!yaInteractuo && !abierto && (
+            <span
+              className="absolute inset-0 rounded-full bg-[var(--ai-neon-pink)]/50 animate-ping"
+              aria-hidden="true"
+            />
+          )}
+          {sinVer && !abierto && (
+            <span
+              className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#0b0c16]"
+              aria-hidden="true"
+            />
+          )}
+          {abierto ? <X className="w-6 h-6" /> : <MessageCircle className="w-6 h-6" />}
+        </button>
+      )}
     </div>
   )
 }

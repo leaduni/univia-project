@@ -4,7 +4,7 @@
 "use client"
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react"
-import { Send, Sparkles, WifiOff, X } from "lucide-react"
+import { Maximize2, Minimize2, Send, Sparkles, WifiOff, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { MessageBubble } from "./message-bubble"
 import type { MensajeChat } from "@/types/chatbot"
@@ -25,9 +25,19 @@ interface ChatPanelProps {
   enLinea: boolean
   onEnviar: (texto: string) => void
   onCerrar: () => void
+  expandido?: boolean
+  onAlternarExpandido?: () => void
 }
 
-export function ChatPanel({ mensajes, enviando, enLinea, onEnviar, onCerrar }: ChatPanelProps) {
+export function ChatPanel({
+  mensajes,
+  enviando,
+  enLinea,
+  onEnviar,
+  onCerrar,
+  expandido = false,
+  onAlternarExpandido,
+}: ChatPanelProps) {
   const [texto, setTexto] = useState("")
   const finRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -69,7 +79,10 @@ export function ChatPanel({ mensajes, enviando, enLinea, onEnviar, onCerrar }: C
     <div
       role="dialog"
       aria-label="Asistente de UniVia"
-      className="w-[min(92vw,380px)] h-[min(70vh,560px)] flex flex-col rounded-3xl bg-[#0d0e1b]/95 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/40 overflow-hidden anim-up"
+      className={`${expandido
+        ? "w-[min(94vw,940px)] h-[min(88vh,820px)]"
+        : "w-[min(92vw,380px)] h-[min(70vh,560px)]"
+      } flex flex-col rounded-3xl bg-[#0d0e1b]/95 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/40 overflow-hidden anim-up`}
     >
       {/* Cabecera */}
       <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10 gradient-ai-neon shrink-0">
@@ -80,14 +93,24 @@ export function ChatPanel({ mensajes, enviando, enLinea, onEnviar, onCerrar }: C
             <p className="text-[11px] text-white/80 truncate">Recursos, dudas y tu avance académico</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onCerrar}
-          aria-label="Cerrar el asistente"
-          className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-white/90 hover:bg-white/15 transition-colors"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={onAlternarExpandido}
+            aria-label={expandido ? "Reducir el asistente" : "Expandir el asistente"}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-white/90 hover:bg-white/15 transition-colors"
+          >
+            {expandido ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
+          <button
+            type="button"
+            onClick={onCerrar}
+            aria-label="Cerrar el asistente"
+            className="w-7 h-7 rounded-full flex items-center justify-center text-white/90 hover:bg-white/15 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Mensajes */}
@@ -102,7 +125,12 @@ export function ChatPanel({ mensajes, enviando, enLinea, onEnviar, onCerrar }: C
           </div>
         ) : (
           mensajes.map((mensaje) => (
-            <MessageBubble key={mensaje.id} mensaje={mensaje} onReintentar={onEnviar} />
+            <MessageBubble
+              key={mensaje.id}
+              mensaje={mensaje}
+              onReintentar={onEnviar}
+              expandido={expandido}
+            />
           ))
         )}
         <div ref={finRef} />

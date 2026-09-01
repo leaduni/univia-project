@@ -76,9 +76,10 @@ interface MessageBubbleProps {
   mensaje: MensajeChat
   /** Reenvía `mensaje.textoOrigen` como un turno nuevo. Solo aplica a errores. */
   onReintentar?: (texto: string) => void
+  expandido?: boolean
 }
 
-export function MessageBubble({ mensaje, onReintentar }: MessageBubbleProps) {
+export function MessageBubble({ mensaje, onReintentar, expandido = false }: MessageBubbleProps) {
   const esUsuario = mensaje.rol === "user"
   const sinTextoTodavia = !mensaje.contenido && mensaje.enCurso && !mensaje.esError
   const recursos = mensaje.adjuntos?.recursos
@@ -87,7 +88,13 @@ export function MessageBubble({ mensaje, onReintentar }: MessageBubbleProps) {
 
   return (
     <div className={cn("flex", esUsuario ? "justify-end" : "justify-start")}>
-      <div className={cn("max-w-[85%] flex flex-col gap-2", esUsuario && "items-end")}>
+      <div
+        className={cn(
+          expandido ? "max-w-[95%]" : "max-w-[85%]",
+          "flex flex-col gap-2",
+          esUsuario && "items-end",
+        )}
+      >
         <div
           className={cn(
             "rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed",
@@ -109,7 +116,10 @@ export function MessageBubble({ mensaje, onReintentar }: MessageBubbleProps) {
           ) : esUsuario ? (
             <p className="whitespace-pre-wrap break-words">{mensaje.contenido}</p>
           ) : (
-            <MarkdownRenderer content={mensaje.contenido} className="prose-sm prose-p:my-1 prose-ul:my-1" />
+            <MarkdownRenderer
+              content={mensaje.contenido}
+              className="prose-sm prose-p:my-1 prose-ul:my-1 max-w-full overflow-x-auto"
+            />
           )}
           {puedeReintentar && (
             <button

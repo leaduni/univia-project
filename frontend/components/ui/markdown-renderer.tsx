@@ -4,12 +4,29 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import 'katex/dist/katex.min.css';
 
 interface MarkdownRendererProps {
   content: string | { contexto: string };
   className?: string;
 }
+
+const preprocessLaTeX = (content: string): string => {
+  if (!content) return "";
+
+  return content
+    // Reemplaza \[...\] por $$...$$
+    .replace(/\\\[([\s\S]*?)\\\]/g, "$$$$$1$$$$")
+    // Reemplaza \(...\) por $...$
+    .replace(/\\\(([\s\S]*?)\\\)/g, "$$$1$$");
+};
+
+const schema = {
+  ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames || []), 'details', 'summary'],
+};
 
 const sanitizeLatex = (text: string): string => {
   if (!text) return "";
@@ -36,7 +53,7 @@ const sanitizeLatex = (text: string): string => {
 
 const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className }) => {
   const raw = typeof content === 'object' && content !== null && 'contexto' in content ? content.contexto : content;
-  const textToRender = sanitizeLatex(String(raw));
+  const textToRender = sanitizeLatex(preprocessLaTeX(String(raw)));
 
   return (
     <>
@@ -52,7 +69,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className 
         <div className={`prose dark:prose-invert ${className}`}>
           <ReactMarkdown
             remarkPlugins={[remarkMath]}
-            rehypePlugins={[rehypeKatex]}
+            rehypePlugins={[rehypeRaw, [rehypeSanitize, schema], rehypeKatex]}
           >
             {textToRender}
           </ReactMarkdown>

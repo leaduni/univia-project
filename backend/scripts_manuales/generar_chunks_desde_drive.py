@@ -27,6 +27,7 @@ flags manuales.
 """
 import argparse
 import asyncio
+import logging
 import os
 import random
 import shutil
@@ -166,8 +167,20 @@ def necesita_procesamiento(sb, recurso: dict, force: bool = False) -> bool:
     return not ya_procesado(sb, recurso["id"])
 
 
-def actualizar_estado(sb, recurso_id: int, estado: str) -> None:
-    sb.table("recursos").update({"rag_status": estado}).eq("id", recurso_id).execute()
+def actualizar_estado(sb, recurso_id: int, estado: str, max_intentos: int = 3) -> None:
+    """Actualiza el rag_status del recurso con reintentos frente a microcortes
+    de red o fallos de conexión SSL con Supabase."""
+    for intento in range(1, max_intentos + 1):
+        try:
+            sb.table("recursos").update({"rag_status": estado}).eq("id", recurso_id).execute()
+            return
+        except Exception as e:
+            logging.error(
+                f"Error actualizando estado del recurso {recurso_id} a '{estado}' "
+                f"(intento {intento}/{max_intentos}): {e}."
+            )
+            if intento < max_intentos:
+                time.sleep(2)
 
 
 def reclamar_recurso(sb, recurso_id: int, force: bool = False) -> bool:

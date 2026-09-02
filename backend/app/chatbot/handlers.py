@@ -414,6 +414,56 @@ def _handler_estado_academico(mensaje: str, supabase, user, token: str) -> Conte
     )
 
 
+def _handler_catalogo(mensaje: str, supabase, user, token: str) -> Contexto:
+    """Devuelve el catálogo real de facultades y carreras de UniVia."""
+    try:
+        facultades = getattr(
+            supabase.table("facultades")
+            .select("id, codigo, nombre, carreras(id, codigo, nombre)")
+            .execute(),
+            "data",
+            None,
+        ) or []
+    except Exception as e:
+        logger.error(f"No se pudo consultar el catálogo académico: {e}")
+        return Contexto(
+            system_extra=(
+                "No pudiste consultar el catálogo académico. Dilo con honestidad "
+                "y sugiere reintentar."
+            )
+        )
+
+    if not facultades:
+        return Contexto(
+            system_extra=(
+                "El catálogo académico no tiene facultades ni carreras registradas. "
+                "Dilo con claridad; no inventes datos."
+            )
+        )
+
+    lineas = []
+    for facultad in facultades:
+        etiqueta = f"{facultad.get('codigo')} — {facultad.get('nombre')}"
+        carreras = facultad.get("carreras") or []
+        if carreras:
+            lineas.append(f"Facultad: {etiqueta}")
+            lineas.extend(
+                f"  - {carrera.get('codigo')} — {carrera.get('nombre')}"
+                for carrera in carreras
+            )
+        else:
+            lineas.append(f"Facultad: {etiqueta} (sin carreras registradas)")
+
+    return Contexto(
+        system_extra=(
+            "Esta es la lista real de facultades y carreras registrada en UniVia. "
+            "Responde al usuario ÚNICAMENTE con estos datos; no agregues ni inventes "
+            "facultades u ordenamientos de otras universidades."
+        ),
+        bloque="Catálogo académico de UniVia:\n" + "\n".join(lineas),
+    )
+
+
 # Mapa de la aplicación. Es un texto fijo y no una consulta porque la estructura
 # de la web no vive en la base de datos; si cambia el frontend, se actualiza acá.
 MAPA_DE_LA_APP = """Secciones de UniVia:
@@ -482,6 +532,7 @@ _HANDLERS = {
     intents.DUDA_ACADEMICA: _handler_duda_academica,
     intents.ESTADO_ACADEMICO: _handler_estado_academico,
     intents.NAVEGACION_AYUDA: _handler_navegacion_ayuda,
+    intents.CATALOGO: _handler_catalogo,
     intents.CONSULTA_DOCENTES: _handler_consulta_docentes,
     intents.CONSULTA_PRERREQUISITOS: _handler_consulta_prerrequisitos,
     intents.SOPORTE_HUMANO: _handler_soporte_humano,
@@ -497,6 +548,11 @@ def construir_contexto(intent: str, mensaje: str, supabase, user, token: str) ->
 
     Nunca lanza: si el handler revienta, se responde como conversación normal.
     """
+    # Guardarraíl defensivo: si el clasificador cayó en `general` pero el
+    # mensaje indaga explícitamente por el catálogo de la UNI, redirigimos a
+    # catalogo para servir el catálogo REAL de Supabase en vez de alucinar.
+    if intent == intents.GENERAL and intents._es_consulta_catalogo(mensaje):
+        intent = intents.CATALOGO
     handler = _HANDLERS.get(intent, _handler_general)
     try:
         return handler(mensaje, supabase, user, token)

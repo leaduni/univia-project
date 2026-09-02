@@ -44,6 +44,7 @@ RECURSO = "recurso"
 DUDA_ACADEMICA = "duda_academica"
 ESTADO_ACADEMICO = "estado_academico"
 NAVEGACION_AYUDA = "navegacion_ayuda"
+CATALOGO = "catalogo"
 GENERAL = "general"
 SOPORTE_HUMANO = "soporte_humano"
 QUIZ = "quiz"
@@ -57,6 +58,7 @@ INTENTS = {
     DUDA_ACADEMICA,
     ESTADO_ACADEMICO,
     NAVEGACION_AYUDA,
+    CATALOGO,
     GENERAL,
     SOPORTE_HUMANO,
     QUIZ,
@@ -91,6 +93,7 @@ recurso: pide un archivo o dice "descargar"/"bajar" (examen, plancha, práctica,
 duda_academica: pregunta por contenido o teoría de un curso, o qué entra en un examen.
 estado_academico: pregunta por SUS datos (sus notas, avance, créditos, si puede llevar un curso).
 navegacion_ayuda: cómo usar la web de UniVia o dónde encontrar una sección.
+catalogo: pregunta qué facultades, carreras, cursos o elementos del catálogo existen o están registrados en la plataforma.
 general: cultura general, saludos, charla.
 soporte_humano: algo falla, un dato está mal, o pide hablar con una persona.
 quiz: pide una prueba, cuestionario, preguntas para practicar o autoevaluarse.
@@ -103,6 +106,7 @@ Desempate:
 - Pedir un archivo gana sobre explicar.
 - "mi/me/llevo/aprobé" indica estado_academico, SALVO que diga que el dato está mal o algo falla: eso es soporte_humano.
 - "cómo hago/genero/veo X" dentro de la plataforma es navegacion_ayuda, aunque mencione un examen o material.
+- Si pregunta qué facultades, carreras o catálogo existen o están registradas en UniVia (p. ej. "¿qué facultades tiene UniVia?"), es catalogo. Trigger seguro: contiene "facultades", "carreras" o "catálogo".
 - Si pide explícitamente tarjetas, cuestionario o cronograma, usa respectivamente flashcards, quiz o cronograma, aunque mencione un curso.
 - Si pregunta por quién dicta/enseña o los docentes de un curso, es consulta_docentes, aunque mencione exámenes o material.
 - "qué prerrequisitos tiene X" o "qué llevo antes de X" es consulta_prerrequisitos; "puedo llevar YO" o "mi avance" sigue siendo estado_academico."""
@@ -124,6 +128,19 @@ def _normalizar(salida: Optional[str]) -> Optional[str]:
     if len(encontradas) == 1:
         return encontradas.pop()
     return None
+
+
+# Palabras clave de rescate para catalogo. Se usan SOLO cuando el clasificador
+# LLM no devuelve una etiqueta válida: preguntas explícitas sobre facultades,
+# carreras o catálogo de la UNI no deben caer en `general`.
+_RESCATE_CATALOGO = re.compile(
+    r"\b(facultades|carreras|catálogo|registro de facultades)\b", re.IGNORECASE
+)
+
+
+def _es_consulta_catalogo(mensaje: str) -> bool:
+    """True si el mensaje indaga explícitamente por el catálogo de la UNI."""
+    return bool(_RESCATE_CATALOGO.search(mensaje or ""))
 
 
 def clasificar(mensaje: str, historial: Optional[list] = None) -> str:
@@ -189,6 +206,12 @@ def clasificar(mensaje: str, historial: Optional[list] = None) -> str:
 
     intent = _normalizar(salida)
     if intent is None:
+        # Rescue por keyword: si el clasificador LLM falló (salida ruidosa o
+        # ambigua) pero el mensaje indaga explícitamente por el catálogo de la
+        # UNI, forzamos catalogo antes de degradar a general (que alucina).
+        if _es_consulta_catalogo(mensaje):
+            logger.info("Clasificador falló; rescue por keyword → 'catalogo'.")
+            return CATALOGO
         logger.warning(
             "Clasificador devolvió algo inesperado (%r); se usa '%s'.",
             (salida or "")[:120], INTENT_POR_DEFECTO,

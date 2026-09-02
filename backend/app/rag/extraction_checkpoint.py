@@ -6,7 +6,6 @@ dentro de un directorio {pdf_name}_checkpoints/. Esto permite que tareas
 asincronas escriban en paralelo sin conflictos de orden ni locking.
 """
 import logging
-import re
 import shutil
 from pathlib import Path
 from typing import Set
@@ -34,17 +33,13 @@ class ExtractionCheckpoint:
         if not self.checkpoint_dir.exists():
             return set()
         pages = set()
-        for f in self.checkpoint_dir.glob("pagina_*.md"):
-            m = re.match(r"pagina_(\d+)\.md", f.name)
-            if not m:
+        for path in self.checkpoint_dir.glob("pagina_*.*"):
+            if path.suffix not in {".md", ".txt", ".json"}:
                 continue
-            page_num = int(m.group(1))
-            content = f.read_text(encoding="utf-8")
-            if (
-                f"INICIO PAGINA {page_num}" in content
-                and f"FIN PAGINA {page_num}" in content
-            ):
-                pages.add(page_num)
+            try:
+                pages.add(int(path.stem.split("_", 1)[1]))
+            except (IndexError, ValueError):
+                continue
         return pages
 
     def page_exists(self, page_num: int) -> bool:

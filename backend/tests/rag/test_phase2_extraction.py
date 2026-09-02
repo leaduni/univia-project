@@ -229,7 +229,7 @@ class TestAsyncExtraction:
         cp.ensure_dir()
 
         # Mock _extract_page_async para que "procese" instantaneamente
-        async def fake_extract_page(page_num, total, pdf_path, prompt, modo, dpi, salvage, checkpoint, router=None):
+        async def fake_extract_page(page_num, total, pdf_path, prompt, modo, dpi, salvage, checkpoint, router=None, *args, **kwargs):
             checkpoint.save_page(page_num, f"<!-- === INICIO PAGINA {page_num} === -->\n\nContenido pagina {page_num}\n\n<!-- === FIN PAGINA {page_num} === -->\n\n")
 
         monkeypatch.setattr(extractor, "_extract_page_async", fake_extract_page)
@@ -260,7 +260,7 @@ class TestAsyncExtraction:
         max_seen = [0]
         max_allowed = 3
 
-        async def fake_extract_page(page_num, total, pdf_path, prompt, modo, dpi, salvage, checkpoint, router=None):
+        async def fake_extract_page(page_num, total, pdf_path, prompt, modo, dpi, salvage, checkpoint, router=None, *args, **kwargs):
             concurrent[0] += 1
             max_seen[0] = max(max_seen[0], concurrent[0])
             await asyncio.sleep(0.01)
@@ -299,7 +299,7 @@ class TestAsyncExtraction:
 
         processed = []
 
-        async def fake_extract_page(page_num, total, pdf_path, prompt, modo, dpi, salvage, checkpoint, router=None):
+        async def fake_extract_page(page_num, total, pdf_path, prompt, modo, dpi, salvage, checkpoint, router=None, *args, **kwargs):
             processed.append(page_num)
             checkpoint.save_page(page_num, f"Pagina {page_num}")
 
@@ -330,7 +330,7 @@ class TestAsyncExtraction:
         cp = ExtractionCheckpoint(str(sample_pdf_path))
         cp.ensure_dir()
 
-        async def fake_extract_page(page_num, total, pdf_path, prompt, modo, dpi, salvage, checkpoint, router=None):
+        async def fake_extract_page(page_num, total, pdf_path, prompt, modo, dpi, salvage, checkpoint, router=None, *args, **kwargs):
             if page_num == 2:
                 raise RuntimeError("Fallo simulado")
             checkpoint.save_page(page_num, f"Pagina {page_num}")
@@ -364,7 +364,7 @@ class TestAsyncExtraction:
 
         quota_exhausted = [False]
 
-        async def fake_extract_page(page_num, total, pdf_path, prompt, modo, dpi, salvage, checkpoint, router=None):
+        async def fake_extract_page(page_num, total, pdf_path, prompt, modo, dpi, salvage, checkpoint, router=None, *args, **kwargs):
             if page_num == 2:
                 quota_exhausted[0] = True
                 raise Exception("per day quota exceeded")
@@ -399,7 +399,7 @@ class TestAsyncExtraction:
         cp = ExtractionCheckpoint(str(sample_pdf_path))
         cp.ensure_dir()
 
-        async def fake_extract_page(page_num, total, pdf_path, prompt, modo, dpi, salvage, checkpoint, router=None):
+        async def fake_extract_page(page_num, total, pdf_path, prompt, modo, dpi, salvage, checkpoint, router=None, *args, **kwargs):
             # Simular orden de finalizacion no deterministico
             await asyncio.sleep(0.02 * (4 - page_num))  # pagina 3 primero, 1 ultimo
             checkpoint.save_page(page_num, f"Pagina {page_num}")

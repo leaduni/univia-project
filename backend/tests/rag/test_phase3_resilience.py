@@ -180,7 +180,7 @@ class TestResumeLogic:
 
         processed = []
 
-        async def fake_extract(page_num, total, pdf_path, prompt, modo, dpi, salvage, checkpoint, router=None):
+        async def fake_extract(page_num, total, pdf_path, prompt, modo, dpi, salvage, checkpoint, router=None, *args, **kwargs):
             processed.append(page_num)
             checkpoint.save_page(page_num, f"pag {page_num}")
 
@@ -231,7 +231,7 @@ class TestQuotaHandling:
         cp = ExtractionCheckpoint(str(pdf))
         cp.ensure_dir()
 
-        async def fake_extract(page_num, total, pdf_path, prompt, modo, dpi, salvage, checkpoint, router=None):
+        async def fake_extract(page_num, total, pdf_path, prompt, modo, dpi, salvage, checkpoint, router=None, *args, **kwargs):
             raise Exception("per day quota exceeded")
 
         extractor = SyllabusExtractor(rpm=100)

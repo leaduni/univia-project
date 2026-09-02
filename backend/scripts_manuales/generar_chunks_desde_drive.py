@@ -29,7 +29,7 @@ import argparse
 import asyncio
 import logging
 import os
-import random
+import re
 import shutil
 import sys
 import tempfile
@@ -39,7 +39,6 @@ from pathlib import Path
 sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import requests
 from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
@@ -50,53 +49,35 @@ from app.rag.extraction_checkpoint import ExtractionCheckpoint
 from app.rag.chunker import SyllabusChunker
 from app.rag.embedder import SyllabusEmbedder
 from app.rag.cost_tracker import cost_tracker
+from app.rag.drive_downloader import (
+    NetworkDownloadError,
+    RecursoInaccesible,
+    download_drive_file,
+)
 from app.rag.ingest import SyllabusIngestor
 
-API_KEY = os.getenv("GOOGLE_DRIVE_API_KEY")
 TIPOS_OBJETIVO = ["Silabo", "Libro", "Teoria", "Apunte", "Compendio", "Examen", "Practica", "examen", "practica"]
 TIPOS_NATIVOS = {"Silabo", "Libro", "Teoria", "Apunte", "Compendio"}
 MAX_FALLOS_SEGUIDOS = 3  # señal heurística de cuota diaria agotada
 DOWNLOAD_DIR = Path(tempfile.gettempdir()) / "univia_rag_drive"
 
 
-class RecursoInaccesible(Exception):
-    """El archivo de Drive no es accesible por permisos o ya no existe."""
-
-
 def descargar_pdf(
     drive_file_id: str,
     connect_timeout: int = 15,
     read_timeout: int = 180,
-    max_retries: int = 5,
+    max_retries: int = 3,
 ) -> str:
     """Descarga el PDF a un archivo temporal y devuelve su ruta."""
-    url = f"https://www.googleapis.com/drive/v3/files/{drive_file_id}"
     DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
     tmp_path = DOWNLOAD_DIR / f"{drive_file_id}.pdf"
-
-    for attempt in range(1, max_retries + 1):
-        try:
-            resp = requests.get(
-                url,
-                params={"alt": "media", "key": API_KEY},
-                timeout=(connect_timeout, read_timeout),
-            )
-            if resp.status_code in (403, 404, 410):
-                raise RecursoInaccesible(
-                    f"Drive respondió HTTP {resp.status_code} para {drive_file_id}"
-                )
-            resp.raise_for_status()
-            tmp_path.write_bytes(resp.content)
-            return str(tmp_path)
-        except requests.RequestException as exc:
-            status = exc.response.status_code if exc.response is not None else None
-            if status not in (429, 500, 502, 503, 504) or attempt == max_retries:
-                raise
-            retry_after = exc.response.headers.get("Retry-After") if exc.response is not None else None
-            delay = float(retry_after) if retry_after and retry_after.isdigit() else min(60, 2 ** attempt)
-            time.sleep(delay + random.uniform(0, 1))
-
-    raise RuntimeError(f"No se pudo descargar {drive_file_id}")
+    logging.info("Descargando Drive file_id=%s con gdown.", drive_file_id)
+    pdf_path = download_drive_file(drive_file_id, tmp_path, max_retries=max_retries)
+    if not pdf_path:
+        raise RecursoInaccesible(
+            f"No se pudo descargar la ruta para drive_file_id={drive_file_id}"
+        )
+    return pdf_path
 
 
 def parse_course_ids(value: str) -> list[int]:
@@ -112,8 +93,19 @@ def parse_course_ids(value: str) -> list[int]:
     return course_ids
 
 
+def extraer_drive_file_id(url: str | None) -> str | None:
+    """Extrae el ID de archivo desde una URL de visualización de Drive."""
+    if not url:
+        return None
+    match = re.search(r"/d/([A-Za-z0-9_-]+)", url)
+    return match.group(1) if match else None
+
+
 def obtener_candidatos(
-    sb, course_ids: list[int] | None = None, force: bool = False
+    sb,
+    course_ids: list[int] | None = None,
+    force: bool = False,
+    dry_run: bool = False,
 ) -> list:
     """Recursos Examen/Practica con curso_id y drive_file_id resueltos,
     deduplicados por drive_file_id (una fila representativa por archivo)."""
@@ -124,24 +116,45 @@ def obtener_candidatos(
         query = (
             sb.table("recursos")
             .select(
-                "id, titulo, tipo, curso_id, drive_file_id, drive_modified_time, "
+                "id, titulo, tipo, curso_id, drive_file_id, preview_url, url_drive, "
+                "drive_modified_time, "
                 "rag_status, rag_processed_modified_time"
             )
             .in_("tipo", TIPOS_OBJETIVO)
             .not_.is_("curso_id", "null")
-            .not_.is_("drive_file_id", "null")
         )
         if course_ids:
             query = query.in_("curso_id", course_ids)
         if not force:
-            query = query.in_("rag_status", ["pending", "failed"])
+            query = query.in_(
+                "rag_status", ["pending", "failed", "skipped_permissions"]
+            )
         resp = (
             query.order("id")
             .range(inicio, inicio + page_size - 1)
             .execute()
         )
         pagina = resp.data or []
-        filas.extend(pagina)
+        for recurso in pagina:
+            drive_file_id = recurso.get("drive_file_id") or extraer_drive_file_id(
+                recurso.get("preview_url")
+            ) or extraer_drive_file_id(recurso.get("url_drive"))
+            if not drive_file_id:
+                logging.warning(
+                    "Recurso %s sin drive_file_id ni URL de Drive utilizable.",
+                    recurso["id"],
+                )
+                continue
+            if not recurso.get("drive_file_id"):
+                recurso["drive_file_id"] = drive_file_id
+                if not dry_run:
+                    (
+                        sb.table("recursos")
+                        .update({"drive_file_id": drive_file_id})
+                        .eq("id", recurso["id"])
+                        .execute()
+                    )
+            filas.append(recurso)
         if len(pagina) < page_size:
             break
         inicio += page_size
@@ -189,7 +202,7 @@ def reclamar_recurso(sb, recurso_id: int, force: bool = False) -> bool:
         "id", recurso_id
     )
     if not force:
-        query = query.in_("rag_status", ["pending", "failed"])
+        query = query.in_("rag_status", ["pending", "failed", "skipped_permissions"])
     resp = query.execute()
     return bool(resp.data)
 
@@ -208,7 +221,7 @@ def preparar_checkpoints(pdf_path: str, modified_time: str | None, resume: bool)
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--limit", type=int, default=None,
+        "--limit", "--limite", type=int, default=None,
         help="Procesa como máximo N recursos en esta corrida (para pilotos chicos antes de soltar el lote completo).",
     )
     parser.add_argument("--max-concurrency", type=int, default=4)
@@ -233,17 +246,13 @@ def main():
     )
     args = parser.parse_args()
 
-    if not API_KEY:
-        print("Falta GOOGLE_DRIVE_API_KEY en el .env")
-        return
-
     sb = get_admin_client()
     extractor = SyllabusExtractor(rpm=args.rpm)
     chunker = SyllabusChunker()
     embedder = SyllabusEmbedder()
     ingestor = SyllabusIngestor(client=sb)
 
-    candidatos = obtener_candidatos(sb, args.course_id, args.force)
+    candidatos = obtener_candidatos(sb, args.course_id, args.force, args.dry_run)
     print(f"Candidatos únicos (Examen/Practica, curso emparejado): {len(candidatos)}")
 
     pendientes = [c for c in candidatos if necesita_procesamiento(sb, c, args.force)]
@@ -375,6 +384,10 @@ def main():
             print(f"  [OMITIDO] Archivo privado o sin permisos en Drive: {e}")
             actualizar_estado(sb, recurso["id"], "skipped_permissions")
             omitidos += 1
+        except NetworkDownloadError as e:
+            print(f"  [RED] No se pudo descargar el recurso {recurso['id']}: {e}")
+            actualizar_estado(sb, recurso["id"], "network_error")
+            fallidos += 1
         except Exception as e:
             print(f"  Error procesando recurso {recurso['id']}: {e}")
             actualizar_estado(sb, recurso["id"], "failed")

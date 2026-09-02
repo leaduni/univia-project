@@ -33,7 +33,7 @@ class SyllabusIngestor:
         """Reemplaza los chunks del recurso en lotes ligeros para evitar el error
         PGRST002/503 por payloads JSON gigantes (~40 MB en una sola RPC).
         El primer lote usa la RPC protegida replace_resource_chunks (borra los
-        chunks previos, inserta y actualiza los metadatos del recurso); los lotes
+        chunks previos e inserta; los lotes
         siguientes insertan directo a la tabla ya limpia, conservando el
         chunk_index global de cada fragmento (indice unico recurso_id, chunk_index).
         """
@@ -55,7 +55,7 @@ class SyllabusIngestor:
 
             if inicio == 0:
                 # Primer lote: RPC transaccional que borra lo anterior, inserta
-                # estos chunks y actualiza los metadatos del recurso.
+                # estos chunks.
                 respuesta = self.supabase.rpc(
                     "replace_resource_chunks",
                     {
@@ -83,9 +83,30 @@ class SyllabusIngestor:
                 respuesta = self.supabase.table("resource_chunks").insert(filas).execute()
                 total_insertados += len(respuesta.data or [])
 
+        if total_insertados != len(chunks):
+            raise RuntimeError(
+                f"Se insertaron {total_insertados}/{len(chunks)} chunks del recurso {recurso_id}."
+            )
+
+        self.supabase.rpc(
+            "mark_rag_complete",
+            {
+                "p_recurso_id": recurso_id,
+                "p_drive_modified_time": drive_modified_time,
+            },
+        ).execute()
+
         return total_insertados
 
-    def ingest(self, chunks: list, recurso_id: str, curso_id: int, table_name: str = "resource_chunks", batch_size: int = 50) -> bool:
+    def ingest(
+        self,
+        chunks: list,
+        recurso_id: int | None = None,
+        curso_id: int | None = None,
+        table_name: str = "resource_chunks",
+        batch_size: int = 50,
+        drive_modified_time: str | None = None,
+    ) -> bool:
         if not chunks:
             logger.warning("No se encontraron chunks para hacer la ingesta.")
             return False
@@ -117,6 +138,15 @@ class SyllabusIngestor:
             except Exception as e:
                 logger.error(f"[Supabase] Error crítico al insertar lote: {e}")
                 return False
+
+        if recurso_id is not None and drive_modified_time is not None:
+            self.supabase.rpc(
+                "mark_rag_complete",
+                {
+                    "p_recurso_id": recurso_id,
+                    "p_drive_modified_time": drive_modified_time,
+                },
+            ).execute()
 
         logger.info(f"[Supabase] Ingesta exitosa. {total_chunks} fragmentos en Supabase.")
         return True

@@ -42,7 +42,7 @@ export const metadata: Metadata = {
 
 import { AuthProvider } from "@/components/providers/auth-context"
 import { ThemeProvider } from "@/components/theme-provider"
-import { ChatBubble } from "@/components/chatbot/chat-bubble"
+import { ChatBubble } from "@/components/chat/chat-bubble"
 
 export default function RootLayout({
   children,

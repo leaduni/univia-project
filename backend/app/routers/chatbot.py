@@ -89,7 +89,7 @@ Nivel 1 — Conocimiento canónico estático (permitido de memoria):
 
 Nivel 2 — Datos de la plataforma UniVia (estricto a BD):
 - Cursos, mallas, profesores registrados y material dentro de la app solo se responden si están inyectados en el contexto (Supabase/RAG).
-- Si algo no figura en el contexto inyectado, indica que no está sincronizado en la app UniVia y, si procede, remite a la información pública del Nivel 1.
+- La regla "no está sincronizado en la app UniVia" aplica SOLO a datos estructurales (catálogo, mallas, listados). Si una consulta de contenido académico no recuperó fragmentos, responde con tu conocimiento general y aclara que no proviene del material del curso; nunca digas que solo tienes los datos del perfil.
 
 Nivel 3 — Información volátil y dinámica (Regla ZERO-GUESS / Cero Especulación):
 - Alcance: nombres propios de autoridades (decanos, directores, secretarios), fechas de trámites/admisión, costos de matrícula, horarios de atención, teléfonos de contacto y requisitos cambiantes.
@@ -102,6 +102,8 @@ Reglas de estilo:
 - Sé breve: dos o tres párrafos como máximo, salvo que te pidan detalle.
 - Para escribir fórmulas matemáticas sigue el Formato Matemático Estricto definido más abajo: `$ ... $` para inline y `$$ ... $$` para bloques. Jamás uses \( ... \) ni \[ ... \].
 
+- Formato tabular: NUNCA uses tablas Markdown. Si un conjunto de datos encajaría en una tabla, preséntalos como lista con viñetas y negritas en los encabezados; no emitas pipes ni barras verticales.
+
 Formato Matemático Estricto:
 - Usa SIEMPRE `$ ... $` para fórmulas integradas en el texto (inline) y `$$ ... $$` para bloques de ecuaciones principales. JAMÁS utilices `\( ... \)` ni `\[ ... \]` para denotar matemáticas.
 
@@ -113,6 +115,8 @@ Banco autorizado de material y exámenes:
 - Cuando el contexto recuperado incluya ejercicios o exámenes del banco del propio usuario, ESTÁS AUTORIZADO a explicarlos, mostrarlos, resolverlos paso a paso y crear variantes con otros valores. No los trates como contenido restringido ni te autocensures por ser preguntas de exámenes.
 - Si falta material o el estudiante no indica curso/tema, pídele que lo especifique para buscarlo. NO respondas con una negativa genérica de "no puedo compartir exámenes".
 - Se mantiene prohibido inventar datos, notas o exámenes que no existan en el material recuperado, y revelar datos de otro estudiante.
+
+- Cuando varios fragmentos `[F#]` con el mismo `recurso=` y distinta `página=` son secciones del mismo documento: entrelaza su contenido, cita la página exacta de cada dato y nunca afirmes que solo tienes el encabezado.
 
 Política de Cero Negativas:
 - Bajo ninguna circunstancia respondas con una negativa tajante o una disculpa vacía. Si no encuentras información exacta en el RAG, ofrece explicaciones conceptuales generales, sugiere preguntas relacionadas o solicita aclaración sobre la materia.
@@ -457,11 +461,18 @@ async def enviar_mensaje(datos: NuevoMensaje, user_data=Depends(get_current_user
     # De qué fuente sale la respuesta. Se resuelve fuera del generador para que
     # una caída del clasificador no aparezca a mitad del stream; `clasificar`
     # no lanza, así que en el peor caso devuelve el intent por defecto.
-    intent = intents.clasificar(mensaje, historial)
+    # Las preguntas de seguimiento ("tienes algún examen de ella?") dependen del
+    # turno anterior: se reescriben para la búsqueda RAG sustituyendo las
+    # anáforas por las entidades del historial. El mensaje original es el que se
+    # persiste y el que ve el modelo en la respuesta; mensaje_rag solo mejora
+    # la recuperación.
+    mensaje_rag = intents.reformular_consulta(mensaje, historial)
+
+    intent = intents.clasificar(mensaje_rag, historial)
 
     # El handler consulta la fuente que corresponda (biblioteca, RAG, expediente)
     # y devuelve el contexto con el que se generará. Tampoco lanza.
-    contexto = handlers.construir_contexto(intent, mensaje, supabase, user, token)
+    contexto = handlers.construir_contexto(intent, mensaje_rag, supabase, user, token)
 
     ctx_usuario = await cargar_contexto_usuario(supabase, user)
 

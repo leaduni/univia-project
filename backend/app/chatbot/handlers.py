@@ -37,7 +37,18 @@ MAX_RECURSOS = 5
 # Fragmentos del RAG que se inyectan como contexto. Cada uno puede pesar cientos
 # de tokens y el free tier limita por minuto (ver Paso 9 del plan).
 MAX_FRAGMENTOS_RAG = 4
-UMBRAL_SIMILITUD_RAG = 0.35
+MAX_CANDIDATOS_RAG = 8
+MAX_CARACTERES_CONTEXTO_RAG = 6000
+UMBRAL_SIMILITUD_RAG = 0.40
+# Consultas abiertas (sin curso detectado): se afloja el umbral y se piden más
+# candidatos para que la búsqueda híbrida recupere material de varias materias
+# en vez de caer en 0 resultados.
+UMBRAL_SIMILITUD_SIN_CURSO = 0.25
+MAX_CANDIDATOS_SIN_CURSO = 12
+# Varios chunks de un mismo recurso (ej. un examen con varias páginas): así no
+# se colapsa a solo el encabezado al recuperar material.
+MAX_CHUNKS_POR_RECURSO_SIN_CURSO = 3
+MAX_CHUNKS_POR_RECURSO_CON_CURSO = 2
 
 
 @dataclass
@@ -67,6 +78,46 @@ def _sin_tildes(texto: str) -> str:
     """
     descompuesto = unicodedata.normalize("NFD", (texto or "").lower())
     return "".join(c for c in descompuesto if unicodedata.category(c) != "Mn")
+
+
+def _valor_fuente(valor) -> str:
+    """Mantiene cada metadato en una sola celda del encabezado [F#]."""
+    return str(valor or "no disponible").replace("|", "/").replace("\n", " ").strip()
+
+
+def _armar_contexto_rag(fragmentos: list) -> str:
+    """Empaqueta fuentes identificables sin superar el presupuesto del prompt."""
+    bloques: list[str] = []
+    caracteres = 0
+
+    for indice, fragmento in enumerate(fragmentos[:MAX_FRAGMENTOS_RAG], start=1):
+        metadata = fragmento.get("metadata") or {}
+        campos = [
+            f"F{indice}",
+            f"recurso={_valor_fuente(fragmento.get('titulo_recurso'))}",
+            f"curso={_valor_fuente(fragmento.get('curso_nombre'))}",
+            f"tipo={_valor_fuente(fragmento.get('tipo_recurso'))}",
+            f"año={_valor_fuente(fragmento.get('year_recurso'))}",
+            f"profesor={_valor_fuente(fragmento.get('profesor'))}",
+        ]
+        if fragmento.get("ciclo_recurso") is not None:
+            campos.append(f"ciclo={_valor_fuente(fragmento.get('ciclo_recurso'))}")
+        if metadata.get("pagina") is not None:
+            campos.append(f"página={_valor_fuente(metadata.get('pagina'))}")
+
+        encabezado = "[" + "|".join(campos) + "]\n"
+        disponible = MAX_CARACTERES_CONTEXTO_RAG - caracteres - len(encabezado)
+        if disponible <= 0:
+            break
+
+        contenido = (fragmento.get("contenido") or "").strip()[:disponible]
+        if not contenido:
+            continue
+        bloque = encabezado + contenido
+        bloques.append(bloque)
+        caracteres += len(bloque) + 2
+
+    return "\n\n".join(bloques)
 
 
 # Palabras que aparecen en casi toda pregunta y no distinguen un curso de otro.
@@ -169,6 +220,77 @@ def _cursos_de_la_facultad(supabase, user) -> list:
     return cursos
 
 
+def _resolver_profesor(mensaje: str, supabase) -> Optional[int]:
+    """Devuelve el id del profesor cuyo nombre aparece en el mensaje.
+
+    Un mensaje como "¿tienes exámenes de la profesora Doris Rojas?" nombra al
+    docente, pero ese nombre no vive en el contenido de los chunks: es una
+    relación `curso_profesores` -> `profesores`. Sin resolverlo, la búsqueda
+    híbrida no puede filtrar por docente y el RAG responde que no existe nada.
+    Se prefiere la zona del mensaje que sigue al rol ("profesora", "docente",
+    ...) y se exigen al menos dos coincidencias de sus palabras en el nombre
+    para no emparejar por casualidad. Nunca lanza: sin profesor no hay filtro.
+    """
+    try:
+        texto = _sin_tildes(mensaje)
+
+        # Tras el rol suele venir el nombre ("...la profesora Doris Rojas"); si
+        # aparece, solo se consideran los tokens de esa zona. Esto evita que
+        # "examen" o "tienes" ensucien el emparejamiento.
+        corte = 0
+        for rol in (
+            "profesora", "profesor", "docente", "catedratica", "catedratico",
+            "ingeniera", "ingeniero", "doctora", "doctor",
+        ):
+            pos = texto.find(rol)
+            if pos != -1:
+                corte = max(corte, pos + len(rol))
+
+        fragmento = texto[corte:] or texto
+        tokens = [
+            p for p in re.findall(r"[a-z0-9]+", fragmento)
+            if len(p) > 2
+            and p not in _PALABRAS_VACIAS
+            and p not in (
+                "tienes", "alguna", "algun", "prueba", "pruebas", "examen",
+                "examenes", "material", "cual", "cuales", "sobre", "ella", "del",
+            )
+        ]
+        if not tokens:
+            return None
+
+        # OR de ILIKE en SQL en lugar de traer todo el catálogo de profesores.
+        condiciones = ",".join(f"nombre_completo.ilike.%{t}%" for t in tokens)
+        resp = (
+            supabase.table("profesores")
+            .select("id, nombre_completo")
+            .or_(condiciones)
+            .execute()
+        )
+        filas = getattr(resp, "data", None) or []
+
+        # Tras un rol ("profesora", "docente"...), basta un término. Sin rol,
+        # un solo término también es válido únicamente si identifica a un
+        # docente de forma inequívoca; nunca se elige una fila arbitraria.
+        minimo = 1 if corte > 0 or len(tokens) == 1 else 2
+        mejores: list[int] = []
+        mejor_puntaje = 0
+        for fila in filas:
+            nombre = _sin_tildes(fila.get("nombre_completo") or "")
+            puntaje = sum(1 for t in tokens if t in nombre)
+            if puntaje < minimo:
+                continue
+            if puntaje > mejor_puntaje:
+                mejores = [fila.get("id")]
+                mejor_puntaje = puntaje
+            elif puntaje == mejor_puntaje:
+                mejores.append(fila.get("id"))
+        return mejores[0] if len(mejores) == 1 else None
+    except Exception as e:
+        logger.warning("No se pudo resolver el profesor del mensaje: %s", e)
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Handlers
 # ---------------------------------------------------------------------------
@@ -193,6 +315,11 @@ def _handler_recurso(mensaje: str, supabase, user, token: str) -> Contexto:
     tipo = _detectar_tipo(mensaje)
 
     if curso is None:
+        # Consulta abierta de contenido académico sin curso (ej. "dame un
+        # ejercicio de la FIIS"): mejor probar el RAG en todo el corpus que
+        # responder una negativa del catálogo.
+        if intents._es_busqueda_contenido_abierta(mensaje):
+            return _handler_duda_academica(mensaje, supabase, user, token)
         return Contexto(
             system_extra=(
                 "No identificaste de qué curso te habla. Pídele que lo diga con su nombre "
@@ -269,47 +396,97 @@ def _handler_recurso(mensaje: str, supabase, user, token: str) -> Contexto:
     )
 
 
-def _handler_duda_academica(mensaje: str, supabase, user, token: str) -> Contexto:
+def _handler_duda_academica(
+    mensaje: str,
+    supabase,
+    user,
+    token: str,
+    curso_id_forzado: Optional[int] = None,
+    profesor_id_forzado: Optional[int] = None,
+    fallback_relacional: bool = False,
+) -> Contexto:
     """Recupera fragmentos del corpus vectorizado para responder con material real."""
     try:
         from app.rag.retriever import SyllabusRetriever
 
-        curso = None
-        try:
-            curso = _detectar_curso(mensaje, _cursos_de_la_facultad(supabase, user))
-        except Exception as e:
-            # Sin curso el RAG busca en todo el corpus: peor foco, pero responde.
-            logger.warning(f"No se pudo acotar la duda a un curso: {e}")
+        curso = {"id": curso_id_forzado} if curso_id_forzado is not None else None
+        if curso is None:
+            try:
+                curso = _detectar_curso(mensaje, _cursos_de_la_facultad(supabase, user))
+            except Exception as e:
+                # Sin curso el RAG busca en todo el corpus: peor foco, pero responde.
+                logger.warning(f"No se pudo acotar la duda a un curso: {e}")
 
-        fragmentos = SyllabusRetriever(token=token).buscar_contexto(
-            mensaje,
-            limit=MAX_FRAGMENTOS_RAG,
-            umbral_similitud=UMBRAL_SIMILITUD_RAG,
-            curso_id=curso["id"] if curso else None,  # type: ignore[arg-type]
-        )
+        retriever = SyllabusRetriever(token=token)
+        # Sin curso el filtro va a todo el corpus y la pregunta suele ser más
+        # abierta: se afloja el umbral y sube el tope de candidatos para que
+        # la búsqueda híbrida no se quede sin fragmentos por ser estricta.
+        sin_curso = curso is None
+        # Si el mensaje nombra a un docente, se busca en TODOS sus cursos (la
+        # RPC filtra por curso_profesores) y se suelta el filtro de curso: el
+        # profesor imparte varias asignaturas y el examen puede colgar de
+        # cualquiera. Se usa el modo abierto (umbral y candidatos amplios).
+        profesor_id = profesor_id_forzado or _resolver_profesor(mensaje, supabase)
+        if profesor_id:
+            sin_curso = True
+        pregunta_vectorizada = retriever.vectorizar_pregunta(mensaje)
+        fragmentos = []
+        if pregunta_vectorizada:
+            respuesta = retriever.supabase.rpc(
+                "search_chatbot_resource_chunks",
+                {
+                    "query_text": mensaje,
+                    "query_embedding": pregunta_vectorizada,
+                    "match_threshold": (
+                        UMBRAL_SIMILITUD_SIN_CURSO if sin_curso else UMBRAL_SIMILITUD_RAG
+                    ),
+                    "match_count": (
+                        MAX_CANDIDATOS_SIN_CURSO if sin_curso else MAX_CANDIDATOS_RAG
+                    ),
+                    "filter_curso_id": curso["id"] if curso and not profesor_id else None,
+                    "filter_profesor_id": profesor_id,
+                    "max_chunks_per_resource": (
+                        MAX_CHUNKS_POR_RECURSO_SIN_CURSO if sin_curso else MAX_CHUNKS_POR_RECURSO_CON_CURSO
+                    ),
+                },
+            ).execute()
+            fragmentos = getattr(respuesta, "data", None) or []
     except Exception as e:
         logger.error(f"Falló la búsqueda RAG: {e}")
         fragmentos = []
 
     if not fragmentos:
+        if fallback_relacional:
+            return Contexto(
+                system_extra=(
+                    "La búsqueda de respaldo en documentos RAG tampoco encontró referencias "
+                    "para esta consulta. No inventes entidades ni documentos."
+                ),
+                adjuntos={"fragmentos": 0},
+            )
         # Buena parte del corpus todavía no está vectorizado, así que quedarse
         # sin fragmentos es lo normal, no una excepción: se responde con el
         # conocimiento del modelo en vez de decir que no se sabe.
         return Contexto(
             system_extra=(
-                "No hay material de la universidad sobre esta consulta. Aplica una guía socrática: "
-                "identifica qué concepto o paso necesita trabajar el estudiante, formula una pregunta "
-                "orientadora y propón un primer paso antes de dar una respuesta directa. Si pregunta "
-                "por ejercicios, exámenes o parciales pasados y no indicó un curso o tema específico, "
-                "no te niegues de plano: pídele amablemente que indique el curso o tema para buscarlo "
-                "en su banco de datos. Para otros casos, responde con tu propio conocimiento y aclara "
-                "que no está sacado del material del curso."
+                "No se recuperaron fragmentos del banco para esta consulta. Respóndele igual: "
+                "identifica qué concepto o paso necesita trabajar el estudiante, aplica una guía "
+                "socrática y propón un primer paso antes de la respuesta directa. No digas que 'no "
+                "hay datos en la app' ni que solo tienes su perfil: son correctos solo para datos "
+                "estructurales. Si la consulta es abierta (sin curso o tema), pídele amablemente que "
+                "indique el curso o tema para buscarlo en su banco de datos, y aclara que tu respuesta "
+                "no proviene del material del curso."
             )
         )
 
-    contenidos = "\n\n---\n".join(
-        (f.get("contenido") or "").strip() for f in fragmentos if f.get("contenido")
-    )
+    contenidos = _armar_contexto_rag(fragmentos)
+    if not contenidos:
+        return Contexto(
+            system_extra=(
+                "La búsqueda encontró referencias sin contenido utilizable. Responde con tu "
+                "conocimiento general y aclara que no proviene del material del curso."
+            )
+        )
     return Contexto(
         system_extra=(
             "Responde apoyándote en el material del curso que viene abajo. Aplica una guía "
@@ -317,10 +494,12 @@ def _handler_duda_academica(mensaje: str, supabase, user, token: str) -> Context
             "y pasos intermedios; luego ofrece el procedimiento si lo necesita. Este material "
             "proviene del banco verificado del propio estudiante; puedes resolver sus ejercicios, "
             "mostrar procedimientos paso a paso y generar variantes, sin tratarlo como material "
-            "restringido. Si no alcanza para responder del todo, complétalo con tu conocimiento y dilo."
+            "restringido. Conserva la procedencia [F#] al mencionar profesores, fechas, ciclos "
+            "o datos documentales. Si no alcanza para responder del todo, complétalo con tu "
+            "conocimiento y dilo."
         ),
-        bloque=f"Material del curso:\n{contenidos}",
-        adjuntos={"fragmentos": len(fragmentos)},
+        bloque=f"Fuentes recuperadas del curso:\n{contenidos}",
+        adjuntos={"fragmentos": min(len(fragmentos), MAX_FRAGMENTOS_RAG)},
     )
 
 
@@ -553,6 +732,11 @@ def construir_contexto(intent: str, mensaje: str, supabase, user, token: str) ->
     # catalogo para servir el catálogo REAL de Supabase en vez de alucinar.
     if intent == intents.GENERAL and intents._es_consulta_catalogo(mensaje):
         intent = intents.CATALOGO
+    # Misma idea para contenido académico: el clasificador no debe dejar escapar
+    # a `general` una consulta abierta de material/ejercicios/profesores que el
+    # RAG puede responder con material real del banco.
+    if intent == intents.GENERAL and intents._es_busqueda_contenido_abierta(mensaje):
+        intent = intents.DUDA_ACADEMICA
     handler = _HANDLERS.get(intent, _handler_general)
     try:
         return handler(mensaje, supabase, user, token)

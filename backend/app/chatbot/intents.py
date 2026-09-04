@@ -89,8 +89,8 @@ TURNOS_DE_CONTEXTO = 4
 # clasificador en ~11 mensajes por minuto para toda la plataforma.
 PROMPT_CLASIFICADOR = """Clasifica el mensaje del estudiante de UniVia. Responde SOLO la etiqueta.
 
-recurso: pide un archivo o dice "descargar"/"bajar" (examen, plancha, práctica, sílabo, libro, solucionario).
-duda_academica: pregunta por contenido o teoría de un curso, o qué entra en un examen.
+recurso: pide un archivo CONCRETO para descargar o dice "descargar"/"bajar" (examen, plancha, práctica, sílabo, libro, solucionario).
+duda_academica: pregunta por contenido, teoría, ejercicios o prácticas de un curso, o qué entra en un examen (incluye pedir ejemplos, ejercicios o problemas aunque no nombre el curso exacto).
 estado_academico: pregunta por SUS datos (sus notas, avance, créditos, si puede llevar un curso).
 navegacion_ayuda: cómo usar la web de UniVia o dónde encontrar una sección.
 catalogo: pregunta qué facultades, carreras, cursos o elementos del catálogo existen o están registrados en la plataforma.
@@ -109,6 +109,8 @@ Desempate:
 - Si pregunta qué facultades, carreras o catálogo existen o están registradas en UniVia (p. ej. "¿qué facultades tiene UniVia?"), es catalogo. Trigger seguro: contiene "facultades", "carreras" o "catálogo".
 - Si pide explícitamente tarjetas, cuestionario o cronograma, usa respectivamente flashcards, quiz o cronograma, aunque mencione un curso.
 - Si pregunta por quién dicta/enseña o los docentes de un curso, es consulta_docentes, aunque mencione exámenes o material.
+- Pedir un ejercicio, problema o ejemplo (aunque empiece con "dame un ejercicio...") es duda_academica, SALVO que pida un archivo exacto para descargar.
+- Consulta abierta de contenido académico sin curso (ej. "dame un ejercicio de la FIIS" o "¿qué temas entran en el examen del curso?") es duda_academica: el RAG busca en todo el banco.
 - "qué prerrequisitos tiene X" o "qué llevo antes de X" es consulta_prerrequisitos; "puedo llevar YO" o "mi avance" sigue siendo estado_academico."""
 
 
@@ -141,6 +143,104 @@ _RESCATE_CATALOGO = re.compile(
 def _es_consulta_catalogo(mensaje: str) -> bool:
     """True si el mensaje indaga explícitamente por el catálogo de la UNI."""
     return bool(_RESCATE_CATALOGO.search(mensaje or ""))
+
+
+# Palabras que delatan una consulta ABIERTA de contenido académico (ejercicios,
+# exámenes, temas, profesores) sin curso específico. Se usan como red de rescate:
+# si el clasificador falla o una rama sin curso iba a responder negativa rígida,
+# la consulta debe pasar por el RAG antes de darse por perdida.
+_RESCATE_CONTENIDO_ABIERTO = re.compile(
+    r"\b(ejercicio|ejercicios|problema|problemas|ejemplo|ejemplos|examen|examenes|"
+    r"exámenes|parcial|parciales|práctica|practica|prácticas|practicas|tarea|tareas|"
+    r"teoría|teoria|contenido|solucionario|docente|docentes|profesor|profesores|"
+    r"catedrático|catedratico|qué entra)\b",
+    re.IGNORECASE,
+)
+
+
+def _es_busqueda_contenido_abierta(mensaje: str) -> bool:
+    """True si el mensaje pide contenido académico abierto (debe llegar al RAG)."""
+    return bool(_RESCATE_CONTENIDO_ABIERTO.search(mensaje or ""))
+
+
+# ---------------------------------------------------------------------------
+# Reescritura contextual de la consulta (anáforas)
+# ---------------------------------------------------------------------------
+
+# Pronombres y demostrativos que delatan una pregunta de seguimiento que depende
+# del turno anterior ("¿tienes algún examen de ella?", "¿y de ese curso?"). Sin
+# reescritura, "ella" llegaría literal a la vectorización y al RAG, que no pueden
+# mapearla al docente o curso mencionado antes.
+_ANAFORAS = re.compile(
+    r"\b(ella|él|ello|eso|esa|ese|estas|estos|de ella|de él|de esa|de ese|"
+    r"del profesor|de la profesora|del docente|de la docente|dicha|dicho)\b",
+    re.IGNORECASE,
+)
+
+# Prompt pequeño (mismo patrón que PROMPT_CLASIFICADOR). Solo pide sustituir las
+# referencias implícitas por las entidades concretas de la conversación; se usa
+# únicamente cuando hay anáfora + historial para no gastar cuota en cada turno.
+PROMPT_REESCRITURA = """Reescribe la consulta del estudiante para una búsqueda académica, SOLO si contiene
+pronombres, demostrativos o referencias implícitas (ella, él, ese curso, del profesor,
+dicho, etc.) que dependen de la conversación previa. Sustitúyelas por las entidades
+concretas ya mencionadas (nombre del profesor, curso, tipo de material). Si la consulta
+no depende de lo anterior o no puedes resolver la referencia, devuélvela exactamente igual.
+Debes responder SOLO con el texto reescrito, sin explicaciones."""
+
+
+def _es_anforico(mensaje: str) -> bool:
+    """True si el mensaje usa pronombres o demostrativos implícitos."""
+    return bool(_ANAFORAS.search(mensaje or ""))
+
+
+def reformular_consulta(mensaje: str, historial: Optional[list] = None) -> str:
+    """Reescribe el mensaje del usuario si depende del turno anterior.
+
+    Args:
+        mensaje: turno actual del estudiante.
+        historial: turnos previos en formato Groq ([{"role", "content"}]).
+
+    Returns:
+        El mensaje reescrito para la búsqueda RAG, o el original si no hay
+        anáfora, no hay historial, o la llamada al modelo falla (nunca lanza:
+        una consulta sin reformular es mejor que romper el turno).
+    """
+    if not historial or not _es_anforico(mensaje):
+        return mensaje
+
+    contexto = []
+    for turno in historial[-TURNOS_DE_CONTEXTO:]:
+        contenido = (turno.get("content") or "").strip()
+        if not contenido:
+            continue
+        quien = "Estudiante" if turno.get("role") == "user" else "Asistente"
+        contexto.append(f"{quien}: {contenido[:200]}")
+
+    partes = ["Conversación previa (solo para contexto):"]
+    partes.extend(contexto)
+    partes.append(f"Consulta actual:\n{mensaje.strip()}")
+
+    try:
+        salida = chatear(
+            [{"role": "user", "content": "\n\n".join(partes)}],
+            system=PROMPT_REESCRITURA,
+            modelo=MODELO_CLASIFICADOR,
+            # Basta con una versión corta de la consulta.
+            max_tokens=120,
+            temperature=0.0,
+        )
+    except Exception as e:
+        logger.warning(
+            "Reescritura de consulta no disponible (%s); se usa el texto literal.",
+            str(e)[:200],
+        )
+        return mensaje
+
+    reescrito = (salida or "").strip().strip('"')
+    if not reescrito or reescrito.lower() == mensaje.strip().lower():
+        return mensaje
+    logger.info("Consulta reformulada para el RAG: %r -> %r", mensaje, reescrito)
+    return reescrito
 
 
 def clasificar(mensaje: str, historial: Optional[list] = None) -> str:
@@ -212,6 +312,11 @@ def clasificar(mensaje: str, historial: Optional[list] = None) -> str:
         if _es_consulta_catalogo(mensaje):
             logger.info("Clasificador falló; rescue por keyword → 'catalogo'.")
             return CATALOGO
+        # Mismo patrón para contenido académico abierto: que no caiga en
+        # `general` y se pierda la búsqueda RAG por una salida ruidosa.
+        if _es_busqueda_contenido_abierta(mensaje):
+            logger.info("Clasificador falló; rescue por keyword → 'duda_academica'.")
+            return DUDA_ACADEMICA
         logger.warning(
             "Clasificador devolvió algo inesperado (%r); se usa '%s'.",
             (salida or "")[:120], INTENT_POR_DEFECTO,

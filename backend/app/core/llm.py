@@ -44,7 +44,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
-from openai import OpenAI
+from openai import OpenAI, RateLimitError
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -403,6 +403,18 @@ def generar(
             ) from error_respaldo
 
 
+class LLMSaldoAgotado(RuntimeError):
+    """El proveedor rechazó la llamada por saldo/cuota agotado (429)."""
+
+
+def _es_error_saldo_agotado(error: Exception) -> bool:
+    """True si la excepción corresponde a cuota/saldo agotado de la API."""
+    if isinstance(error, RateLimitError):
+        texto = str(error).lower()
+        return "insufficient_quota" in texto or "credit_balance" in texto or "insufficient credit" in texto
+    return False
+
+
 def generar_gpt(
     prompt: str,
     system: Optional[str] = None,
@@ -444,7 +456,12 @@ def generar_gpt(
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
 
-    respuesta: Any = cliente.chat.completions.create(**kwargs)
+    try:
+        respuesta: Any = cliente.chat.completions.create(**kwargs)
+    except Exception as e:
+        if _es_error_saldo_agotado(e):
+            raise LLMSaldoAgotado("Saldo agotado en la clave de OpenAI.") from e
+        raise
 
     uso = respuesta.usage
     logger.info(
@@ -686,6 +703,126 @@ def get_groq() -> Optional[OpenAI]:
     return _cliente_chatbot
 
 
+@dataclass
+class _DeltaGemini:
+    """Fragmento de texto de un chunk de Gemini, con la forma del SDK de OpenAI."""
+    content: str
+
+
+@dataclass
+class _ChoiceGemini:
+    delta: _DeltaGemini
+
+
+@dataclass
+class _ChunkGemini:
+    """Chunk de stream de Gemini adaptado a chunk.choices[0].delta.content."""
+    choices: list
+
+
+def chatear_gemini_con_clave(
+    api_key: str,
+    mensajes: list,
+    system: Optional[str] = None,
+    max_tokens: int = 1024,
+    temperature: float = 0.6,
+    stream: bool = False,
+):
+    """Llamada de chat a Gemini con la clave del usuario (BYOK).
+
+    La clave abre su propio cupo: es el Nivel 0 de la cascada, anterior a la
+    cuota compartida de UniVia. El cliente es EFÍMERO (se construye por turno y
+    no se cachea) y la clave jamás se registra en logs ni se persiste.
+
+    Args:
+        api_key: clave de Gemini aportada por el usuario (header X-User-LLM-Key).
+        mensajes, system, max_tokens, temperature: igual que chatear().
+        stream: devuelve un iterador de _ChunkGemini (misma forma que el stream
+            de Groq) para el endpoint SSE.
+
+    Returns:
+        Texto de la respuesta, o iterador de chunks si stream=True.
+
+    Raises:
+        RuntimeError: si el paquete falta o la clave es inválida.
+    """
+    try:
+        import google.generativeai as genai
+    except ImportError:
+        raise RuntimeError("Paquete 'google-generativeai' no instalado para BYOK.")
+
+    try:
+        genai.configure(api_key=api_key)
+        modelo = genai.GenerativeModel(model_name=MODELO_GEMINI)
+    except Exception as e:
+        raise RuntimeError(f"Clave de Gemini inválida ({type(e).__name__}).") from e
+
+    contenido = "\n\n".join(
+        f"{m['role'].upper()}: {m['content']}" for m in mensajes
+    )
+    config: dict = {"max_output_tokens": max_tokens, "temperature": temperature}
+    if system:
+        config["system_instruction"] = system
+
+    if stream:
+        flujo = modelo.generate_content(contenido, generation_config=config, stream=True)
+
+        def _generar():
+            for fragmento in flujo:
+                yield _ChunkGemini(
+                    choices=[_ChoiceGemini(delta=_DeltaGemini(content=fragmento.text or ""))]
+                )
+
+        return _generar()
+
+    respuesta = modelo.generate_content(contenido, generation_config=config)
+    return respuesta.text or ""
+
+
+def generar_gemini_con_clave(
+    api_key: str,
+    prompt: str,
+    system: Optional[str] = None,
+    max_tokens: int = 16000,
+    json_mode: bool = False,
+    modelo: Optional[str] = None,
+) -> str:
+    """Generación con Gemini usando la clave BYOK del usuario (Nivel 1).
+
+    Es el espejo por-clave de `generar_gpt` para evaluaciones: mismo contrato de
+    entrada (prompt + system + max_tokens + json_mode) y misma salida (texto).
+
+    - `system` se pasa como `system_instruction` nativo de Gemini.
+    - `json_mode` fuerza estructura JSON vía `response_mime_type`, para que el
+      parser de evaluaciones reciba el mismo esquema que espera de OpenAI.
+
+    Cliente efímero (por llamada), sin cachear ni loguear la clave.
+
+    Raises:
+        RuntimeError: si falta el SDK o la clave es inválida.
+    """
+    try:
+        import google.generativeai as genai
+    except ImportError:
+        raise RuntimeError("Paquete 'google-generativeai' no instalado para BYOK.")
+
+    try:
+        genai.configure(api_key=api_key)
+        cliente = genai.GenerativeModel(model_name=modelo or MODELO_GEMINI)
+    except Exception as e:
+        raise RuntimeError(f"Clave de Gemini inválida ({type(e).__name__}).") from e
+
+    config: dict = {"max_output_tokens": max_tokens}
+    if json_mode:
+        config["response_mime_type"] = "application/json"
+    if system:
+        # system_instruction se pasa en la llamada a generate_content.
+        config["system_instruction"] = system
+
+    respuesta = cliente.generate_content(prompt, generation_config=config)
+    return respuesta.text or ""
+
+
 def chatear(
     mensajes: list,
     system: Optional[str] = None,
@@ -693,6 +830,7 @@ def chatear(
     modelo: Optional[str] = None,
     temperature: float = 0.6,
     stream: bool = False,
+    api_key: Optional[str] = None,
 ):
     """Una llamada de chat a Groq.
 
@@ -712,6 +850,17 @@ def chatear(
     Raises:
         RuntimeError: si no hay clave configurada.
     """
+    if api_key:
+        # Nivel 0 (BYOK): la clave del usuario abre su propio cupo en Gemini.
+        return chatear_gemini_con_clave(
+            api_key,
+            mensajes,
+            system=system,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            stream=stream,
+        )
+
     cliente = get_groq()
     if cliente is None:
         raise RuntimeError("GROQ_API_KEY no configurada.")

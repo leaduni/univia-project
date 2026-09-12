@@ -1,5 +1,6 @@
 import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
@@ -9,6 +10,9 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from dotenv import load_dotenv
 
 from app.core.exceptions import ErrorResponse, ErrorDetail
+from app.core.rate_limit import limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 load_dotenv()
 
@@ -18,10 +22,24 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Cierra los clientes httpx persistentes al apagar la app."""
+    yield
+    try:
+        from app.routers import services, feedback
+        await services._http.aclose()
+        await feedback._http_feedback.aclose()
+    except Exception as e:
+        logger.warning("No se pudieron cerrar los clientes HTTP: %s", e)
+
+
 app = FastAPI(
     title="UniVia API",
     description="Backend para la plataforma de orientación académica personalizada",
-    version="2.0.0"
+    version="2.0.0",
+    lifespan=lifespan,
 )
 
 # ── TrustedHostMiddleware ────────────────────────────────────────────
@@ -58,6 +76,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Rate limiting (SlowAPI) ──────────────────────────────────────────────
+# Límite por IP en los endpoints que declaran @limiter.limit(...) (hoy, el POST
+# de feedback). Adapter in-memory: suficiente para el despliegue de un solo
+# worker; si se escala a varios procesos, migrar al adapter de Redis.
+app.state.limiter = limiter
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exception_handler(request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content=ErrorResponse(errors=[ErrorDetail(
+            field="general",
+            message="Demasiadas solicitudes desde esta conexión. Inténtalo en unos minutos.",
+        )]).model_dump(),
+    )
+
+
+app.add_middleware(SlowAPIMiddleware)
 
 
 @app.exception_handler(RequestValidationError)
@@ -105,7 +143,7 @@ async def root():
     return {"message": "UniVia API v2.0 - Online", "status": "healthy"}
 
 # Importar Routers
-from app.routers import malla, usuarios, onboarding, dashboard, cursos, evaluaciones, services, recursos, chatbot
+from app.routers import malla, usuarios, onboarding, dashboard, cursos, evaluaciones, services, recursos, chatbot, feedback, foro, dm
 
 app.include_router(malla.router, prefix="/api", tags=["malla"])
 app.include_router(usuarios.router, prefix="/api", tags=["usuarios"])
@@ -116,3 +154,6 @@ app.include_router(evaluaciones.router, prefix="/api", tags=["evaluaciones"])
 app.include_router(services.router, prefix="/api", tags=["services"])
 app.include_router(recursos.router, prefix="/api", tags=["recursos"])
 app.include_router(chatbot.router, prefix="/api", tags=["chatbot"])
+app.include_router(feedback.router, prefix="/api", tags=["feedback"])
+app.include_router(foro.router, prefix="/api", tags=["foro"])
+app.include_router(dm.router, prefix="/api", tags=["dm"])

@@ -221,7 +221,11 @@ def _contexto_docente_identificado(profesor_id: int, supabase) -> Contexto:
                 "pero aún no tiene cursos vinculados en el sistema. Dilo así, sin "
                 "inventar asignaturas, y sugiere consultar a soporte."
             ),
-            adjuntos={"docente": {"id": profesor_id, "nombre": nombre}, "cursos": []},
+            adjuntos={
+                "docente": {"id": profesor_id, "nombre": nombre},
+                "profesor_id": profesor_id,
+                "cursos": [],
+            },
         )
 
     orden = sorted(cursos, key=lambda c: (c.get("code") or ""))
@@ -234,7 +238,11 @@ def _contexto_docente_identificado(profesor_id: int, supabase) -> Contexto:
             "horarios, y sin pedir el código de un curso."
         ),
         bloque=f"Docente: {nombre}\nCursos que dicta:\n{listado}",
-        adjuntos={"docente": {"id": profesor_id, "nombre": nombre}, "cursos": cursos},
+        adjuntos={
+            "docente": {"id": profesor_id, "nombre": nombre},
+            "profesor_id": profesor_id,
+            "cursos": cursos,
+        },
     )
 
 
@@ -341,7 +349,14 @@ def _contexto_docentes_por_facultad(mensaje: str, supabase, user) -> Optional[Co
     )
 
 
-def _handler_consulta_docentes(mensaje: str, supabase, user, token: str) -> Contexto:
+def _handler_consulta_docentes(
+    mensaje: str,
+    supabase,
+    user,
+    token: str,
+    profesor_id_forzado: Optional[int] = None,
+    curso_id_forzado: Optional[int] = None,
+) -> Contexto:
     """Quién dicta un curso: lectura de curso_profesores + profesores."""
     try:
         cursos = _consultar_catalogo_global(supabase)
@@ -351,7 +366,10 @@ def _handler_consulta_docentes(mensaje: str, supabase, user, token: str) -> Cont
             system_extra="No pudiste consultar los docentes. Dilo y sugiere reintentar."
         )
 
-    curso = _detectar_curso(mensaje, cursos)
+    curso = next(
+        (c for c in cursos if c.get("id") == curso_id_forzado),
+        None,
+    ) if curso_id_forzado is not None else _detectar_curso(mensaje, cursos)
     if curso is None:
         # Consulta abierta sobre docentes sin curso específico: el RAG puede
         # recuperar fragmentos cuyo metadato trae el profesor, así que mejor
@@ -359,7 +377,7 @@ def _handler_consulta_docentes(mensaje: str, supabase, user, token: str) -> Cont
         # CAMBIO A: si el mensaje nombra a un docente concreto, se devuelve su
         # identidad y las asignaturas que dicta desde la tabla relacional, sin
         # caer en el fallback que pide el código de un curso.
-        profesor_id = _resolver_profesor(mensaje, supabase)
+        profesor_id = profesor_id_forzado or _resolver_profesor(mensaje, supabase)
         if profesor_id:
             relacional = _contexto_docente_identificado(profesor_id, supabase)
             rag = _fallback_rag(

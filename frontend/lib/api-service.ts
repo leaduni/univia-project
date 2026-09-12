@@ -145,6 +145,12 @@ async function fetchWithAuth(url: string, options: RequestInit = {}, customToken
 }
 
 /**
+ * `fetchWithAuth` se reutiliza en otros services (p. ej. foro-service.ts) que
+ * necesitan el mismo manejo de token, timeout y reintentos de GET.
+ */
+export { fetchWithAuth };
+
+/**
  * Mensaje legible del cuerpo de un error del backend.
  *
  * La API responde de dos formas: `{errors: [{field, message}]}` cuando la
@@ -157,6 +163,23 @@ function extraerMensajeError(body: any): string | null {
     return typeof mensaje === 'string'
         ? mensaje.replace(/^Value error,\s*/i, '')
         : mensaje;
+}
+
+/**
+ * Convierte un error (ApiError, Error o desconocido) en un mensaje legible
+ * para el estudiante. Se usa en pantallas que muestran el fallo directamente.
+ */
+export function mensajeAmigableError(err: unknown): string {
+    if (!err) return "Ocurrió un error inesperado.";
+    const msg = (err as { message?: unknown })?.message;
+    if (typeof msg === "string" && msg.trim()) {
+        const limpio = msg.replace(/^Error:\s*/i, "").replace(/^Value error,\s*/i, "");
+        if (/Failed to fetch|fetch failed|NetworkError/i.test(limpio)) {
+            return "No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.";
+        }
+        return limpio;
+    }
+    return "Ocurrió un error inesperado.";
 }
 
 /**
@@ -952,4 +975,25 @@ export const apiService = {
             throw error;
         }
     },
+
+    /**
+     * Ejecuta código fuente en el motor Judge0 (vía endpoint backend autenticado).
+     * Evita llamadas directas a localhost:2358 que fallan en producción.
+     * @param sourceCode - Código fuente a ejecutar.
+     * @param languageId - ID de lenguaje de Judge0 (ej. 71 = Python 3).
+     * @param stdin - Entrada estándar (opcional).
+     */
+    async executeCode(sourceCode: string, languageId: number, stdin: string = '') {
+        const response = await fetchWithAuth(`${API_URL}/services/execute_code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source_code: sourceCode, language_id: languageId, stdin }),
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+            throw new Error(errorData.detail || `Error del motor de ejecución: ${response.status}`);
+        }
+        return response.json();
+    },
 };
+

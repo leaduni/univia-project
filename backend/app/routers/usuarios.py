@@ -259,7 +259,7 @@ async def login(data: LoginRequest):
 
     # Deja rastro del inicio de sesión para las estadísticas de actividad
     # (RF-21). Es best-effort: si falla, el login continúa igual.
-    registrar_evento(get_supabase(token), user.id, TIPO_LOGIN)
+    registrar_evento(get_supabase(token), user.id, TIPO_LOGIN, token=token)
 
     return {
         "status": "success",

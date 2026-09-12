@@ -2,7 +2,7 @@
 "use client"
 
 import Link from "next/link"
-import { BookOpen, Flag, Flame, Search, Sparkles, Trophy, Zap } from "lucide-react"
+import { BookOpen, Flag, Flame, KeyRound, MessageSquarePlus, Search, Sparkles, Trophy, Zap } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { DashboardMetricas } from "../stats-cards"
 
@@ -185,7 +185,32 @@ function AccesosRapidos() {
             pronto
           </span>
         </div>
+        <Link
+          href="/perfil"
+          className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-[#7957f1]/12 transition-colors text-left group"
+        >
+          <KeyRound className="w-4 h-4 text-[#7957f1] shrink-0 group-hover:scale-110 transition-transform" />
+          <span className="text-xs text-[#e9e9ed] font-medium">Configurar API Key Gemini</span>
+        </Link>
       </div>
+    </div>
+  )
+}
+
+function SugerenciasCard() {
+  return (
+    <div className="p-5 rounded-2xl bg-[var(--glass-base)] backdrop-blur-md border border-[var(--glass-border)] shadow-[var(--glow-subtle)] transition-all duration-300 hover:shadow-[var(--glow-violet)] anim-right mt-4">
+      <h3 className="font-poppins text-[14.5px] font-semibold text-[#e9e9ed] mb-2">Sugerencias / Feedback</h3>
+      <p className="text-xs text-[#e9e9ed]/55 leading-relaxed mb-3">
+        ¿Encontraste un error o tienes una idea? Cuéntanoslo para mejorar UniVia.
+      </p>
+      <Link
+        href="/dashboard/feedback"
+        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-gradient-to-r from-[#7957f1] to-[#a6249d] text-white hover:opacity-90 transition-opacity"
+      >
+        <MessageSquarePlus className="w-4 h-4" />
+        Enviar sugerencia a desarrolladores
+      </Link>
     </div>
   )
 }
@@ -196,6 +221,7 @@ export function SidebarWidgets({ stats, logros, isLoading }: SidebarWidgetsProps
       <AvanceDonut stats={stats} isLoading={isLoading} />
       <Logros logros={logros} isLoading={isLoading} />
       <AccesosRapidos />
+      <SugerenciasCard />
     </div>
   )
 }

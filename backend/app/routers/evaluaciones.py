@@ -7,27 +7,21 @@ import traceback
 import sys
 import random
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Union, AsyncGenerator
 from dotenv import load_dotenv
 load_dotenv()
 
-from app.core.llm import MODELO_GENERACION_GPT, generar_gpt, get_openai
+from app.core.llm import MODELO_GENERACION_GPT, generar_gpt, generar_gemini_con_clave, LLMSaldoAgotado, get_openai
 from app.rag.retriever import SyllabusRetriever
 from app.core.auth_utils import get_current_user
 
 logger = logging.getLogger("evaluaciones_tracer")
-logger.setLevel(logging.DEBUG)
-if not logger.handlers:
-    handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter(
-        "\n[TRACE-EVALUACIONES] %(asctime)s | %(levelname)s | %(message)s",
-        datefmt="%H:%M:%S"
-    )
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+# El nivel lo controla la configuración global de logging (main.py / env).
+# No se fuerza DEBUG aquí ni se registra un handler propio: eso duplicaría
+# líneas en los logs y fijaría el nivel a DEBUG en producción.
 
 router = APIRouter()
 
@@ -44,13 +38,13 @@ def get_retriever(token: Optional[str] = None) -> Optional[SyllabusRetriever]:
         try:
             return SyllabusRetriever(token=token)
         except Exception as e:
-            print(f"Error al inicializar SyllabusRetriever autenticado: {e}")
+            logger.error("Error al inicializar SyllabusRetriever autenticado: %s", e)
             return None
     if _retriever is None:
         try:
             _retriever = SyllabusRetriever()
         except Exception as e:
-            print(f"Error al inicializar SyllabusRetriever: {e}")
+            logger.error("Error al inicializar SyllabusRetriever: %s", e)
             return None
     return _retriever
 
@@ -140,7 +134,7 @@ def obtener_nombre_curso(curso_id: int, token: Optional[str] = None) -> Optional
         if respuesta.data:
             return respuesta.data[0]["name"]
     except Exception as e:
-        print(f"Error al obtener el nombre del curso {curso_id}: {e}")
+        logger.warning("Error al obtener el nombre del curso %s: %s", curso_id, e)
     return None
 
 def recuperar_contexto_semantico(
@@ -161,7 +155,7 @@ def recuperar_contexto_semantico(
 
     curso_nombre = obtener_nombre_curso(curso_id, token)
     if not curso_nombre:
-        print(f"No se pudo resolver el nombre del curso {curso_id}; se omite el filtro por nombre.")
+        logger.warning("No se pudo resolver el nombre del curso %s; se omite el filtro por nombre.", curso_id)
 
     try:
         # Recuperar pool de alta calidad (hasta 10, umbral 0.4) y muestrear de
@@ -182,7 +176,7 @@ def recuperar_contexto_semantico(
         return resultados
 
     except Exception as e:
-        print(f"Error al recuperar contexto: {e}")
+        logger.error("Error al recuperar contexto: %s", e)
         return []
 
 # Categorías de enfoque agnósticas al curso: sirven igual para Cálculo,
@@ -963,13 +957,18 @@ SYSTEM_MSG_EVALUACION = (
 )
 
 @router.post("/evaluaciones/generar", response_model=Evaluacion)
-async def generar_evaluacion(config: ConfiguracionEvaluacion, user_data=Depends(get_current_user)):
+async def generar_evaluacion(
+    config: ConfiguracionEvaluacion,
+    user_data=Depends(get_current_user),
+    x_user_llm_key: Optional[str] = Header(None, alias="X-User-LLM-Key"),
+):
     """
     RF-APR-02, RF-APR-03, RF-APR-04: Genera una evaluación con IA
     basada en el módulo, temas y configuración del estudiante
     """
     
     user, token = user_data
+    api_key_gemini = (x_user_llm_key or "").strip() or None
 
     if not get_openai():
         raise HTTPException(status_code=500, detail="API Key de OpenAI no configurada")
@@ -979,24 +978,38 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion, user_data=Depends(
             tema_completo = config.temas[0]
         else:
             tema_completo = f"{config.modulo}: {', '.join(config.temas)}"
-        contexto = recuperar_contexto_semantico(tema_completo, config.curso_id, config.profesor_id, token)
+        contexto = await asyncio.to_thread(
+            recuperar_contexto_semantico, tema_completo, config.curso_id, config.profesor_id, token
+        )
 
-        print("\n" + "="*50)
-        print(f"RAG: Se recuperaron {len(contexto)} fragmentos del PDF.")
-        print("="*50 + "\n")
+        logger.info("RAG: Se recuperaron %d fragmentos del PDF.", len(contexto))
 
         if config.curso_id in CURSOS_PROGRAMACION_IDS:
-            print(f"DEBUG: Activando flujo de PROGRAMACIÓN para curso {config.curso_id}")
+            logger.debug("Activando flujo de PROGRAMACIÓN para curso %s.", config.curso_id)
             prompt = generar_prompt_programacion(config, contexto)
         else:
             prompt = generar_prompt_teorico(config, contexto)
 
-        raw_content = generar_gpt(
-            prompt=prompt,
-            system=SYSTEM_MSG_EVALUACION,
-            max_tokens=16000,
-            json_mode=True,
-        )
+        try:
+            raw_content = await asyncio.to_thread(
+                generar_gpt,
+                prompt=prompt,
+                system=SYSTEM_MSG_EVALUACION,
+                max_tokens=16000,
+                json_mode=True,
+            )
+        except LLMSaldoAgotado:
+            # Nivel 1 (BYOK Gemini): reintenta con la clave del usuario.
+            if not api_key_gemini:
+                raise
+            raw_content = await asyncio.to_thread(
+                generar_gemini_con_clave,
+                api_key_gemini,
+                prompt,
+                system=SYSTEM_MSG_EVALUACION,
+                max_tokens=16000,
+                json_mode=True,
+            )
 
         data = parse_llm_json_response(raw_content)
         
@@ -1254,29 +1267,68 @@ def _parsear_pregunta_delimitada(texto: str, idx: int, tipo_real: str) -> dict:
     return _sanitize_latex_dict(data)
 
 
-async def _generar_una_pregunta(idx: int, prompt: str, tipo_real: str) -> dict:
-    """Genera 1 pregunta en texto plano con marcadores. Reintenta si la estructura falla."""
+async def _generar_una_pregunta(idx: int, prompt: str, tipo_real: str, api_key_gemini: Optional[str] = None) -> dict:
+    """Genera 1 pregunta en texto plano con marcadores. Reintenta si la estructura falla.
+
+    Cascada de 3 pasos: OpenAI global (generar_gpt) -> si saldo agotado y hay
+    clave BYOK de Gemini, reintentar con generar_gemini_con_clave -> propagar.
+    """
     loop = asyncio.get_running_loop()
 
     def _call():
         return generar_gpt(prompt=prompt, system=SYSTEM_MSG_TEORICO, max_tokens=4000)
 
+    def _call_gemini():
+        return generar_gemini_con_clave(
+            api_key_gemini, prompt, system=SYSTEM_MSG_TEORICO, max_tokens=4000
+        )
+
     ultimo_error = None
     for intento in range(3):
-        raw = await loop.run_in_executor(None, _call)
+        try:
+            raw = await loop.run_in_executor(None, _call)
+        except LLMSaldoAgotado:
+            if not api_key_gemini:
+                raise
+            # Nivel 1 (BYOK Gemini): reintenta con la clave del usuario.
+            try:
+                raw = await loop.run_in_executor(None, _call_gemini)
+            except Exception as e:
+                ultimo_error = e
+                logger.warning(
+                    "Pregunta %d intento %d: falló también Gemini (%s).",
+                    idx + 1, intento + 1, e,
+                )
+                raise
+        except Exception as e:
+            ultimo_error = e
+            logger.warning(
+                "Pregunta %d intento %d falló: %s. Reintentando...",
+                idx + 1, intento + 1, e,
+            )
+            continue
+
         try:
             return _parsear_pregunta_delimitada(raw, idx, tipo_real)
         except (ValueError, IndexError) as e:
             ultimo_error = e
-            print(f"Pregunta {idx+1} intento {intento+1} falló: {e}. Reintentando...")
+            logger.warning(
+                "Pregunta %d intento %d falló (parse): %s. Reintentando...",
+                idx + 1, intento + 1, e,
+            )
 
     raise ultimo_error or ValueError("No se pudo generar la pregunta")
 
 
 @router.post("/evaluaciones/generar-stream")
-async def generar_evaluacion_stream(config: ConfiguracionEvaluacion, user_data=Depends(get_current_user)):
+async def generar_evaluacion_stream(
+    config: ConfiguracionEvaluacion,
+    user_data=Depends(get_current_user),
+    x_user_llm_key: Optional[str] = Header(None, alias="X-User-LLM-Key"),
+):
     """Genera cada pregunta en paralelo (1 llamada por pregunta) y las envía por SSE conforme llegan."""
     user, token = user_data
+    api_key_gemini = (x_user_llm_key or "").strip() or None
 
     logger.info("=" * 60)
     logger.info(f"PASO 1: Nueva petición recibida | curso_id={config.curso_id}, modulo='{config.modulo}', "
@@ -1290,7 +1342,9 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion, user_data=D
         logger.info("PASO 2: Buscando contexto semántico / sílabo (RAG)...")
         es_programacion = config.curso_id in CURSOS_PROGRAMACION_IDS
         tema_completo = config.temas[0] if len(config.temas) == 1 else f"{config.modulo}: {', '.join(config.temas)}"
-        contexto = recuperar_contexto_semantico(tema_completo, config.curso_id, config.profesor_id, token)
+        contexto = await asyncio.to_thread(
+            recuperar_contexto_semantico, tema_completo, config.curso_id, config.profesor_id, token
+        )
         temas_str = config.temas[0] if len(config.temas) == 1 else ', '.join(config.temas)
 
         contexto_bloque = ""
@@ -1382,17 +1436,18 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion, user_data=D
             # se eliminan metadatos redundantes del chunker, saltos de línea
             # repetidos y duplicaciones de estructura (overlap) sin recortar
             # contenido pedagógico ni hacer llamadas extra a la API.
-            contexto_bloque = _sanitizar_contexto_rag(contexto_bloque)
+            contexto_sanitizado = _sanitizar_contexto_rag(contexto_bloque)
 
             prompts_tipos = [
-                _prompt_una_pregunta_teorica(i, temas_str, config.tipo_evaluacion, contexto_bloque)
+                _prompt_una_pregunta_teorica(i, temas_str, config.tipo_evaluacion, contexto_sanitizado)
                 for i in range(config.num_preguntas)
             ]
 
             preguntas: List[dict] = [None] * config.num_preguntas
-            tareas = [_generar_una_pregunta(i, p, t) for i, (p, t) in enumerate(prompts_tipos)]
+            tareas = [_generar_una_pregunta(i, p, t, api_key_gemini) for i, (p, t) in enumerate(prompts_tipos)]
 
             total_errores = 0
+            saldo_agotado = False
             for coro in asyncio.as_completed(tareas):
                 try:
                     pregunta = await coro
@@ -1401,6 +1456,11 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion, user_data=D
                     preguntas[idx] = pregunta
                     logger.info(f"PASO 5 PROGRESO: Pregunta {idx + 1}/{config.num_preguntas} generada.")
                     yield f"data: {json.dumps({'pregunta': pregunta, 'total': config.num_preguntas})}\n\n"
+                except LLMSaldoAgotado as e:
+                    total_errores += 1
+                    saldo_agotado = True
+                    logger.error(f"PASO 5 ERROR (saldo agotado) generando pregunta: {e}")
+                    yield f"data: {json.dumps({'advertencia': 'Saldo agotado en la clave global.'})}\n\n"
                 except Exception as e:
                     total_errores += 1
                     logger.error(f"PASO 5 ERROR generando pregunta: {type(e).__name__}: {e}")
@@ -1409,8 +1469,12 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion, user_data=D
 
             preguntas_ok = [p for p in preguntas if p is not None]
             if not preguntas_ok:
-                logger.error("PASO 5 ERROR: No se pudo generar ninguna pregunta.")
-                yield f"data: {json.dumps({'error': 'No se pudo generar ninguna pregunta'})}\n\n"
+                if saldo_agotado:
+                    logger.error("PASO 5 ERROR: saldo agotado en la clave global y sin resultado.")
+                    yield f"data: {json.dumps({'error': 'La clave global del servidor no tiene saldo. Agrega tu API Key gratuita de Google Gemini en tu Perfil para continuar.', 'codigo': 'saldo_agotado'})}\n\n"
+                else:
+                    logger.error("PASO 5 ERROR: No se pudo generar ninguna pregunta.")
+                    yield f"data: {json.dumps({'error': 'No se pudo generar ninguna pregunta'})}\n\n"
                 return
 
             preguntas_obj = [
@@ -1544,7 +1608,7 @@ Para cualquier fórmula matemática, usa la sintaxis de LaTeX: $...$ para fórmu
 """
 
     try:
-        return generar_gpt(prompt=prompt, max_tokens=1500)
+        return await asyncio.to_thread(generar_gpt, prompt=prompt, max_tokens=1500)
     except Exception:
         return f"Retroalimentación automática: Has obtenido un {porcentaje:.1f}%. {'¡Excelente trabajo!' if porcentaje >= 70 else 'Sigue practicando para mejorar.'}"
 
@@ -1556,7 +1620,8 @@ async def test_generacion():
         return {"status": "error", "message": "API Key de OpenAI no configurada"}
 
     try:
-        texto = generar_gpt(
+        texto = await asyncio.to_thread(
+            generar_gpt,
             prompt="Di 'Hola, UniVia está listo para generar evaluaciones!'",
             max_tokens=100,
         )

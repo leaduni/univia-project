@@ -24,6 +24,35 @@ const almacen = new Map<string, EntradaCache>();
 // Single-flight: unifica peticiones concurrentes a la misma clave.
 const enVuelo = new Map<string, Promise<unknown>>();
 
+function persistirCache(clave: string, data: unknown, timestamp: number) {
+    if (typeof window !== "undefined") {
+        try {
+            localStorage.setItem(`univia_cache_${clave}`, JSON.stringify({ data, timestamp }));
+        } catch (e) {
+            // Ignorar errores de quota o navegación privada
+        }
+    }
+}
+
+function recuperarCache(clave: string): EntradaCache | undefined {
+    if (almacen.has(clave)) {
+        return almacen.get(clave);
+    }
+    if (typeof window !== "undefined") {
+        try {
+            const raw = localStorage.getItem(`univia_cache_${clave}`);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                almacen.set(clave, parsed);
+                return parsed;
+            }
+        } catch (e) {
+            // Ignorar errores
+        }
+    }
+    return undefined;
+}
+
 /**
  * Lee o rellena la caché de `clave`.
  *
@@ -39,7 +68,7 @@ export async function leerOCache<T>(
     opciones: { ttl?: number } = {},
 ): Promise<T> {
     const ttl = opciones.ttl ?? TTL.CINCO_MINUTOS;
-    const previa = almacen.get(clave);
+    const previa = recuperarCache(clave);
 
     if (previa) {
         const fresca = Date.now() - previa.timestamp < ttl;
@@ -56,7 +85,9 @@ export async function leerOCache<T>(
 
     const promesa = cargar()
         .then((data) => {
-            almacen.set(clave, { data, timestamp: Date.now() });
+            const ts = Date.now();
+            almacen.set(clave, { data, timestamp: ts });
+            persistirCache(clave, data, ts);
             return data;
         })
         .finally(() => {
@@ -76,7 +107,9 @@ async function refrescarEnSegundoPlano<T>(
 
     const promesa = cargar()
         .then((data) => {
-            almacen.set(clave, { data, timestamp: Date.now() });
+            const ts = Date.now();
+            almacen.set(clave, { data, timestamp: ts });
+            persistirCache(clave, data, ts);
         })
         .catch(() => {
             // El refresco falló: se conserva el dato vencido; el próximo
@@ -88,10 +121,24 @@ async function refrescarEnSegundoPlano<T>(
     enVuelo.set(clave, promesa);
 }
 
+/**
+ * Lectura síncrona de la caché (para render sin parpadeo).
+ *
+ * Devuelve el dato cacheado si existe —aunque esté vencido— para pintar el
+ * contenido real desde el primer frame y revalidar en segundo plano. Devuelve
+ * `undefined` si no hay nada (el llamador cae a su estado de carga normal).
+ */
+export function picoCache<T>(clave: string): T | undefined {
+    return recuperarCache(clave)?.data as T | undefined;
+}
+
 /** Elimina una clave concreta (tras una mutación que la invalida). */
 export function invalidarClave(clave: string): void {
     almacen.delete(clave);
     enVuelo.delete(clave);
+    if (typeof window !== "undefined") {
+        localStorage.removeItem(`univia_cache_${clave}`);
+    }
 }
 
 /** Elimina todas las claves que comiencen con el prefijo dado. */
@@ -106,10 +153,31 @@ export function invalidarPrefijo(prefijo: string): void {
             enVuelo.delete(clave);
         }
     }
+    if (typeof window !== "undefined") {
+        // En localStorage iteramos de manera segura
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(`univia_cache_${prefijo}`)) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+    }
 }
 
 /** Vacía toda la caché (login, logout, sesión inválida). */
 export function limpiarCache(): void {
     almacen.clear();
     enVuelo.clear();
+    if (typeof window !== "undefined") {
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith("univia_cache_")) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+    }
 }

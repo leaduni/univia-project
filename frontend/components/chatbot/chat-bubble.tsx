@@ -12,8 +12,10 @@ import { MessageCircle, X } from "lucide-react"
 import { useAuth } from "@/components/providers/auth-context"
 import { apiService } from "@/lib/api-service"
 import { enviarMensajeChat } from "@/lib/chatbot-service"
+import { leerClaveByok } from "@/lib/byok"
 import { useOnline } from "@/lib/use-online"
 import { ChatPanel } from "./chat-panel"
+import { ByokModal } from "./byok-modal"
 import type { MensajeChat } from "@/types/chatbot"
 
 function idTemporal(): string {
@@ -80,6 +82,9 @@ export function ChatBubble() {
   // único caso real de "mensaje no leído" en un chat que el propio usuario
   // inicia (no hay push del servidor).
   const [sinVer, setSinVer] = useState(false)
+  // BYOK: clave propia de Gemini (si existe) y modal de configuración.
+  const [claveByok, setClaveByok] = useState<string | null>(() => leerClaveByok())
+  const [modalByokAbierto, setModalByokAbierto] = useState(false)
 
   const conversacionIdRef = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -221,6 +226,7 @@ export function ChatBubble() {
             },
           },
           controlador.signal,
+          claveByok,
         )
       } catch (e: any) {
         if (e?.name !== "AbortError") {
@@ -236,7 +242,7 @@ export function ChatBubble() {
         if (!abiertoRef.current) setSinVer(true)
       }
     },
-    [session?.access_token, enviando, enLinea, user?.id],
+    [session?.access_token, enviando, enLinea, user?.id, claveByok],
   )
 
   // Solo para estudiantes autenticados que ya completaron el onboarding:
@@ -256,7 +262,7 @@ export function ChatBubble() {
           : "fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3"
       }
     >
-      {abierto && (
+{abierto && (
         <ChatPanel
           mensajes={mensajes}
           enviando={enviando}
@@ -265,8 +271,18 @@ export function ChatBubble() {
           onCerrar={() => setAbierto(false)}
           expandido={expandido}
           onAlternarExpandido={() => setExpandido((previo) => !previo)}
+          modoByok={!!claveByok}
+          onAbrirByok={() => setModalByokAbierto(true)}
         />
       )}
+
+      <ByokModal
+        abierto={modalByokAbierto}
+        token={session?.access_token ?? ""}
+        claveGuardada={claveByok}
+        onCerrar={() => setModalByokAbierto(false)}
+        onCambio={() => setClaveByok(leerClaveByok())}
+      />
 
       {(!abierto || !expandido) && (
         <button

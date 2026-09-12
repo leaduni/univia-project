@@ -3,10 +3,11 @@
 
 import { useEffect, useState } from "react"
 import dynamic from "next/dynamic"
-import { AlertCircle, Loader2, RotateCcw } from "lucide-react"
+import { AlertCircle, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { apiService, mensajeAmigableError } from "@/lib/api-service"
+import { picoCache } from "@/lib/api-cache"
 import type { AvanceCarrera, CicloDetail } from "@/types/malla"
 
 // Los estilos de React Flow son globales: solo se cargan en esta ruta.
@@ -16,17 +17,15 @@ const MallaGraph = dynamic(
   () => import("@/components/malla-graph/MallaGraph").then((m) => m.MallaGraph),
   {
     ssr: false,
-    loading: () => (
-      <div className="flex h-[calc(100vh-200px)] min-h-[650px] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-accent" />
-      </div>
-    ),
+    loading: () => <MallaSkeleton />,
   },
 )
 
 export default function MallaPage() {
-  const [malla, setMalla] = useState<any[]>([])
-  const [avance, setAvance] = useState<any>(null)
+  // Seed desde caché SWR: si ya hay datos (prefetch por hover), se pintan en
+  // el primer frame sin skeleton ni parpadeo.
+  const [malla, setMalla] = useState<any[]>(() => picoCache<any[]>("malla") ?? [])
+  const [avance, setAvance] = useState<any>(() => picoCache<any>("avance") ?? null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   // Cambiarlo reejecuta el efecto de carga: reintentar sin recargar el navegador.
@@ -94,11 +93,8 @@ export default function MallaPage() {
               Reintentar
             </Button>
           </div>
-        ) : cargando ? (
-          <div className="flex flex-col items-center justify-center gap-4 py-16">
-            <Loader2 className="w-8 h-8 animate-spin text-accent" />
-            <p className="text-sm text-muted-foreground">Cargando tu malla...</p>
-          </div>
+        ) : cargando && malla.length === 0 ? (
+          <MallaSkeleton />
         ) : (
           <div className="rounded-2xl bg-card border border-border overflow-hidden">
             <MallaGraph malla={malla as CicloDetail[]} avance={avance as AvanceCarrera | null} />
@@ -106,5 +102,27 @@ export default function MallaPage() {
         )}
       </div>
     </DashboardLayout>
+  )
+}
+
+/** Shell de carga granular: tarjetas de ciclo esqueleto en vez de un spinner. */
+function MallaSkeleton() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {[0, 1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="rounded-2xl border border-border bg-card p-5 space-y-3"
+        >
+          <div className="h-4 w-28 rounded-md bg-muted animate-pulse" />
+          <div className="h-3 w-3/4 rounded-md bg-muted/70 animate-pulse" />
+          <div className="space-y-2 pt-2">
+            <div className="h-10 rounded-xl bg-muted/60 animate-pulse" />
+            <div className="h-10 rounded-xl bg-muted/60 animate-pulse" />
+            <div className="h-10 rounded-xl bg-muted/60 animate-pulse" />
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }

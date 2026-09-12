@@ -2,6 +2,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import dynamic from "next/dynamic"
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,15 +18,32 @@ import {
   Clock,
   Loader2,
   Lock,
-  BookOpen
+  BookOpen,
+  KeyRound,
 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import MarkdownRenderer from "@/components/ui/markdown-renderer"
 import { useAuth } from "@/components/providers/auth-context"
 import { apiService } from "@/lib/api-service"
-import { EvaluationResultsView } from "@/components/learning-path/evaluation-results-view"
+import { leerClaveByok } from "@/lib/byok"
 import type { EvaluationResultData, QuestionDetail } from "@/types/evaluation"
+
+// Carga diferida (client-only) de los renderizadores pesados: react-markdown +
+// katex (MarkdownRenderer) y la vista de resultados. Se importan bajo demanda
+// para no inflar el bundle inicial del tab de evaluación mientras el estudiante
+// está en la configuración.
+const MarkdownRenderer = dynamic(() => import("@/components/ui/markdown-renderer"), {
+  ssr: false,
+  loading: () => null,
+})
+
+const EvaluationResultsView = dynamic(
+  () => import("@/components/learning-path/evaluation-results-view").then((m) => m.EvaluationResultsView),
+  {
+    ssr: false,
+    loading: () => null,
+  },
+)
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -105,6 +124,8 @@ export function EvaluacionIA({
   const [resultado, setResultado] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Saldo agotado (429 credit_balance_exhausted): muestra banner con enlace a Perfil.
+  const [saldoAgotado, setSaldoAgotado] = useState(false)
   const [executionResults, setExecutionResults] = useState<Record<number, ExecutionResult>>({});
   const { session } = useAuth()
 
@@ -136,7 +157,7 @@ export function EvaluacionIA({
     }
   }, [preSelectedModulo, modulos])
 
-  // Reset preselección cuando se reinicia
+// Reset preselección cuando se reinicia
   useEffect(() => {
     if (step === "config") {
       hasProcessedPreselection.current = false
@@ -175,72 +196,40 @@ export function EvaluacionIA({
     setExecutionResults(prev => ({ ...prev, [preguntaId]: { isLoading: true, output: undefined, error: undefined } }));
 
     try {
-        const response = await fetch("http://127.0.0.1:2358/submissions?base64_encoded=false&wait=true", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                source_code: sourceCode,
-                language_id: 71, // Python 3
-                stdin: ""
-            }),
-        });
+        // Enruta al endpoint backend autenticado (/api/services/execute_code)
+        // en lugar de llamar directamente a localhost:2358, que falla en producción.
+        const data = await apiService.executeCode(sourceCode, 71 /* Python 3 */);
 
-        // Handle non-2xx responses first
-        if (!response.ok) {
-            const errorText = await response.text().catch(() => "No se pudo leer el cuerpo del error.");
-            throw new Error(`El servidor de ejecución respondió con un error ${response.status}. ${errorText}`);
-        }
-
-        // Handle successful responses
-        let data;
-        try {
-            data = await response.json();
-            console.log('Respuesta de Judge0:', data);
-        } catch (jsonError) {
-             throw new Error("Error: La respuesta del servidor de ejecución no es un JSON válido.");
-        }
-        
         let resultOutput: string | undefined;
         let resultError: string | undefined;
 
-        // Priority: An "Accepted" status means success.
         if (data.status?.description === 'Accepted') {
-            resultOutput = data.stdout ?? ""; // Display stdout, defaulting to an empty string if null.
+            resultOutput = data.stdout ?? "";
         } else if (data.compile_output) {
-            // Compilation error is a specific type of error.
             resultError = data.compile_output;
         } else if (data.stderr) {
-            // Runtime error is another specific error.
             resultError = data.stderr;
         } else if (data.status?.description) {
-            // Any other status description is treated as an error.
             resultError = data.status.description;
         } else {
-            // Fallback for an unexpected response format.
             resultError = "Respuesta desconocida del motor de ejecución.";
         }
 
-        // Update the UI to show the immediate result
         setExecutionResults(prev => ({
             ...prev,
             [preguntaId]: { output: resultOutput, error: resultError, isLoading: false }
         }));
 
     } catch (err: any) {
-        console.error('Error en handleEjecutarCodigo:', err);
-        // Distinguish between network errors and other errors
-        const isNetworkError = err.message.toLowerCase().includes('failed to fetch');
-        const errorMessage = isNetworkError
-            ? "Error de Red: No se pudo conectar al motor de ejecución local (Judge0). Revisa que esté activo en Docker y que no haya un firewall bloqueando la conexión."
-            : err.message;
+        const errorMessage = err.message?.toLowerCase().includes('failed to fetch')
+            ? "Error de red: no se pudo contactar al servidor. Revisa tu conexión e inténtalo de nuevo."
+            : err.message ?? "Error desconocido al ejecutar el código.";
 
         setExecutionResults(prev => ({
             ...prev,
             [preguntaId]: { error: errorMessage, isLoading: false }
         }));
-    }
+}
   };
 
   const generarEvaluacion = async () => {
@@ -249,16 +238,20 @@ export function EvaluacionIA({
     try {
       setIsLoading(true)
       setError(null)
+      setSaldoAgotado(false)
       setStep("loading")
 
       const token = session?.access_token
       if (!token) { console.error("No active authentication token found."); return }
+
+      const llmKey = leerClaveByok()
 
       const response = await fetch(`${API_URL}/api/evaluaciones/generar-stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": token ? `Bearer ${token}` : "",
+          ...(llmKey ? { "X-User-LLM-Key": llmKey } : {}),
         },
         body: JSON.stringify({
           curso_id: parseInt(courseId),
@@ -295,7 +288,10 @@ export function EvaluacionIA({
           if (!linea) continue
           let payload: any
           try { payload = JSON.parse(linea.slice(6)) } catch { continue }
-          if (payload.error) throw new Error(payload.error)
+          if (payload.error) {
+            if (payload.codigo === "saldo_agotado") setSaldoAgotado(true)
+            throw new Error(payload.error)
+          }
           if (payload.pregunta) {
             preguntasRecibidas++
             setError(`Generando... ${preguntasRecibidas}/${payload.total ?? numPreguntas} preguntas listas`)
@@ -309,7 +305,7 @@ export function EvaluacionIA({
 
       setEvaluacion(normalizarEvaluacion(data))
       setStep("evaluacion")
-    } catch (err: any) {
+} catch (err: any) {
       if (onResultsChange) onResultsChange(false)
       setError(`No se pudo generar la evaluación: ${err.message}`)
       setStep("config")
@@ -469,6 +465,24 @@ export function EvaluacionIA({
         {error && (
           <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20">
             {error}
+          </div>
+        )}
+
+        {saldoAgotado && (
+          <div className="bg-amber-500/10 text-amber-200 p-4 rounded-lg border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="flex-1 text-sm leading-relaxed">
+              <p className="font-semibold">La cuota de IA compartida se agotó.</p>
+              <p className="text-amber-200/80 mt-1">
+                Agrega tu API Key gratuita de Google Gemini en tu Perfil para seguir generando evaluaciones al instante.
+              </p>
+            </div>
+            <Link
+              href="/perfil"
+              className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-400 text-amber-950 text-sm font-semibold hover:bg-amber-300 transition-colors"
+            >
+              <KeyRound className="w-4 h-4" />
+              Ir a mi Perfil
+            </Link>
           </div>
         )}
 

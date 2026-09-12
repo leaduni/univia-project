@@ -9,6 +9,7 @@ import { HeaderSearch } from "./header-search"
 import { ExplorarMenu } from "./explorar-menu"
 import { Logo } from "./logo"
 import { cn } from "@/lib/utils"
+import { prefetchRuta } from "@/lib/prefetch"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -38,6 +39,9 @@ const ACCESOS = [
   { label: "Mi aprendizaje", href: "/dashboard" },
   { label: "Mi malla", href: "/malla" },
   { label: "Recursos", href: "/recursos" },
+  { label: "Foro", href: "/foro" },
+  { label: "Mensajes", href: "/mensajes" },
+  { label: "Sugerencias", href: "/dashboard/feedback" },
 ]
 
 export function Header({ onMenuClick }: HeaderProps) {
@@ -46,26 +50,35 @@ export function Header({ onMenuClick }: HeaderProps) {
   const [isAtTop, setIsAtTop] = useState(true)
   const [isHidden, setIsHidden] = useState(false)
   const ultimoScroll = useRef(0)
+  const ultimoAplicado = useRef(0)
+  const rafId = useRef<number | null>(null)
 
   const nombre = user?.nombre_completo || "Estudiante"
 
   useEffect(() => {
     const main = document.querySelector("main")
 
-    const manejarScroll = (event: Event) => {
-      const posicion =
-        event.currentTarget === main
-          ? main.scrollTop
-          : window.scrollY
-
+    // El estado se actualiza una vez por fotograma (rAF throttle) en vez de en
+    // cada evento de scroll, para no re-renderizar el header en cada pixel.
+    const aplicar = () => {
+      rafId.current = null
+      const posicion = ultimoScroll.current
       setIsAtTop(posicion === 0)
-      setIsHidden(posicion > ultimoScroll.current && posicion > 0)
-      ultimoScroll.current = posicion
+      setIsHidden(posicion > ultimoAplicado.current && posicion > 0)
+      ultimoAplicado.current = posicion
+    }
+
+    const manejarScroll = (event: Event) => {
+      const esMain = !!main && event.currentTarget === main
+      ultimoScroll.current = esMain && main ? main.scrollTop : window.scrollY
+      if (rafId.current != null) return
+      rafId.current = requestAnimationFrame(aplicar)
     }
 
     const posicionInicial = main?.scrollTop ?? window.scrollY
     setIsAtTop(posicionInicial === 0)
     ultimoScroll.current = posicionInicial
+    ultimoAplicado.current = posicionInicial
 
     window.addEventListener("scroll", manejarScroll, { passive: true })
     main?.addEventListener("scroll", manejarScroll, { passive: true })
@@ -73,6 +86,7 @@ export function Header({ onMenuClick }: HeaderProps) {
     return () => {
       window.removeEventListener("scroll", manejarScroll)
       main?.removeEventListener("scroll", manejarScroll)
+      if (rafId.current != null) cancelAnimationFrame(rafId.current)
     }
   }, [])
 
@@ -124,6 +138,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                   key={acceso.href}
                   href={acceso.href}
                   aria-current={activo ? "page" : undefined}
+                  onMouseEnter={() => prefetchRuta(acceso.href)}
                   className={cn(
                     "px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap",
                     activo

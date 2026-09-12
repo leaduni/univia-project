@@ -69,6 +69,7 @@ export async function enviarMensajeChat(
   token: string,
   callbacks: CallbacksMensajeChat,
   signal?: AbortSignal,
+  llmKey?: string | null,
 ): Promise<void> {
   const controladorTimeout = new AbortController()
   const señalCombinada = combinarSignals(signal, controladorTimeout.signal)
@@ -81,6 +82,7 @@ export async function enviarMensajeChat(
       headers: {
         "Content-Type": "application/json",
         Authorization: token ? `Bearer ${token}` : "",
+        ...(llmKey ? { "X-User-LLM-Key": llmKey } : {}),
       },
       body: JSON.stringify({
         mensaje,
@@ -152,4 +154,28 @@ export async function enviarMensajeChat(
       // tengan ya: se ignora.
     }
   }
+}
+
+export interface ResultadoValidacionClave {
+  valid: boolean
+  error?: string
+}
+
+/**
+ * Valida la clave BYOK de Gemini contra el backend con una micro-llamada real.
+ * La clave viaja solo en el body de esta petición, nunca se persiste.
+ */
+export async function validateKey(token: string, key: string): Promise<ResultadoValidacionClave> {
+  const response = await fetch(`${API_URL}/chatbot/validate-key`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: token ? `Bearer ${token}` : "",
+    },
+    body: JSON.stringify({ clave: key }),
+  })
+  if (!response.ok) {
+    return { valid: false, error: "No se pudo validar la clave. Intenta de nuevo." }
+  }
+  return (await response.json()) as ResultadoValidacionClave
 }

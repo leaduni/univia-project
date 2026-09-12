@@ -4,7 +4,7 @@
 "use client"
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react"
-import { Maximize2, Minimize2, Send, Sparkles, WifiOff, X } from "lucide-react"
+import { KeyRound, Maximize2, Minimize2, Send, Sparkles, WifiOff, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { MessageBubble } from "./message-bubble"
 import type { MensajeChat } from "@/types/chatbot"
@@ -27,6 +27,9 @@ interface ChatPanelProps {
   onCerrar: () => void
   expandido?: boolean
   onAlternarExpandido?: () => void
+  /** BYOK: true si el estudiante tiene su propia clave de Gemini activa. */
+  modoByok?: boolean
+  onAbrirByok?: () => void
 }
 
 export function ChatPanel({
@@ -37,6 +40,8 @@ export function ChatPanel({
   onCerrar,
   expandido = false,
   onAlternarExpandido,
+  modoByok = false,
+  onAbrirByok,
 }: ChatPanelProps) {
   const [texto, setTexto] = useState("")
   const finRef = useRef<HTMLDivElement>(null)
@@ -86,14 +91,35 @@ export function ChatPanel({
     >
       {/* Cabecera */}
       <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10 gradient-ai-neon shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
+<div className="flex items-center gap-2 min-w-0">
           <Sparkles className="w-4 h-4 text-white shrink-0" aria-hidden="true" />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-white truncate">Asistente UniVia</p>
-            <p className="text-[11px] text-white/80 truncate">Recursos, dudas y tu avance académico</p>
+            <div className="flex items-center gap-1 min-w-0">
+              <p className="text-[11px] text-white/80 truncate">Recursos, dudas y tu avance académico</p>
+              <span
+                className={`shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                  modoByok
+                    ? "bg-emerald-400/20 text-emerald-200"
+                    : "bg-white/10 text-white/70"
+                }`}
+                title={modoByok ? "Usando tu propia clave de Gemini" : "Usando la cuota compartida de UniVia"}
+              >
+                {modoByok ? "Cuota propia (Gemini)" : "Cuota compartida UniVia"}
+              </span>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={onAbrirByok}
+            aria-label="Configurar tu propia clave de IA"
+            title="Configurar tu propia clave de IA"
+            className="w-7 h-7 rounded-full flex items-center justify-center text-white/90 hover:bg-white/15 transition-colors"
+          >
+            <KeyRound className="w-4 h-4" />
+          </button>
           <button
             type="button"
             onClick={onAlternarExpandido}

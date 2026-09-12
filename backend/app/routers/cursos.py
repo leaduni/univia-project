@@ -5,11 +5,23 @@ from app.core.auth_utils import get_current_user
 from app.core.prereqs import check_course_status, resolve_prereq_chain
 from typing import Dict, List, Set
 import os
+import asyncio
 import logging
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+async def _run_rpc(supabase, nombre: str, params: dict) -> dict:
+    """Ejecuta un RPC 1-RTT de Supabase en un hilo aparte (no bloquea el loop)."""
+    resp = await asyncio.to_thread(
+        lambda: supabase.rpc(nombre, params).execute()
+    )
+    data = getattr(resp, "data", None)
+    if data is None:
+        raise HTTPException(status_code=500, detail="No se pudieron cargar los datos.")
+    return data
 
 
 def _verificar_acceso_curso(supabase, user, course_id: int | str) -> None:
@@ -73,6 +85,61 @@ def _verificar_acceso_curso(supabase, user, course_id: int | str) -> None:
     progreso_resp = supabase.table("progreso_cursos").select("curso_id, status").eq("perfil_id", user.id).execute()
     progreso_data: Dict[str, str] = {str(p["curso_id"]): p["status"] for p in (progreso_resp.data or [])}
     completed_courses: Set[str] = {str(p["curso_id"]) for p in (progreso_resp.data or []) if p["status"] == "completed"}
+    db_status = progreso_data.get(cid_str)
+
+    final_status, _, _ = check_course_status(
+        curso_id=cid_str,
+        db_status=db_status,
+        completed_courses=completed_courses,
+        prereq_map=prereq_map_str,
+        cursos_dict=cursos_en_carrera,
+    )
+
+    if final_status == "locked":
+        nombre = cursos_en_carrera.get(cid_str, {}).get("name", cid_str)
+        raise HTTPException(
+            status_code=403,
+            detail=f"El curso '{nombre}' se encuentra bloqueado. Debes completar sus prerrequisitos para acceder al contenido.",
+        )
+
+
+def _verificar_acceso_desde_datos(datos: dict, course_id: int | str) -> None:
+    """Misma verificación de acceso que _verificar_acceso_curso, pero usando
+    los datos ya traídos por el RPC get_learning_path_datos (sin más RTT)."""
+    cid_int = int(course_id)
+
+    progreso_curso = datos.get("progreso_curso")
+    status_actual = (progreso_curso or {}).get("status")
+    if status_actual in ("in_progress", "completed"):
+        return
+
+    carrera_id = datos.get("carrera_id")
+    malla_id = datos.get("malla_id")
+    if carrera_id is None:
+        raise HTTPException(status_code=403, detail="No se encontró tu perfil.")
+    if not malla_id:
+        raise HTTPException(status_code=403, detail="No tienes un plan de estudios asignado.")
+
+    mc_data = datos["malla_cursos"]
+    cursos_en_carrera = {
+        str(mc["curso_id"]): {
+            "id": str(mc["curso_id"]),
+            "code": mc.get("code"),
+            "name": mc.get("name"),
+        }
+        for mc in mc_data
+    }
+
+    cid_str = str(cid_int)
+    if cid_str not in cursos_en_carrera:
+        raise HTTPException(status_code=404, detail="Curso no encontrado en tu plan de estudios.")
+
+    from app.core.prereqs import build_prereq_map_from_malla
+    prereq_map = build_prereq_map_from_malla(mc_data, datos["prerequisitos"], use_curso_id=True)
+    prereq_map_str = {str(k): [str(v) for v in vals] for k, vals in prereq_map.items()}
+
+    progreso_data: Dict[str, str] = {str(p["curso_id"]): p["status"] for p in datos["progreso"]}
+    completed_courses: Set[str] = {str(p["curso_id"]) for p in datos["progreso"] if p["status"] == "completed"}
     db_status = progreso_data.get(cid_str)
 
     final_status, _, _ = check_course_status(
@@ -179,26 +246,17 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
     supabase = get_supabase(token)
 
     try:
-        _verificar_acceso_curso(supabase, user, course_id)
+        datos = await _run_rpc(
+            supabase, "get_learning_path_datos", {"p_user": user.id, "p_curso": course_id}
+        )
 
-        course_resp = supabase.table("cursos").select("*").eq("id", course_id).single().execute()
-        if not course_resp.data:
+        _verificar_acceso_desde_datos(datos, course_id)
+
+        curso_info = datos.get("curso")
+        if not curso_info:
             raise HTTPException(status_code=404, detail="Curso no encontrado")
 
-        # curso_profesores es N:N (varias secciones/horarios pueden tener
-        # distinto docente); no sabemos en qué sección está el estudiante,
-        # así que se listan todos los que dictan la materia.
-        profesores_resp = (
-            supabase.table("curso_profesores")
-            .select("profesores(nombre_completo)")
-            .eq("curso_id", course_id)
-            .execute()
-        )
-        nombres_profesores: List[str] = sorted({
-            nombre
-            for p in (profesores_resp.data or [])
-            if (nombre := (p.get("profesores") or {}).get("nombre_completo"))
-        })
+        nombres_profesores: List[str] = list(datos.get("profesores") or [])
         if not nombres_profesores:
             profesor_texto = None
         elif len(nombres_profesores) <= 3:
@@ -206,31 +264,17 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
         else:
             profesor_texto = ", ".join(nombres_profesores[:3]) + f" y {len(nombres_profesores) - 3} más"
 
-        steps_resp = supabase.table("learning_path_steps").select("*").eq("curso_id", course_id).order("order_index").execute()
-
-        progreso_resp = supabase.table("progreso_cursos").select("*").eq("perfil_id", user.id).eq("curso_id", course_id).maybe_single().execute()
-
-        step_ids = [s["id"] for s in steps_resp.data]
-        unidades_completadas = {}
-        try:
-            unidades_resp = supabase.table("progreso_unidades").select("*").eq("perfil_id", user.id).in_("step_id", step_ids).execute()
-            unidades_completadas = {u["step_id"]: u for u in (unidades_resp.data or [])}
-        except Exception as table_err:
-            err_str = str(table_err)
-            if "PGRST205" in err_str or "Could not find the table" in err_str:
-                logger.warning("Tabla 'progreso_unidades' no existe. Se usa progreso por defecto (ninguna unidad completada).")
-            else:
-                raise
+        steps = datos.get("steps") or []
+        step_ids = [s["id"] for s in steps]
+        unidades_completadas = {u["step_id"]: u for u in (datos.get("unidades") or [])}
 
         course_status = (
-            progreso_resp.data.get("status")
-            if progreso_resp and progreso_resp.data
-            else "available"
+            (datos.get("progreso_curso") or {}).get("status") or "available"
         )
 
         timeline_steps = []
         all_completed = True
-        for i, step in enumerate(steps_resp.data):
+        for i, step in enumerate(steps):
             step_completado = unidades_completadas.get(step["id"], {}).get("completado", False)
 
             if course_status == "completed":
@@ -258,7 +302,7 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
                 } for p in planchas]
             })
 
-        course_name = course_resp.data.get("name", "el curso")
+        course_name = curso_info.get("name", "el curso")
         ai_insights = [
             {
                 "id": 1,
@@ -282,9 +326,9 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
 
         return {
             "curso": {
-                "id": course_resp.data["id"],
-                "code": course_resp.data["code"],
-                "name": course_resp.data["name"],
+                "id": curso_info["id"],
+                "code": curso_info["code"],
+                "name": curso_info["name"],
                 "professor": profesor_texto,
                 "progress": progress_pct
             },

@@ -8,6 +8,7 @@ core/validators.py.
 Nota de seguridad: nunca se registran tokens ni credenciales en los logs.
 """
 
+import asyncio
 import logging
 from typing import Optional
 
@@ -52,7 +53,9 @@ async def get_current_user(authorization: Optional[str] = Header(None)):
     token = extraer_token(authorization)
 
     try:
-        user_response = get_supabase().auth.get_user(token)
+        user_response = await asyncio.to_thread(
+            get_supabase().auth.get_user, token
+        )
     except Exception as e:
         # El detalle del proveedor no se expone al cliente: puede revelar
         # información interna de la sesión.

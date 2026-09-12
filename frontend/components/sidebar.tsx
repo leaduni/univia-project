@@ -1,9 +1,10 @@
 // Navegación lateral de la app colapsable y armónica
 "use client"
-import { Grid, FileText, User, GraduationCap, ChevronLeft, ChevronRight } from "lucide-react"
+import { Grid, FileText, User, GraduationCap, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { prefetchRuta } from "@/lib/prefetch"
 import { Logo } from "./logo"
 
 interface SidebarProps {
@@ -15,6 +16,7 @@ const MENU = [
   { icon: Grid, label: "Mi aprendizaje", id: "Dashboard", href: "/dashboard" },
   { icon: GraduationCap, label: "Mi malla", id: "Malla", href: "/malla" },
   { icon: FileText, label: "Recursos", id: "Recursos", href: "/recursos" },
+  { icon: MessageSquare, label: "Sugerencias", id: "Feedback", href: "/dashboard/feedback" },
   { icon: User, label: "Perfil", id: "Perfil", href: "/perfil" },
 ]
 
@@ -76,6 +78,7 @@ export function Sidebar({ open, onToggle }: SidebarProps) {
               href={item.href}
               aria-current={isActive ? "page" : undefined}
               title={!open ? item.label : undefined}
+              onMouseEnter={() => prefetchRuta(item.href)}
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-muted-foreground/70 transition-all duration-200 relative group font-sans text-sm font-medium",
                 !open && "justify-center px-0 group/item",

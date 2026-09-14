@@ -39,6 +39,7 @@ const ACCESOS = [
   { label: "Mi aprendizaje", href: "/dashboard" },
   { label: "Mi malla", href: "/malla" },
   { label: "Recursos", href: "/recursos" },
+  { label: "Agenda", href: "/agenda" },
   { label: "Foro", href: "/foro" },
   { label: "Mensajes", href: "/mensajes" },
   { label: "Sugerencias", href: "/dashboard/feedback" },

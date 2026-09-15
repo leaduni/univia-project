@@ -4,7 +4,7 @@
 // etiquetas personalizadas (Google Calendar style) y navegación dinámica
 
 import { useState, useEffect, useCallback } from "react"
-import { Clock, Check } from "lucide-react"
+import { Clock, Check, Moon, AlertTriangle, Sparkles } from "lucide-react"
 
 // ─── Tipos públicos exportados ────────────────────────────────────────────────
 
@@ -23,7 +23,9 @@ export interface CalendarioEvento {
   titulo: string
   subtitulo?: string
   ubicacion?: string
+  videollamada?: string
   todoElDia?: boolean
+  tipo?: 'examen' | string
   recurrencia?: string
   etiquetaId: string
   diaOffset?: number // Usado en vistas dinámicas para saber qué día es respecto a baseDate
@@ -35,6 +37,7 @@ export interface CalendarioEvento {
 
 export interface OpenModalParams {
   horaInicio: number
+  horaFin?: number
   fecha: Date
 }
 
@@ -45,6 +48,7 @@ interface CalendarioGridProps {
   filtros: Record<string, boolean>
   baseDate: Date
   fechasSemana: Date[] // Lunes a Domingo de la semana que contiene a baseDate
+  sleepSettings: { start: string, end: string }
   onOpenModal: (params: OpenModalParams) => void
   onEventClick: (evento: CalendarioEvento) => void
 }
@@ -53,11 +57,11 @@ interface CalendarioGridProps {
 
 const DIAS_CORTOS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
-const HORA_INI = 8
-const HORA_FIN = 22
-const TOTAL_H = HORA_FIN - HORA_INI
+const HORA_INI = 0
+const HORA_FIN = 24
+const TOTAL_H = 24
 const PX_POR_HORA = 68
-const SLOTS_POR_HORA = 2 // Intervalos de 30 min
+const SLOTS_POR_HORA = 4 // Intervalos de 15 min
 
 // ─── Generador de Estilos por Color ───────────────────────────────────────────
 
@@ -127,28 +131,50 @@ interface BloqueEventoProps {
   onClick: (e: React.MouseEvent) => void
   totalHorasPx: number
 }
-
 function BloqueEvento({ evento, etiquetas, filtros, onClick, totalHorasPx }: BloqueEventoProps) {
-  if (!filtros[evento.etiquetaId]) return null
+  const activo = filtros[evento.etiquetaId]
   const etiqueta = etiquetas.find(e => e.id === evento.etiquetaId)
-  const s = getEstiloColor(etiqueta ? etiqueta.color : "indigo")
+  
+  const isExamen = evento.tipo === 'examen'
+  let s = getEstiloColor(etiqueta ? etiqueta.color : "indigo")
+  if (isExamen) {
+    s = {
+      bg: "bg-rose-500/20",
+      bgHover: "hover:bg-rose-500/30",
+      border: "border-l-[3px] border-l-rose-500 border-t border-t-white/5 border-r border-r-white/5 border-b border-b-white/5",
+      text: "text-rose-100",
+      sub: "text-rose-300",
+      dot: "#f43f5e",
+      glow: "shadow-[inset_0_0_12px_rgba(244,63,94,0.15)]"
+    }
+  }
 
   const topPx = (evento.horaInicio / TOTAL_H) * totalHorasPx
   const heightPx = Math.max((evento.duracion / TOTAL_H) * totalHorasPx, 28)
   const esPequeno = heightPx < 50
 
+  const handleRepasar = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    console.log(`[IA] Iniciando repaso para: ${evento.titulo}`)
+    alert(`[Módulo de IA] Preparando sesión de repaso para ${evento.titulo}...`)
+  }
+
   return (
     <div
-      role="button" tabIndex={0} onClick={onClick} onKeyDown={e => e.key === "Enter" && onClick(e as any)}
+      role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); onClick(e); }} onKeyDown={e => e.key === "Enter" && onClick(e as any)}
       className={`absolute left-1 right-1 rounded-md cursor-pointer overflow-hidden
         ${s.bg} ${s.bgHover} ${s.border} ${s.glow}
-        transition-all duration-150 ease-out hover:scale-[1.01] hover:-translate-y-px hover:z-20
-        focus:outline-none focus:ring-2 focus:ring-white/20 select-none z-10`}
+        transition-all duration-300 ease-in-out hover:scale-[1.01] hover:-translate-y-px hover:z-20
+        focus:outline-none focus:ring-2 focus:ring-white/20 select-none
+        ${activo ? "opacity-100 scale-100 z-10" : "opacity-0 scale-95 pointer-events-none z-0"}`}
       style={{ top: `${topPx}px`, height: `${heightPx}px` }}
       title={`${evento.titulo}${evento.subtitulo ? ` · ${evento.subtitulo}` : ""}`}
     >
-      <div className="px-2 py-1.5 h-full flex flex-col overflow-hidden">
-        <p className={`text-xs font-semibold leading-tight truncate ${s.text}`}>{evento.titulo}</p>
+      <div className="px-2 py-1.5 h-full flex flex-col overflow-hidden relative group">
+        <div className="flex items-start gap-1">
+          {isExamen && <AlertTriangle className="w-3 h-3 text-rose-400 shrink-0 mt-0.5" />}
+          <p className={`text-xs font-semibold leading-tight truncate ${s.text}`}>{evento.titulo}</p>
+        </div>
         {!esPequeno && evento.subtitulo && (
           <p className={`text-[10px] leading-tight truncate mt-0.5 ${s.sub}`}>{evento.subtitulo}</p>
         )}
@@ -156,6 +182,13 @@ function BloqueEvento({ evento, etiquetas, filtros, onClick, totalHorasPx }: Blo
           <p className={`text-[10px] mt-auto pt-0.5 ${s.sub} opacity-70`}>
             {hora12Label(evento.horaInicio, true)} – {hora12Label(evento.horaInicio + evento.duracion, true)}
           </p>
+        )}
+        {isExamen && heightPx > 70 && (
+          <div className="mt-1.5">
+            <button onClick={handleRepasar} className="w-full py-1 rounded-md bg-gradient-to-r from-rose-600/80 to-purple-600/80 hover:from-rose-500 hover:to-purple-500 text-white text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-md border border-white/20 hover:scale-[1.02]">
+              <Sparkles className="w-3 h-3" /> Repasar con IA
+            </button>
+          </div>
         )}
       </div>
     </div>
@@ -195,11 +228,11 @@ function EjeHoras({ totalHorasPx }: { totalHorasPx: number }) {
   const horas = Array.from({ length: TOTAL_H + 1 }, (_, i) => i)
   return (
     <div className="shrink-0 w-16 border-r border-slate-800/80 bg-[#0b0d1f]">
-      <div className="h-[52px] border-b border-slate-800/80" />
+      <div className="sticky top-0 z-30 h-[52px] border-b border-slate-800/80 bg-[#0b0d1f]" />
       <div style={{ height: `${totalHorasPx}px`, position: "relative" }}>
         {horas.map(h => (
-          <div key={h} className="absolute right-0 left-0 flex items-start justify-end pr-3" style={{ top: `${(h / TOTAL_H) * 100}%` }}>
-            {h < TOTAL_H && <span className="text-xs font-medium text-slate-400 -translate-y-2 whitespace-nowrap select-none">{hora12Label(h)}</span>}
+          <div key={h} id={`hour-${h}`} className="absolute right-0 left-0 flex items-start justify-end pr-3" style={{ top: `${(h / TOTAL_H) * 100}%` }}>
+            {h < TOTAL_H && <span className={`text-xs font-medium text-slate-400 whitespace-nowrap select-none ${h === 0 ? "translate-y-1" : "-translate-y-2"}`}>{hora12Label(h)}</span>}
           </div>
         ))}
       </div>
@@ -237,21 +270,83 @@ function CeldasClickeables({
   const totalSlots = TOTAL_H * SLOTS_POR_HORA
   const alturaCelda = totalHorasPx / totalSlots
   const [hoverSlot, setHoverSlot] = useState<number | null>(null)
+  
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStartSlot, setDragStartSlot] = useState<number | null>(null)
+  const [currentDragSlot, setCurrentDragSlot] = useState<number | null>(null)
+
+  const handleMouseDown = (slotIdx: number, e: React.MouseEvent) => {
+    if (e.button !== 0) return // Solo clic izquierdo
+    setIsDragging(true)
+    setDragStartSlot(slotIdx)
+    setCurrentDragSlot(slotIdx)
+  }
+
+  const handleMouseEnter = (slotIdx: number) => {
+    setHoverSlot(slotIdx)
+    if (isDragging && dragStartSlot !== null) {
+      setCurrentDragSlot(slotIdx)
+    }
+  }
+
+  const handleMouseUp = () => {
+    if (isDragging && dragStartSlot !== null && currentDragSlot !== null) {
+      const start = Math.min(dragStartSlot, currentDragSlot)
+      const end = Math.max(dragStartSlot, currentDragSlot)
+      const horaInicio = start / SLOTS_POR_HORA
+      const horaFin = (end + 1) / SLOTS_POR_HORA // +1 slot de duración por defecto
+      
+      onCeldaClick({ horaInicio, horaFin, fecha })
+    }
+    setIsDragging(false)
+    setDragStartSlot(null)
+    setCurrentDragSlot(null)
+  }
+
+  // Cancelar arrastre si el ratón se suelta fuera del grid
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      if (isDragging) {
+        setIsDragging(false)
+        setDragStartSlot(null)
+        setCurrentDragSlot(null)
+      }
+    }
+    window.addEventListener("mouseup", handleGlobalMouseUp)
+    return () => window.removeEventListener("mouseup", handleGlobalMouseUp)
+  }, [isDragging])
+
+  const renderSelectionBox = () => {
+    if (!isDragging || dragStartSlot === null || currentDragSlot === null) return null
+    const start = Math.min(dragStartSlot, currentDragSlot)
+    const end = Math.max(dragStartSlot, currentDragSlot)
+    const topPx = start * alturaCelda
+    const heightPx = (end - start + 1) * alturaCelda
+
+    return (
+      <div 
+        className="absolute left-0 right-0 bg-indigo-500/20 border-indigo-500 border-2 border-dashed z-20 pointer-events-none transition-all duration-75"
+        style={{ top: `${topPx}px`, height: `${heightPx}px` }}
+      />
+    )
+  }
 
   return (
-    <div className="absolute inset-0 z-0">
+    <div className="absolute inset-0 z-0 select-none" onMouseUp={handleMouseUp} onMouseLeave={() => setHoverSlot(null)}>
+      {renderSelectionBox()}
       {Array.from({ length: totalSlots }, (_, slotIdx) => {
         const horaInicio = slotIdx / SLOTS_POR_HORA
         const topPx = slotIdx * alturaCelda
+        const isHovered = !isDragging && hoverSlot === slotIdx
+
         return (
           <div key={slotIdx}
-            className={`absolute left-0 right-0 cursor-pointer transition-colors duration-100 ${hoverSlot === slotIdx ? "bg-indigo-500/10" : ""}`}
+            className={`absolute left-0 right-0 transition-colors duration-100 ${isHovered ? "bg-indigo-500/10" : ""}`}
             style={{ top: `${topPx}px`, height: `${alturaCelda}px` }}
-            onMouseEnter={() => setHoverSlot(slotIdx)}
-            onMouseLeave={() => setHoverSlot(null)}
-            onClick={() => onCeldaClick({ horaInicio, fecha })}
+            onMouseDown={(e) => handleMouseDown(slotIdx, e)}
+            onMouseEnter={() => handleMouseEnter(slotIdx)}
           >
-            {hoverSlot === slotIdx && (
+            {isHovered && (
               <div className="absolute left-1 top-0 flex items-center pointer-events-none z-20">
                 <span className="text-[10px] font-medium text-indigo-300 bg-indigo-950/90 px-1.5 py-0.5 rounded shadow-sm border border-indigo-500/30">
                   {hora12Label(horaInicio, true)}
@@ -265,6 +360,40 @@ function CeldasClickeables({
   )
 }
 
+// ─── Sleep Zones (Visual Overlay) ─────────────────────────────────────────────
+
+function SleepZones({ totalHorasPx, sleepSettings }: { totalHorasPx: number, sleepSettings: { start: string, end: string } }) {
+  const [startH, startM] = sleepSettings.start.split(":").map(Number)
+  const [endH, endM] = sleepSettings.end.split(":").map(Number)
+  const startDecimal = startH + startM / 60
+  const endDecimal = endH + endM / 60
+  const pxPerH = totalHorasPx / 24
+
+  const renderBlock = (s: number, e: number) => {
+    const topPx = s * pxPerH
+    const heightPx = (e - s) * pxPerH
+    return (
+      <div className="absolute left-0 right-0 pointer-events-none z-[1] bg-[#0B0B12]/80 flex flex-col items-center pt-4 overflow-hidden"
+           style={{ top: `${topPx}px`, height: `${heightPx}px`, backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.01) 10px, rgba(255,255,255,0.01) 20px)' }}>
+        {heightPx > 40 && <Moon className="w-5 h-5 text-slate-600/40" />}
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {startDecimal > endDecimal ? (
+        <>
+          {renderBlock(0, endDecimal)}
+          {renderBlock(startDecimal, 24)}
+        </>
+      ) : (
+        renderBlock(startDecimal, endDecimal)
+      )}
+    </>
+  )
+}
+
 // ─── Columna de un día ────────────────────────────────────────────────────────
 
 interface ColumnaProps {
@@ -273,28 +402,30 @@ interface ColumnaProps {
   eventos: CalendarioEvento[]
   etiquetas: Etiqueta[]
   filtros: Record<string, boolean>
+  sleepSettings: { start: string, end: string }
   totalHorasPx: number
   onCeldaClick: (params: OpenModalParams) => void
   onEventClick: (evento: CalendarioEvento) => void
 }
 
 function ColumnaDia({
-  fecha, esHoy, eventos, etiquetas, filtros, totalHorasPx, onCeldaClick, onEventClick,
+  fecha, esHoy, eventos, etiquetas, filtros, sleepSettings, totalHorasPx, onCeldaClick, onEventClick,
 }: ColumnaProps) {
   const diaSemana = fecha.getDay() === 0 ? 6 : fecha.getDay() - 1
   const diaLabel = DIAS_CORTOS[diaSemana]
   const numDia = fecha.getDate()
 
   return (
-    <div className="flex-1 flex flex-col border-r border-slate-800/50 last:border-r-0 min-w-[100px]">
-      <div className={`h-[52px] flex flex-col items-center justify-center shrink-0 border-b border-slate-800/80 select-none ${esHoy ? "bg-indigo-500/[0.08]" : "bg-[#0b0d1f]"}`}>
-        <span className={`text-[11px] font-semibold uppercase tracking-widest ${esHoy ? "text-indigo-400" : "text-slate-500"}`}>{diaLabel}</span>
+    <div className="flex-1 flex flex-col border-r border-slate-800/50 min-w-[120px] relative">
+      <div className={`sticky top-0 z-20 h-[52px] flex flex-col items-center justify-center border-b border-slate-800/80 ${esHoy ? "bg-indigo-500/10 backdrop-blur-md" : "bg-[#0b0d1f]"}`}>
+        <span className={`text-[10px] font-bold uppercase tracking-wider ${esHoy ? "text-indigo-400" : "text-slate-500"}`}>{diaLabel}</span>
         <div className={`mt-0.5 flex items-center justify-center w-7 h-7 rounded-full ${esHoy ? "bg-indigo-500 shadow-[0_0_12px_rgba(99,102,241,0.5)]" : ""}`}>
           <span className={`text-sm font-semibold ${esHoy ? "text-white" : "text-slate-200"}`}>{numDia}</span>
         </div>
       </div>
       <div className="relative flex-1 bg-[#090b1c]" style={{ height: `${totalHorasPx}px` }}>
         <LineasGuia totalHorasPx={totalHorasPx} />
+        <SleepZones totalHorasPx={totalHorasPx} sleepSettings={sleepSettings} />
         <CeldasClickeables fecha={fecha} totalHorasPx={totalHorasPx} onCeldaClick={onCeldaClick} />
         {esHoy && <CurrentTimeLine totalHorasPx={totalHorasPx} />}
         {eventos.map(ev => (
@@ -308,14 +439,20 @@ function ColumnaDia({
 // ─── Vistas ───────────────────────────────────────────────────────────────────
 
 function VistaSemana({
-  eventos, etiquetas, filtros, fechasSemana, onCeldaClick, onEventClick,
+  eventos, etiquetas, filtros, sleepSettings, fechasSemana, onCeldaClick, onEventClick,
 }: Omit<CalendarioGridProps, "vista" | "baseDate"> & { fechasSemana: Date[], onCeldaClick: (p: OpenModalParams) => void }) {
   const totalHorasPx = TOTAL_H * PX_POR_HORA
   const hoyStr = formatearISO(new Date())
 
+  useEffect(() => {
+    const endH = parseInt(sleepSettings.end.split(":")[0], 10)
+    const el = document.getElementById(`hour-${Math.max(0, endH - 1)}`) // Scroll 1 hour above to give breathing room
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
+  }, [sleepSettings])
+
   return (
     <div className="flex-1 overflow-auto custom-scrollbar">
-      <div className="flex" style={{ minWidth: "768px" }}>
+      <div className="flex pb-20" style={{ minWidth: "768px" }}>
         <EjeHoras totalHorasPx={totalHorasPx} />
         {fechasSemana.map((fecha) => {
           const iso = formatearISO(fecha)
@@ -327,6 +464,7 @@ function VistaSemana({
               eventos={eventos.filter(e => e.fechaISO === iso)}
               etiquetas={etiquetas}
               filtros={filtros}
+              sleepSettings={sleepSettings}
               totalHorasPx={totalHorasPx}
               onCeldaClick={onCeldaClick}
               onEventClick={onEventClick}
@@ -339,16 +477,22 @@ function VistaSemana({
 }
 
 function VistaDia({
-  eventos, etiquetas, filtros, baseDate, onCeldaClick, onEventClick,
+  eventos, etiquetas, filtros, sleepSettings, baseDate, onCeldaClick, onEventClick,
 }: Omit<CalendarioGridProps, "vista" | "fechasSemana"> & { baseDate: Date, onCeldaClick: (p: OpenModalParams) => void }) {
   const totalHorasPx = TOTAL_H * PX_POR_HORA
   const isoDate = formatearISO(baseDate)
   const evsDia = eventos.filter(e => e.fechaISO === isoDate)
   const esHoy = formatearISO(new Date()) === isoDate
 
+  useEffect(() => {
+    const endH = parseInt(sleepSettings.end.split(":")[0], 10)
+    const el = document.getElementById(`hour-${Math.max(0, endH - 1)}`)
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
+  }, [sleepSettings])
+
   return (
     <div className="flex-1 overflow-auto custom-scrollbar flex">
-      <div className="flex w-full border-x border-slate-800/50 shadow-2xl">
+      <div className="flex w-full border-x border-slate-800/50 shadow-2xl pb-20">
         <EjeHoras totalHorasPx={totalHorasPx} />
         <ColumnaDia
           fecha={baseDate}
@@ -356,6 +500,7 @@ function VistaDia({
           eventos={evsDia}
           etiquetas={etiquetas}
           filtros={filtros}
+          sleepSettings={sleepSettings}
           totalHorasPx={totalHorasPx}
           onCeldaClick={onCeldaClick}
           onEventClick={onEventClick}

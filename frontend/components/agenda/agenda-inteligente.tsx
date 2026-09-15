@@ -6,7 +6,7 @@ import {
   Sparkles, Wand2, Calendar, Clock, AlertTriangle, ChevronLeft,
   ChevronRight, Plus, Loader2, X, CheckSquare, AlignLeft,
   PanelRightClose, PanelRightOpen, CalendarDays, CalendarRange, List,
-  Check, LayoutGrid, Layers, Tag, MapPin, Repeat, Video, Bell, Users, ChevronDown
+  Check, LayoutGrid, Layers, Tag, MapPin, Repeat, Video, Bell, Users, ChevronDown, Pencil, Trash2, Settings, UploadCloud, FileText
 } from "lucide-react"
 
 import {
@@ -18,6 +18,8 @@ import {
   type OpenModalParams,
   getEstiloColor
 } from "./calendar-grid"
+
+import { BarraIA } from "./barra-ia"
 
 // ─── Tipos y Helpers ──────────────────────────────────────────────────────────
 
@@ -31,7 +33,7 @@ interface Examen {
 
 const DIAS_CORTOS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
-const HORA_INI = 8
+const HORA_INI = 0
 
 function formatearISO(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
@@ -64,7 +66,7 @@ const EVENTOS_BASE: CalendarioEvento[] = [
   { id: "e2", titulo: "Cálculo Diferencial", subtitulo: "Aula A-101", etiquetaId: "c1", fechaISO: getIso(1), horaInicio: 1, duracion: 1.5 },
   { id: "e3", titulo: "Programación Web", subtitulo: "Lab. 3", etiquetaId: "c1", fechaISO: getIso(2), horaInicio: 3, duracion: 2 },
   { id: "e4", titulo: "Base de Datos", subtitulo: "Aula C-305", etiquetaId: "c1", fechaISO: getIso(3), horaInicio: 0.5, duracion: 2 },
-  { id: "ex1", titulo: "Parcial SO", subtitulo: "Caps. 1-5 + Threads", etiquetaId: "c2", fechaISO: getIso(4), horaInicio: 5, duracion: 2 },
+  { id: "ex1", titulo: "Parcial SO", subtitulo: "Caps. 1-5 + Threads", etiquetaId: "c2", tipo: 'examen', fechaISO: getIso(4), horaInicio: 5, duracion: 2 },
   { id: "d1", titulo: "Gym — Pierna", subtitulo: "Leg press", etiquetaId: "c3", fechaISO: getIso(0), horaInicio: 4.5, duracion: 1.5 },
   { id: "ia1", titulo: "Repaso: Node.js", subtitulo: "APIs REST", etiquetaId: "c4", fechaISO: getIso(0), horaInicio: 7, duracion: 1.5 },
 ]
@@ -99,21 +101,63 @@ function Toggle({ checked, onChange, label, dot }: { checked: boolean; onChange:
   )
 }
 
-function RelojDelDia() {
-  const [restante, setRestante] = useState("")
+function RelojDelDia({ 
+  sleepSettings, eventos, etiquetas, filtros 
+}: { 
+  sleepSettings: { start: string, end: string }
+  eventos: CalendarioEvento[]
+  etiquetas: Etiqueta[]
+  filtros: Record<string, boolean>
+}) {
+  const [restanteStr, setRestanteStr] = useState("")
+  const [descTexto, setDescTexto] = useState("")
   const [pct, setPct] = useState(0)
+
   useEffect(() => {
     const calc = () => {
-      const n = new Date(), fin = new Date(), ini = new Date()
-      fin.setHours(22, 0, 0, 0); ini.setHours(8, 0, 0, 0)
-      const ms = fin.getTime() - n.getTime()
-      const total = fin.getTime() - ini.getTime()
-      setPct(Math.min(100, Math.max(0, ((n.getTime() - ini.getTime()) / total) * 100)))
-      if (ms <= 0) { setRestante("Día terminado"); return }
-      setRestante(`${Math.floor(ms / 3600000)}h ${Math.floor((ms % 3600000) / 60000)}m`)
+      const hoyStr = formatearISO(new Date())
+      const evsHoy = eventos.filter(e => e.fechaISO === hoyStr)
+      
+      let horasProductivas = 0
+      for (const ev of evsHoy) {
+        if (!filtros[ev.etiquetaId]) continue
+        const etq = etiquetas.find(e => e.id === ev.etiquetaId)
+        if (etq && ["Clases", "Evaluaciones", "Bloques de Estudio"].includes(etq.nombre)) {
+          horasProductivas += ev.duracion
+        }
+      }
+
+      const [startH, startM] = sleepSettings.start.split(":").map(Number)
+      const [endH, endM] = sleepSettings.end.split(":").map(Number)
+      const startDecimal = startH + startM / 60
+      const endDecimal = endH + endM / 60
+      
+      let awakeHours = 24
+      if (startDecimal > endDecimal) {
+        awakeHours = 24 - (24 - startDecimal + endDecimal)
+      } else {
+        awakeHours = 24 - (endDecimal - startDecimal)
+      }
+
+      const percentage = awakeHours > 0 ? (horasProductivas / awakeHours) * 100 : 0
+      setPct(Math.min(100, Math.max(0, percentage)))
+
+      const productivasDec = horasProductivas.toFixed(1).replace(".0", "")
+      const totalesDec = awakeHours.toFixed(1).replace(".0", "")
+      
+      if (horasProductivas > 0) {
+        setRestanteStr(`${productivasDec}h`)
+        setDescTexto(`usadas de ${totalesDec}h libres`)
+      } else {
+        setRestanteStr(`${totalesDec}h`)
+        setDescTexto(`libres para hoy`)
+      }
     }
-    calc(); const t = setInterval(calc, 30000); return () => clearInterval(t)
-  }, [])
+    calc()
+    const t = setInterval(calc, 60000)
+    return () => clearInterval(t)
+  }, [eventos, etiquetas, filtros, sleepSettings])
+
   const circ = 2 * Math.PI * 30
   return (
     <div className="flex items-center gap-4">
@@ -128,8 +172,8 @@ function RelojDelDia() {
         <div className="absolute inset-0 flex items-center justify-center"><Clock className="w-5 h-5 text-indigo-400" /></div>
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xl font-bold text-white">{restante}</p>
-        <p className="text-xs text-slate-400 mt-0.5">de productividad hoy</p>
+        <p className="text-xl font-bold text-white leading-none mb-1">{restanteStr}</p>
+        <p className="text-xs text-slate-400 leading-tight">{descTexto}</p>
         <div className="mt-2 w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
           <div className="h-full rounded-full gradient-brand transition-all duration-700" style={{ width: `${pct}%` }} />
         </div>
@@ -290,6 +334,7 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
         titulo,
         subtitulo: desc || undefined,
         ubicacion: ubicacion || undefined,
+        videollamada: videollamada || undefined,
         todoElDia,
         recurrencia,
         etiquetaId: etiquetaSel,
@@ -529,6 +574,199 @@ function ModalCrearEtiqueta({ onClose, onCrear }: { onClose: () => void, onCrear
   )
 }
 
+function EventDetailPopover({ evento, etiqueta, onClose, onEdit, onDelete }: { evento: CalendarioEvento, etiqueta: Etiqueta, onClose: () => void, onEdit: () => void, onDelete: () => void }) {
+  const s = getEstiloColor(etiqueta.color)
+  
+  const f = (h: number) => {
+    const hh = Math.floor(h)
+    const mm = Math.round((h - hh) * 60)
+    const ampm = hh >= 12 && hh < 24 ? "PM" : "AM"
+    const h12 = hh % 12 || 12
+    return `${h12}:${mm.toString().padStart(2, "0")} ${ampm}`
+  }
+  
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-sm bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200 p-6">
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 shadow-sm mt-1">
+            <div className="w-2.5 h-2.5 rounded-full" style={{ background: s.dot }} />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">{etiqueta.nombre}</span>
+          </div>
+          <div className="flex gap-1 bg-[#11121d] rounded-full p-1 border border-white/5">
+            <button onClick={onEdit} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors text-slate-400 hover:text-indigo-400">
+              <Pencil className="w-4 h-4" />
+            </button>
+            <button onClick={onDelete} className="w-8 h-8 rounded-full hover:bg-rose-500/10 flex items-center justify-center transition-colors text-slate-400 hover:text-rose-500">
+              <Trash2 className="w-4 h-4" />
+            </button>
+            <div className="w-px h-4 bg-white/10 my-auto mx-1" />
+            <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors text-slate-400">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        
+        <h2 className="text-xl font-bold text-white mb-2 leading-tight pr-4">{evento.titulo}</h2>
+        <div className="flex items-center gap-2 text-sm text-slate-300 mb-5">
+          <Clock className="w-4 h-4 text-slate-400" />
+          <span>{new Date(evento.fechaISO + "T00:00:00").toLocaleDateString("es-PE", { weekday: 'short', day: 'numeric', month: 'long' })}</span>
+          <span className="text-slate-500">•</span>
+          <span>{evento.todoElDia ? "Todo el día" : `${f(evento.horaInicio)} a ${f(evento.horaInicio + evento.duracion)}`}</span>
+        </div>
+        
+        {evento.subtitulo && (
+          <div className="bg-white/[0.03] rounded-xl p-4 border border-white/5 mb-5 max-h-32 overflow-y-auto custom-scrollbar shadow-inner">
+            <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{evento.subtitulo}</p>
+          </div>
+        )}
+        
+        {(evento.ubicacion || evento.videollamada) && (
+          <div className="space-y-3 mt-2 bg-[#11121d] p-4 rounded-xl border border-white/5">
+            {evento.videollamada && (
+              <div className="flex gap-3 items-center text-sm text-slate-300">
+                <Video className="w-4 h-4 text-indigo-400" /> 
+                <span className="truncate">{evento.videollamada}</span>
+              </div>
+            )}
+            {evento.ubicacion && (
+              <div className="flex gap-3 items-center text-sm text-slate-300">
+                <MapPin className="w-4 h-4 text-rose-400" /> 
+                <span className="truncate">{evento.ubicacion}</span>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {evento.tipo === 'examen' && (
+          <div className="mt-5 border-t border-white/5 pt-5">
+            <button onClick={() => {
+              console.log(`[IA] Iniciando repaso para: ${evento.titulo}`)
+              alert(`[Módulo de IA] Preparando sesión de repaso para ${evento.titulo}...`)
+            }} className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-600/80 to-purple-600/80 hover:from-rose-500 hover:to-purple-500 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md border border-white/20 hover:scale-[1.02]">
+              <Sparkles className="w-4 h-4" /> Repasar con IA
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ModalSleepSettings({ sleepSettings, onClose, onSave }: { sleepSettings: { start: string, end: string }, onClose: () => void, onSave: (s: { start: string, end: string }) => void }) {
+  const [start, setStart] = useState(sleepSettings.start)
+  const [end, setEnd] = useState(sleepSettings.end)
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-xs bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+        <div className="px-5 py-4 border-b border-white/[0.08] flex justify-between items-center">
+          <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Settings className="w-4 h-4 text-indigo-400" /> Horas de Sueño</h2>
+          <button onClick={onClose} className="w-7 h-7 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"><X className="w-4 h-4 text-slate-400" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="text-xs text-slate-400 mb-2 block font-medium">Hora de dormir</label>
+            <input type="time" value={start} onChange={e => setStart(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-all [color-scheme:dark]" />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 mb-2 block font-medium">Hora de despertar</label>
+            <input type="time" value={end} onChange={e => setEnd(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-all [color-scheme:dark]" />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-3 border-t border-white/[0.05] bg-[#11121d]">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-all">Cancelar</button>
+          <button onClick={() => { onSave({ start, end }); onClose(); }} className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-all">Guardar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ModalImportarMatricula({ onClose }: { onClose: () => void }) {
+  const [isDragActive, setIsDragActive] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0])
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragActive(false)
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setSelectedFile(e.dataTransfer.files[0])
+    }
+  }
+  
+  const startUpload = () => {
+    setIsUploading(true)
+    setTimeout(() => {
+      setIsUploading(false)
+      onClose()
+      alert("¡Matrícula importada con éxito! (Simulación)")
+    }, 3000)
+  }
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={!isUploading ? onClose : undefined} />
+      <div className="relative z-10 w-full max-w-md bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+        <div className="px-5 py-4 border-b border-white/[0.08] flex justify-between items-center">
+          <h2 className="text-sm font-semibold text-white flex items-center gap-2"><UploadCloud className="w-4 h-4 text-indigo-400" /> Importar Matrícula (PDF)</h2>
+          {!isUploading && <button onClick={onClose} className="w-7 h-7 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"><X className="w-4 h-4 text-slate-400" /></button>}
+        </div>
+        <div className="p-8 flex flex-col items-center justify-center">
+          <input type="file" accept=".pdf" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
+          
+          {isUploading ? (
+            <div className="flex flex-col items-center gap-4 py-8">
+              <div className="relative w-16 h-16 flex items-center justify-center">
+                <FileText className="w-10 h-10 text-indigo-400 opacity-50" />
+                <div className="absolute inset-0 border-t-2 border-indigo-400 rounded-full animate-spin" />
+              </div>
+              <p className="text-sm text-slate-300 animate-pulse">Analizando cursos y horarios...</p>
+            </div>
+          ) : selectedFile ? (
+            <div className="w-full h-48 border-2 border-indigo-500/30 bg-indigo-500/10 rounded-xl flex flex-col items-center justify-center p-6 transition-all">
+              <FileText className="w-10 h-10 text-indigo-400 mb-3" />
+              <p className="text-sm font-semibold text-white truncate max-w-full mb-1">{selectedFile.name}</p>
+              <p className="text-xs text-slate-400 mb-5">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
+              
+              <button onClick={startUpload} className="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center justify-center transition-all shadow-md">
+                Analizar horario con IA
+              </button>
+              <button onClick={() => fileInputRef.current?.click()} className="mt-3 text-[11px] font-medium text-slate-400 hover:text-white transition-colors">
+                Cambiar archivo
+              </button>
+            </div>
+          ) : (
+            <div 
+              onDragOver={e => { e.preventDefault(); setIsDragActive(true) }} 
+              onDragLeave={() => setIsDragActive(false)} 
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`w-full h-48 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 cursor-pointer transition-all ${isDragActive ? "border-indigo-400 bg-indigo-500/10" : "border-white/20 bg-white/5 hover:border-indigo-400 hover:bg-white/10"}`}
+            >
+              <UploadCloud className={`w-8 h-8 ${isDragActive ? "text-indigo-400" : "text-slate-400"}`} />
+              <div className="text-center">
+                <p className="text-sm font-medium text-white mb-1">Arrastra tu PDF aquí</p>
+                <p className="text-xs text-slate-400">o haz clic para explorar</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Componente Principal ─────────────────────────────────────────────────────
 
 const VISTA_ICONS: Record<CalendarioVista, any> = {
@@ -545,9 +783,14 @@ export function AgendaInteligente() {
   // Estados de Modales
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isTagModalOpen, setIsTagModalOpen] = useState(false)
+  const [popoverEvent, setPopoverEvent] = useState<CalendarioEvento | null>(null)
+  
+  // Settings de Sueño
+  const [sleepSettings, setSleepSettings] = useState({ start: "23:00", end: "07:00" })
+  const [isSleepModalOpen, setIsSleepModalOpen] = useState(false)
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   
   // Estados de UI y Datos
-  const [prompt, setPrompt] = useState("")
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>(ETIQUETAS_BASE)
   const [filtros, setFiltros] = useState<Record<string, boolean>>(ETIQUETAS_BASE.reduce((acc, e) => ({ ...acc, [e.id]: true }), {}))
   const [eventos, setEventos] = useState<CalendarioEvento[]>(EVENTOS_BASE)
@@ -610,6 +853,32 @@ export function AgendaInteligente() {
         />
       )}
 
+      {isSleepModalOpen && (
+        <ModalSleepSettings
+          sleepSettings={sleepSettings}
+          onClose={() => setIsSleepModalOpen(false)}
+          onSave={(s) => setSleepSettings(s)}
+        />
+      )}
+
+      {popoverEvent && (
+        <EventDetailPopover
+          evento={popoverEvent}
+          etiqueta={etiquetas.find(e => e.id === popoverEvent.etiquetaId) || ETIQUETAS_BASE[0]}
+          onClose={() => setPopoverEvent(null)}
+          onDelete={() => { setEventos(p => p.filter(ev => ev.id !== popoverEvent.id)); setPopoverEvent(null) }}
+          onEdit={() => {
+            setModalPrefill({ horaInicio: popoverEvent.horaInicio, fecha: new Date(popoverEvent.fechaISO + "T00:00:00") })
+            setPopoverEvent(null)
+            setIsCreateModalOpen(true)
+          }}
+        />
+      )}
+
+      {isImportModalOpen && (
+        <ModalImportarMatricula onClose={() => setIsImportModalOpen(false)} />
+      )}
+
       <div className="flex flex-col gap-4" style={{ maxWidth: "1800px", margin: "0 auto", padding: "16px" }}>
 
         {/* ── BARRA SUPERIOR ─────────────────────────────────────────────── */}
@@ -651,10 +920,7 @@ export function AgendaInteligente() {
             </div>
 
             <div className="flex items-center gap-2.5 w-full sm:w-auto">
-              <div className="relative flex-1 sm:w-64">
-                <Sparkles className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 pointer-events-none" />
-                <input type="text" value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Ej: Agenda bloque de repaso..." className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2 text-sm text-slate-200 focus:border-indigo-500/50 transition-all shadow-inner" />
-              </div>
+              <BarraIA />
               <button onClick={() => { setModalPrefill(null); setIsCreateModalOpen(true) }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.3)] transition-all shrink-0">
                 <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Crear</span>
               </button>
@@ -664,7 +930,7 @@ export function AgendaInteligente() {
 
         {/* ── ÁREA PRINCIPAL ─────────────────────────────────────────────── */}
         <div className="flex gap-4 relative">
-          <div className="flex-1 min-w-0 bg-[#090b1c] border border-slate-800/60 rounded-3xl shadow-[0_12px_40px_rgba(0,0,0,0.4)] flex flex-col overflow-hidden" style={{ minHeight: "680px" }}>
+          <div className="flex-1 min-w-0 bg-[#090b1c] border border-slate-800/60 rounded-3xl shadow-[0_12px_40px_rgba(0,0,0,0.4)] flex flex-col overflow-hidden h-[calc(100vh-220px)]">
             <CalendarioGrid
               vista={currentView}
               eventos={eventos}
@@ -672,8 +938,9 @@ export function AgendaInteligente() {
               filtros={filtros}
               baseDate={baseDate}
               fechasSemana={fechasSemana}
+              sleepSettings={sleepSettings}
               onOpenModal={(params) => { setModalPrefill(params); setIsCreateModalOpen(true) }}
-              onEventClick={(ev) => { setModalPrefill(null); setIsCreateModalOpen(true) }}
+              onEventClick={(ev) => setPopoverEvent(ev)}
             />
           </div>
 
@@ -686,6 +953,10 @@ export function AgendaInteligente() {
           <div className={`flex flex-col gap-4 overflow-hidden transition-all duration-300 shrink-0`} style={{ width: isSidebarOpen ? "280px" : "0px", opacity: isSidebarOpen ? 1 : 0 }}>
             <div className="flex flex-col gap-4 overflow-y-auto custom-scrollbar h-full" style={{ width: "280px" }}>
               
+              <button onClick={() => setIsImportModalOpen(true)} className="w-full py-2.5 rounded-xl text-xs font-semibold text-slate-300 bg-transparent border border-dashed border-white/20 hover:border-indigo-400 hover:text-white hover:bg-white/5 transition-all flex items-center justify-center gap-2 group shrink-0">
+                <UploadCloud className="w-4 h-4 group-hover:text-indigo-400 transition-colors" /> Importar Matrícula (PDF)
+              </button>
+
               {/* Etiquetas Sidebar */}
               <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg">
                 <div className="flex items-center justify-between mb-4">
@@ -700,9 +971,14 @@ export function AgendaInteligente() {
               </div>
 
               {/* Reloj del Día */}
-              <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg">
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-indigo-400" /> Productividad Hoy</p>
-                <RelojDelDia />
+              <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg relative">
+                <div className="flex justify-between items-center mb-4">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-indigo-400" /> Productividad Hoy</p>
+                  <button onClick={() => setIsSleepModalOpen(true)} className="p-1 hover:bg-white/10 rounded-full transition-colors">
+                    <Settings className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" />
+                  </button>
+                </div>
+                <RelojDelDia sleepSettings={sleepSettings} eventos={eventos} etiquetas={etiquetas} filtros={filtros} />
               </div>
 
               {/* Radar Próximo */}

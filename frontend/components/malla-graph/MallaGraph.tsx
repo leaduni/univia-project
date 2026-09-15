@@ -40,11 +40,12 @@ interface MallaGraphProps {
   // Test hook: la virtualización de React Flow necesita un viewport real;
   // se desactiva en entornos sin medidas (jsdom).
   virtualize?: boolean
+  onMarkCompleted?: (courseId: string) => void
 }
 
 const nodeTypes = { course: CourseNode, cycleLabel: CycleLabel }
 
-export function MallaGraph({ malla, avance, virtualize = true }: MallaGraphProps) {
+export function MallaGraph({ malla, avance, virtualize = true, onMarkCompleted }: MallaGraphProps) {
   const base = useMemo(() => transformarAMallaGraph(malla), [malla])
   const stats = useMemo(() => computeStats(malla), [malla])
   const index = useMemo(() => buildCourseIndex(malla), [malla])
@@ -147,6 +148,7 @@ export function MallaGraph({ malla, avance, virtualize = true }: MallaGraphProps
             course={seleccionado}
             post={post}
             onClose={() => setSelectedId(null)}
+            onMarkCompleted={onMarkCompleted}
           />
         )}
       </div>

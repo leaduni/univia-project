@@ -154,7 +154,7 @@ export function RecursosBiblioteca() {
     <div className="min-h-screen bg-[#161826] text-foreground">
       {/* Header & Main Search Section */}
       <div className="bg-[#161826]/80 border-b border-[#3f424d]/60 backdrop-blur-md">
-        <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-4">
+        <div className="p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto space-y-4">
           {/* Page Header */}
           <div>
             <h1 className="font-poppins font-semibold text-3xl text-foreground tracking-tight mb-1">
@@ -304,7 +304,7 @@ export function RecursosBiblioteca() {
 
       {/* Results Content Area (100% width grid) */}
       <div className="w-full p-4 md:p-8">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-[1800px] mx-auto">
           {isLoading ? (
             /* Grid de Skeletons */
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">

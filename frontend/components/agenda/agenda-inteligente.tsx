@@ -6,7 +6,8 @@ import {
   Sparkles, Wand2, Calendar, Clock, AlertTriangle, ChevronLeft,
   ChevronRight, Plus, Loader2, X, CheckSquare, AlignLeft,
   PanelRightClose, PanelRightOpen, CalendarDays, CalendarRange, List,
-  Check, LayoutGrid, Layers, Tag, MapPin, Repeat, Video, Bell, Users, ChevronDown, Pencil, Trash2, Settings, UploadCloud, FileText
+  Check, LayoutGrid, Layers, Tag, MapPin, Repeat, Video, Bell, Users, ChevronDown, Pencil, Trash2, Settings, UploadCloud, FileText,
+  Play, Pause, RotateCcw, CheckCircle2
 } from "lucide-react"
 
 import {
@@ -18,6 +19,7 @@ import {
   type OpenModalParams,
   getEstiloColor
 } from "./calendar-grid"
+import { FocusMode } from "./focus-mode"
 
 import { BarraIA } from "./barra-ia"
 
@@ -139,19 +141,40 @@ function RelojDelDia({
         awakeHours = 24 - (endDecimal - startDecimal)
       }
 
+      // 1. Porcentaje de productividad (horas estudiadas vs horas despierto)
       const percentage = awakeHours > 0 ? (horasProductivas / awakeHours) * 100 : 0
       setPct(Math.min(100, Math.max(0, percentage)))
 
-      const productivasDec = horasProductivas.toFixed(1).replace(".0", "")
-      const totalesDec = awakeHours.toFixed(1).replace(".0", "")
+      // 2. Cálculo real del tiempo restante hasta dormir
+      const now = new Date()
+      const sleepTime = new Date(now)
+      sleepTime.setHours(startH, startM, 0, 0)
       
-      if (horasProductivas > 0) {
-        setRestanteStr(`${productivasDec}h`)
-        setDescTexto(`usadas de ${totalesDec}h libres`)
-      } else {
-        setRestanteStr(`${totalesDec}h`)
-        setDescTexto(`libres para hoy`)
+      // Si la hora de dormir ya pasó, calculamos para el día siguiente
+      if (sleepTime <= now) {
+        sleepTime.setDate(sleepTime.getDate() + 1)
       }
+      
+      const diffMs = sleepTime.getTime() - now.getTime()
+      const diffHoras = diffMs / (1000 * 60 * 60)
+      
+      let restanteTexto = ""
+      if (diffHoras < 1) {
+        const mins = Math.floor(diffMs / 60000)
+        restanteTexto = `${mins} min`
+      } else {
+        const h = Math.floor(diffHoras)
+        const m = Math.floor((diffHoras - h) * 60)
+        restanteTexto = m === 0 ? `${h}h` : `${h}h ${m}m`
+      }
+      
+      setRestanteStr(restanteTexto)
+      
+      const prodText = horasProductivas > 0 
+        ? `(hoy llevas ${horasProductivas.toFixed(1).replace(".0", "")}h de estudio)`
+        : ""
+        
+      setDescTexto(`libres antes de dormir ${prodText}`)
     }
     calc()
     const t = setInterval(calc, 60000)
@@ -173,7 +196,7 @@ function RelojDelDia({
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-xl font-bold text-white leading-none mb-1">{restanteStr}</p>
-        <p className="text-xs text-slate-400 leading-tight">{descTexto}</p>
+        <p className="text-xs text-slate-300 leading-tight">{descTexto}</p>
         <div className="mt-2 w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
           <div className="h-full rounded-full gradient-brand transition-all duration-700" style={{ width: `${pct}%` }} />
         </div>
@@ -574,8 +597,9 @@ function ModalCrearEtiqueta({ onClose, onCrear }: { onClose: () => void, onCrear
   )
 }
 
-function EventDetailPopover({ evento, etiqueta, onClose, onEdit, onDelete }: { evento: CalendarioEvento, etiqueta: Etiqueta, onClose: () => void, onEdit: () => void, onDelete: () => void }) {
+function EventDetailPopover({ evento, etiqueta, onClose, onEdit, onDelete, onStartFocus, onToggleCompleted }: { evento: CalendarioEvento, etiqueta: Etiqueta, onClose: () => void, onEdit: () => void, onDelete: () => void, onStartFocus?: () => void, onToggleCompleted?: () => void }) {
   const s = getEstiloColor(etiqueta.color)
+  const esEstudio = etiqueta.nombre === "Bloques de Estudio"
   
   const f = (h: number) => {
     const hh = Math.floor(h)
@@ -647,6 +671,20 @@ function EventDetailPopover({ evento, etiqueta, onClose, onEdit, onDelete }: { e
             }} className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-600/80 to-purple-600/80 hover:from-rose-500 hover:to-purple-500 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md border border-white/20 hover:scale-[1.02]">
               <Sparkles className="w-4 h-4" /> Repasar con IA
             </button>
+          </div>
+        )}
+        
+        {esEstudio && onStartFocus && (
+          <div className="mt-5 border-t border-white/5 pt-5 space-y-3">
+            <button onClick={onStartFocus} className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(217,70,239,0.3)] border border-white/20 hover:scale-[1.02] active:scale-95">
+              <Play className="w-4 h-4" /> {evento.completed ? "Nueva Sesión Pomodoro" : "Iniciar Sesión de Estudio"}
+            </button>
+            
+            {evento.completed && onToggleCompleted && (
+              <button onClick={() => { onToggleCompleted(); onClose() }} className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition-colors border border-white/5 flex items-center justify-center gap-2">
+                <RotateCcw className="w-3.5 h-3.5" /> Desmarcar como completado
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -776,14 +814,30 @@ const VISTA_ICONS: Record<CalendarioVista, any> = {
 export function AgendaInteligente() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [currentView, setCurrentView] = useState<CalendarioVista>("Semana")
-  
-  // Estado de Navegación
   const [baseDate, setBaseDate] = useState<Date>(new Date())
-
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
+  const [isViewDropdownOpen, setIsViewDropdownOpen] = useState(false)
+  
   // Estados de Modales
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isTagModalOpen, setIsTagModalOpen] = useState(false)
   const [popoverEvent, setPopoverEvent] = useState<CalendarioEvento | null>(null)
+  const [isFocusModeOpen, setIsFocusModeOpen] = useState(false)
+  const [focusEvent, setFocusEvent] = useState<CalendarioEvento | null>(null)
+
+  // -- Reprogramación Anti-culpa --
+  const handleAutoReschedule = useCallback((eventoId: string) => {
+    setEventos(prev => prev.map(ev => {
+      if (ev.id === eventoId) {
+        const tomorrow = new Date()
+        tomorrow.setDate(tomorrow.getDate() + 1)
+        const iso = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`
+        return { ...ev, fechaISO: iso, horaInicio: 18, completed: false }
+      }
+      return ev
+    }))
+    alert("Bloque reorganizado con IA ✨")
+  }, [])
   
   // Settings de Sueño
   const [sleepSettings, setSleepSettings] = useState({ start: "23:00", end: "07:00" })
@@ -795,7 +849,6 @@ export function AgendaInteligente() {
   const [filtros, setFiltros] = useState<Record<string, boolean>>(ETIQUETAS_BASE.reduce((acc, e) => ({ ...acc, [e.id]: true }), {}))
   const [eventos, setEventos] = useState<CalendarioEvento[]>(EVENTOS_BASE)
   const [modalPrefill, setModalPrefill] = useState<OpenModalParams | null>(null)
-  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
 
   // ─ Lógica de Navegación Dinámica ─
   const navegar = (dir: "prev" | "next" | "hoy") => {
@@ -816,8 +869,9 @@ export function AgendaInteligente() {
       const d = new Date(baseDate), diaSemana = d.getDay() === 0 ? 6 : d.getDay() - 1
       const lunes = new Date(d); lunes.setDate(lunes.getDate() - diaSemana)
       const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6)
-      const mesIni = lunes.toLocaleDateString("es-PE", { month: "short" }), mesFin = domingo.toLocaleDateString("es-PE", { month: "long" })
-      return `${lunes.getDate()} ${mesIni !== mesFin ? mesIni : ''} al ${domingo.getDate()} de ${mesFin} ${lunes.getFullYear()}`
+      const mesFin = domingo.toLocaleDateString("es-PE", { month: "long" })
+      const mesCapitalized = mesFin.charAt(0).toUpperCase() + mesFin.slice(1)
+      return `${mesCapitalized} ${domingo.getFullYear()}`
     }
     if (currentView === "Mes") return `${MESES[baseDate.getMonth()]} ${baseDate.getFullYear()}`
     if (currentView === "Año") return `${baseDate.getFullYear()}`
@@ -872,6 +926,29 @@ export function AgendaInteligente() {
             setPopoverEvent(null)
             setIsCreateModalOpen(true)
           }}
+          onStartFocus={() => {
+            setPopoverEvent(null)
+            setFocusEvent(popoverEvent)
+            setIsFocusModeOpen(true)
+          }}
+          onToggleCompleted={() => {
+            setEventos(prev => prev.map(ev => ev.id === popoverEvent.id ? { ...ev, completed: !ev.completed } : ev))
+          }}
+        />
+      )}
+
+      {isFocusModeOpen && focusEvent && (
+        <FocusMode
+          evento={focusEvent}
+          onClose={() => { setIsFocusModeOpen(false); setFocusEvent(null) }}
+          onComplete={(minutosEstudiados, isFinishedEarly) => {
+            console.log(`[Productividad] Sesión finalizada: ${minutosEstudiados} minutos registrados. Early: ${isFinishedEarly}`)
+            if (!isFinishedEarly) {
+              setEventos(prev => prev.map(ev => ev.id === focusEvent.id ? { ...ev, completed: true } : ev))
+            }
+            setIsFocusModeOpen(false)
+            setFocusEvent(null)
+          }}
         />
       )}
 
@@ -907,15 +984,30 @@ export function AgendaInteligente() {
 
               <div className="hidden sm:block w-px h-6 bg-white/10 mx-2" />
 
-              <div className="flex rounded-xl overflow-hidden border border-white/10 bg-white/[0.02] shadow-sm">
-                {(["Día", "Semana", "Mes", "Año", "Agenda"] as CalendarioVista[]).map(v => {
-                  const Ico = VISTA_ICONS[v]
-                  return (
-                    <button key={v} onClick={() => setCurrentView(v)} className={`flex items-center gap-1.5 px-3.5 h-8 text-xs font-medium transition-all duration-200 border-r border-white/5 last:border-r-0 ${currentView === v ? "bg-white/15 text-white shadow-inner" : "text-slate-500 hover:text-slate-300 hover:bg-white/5"}`}>
-                      <Ico className="w-3.5 h-3.5" />{v}
-                    </button>
-                  )
-                })}
+              <div className="relative">
+                <button onClick={() => setIsViewDropdownOpen(!isViewDropdownOpen)} className="flex items-center gap-2 px-3.5 h-8 rounded-xl border border-white/10 bg-white/[0.02] shadow-sm text-xs font-medium text-slate-200 hover:bg-white/5 transition-all">
+                  {(() => {
+                    const Ico = VISTA_ICONS[currentView]
+                    return <><Ico className="w-3.5 h-3.5" /> {currentView}</>
+                  })()}
+                  <ChevronDown className="w-3 h-3 text-slate-400 ml-1" />
+                </button>
+                {isViewDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsViewDropdownOpen(false)} />
+                    <div className="absolute top-full left-0 mt-1 w-32 bg-[#1c1d2e] border border-white/10 rounded-xl shadow-xl z-50 py-1 animate-in fade-in zoom-in-95 duration-150">
+                      {(["Día", "Semana", "Mes", "Año", "Agenda"] as CalendarioVista[]).map(v => {
+                        const Ico = VISTA_ICONS[v]
+                        const activo = currentView === v
+                        return (
+                          <button key={v} onClick={() => { setCurrentView(v); setIsViewDropdownOpen(false) }} className={`w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors ${activo ? "bg-white/10 text-white font-medium" : "text-slate-400 hover:bg-white/5 hover:text-slate-200"}`}>
+                            <Ico className="w-3.5 h-3.5" />{v}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -941,6 +1033,7 @@ export function AgendaInteligente() {
               sleepSettings={sleepSettings}
               onOpenModal={(params) => { setModalPrefill(params); setIsCreateModalOpen(true) }}
               onEventClick={(ev) => setPopoverEvent(ev)}
+              onAutoReschedule={handleAutoReschedule}
             />
           </div>
 

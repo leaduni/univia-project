@@ -26,7 +26,7 @@ export function BarraIA() {
   }
 
   return (
-    <div className="relative flex-1 sm:w-64 flex flex-col">
+    <div className="relative flex-1 sm:w-96 flex flex-col">
       {/* Píldora Flotante Arriba */}
       {attachedFile && (
         <div className="absolute -top-7 left-2 z-10 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 text-[10px] font-medium backdrop-blur-md animate-in slide-in-from-bottom-2 fade-in duration-200 shadow-lg">
@@ -61,8 +61,8 @@ export function BarraIA() {
           type="text" 
           value={prompt} 
           onChange={e => setPrompt(e.target.value)} 
-          placeholder={isAILoading ? "Analizando contenido..." : "Ej: Agenda bloque de repaso..."} 
-          className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-9 py-2 text-sm text-slate-200 focus:border-indigo-500/50 transition-all shadow-inner disabled:opacity-50" 
+          placeholder={isAILoading ? "Analizando contenido..." : "Ej. Crea un bloque de repaso para S.O. mañana a las 3pm"} 
+          className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-9 py-2 text-sm text-slate-100 placeholder:text-slate-400 focus:border-indigo-500/50 transition-all shadow-inner disabled:opacity-50" 
         />
         
         <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">

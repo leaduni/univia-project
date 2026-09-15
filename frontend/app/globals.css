@@ -425,3 +425,17 @@
 .react-flow__controls-button:last-child {
   border-bottom: none !important;
 }
+
+/* React Flow MiniMap & Attribution Overrides */
+.react-flow__minimap {
+  background-color: #151522 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6) !important;
+  overflow: hidden;
+}
+
+/* Ocultar la marca de agua "React Flow" para limpiar la UI */
+.react-flow__attribution {
+  display: none !important;
+}

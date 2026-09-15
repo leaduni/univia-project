@@ -4,7 +4,9 @@
 // etiquetas personalizadas (Google Calendar style) y navegación dinámica
 
 import { useState, useEffect, useCallback } from "react"
-import { Clock, Check, Moon, AlertTriangle, Sparkles } from "lucide-react"
+import {  Moon, Clock, Flame, AlertTriangle, User,
+  Users, Briefcase, Tag, CheckCircle2, Sparkles, Check
+} from "lucide-react"
 
 // ─── Tipos públicos exportados ────────────────────────────────────────────────
 
@@ -33,6 +35,7 @@ export interface CalendarioEvento {
   fechaFinISO?: string
   horaInicio: number // horas desde HORA_INI
   duracion: number   // en horas
+  completed?: boolean
 }
 
 export interface OpenModalParams {
@@ -51,6 +54,7 @@ interface CalendarioGridProps {
   sleepSettings: { start: string, end: string }
   onOpenModal: (params: OpenModalParams) => void
   onEventClick: (evento: CalendarioEvento) => void
+  onAutoReschedule?: (eventoId: string) => void
 }
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -130,8 +134,9 @@ interface BloqueEventoProps {
   filtros: Record<string, boolean>
   onClick: (e: React.MouseEvent) => void
   totalHorasPx: number
+  onAutoReschedule?: (id: string) => void
 }
-function BloqueEvento({ evento, etiquetas, filtros, onClick, totalHorasPx }: BloqueEventoProps) {
+function BloqueEvento({ evento, etiquetas, filtros, onClick, totalHorasPx, onAutoReschedule }: BloqueEventoProps) {
   const activo = filtros[evento.etiquetaId]
   const etiqueta = etiquetas.find(e => e.id === evento.etiquetaId)
   
@@ -145,6 +150,7 @@ function BloqueEvento({ evento, etiquetas, filtros, onClick, totalHorasPx }: Blo
       text: "text-rose-100",
       sub: "text-rose-300",
       dot: "#f43f5e",
+      badge: "bg-rose-500/30 text-rose-200",
       glow: "shadow-[inset_0_0_12px_rgba(244,63,94,0.15)]"
     }
   }
@@ -159,6 +165,14 @@ function BloqueEvento({ evento, etiquetas, filtros, onClick, totalHorasPx }: Blo
     alert(`[Módulo de IA] Preparando sesión de repaso para ${evento.titulo}...`)
   }
 
+  const now = new Date()
+  const evEnd = new Date(evento.fechaISO + "T00:00:00")
+  const endH = evento.horaInicio + evento.duracion
+  evEnd.setHours(Math.floor(endH), Math.round((endH % 1) * 60))
+  
+  const esEstudio = etiqueta?.nombre === "Bloques de Estudio"
+  const estaVencido = esEstudio && !evento.completed && evEnd < now
+
   return (
     <div
       role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); onClick(e); }} onKeyDown={e => e.key === "Enter" && onClick(e as any)}
@@ -166,17 +180,33 @@ function BloqueEvento({ evento, etiquetas, filtros, onClick, totalHorasPx }: Blo
         ${s.bg} ${s.bgHover} ${s.border} ${s.glow}
         transition-all duration-300 ease-in-out hover:scale-[1.01] hover:-translate-y-px hover:z-20
         focus:outline-none focus:ring-2 focus:ring-white/20 select-none
-        ${activo ? "opacity-100 scale-100 z-10" : "opacity-0 scale-95 pointer-events-none z-0"}`}
+        ${activo ? "opacity-100 scale-100 z-10" : "opacity-0 scale-95 pointer-events-none z-0"}
+        ${estaVencido ? "border-l-[4px] border-l-rose-500" : ""}
+        ${evento.completed ? "opacity-75" : ""}`}
       style={{ top: `${topPx}px`, height: `${heightPx}px` }}
       title={`${evento.titulo}${evento.subtitulo ? ` · ${evento.subtitulo}` : ""}`}
     >
       <div className="px-2 py-1.5 h-full flex flex-col overflow-hidden relative group">
         <div className="flex items-start gap-1">
           {isExamen && <AlertTriangle className="w-3 h-3 text-rose-400 shrink-0 mt-0.5" />}
-          <p className={`text-xs font-semibold leading-tight truncate ${s.text}`}>{evento.titulo}</p>
+          {evento.completed && <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0 mt-0.5" />}
+          <p className={`text-xs font-semibold leading-tight truncate ${s.text} ${evento.completed ? "line-through opacity-80" : ""}`}>{evento.titulo}</p>
         </div>
         {!esPequeno && evento.subtitulo && (
           <p className={`text-[10px] leading-tight truncate mt-0.5 ${s.sub}`}>{evento.subtitulo}</p>
+        )}
+        
+        {/* Botón Reubicar */}
+        {estaVencido && onAutoReschedule && (
+          <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+            <button
+              onClick={(e) => { e.stopPropagation(); onAutoReschedule(evento.id) }}
+              className="bg-rose-500 hover:bg-rose-600 text-white rounded shadow-md p-1 transition-transform hover:scale-110 active:scale-95"
+              title="Reubicar bloque al día siguiente"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+            </button>
+          </div>
         )}
         {!esPequeno && (
           <p className={`text-[10px] mt-auto pt-0.5 ${s.sub} opacity-70`}>
@@ -406,10 +436,11 @@ interface ColumnaProps {
   totalHorasPx: number
   onCeldaClick: (params: OpenModalParams) => void
   onEventClick: (evento: CalendarioEvento) => void
+  onAutoReschedule?: (id: string) => void
 }
 
 function ColumnaDia({
-  fecha, esHoy, eventos, etiquetas, filtros, sleepSettings, totalHorasPx, onCeldaClick, onEventClick,
+  fecha, esHoy, eventos, etiquetas, filtros, sleepSettings, totalHorasPx, onCeldaClick, onEventClick, onAutoReschedule
 }: ColumnaProps) {
   const diaSemana = fecha.getDay() === 0 ? 6 : fecha.getDay() - 1
   const diaLabel = DIAS_CORTOS[diaSemana]
@@ -429,7 +460,7 @@ function ColumnaDia({
         <CeldasClickeables fecha={fecha} totalHorasPx={totalHorasPx} onCeldaClick={onCeldaClick} />
         {esHoy && <CurrentTimeLine totalHorasPx={totalHorasPx} />}
         {eventos.map(ev => (
-          <BloqueEvento key={ev.id} evento={ev} etiquetas={etiquetas} filtros={filtros} totalHorasPx={totalHorasPx} onClick={(e) => { e.stopPropagation(); onEventClick(ev) }} />
+          <BloqueEvento key={ev.id} evento={ev} etiquetas={etiquetas} filtros={filtros} totalHorasPx={totalHorasPx} onAutoReschedule={onAutoReschedule} onClick={(e) => { e.stopPropagation(); onEventClick(ev) }} />
         ))}
       </div>
     </div>
@@ -439,7 +470,7 @@ function ColumnaDia({
 // ─── Vistas ───────────────────────────────────────────────────────────────────
 
 function VistaSemana({
-  eventos, etiquetas, filtros, sleepSettings, fechasSemana, onCeldaClick, onEventClick,
+  eventos, etiquetas, filtros, sleepSettings, fechasSemana, onCeldaClick, onEventClick, onAutoReschedule,
 }: Omit<CalendarioGridProps, "vista" | "baseDate"> & { fechasSemana: Date[], onCeldaClick: (p: OpenModalParams) => void }) {
   const totalHorasPx = TOTAL_H * PX_POR_HORA
   const hoyStr = formatearISO(new Date())
@@ -468,6 +499,7 @@ function VistaSemana({
               totalHorasPx={totalHorasPx}
               onCeldaClick={onCeldaClick}
               onEventClick={onEventClick}
+              onAutoReschedule={onAutoReschedule}
             />
           )
         })}
@@ -477,7 +509,7 @@ function VistaSemana({
 }
 
 function VistaDia({
-  eventos, etiquetas, filtros, sleepSettings, baseDate, onCeldaClick, onEventClick,
+  eventos, etiquetas, filtros, sleepSettings, baseDate, onCeldaClick, onEventClick, onAutoReschedule,
 }: Omit<CalendarioGridProps, "vista" | "fechasSemana"> & { baseDate: Date, onCeldaClick: (p: OpenModalParams) => void }) {
   const totalHorasPx = TOTAL_H * PX_POR_HORA
   const isoDate = formatearISO(baseDate)
@@ -504,6 +536,7 @@ function VistaDia({
           totalHorasPx={totalHorasPx}
           onCeldaClick={onCeldaClick}
           onEventClick={onEventClick}
+          onAutoReschedule={onAutoReschedule}
         />
       </div>
     </div>

@@ -119,8 +119,8 @@ test("computeStats suma créditos y cuenta estados", () => {
 
 // ── Resaltado por hover/selección (T8–T10 adaptados a lógica pura) ──
 // Cadena: 1 -> 2 -> 3 (prereqMap: {2:[1], 3:[2], 1:[]})
-const ancestors = { "3": new Set(["2", "1"]), "2": new Set(["1"]), "1": new Set() }
-const descendants = { "1": new Set(["2", "3"]), "2": new Set(["3"]), "3": new Set() }
+const ancestors: Record<string, Set<string>> = { "3": new Set(["2", "1"]), "2": new Set(["1"]), "1": new Set<string>() }
+const descendants: Record<string, Set<string>> = { "1": new Set(["2", "3"]), "2": new Set(["3"]), "3": new Set<string>() }
 
 test("hover sobre un curso resalta sus ancestros y atenúa no relacionados", () => {
   const opts = { hoverId: "3", selectedId: null, filter: null, ancestors, descendants }

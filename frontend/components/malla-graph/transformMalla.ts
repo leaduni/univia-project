@@ -13,14 +13,14 @@ import {
 
 export type NodeHighlight = "self" | "pre" | "post"
 
-export interface CourseNodeData extends CourseDetail {
+export interface CourseNodeData extends CourseDetail, Record<string, unknown> {
   ciclo: number
   highlight?: NodeHighlight | null
 }
 
 export type CourseNodeType = Node<CourseNodeData, "course">
 
-export interface CycleLabelData {
+export interface CycleLabelData extends Record<string, unknown> {
   ciclo_num: number
   ciclo: string
   credits: number
@@ -133,6 +133,8 @@ export function transformarAMallaGraph(ciclos: CicloDetail[]): MallaGraphResult 
         id: curso.id,
         type: "course",
         position: pos,
+        width: 180,
+        height: NODE_HEIGHT,
         data: { ...curso, ciclo: ciclo.ciclo_num },
       })
     })
@@ -151,6 +153,8 @@ export function transformarAMallaGraph(ciclos: CicloDetail[]): MallaGraphResult 
       id: `ciclo-${ciclo.ciclo_num}`,
       type: "cycleLabel",
       position: labelPositions[ciclo.ciclo_num] ?? { x: 0, y: 0 },
+      width: 180,
+      height: 30,
       data: { ciclo_num: ciclo.ciclo_num, ciclo: ciclo.ciclo, credits: ciclo.credits },
     }))
 

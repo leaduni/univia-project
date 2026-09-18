@@ -21,6 +21,7 @@ Y que tienen un recurso tipo Silabo con drive_file_id. Los demás (sin
 sílabo disponible en Drive) quedan fuera — no hay de dónde generar su ruta.
 """
 import argparse
+import asyncio
 import json
 import os
 import sys
@@ -31,15 +32,17 @@ sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import requests
+import gdown
 from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 from app.core.database import get_admin_client
-from app.core.llm import generar_ingesta, texto_ingesta
+from app.core.llm import generar_ingesta_gemini, texto_ingesta
 from app.rag.extractor import SyllabusExtractor
 
 API_KEY_DRIVE = os.getenv("GOOGLE_DRIVE_API_KEY")
+MODELO_ESTRUCTURACION_GEMINI = os.getenv("GEMINI_SYLLABUS_MODEL", "gemini-3.6-flash")
 
 
 PROMPT_ESTRUCTURAR = """Eres un asistente que convierte el contenido de un sílabo universitario (en Markdown) en una ruta de aprendizaje semana a semana.
@@ -63,20 +66,48 @@ SÍLABO:
 
 
 def descargar_pdf(drive_file_id: str) -> str:
-    url = f"https://www.googleapis.com/drive/v3/files/{drive_file_id}"
-    resp = requests.get(url, params={"alt": "media", "key": API_KEY_DRIVE}, timeout=60)
-    resp.raise_for_status()
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+    }
     fd, tmp_path = tempfile.mkstemp(suffix=".pdf")
-    with os.fdopen(fd, "wb") as f:
-        f.write(resp.content)
-    return tmp_path
+    os.close(fd)
+
+    if API_KEY_DRIVE:
+        try:
+            resp = requests.get(
+                f"https://www.googleapis.com/drive/v3/files/{drive_file_id}",
+                params={"alt": "media", "key": API_KEY_DRIVE},
+                headers=headers,
+                timeout=60,
+            )
+            resp.raise_for_status()
+            with open(tmp_path, "wb") as f:
+                f.write(resp.content)
+            return tmp_path
+        except requests.exceptions.HTTPError as exc:
+            detalle = exc.response.text if exc.response is not None else str(exc)
+            print(f"  [WARN] API Drive falló; probando gdown: {detalle}")
+        except requests.exceptions.RequestException as exc:
+            print(f"  [WARN] API Drive falló; probando gdown: {exc}")
+
+    try:
+        if gdown.download(id=drive_file_id, output=tmp_path, quiet=True):
+            return tmp_path
+    except Exception as exc:
+        print(f"  [WARN] gdown falló: {exc}")
+
+    if os.path.exists(tmp_path):
+        os.remove(tmp_path)
+    print("  [SKIP] No se pudo descargar el archivo desde Drive")
+    return None
 
 
 def estructurar_silabo(markdown: str) -> list:
-    crudo = texto_ingesta(generar_ingesta(
+    crudo = texto_ingesta(generar_ingesta_gemini(
         prompt=PROMPT_ESTRUCTURAR + markdown[:12000],
         system="Responde ÚNICAMENTE con JSON válido, sin texto adicional ni bloques de código.",
         max_tokens=8000,
+        modelo=MODELO_ESTRUCTURACION_GEMINI,
     ))
     data = json.loads(crudo)
     return data.get("unidades", [])
@@ -94,12 +125,13 @@ def main():
     parser.add_argument("--limit", type=int, default=None, help="Procesa como máximo N archivos de sílabo únicos en esta corrida.")
     args = parser.parse_args()
 
-    if not API_KEY_DRIVE:
-        print("Falta GOOGLE_DRIVE_API_KEY en el .env")
-        return
-
     sb = get_admin_client()
-    extractor = SyllabusExtractor(rpm=8)
+    extractor = SyllabusExtractor(
+        rpm=2,
+        max_retries=1,
+        proveedor_vision="gemini",
+        permitir_fallback_openai=False,
+    )
 
     sin_ruta = obtener_cursos_sin_ruta(sb)
     sin_ruta_ids = [c["id"] for c in sin_ruta]
@@ -136,7 +168,16 @@ def main():
         tmp_path = None
         try:
             tmp_path = descargar_pdf(drive_file_id)
-            texto = extractor.extract_text(tmp_path, modo="silabo")
+            if tmp_path is None:
+                fallidos += 1
+                continue
+            texto = asyncio.run(extractor.extract_text_async(
+                tmp_path,
+                modo="silabo",
+                dpi=100,
+                max_concurrency=1,
+                hybrid=True,
+            ))
             if not texto or not texto.strip():
                 print("  Sin texto extraído. Se salta.")
                 fallidos += 1

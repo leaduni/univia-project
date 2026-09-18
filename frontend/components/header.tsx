@@ -21,6 +21,7 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 
 import { useAuth } from "@/components/providers/auth-context"
+import { GamificationWidget } from "@/components/gamificacion/gamification-widget"
 
 interface HeaderProps {
   onMenuClick: () => void
@@ -159,6 +160,9 @@ export function Header({ onMenuClick }: HeaderProps) {
             })}
             <ExplorarMenu />
           </nav>
+
+          {/* Racha y XP del estudiante, con acceso directo al ranking. */}
+          <GamificationWidget />
 
           {/* Sin punto de "no leídas": no hay fuente de notificaciones todavía
               y un indicador siempre encendido deja de significar algo. */}

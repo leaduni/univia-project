@@ -143,7 +143,7 @@ async def root():
     return {"message": "UniVia API v2.0 - Online", "status": "healthy"}
 
 # Importar Routers
-from app.routers import malla, usuarios, onboarding, dashboard, cursos, evaluaciones, services, recursos, chatbot, feedback, foro, dm
+from app.routers import malla, usuarios, onboarding, dashboard, cursos, evaluaciones, services, recursos, chatbot, feedback, foro, dm, evaluaciones_calificables, notas, gamificacion
 
 app.include_router(malla.router, prefix="/api", tags=["malla"])
 app.include_router(usuarios.router, prefix="/api", tags=["usuarios"])
@@ -151,9 +151,12 @@ app.include_router(onboarding.router, prefix="/api", tags=["onboarding"])
 app.include_router(dashboard.router, prefix="/api", tags=["dashboard"])
 app.include_router(cursos.router, prefix="/api", tags=["cursos"])
 app.include_router(evaluaciones.router, prefix="/api", tags=["evaluaciones"])
+app.include_router(evaluaciones_calificables.router, prefix="/api", tags=["evaluaciones-calificables"])
 app.include_router(services.router, prefix="/api", tags=["services"])
 app.include_router(recursos.router, prefix="/api", tags=["recursos"])
 app.include_router(chatbot.router, prefix="/api", tags=["chatbot"])
 app.include_router(feedback.router, prefix="/api", tags=["feedback"])
 app.include_router(foro.router, prefix="/api", tags=["foro"])
 app.include_router(dm.router, prefix="/api", tags=["dm"])
+app.include_router(notas.router, prefix="/api", tags=["notas"])
+app.include_router(gamificacion.router, prefix="/api", tags=["gamificacion"])

@@ -233,6 +233,10 @@ export function EvaluacionIA({
   };
 
   const generarEvaluacion = async () => {
+    if (modulos.length === 0) {
+      setError("No se puede generar una evaluación porque este curso no tiene módulos configurados.")
+      return
+    }
     if (!selectedModulo) return
 
     try {
@@ -497,8 +501,18 @@ export function EvaluacionIA({
           <CardContent className="space-y-6">
             {/* Paso 1: Selección de módulo */}
             <div className="space-y-3">
-              <Label>1. Selecciona un módulo</Label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {modulos.length === 0 ? (
+                <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4" role="status">
+                  <BookOpen className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+                  <div>
+                    <p className="font-medium">Este curso aún no tiene un temario/módulos configurados.</p>
+                    <p className="text-sm text-muted-foreground">Contacta a soporte o al coordinador.</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <Label>1. Selecciona un módulo</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {getModulosDisponibles().map((modulo, idx) => (
                   <button
                     key={idx}
@@ -542,7 +556,9 @@ export function EvaluacionIA({
                     )}
                   </button>
                 ))}
-              </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Número de preguntas */}
@@ -603,14 +619,20 @@ export function EvaluacionIA({
               />
             </div>
 
-            <Button
+<Button
               onClick={generarEvaluacion}
-              disabled={!selectedModulo || isLoading}
+              disabled={!selectedModulo || modulos.length === 0 || isLoading}
+              title={modulos.length === 0 ? "No puedes generar una evaluación hasta que el curso tenga módulos configurados." : undefined}
               className="w-full gap-2 gradient-ai-neon text-white border-0"
             >
               <Sparkles className="w-4 h-4" />
               Generar Evaluación con IA
             </Button>
+            {modulos.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                La generación estará disponible cuando se configure el temario del curso.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

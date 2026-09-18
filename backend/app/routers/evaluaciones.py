@@ -9,13 +9,14 @@ import random
 
 from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict, Any, Union, AsyncGenerator
 from dotenv import load_dotenv
 load_dotenv()
 
 from app.core.llm import MODELO_GENERACION_GPT, generar_gpt, generar_gemini_con_clave, LLMSaldoAgotado, get_openai
 from app.rag.retriever import SyllabusRetriever
+from app.rag.embedder import EmbeddingQuotaExhausted
 from app.core.auth_utils import get_current_user
 
 logger = logging.getLogger("evaluaciones_tracer")
@@ -64,6 +65,36 @@ class ConfiguracionEvaluacion(BaseModel):
     # Filtra el contexto RAG a documentos etiquetados con este profesor
     # (recursos.profesor_id). None = sin filtro, busca en todo el curso.
     profesor_id: Optional[int] = None
+
+    @field_validator("modulo")
+    @classmethod
+    def modulo_no_vacio(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("'modulo' no puede estar vacío.")
+        return v.strip()
+
+    @field_validator("temas")
+    @classmethod
+    def temas_no_vacio(cls, v: List[str]) -> List[str]:
+        temas = [t.strip() for t in v if t and t.strip()]
+        if not temas:
+            raise ValueError("'temas' no puede estar vacío.")
+        return temas
+
+    @field_validator("modulo")
+    @classmethod
+    def validar_modulo(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("Debe seleccionar un módulo para generar la evaluación")
+        return value.strip()
+
+    @field_validator("temas")
+    @classmethod
+    def validar_temas(cls, value: List[str]) -> List[str]:
+        temas = [tema.strip() for tema in value if isinstance(tema, str) and tema.strip()]
+        if not temas:
+            raise ValueError("Debe seleccionar al menos un tema para generar la evaluación")
+        return temas
 
 class CasoDeEjemplo(BaseModel):
     input: str
@@ -148,6 +179,11 @@ def recuperar_contexto_semantico(
     profesor (recursos.profesor_id); si ese profesor no tiene documentos
     etiquetados para el tema, el resultado queda vacío en vez de caer de
     vuelta a la búsqueda sin filtrar — el llamador decide qué hacer con eso.
+
+    MODO ESTRICTO (evaluaciones): si el proveedor de embeddings falla por
+    saldo/cuota, se propaga EmbeddingQuotaExhausted en lugar de continuar sin
+    contexto. Un resultado vacío legítimo (curso sin documentos, umbral no
+    superado) sigue devolviendo [] y el modo fallback sintético persiste.
     """
     retriever = get_retriever(token)
     if not retriever:
@@ -168,6 +204,7 @@ def recuperar_contexto_semantico(
             limit=10,
             umbral_similitud=0.4,
             profesor_id=profesor_id,
+            estricto=True,
         )
         if len(resultados) > 5:
             mejor_fragmento = resultados[0]
@@ -175,6 +212,8 @@ def recuperar_contexto_semantico(
             resultados = [mejor_fragmento] + resto
         return resultados
 
+    except EmbeddingQuotaExhausted:
+        raise
     except Exception as e:
         logger.error("Error al recuperar contexto: %s", e)
         return []
@@ -1058,6 +1097,15 @@ async def generar_evaluacion(
             status_code=500,
             detail=f"Error al parsear respuesta de IA: {str(e)}"
         )
+    except EmbeddingQuotaExhausted as e:
+        # Modo estricto: el proveedor de embeddings no tiene saldo; sin él el
+        # RAG no puede vectorizar la consulta y la evaluación saldría sin
+        # contexto real. Falla explícito (503) en vez de degradar en silencio.
+        logger.error("RAG no disponible por saldo de embeddings: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail="El servicio de búsqueda de contexto (embeddings) no está disponible temporalmente por saldo/cuota del proveedor. Inténtalo más tarde."
+        )
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -1341,10 +1389,21 @@ async def generar_evaluacion_stream(
     try:
         logger.info("PASO 2: Buscando contexto semántico / sílabo (RAG)...")
         es_programacion = config.curso_id in CURSOS_PROGRAMACION_IDS
+        if not config.temas:
+            raise HTTPException(status_code=422, detail="El curso no tiene módulos/temario para generar una evaluación.")
         tema_completo = config.temas[0] if len(config.temas) == 1 else f"{config.modulo}: {', '.join(config.temas)}"
-        contexto = await asyncio.to_thread(
-            recuperar_contexto_semantico, tema_completo, config.curso_id, config.profesor_id, token
-        )
+        try:
+            contexto = await asyncio.to_thread(
+                recuperar_contexto_semantico, tema_completo, config.curso_id, config.profesor_id, token
+            )
+        except EmbeddingQuotaExhausted as e:
+            # Modo estricto: sin embeddings no hay RAG real. El stream aún no
+            # se inició, así que se responde con un 503 explícito.
+            logger.error("PASO 2 ERROR: embeddings sin saldo/cuota: %s", e)
+            raise HTTPException(
+                status_code=503,
+                detail="La búsqueda de contexto no está disponible (saldo de embeddings agotado). Inténtalo más tarde."
+            )
         temas_str = config.temas[0] if len(config.temas) == 1 else ', '.join(config.temas)
 
         contexto_bloque = ""
@@ -1373,6 +1432,10 @@ async def generar_evaluacion_stream(
             raise HTTPException(status_code=500, detail="Falta configuración de API Key de OpenAI en el servidor.")
         logger.info("PASO 3 OK: API Key presente.")
 
+    except HTTPException:
+        # Errores intencionales (422 sin temas, 503 RAG sin saldo) se
+        # propagan tal cual; solo errores inesperados se envuelven en 500.
+        raise
     except Exception as e:
         stack_trace = traceback.format_exc()
         logger.error(f"💥 ERROR CRÍTICO PRE-STREAMING (HTTP 500):\n{stack_trace}")

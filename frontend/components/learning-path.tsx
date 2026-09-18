@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { LearningTimeline } from "./learning-path/timeline"
 import { ExamBank } from "./learning-path/exam-bank"
 import { EvaluacionIA } from "./learning-path/evaluacion-ia"
+import { GradesHistoryCard } from "./gamificacion/grades-history-card"
 import { Sparkles, GraduationCap, Calendar, FileText, Target, Lock, CheckCircle2 } from "lucide-react"
 import { apiService } from "@/lib/api-service"
 
@@ -113,7 +114,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
     )
   }
 
-  const { curso, timeline, ai_insights } = data
+  const { curso, timeline = [], ai_insights = [] } = data
 
   const parseTopics = (topics: any): string[] => {
     if (Array.isArray(topics)) return topics
@@ -131,8 +132,8 @@ export function LearningPath({ courseId }: LearningPathProps) {
     completado: item.completado,
   }))
 
-  const weeksCompleted = timeline.filter((s: any) => s.status === "completed").length
-  const totalWeeks = timeline.length
+  const weeksCompleted = (timeline ?? []).filter((s: any) => s.status === "completed").length
+  const totalWeeks = (timeline ?? []).length
   const progress = curso.progress ?? 0
   const aiText = ai_insights?.[0]?.description
     || "Basado en tu desempeño actual, recomendamos reforzar los temas de la semana en curso."
@@ -213,7 +214,9 @@ export function LearningPath({ courseId }: LearningPathProps) {
         <div className="flex flex-wrap items-center gap-3 mt-6">
           <button
             onClick={() => setActiveTab("evaluacion")}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-[#ec4899] to-[#8b5cf6] hover:opacity-90 transition-all shadow-lg shadow-pink-500/20"
+            disabled={totalWeeks === 0}
+            title={totalWeeks === 0 ? "El curso no tiene temario configurado." : undefined}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-[#ec4899] to-[#8b5cf6] hover:opacity-90 transition-all shadow-lg shadow-pink-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Sparkles className="w-4 h-4" />
             Generar evaluación con IA
@@ -322,7 +325,8 @@ export function LearningPath({ courseId }: LearningPathProps) {
             </p>
             <button
               onClick={() => setActiveTab("evaluacion")}
-              className="w-full py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-[#ec4899] to-[#8b5cf6] hover:opacity-90 transition-all shadow-md shadow-pink-500/20"
+              disabled={totalWeeks === 0}
+              className="w-full py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-[#ec4899] to-[#8b5cf6] hover:opacity-90 transition-all shadow-md shadow-pink-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Generar práctica dirigida
             </button>
@@ -356,6 +360,13 @@ export function LearningPath({ courseId }: LearningPathProps) {
               </li>
             </ul>
           </div>
+
+          {/* Notas inmutables del curso (promedio oficial + historial). */}
+          <GradesHistoryCard
+            cursoId={courseId.toString().startsWith("c")
+              ? courseId.toString().substring(1)
+              : courseId}
+          />
 
           {/* Professor Widget */}
           <div className="p-5 rounded-2xl bg-[#121124]/80 border border-[#232045] space-y-3">

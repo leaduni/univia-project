@@ -26,6 +26,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 from app.rag.cost_tracker import cost_tracker
+from app.rag import health as rag_health
 from app.core.llm import get_gemini_vision
 
 load_dotenv()
@@ -33,6 +34,15 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 GEMINI_EMBED_MODEL = os.getenv("GEMINI_EMBED_MODEL", "gemini-embedding-001")
+
+
+class EmbeddingQuotaExhausted(RuntimeError):
+    """El proveedor de embeddings agotó saldo/cuota tras todos los reintentos.
+
+    Se lanza solo en modo estricto (pipeline de ingesta, evaluaciones). En el
+    modo degradado (chatbot) el fallo se registra en app.rag.health y se
+    devuelve [] como siempre.
+    """
 
 
 def _backoff_delay(attempt: int, base: float = 1.0, max_delay: float = 60.0) -> float:
@@ -138,7 +148,7 @@ class SyllabusEmbedder:
         datos = sorted(resultado.data, key=lambda d: d.index)
         return [d.embedding[: self.expected_dimensions] for d in datos]
 
-    def vectorizar_consulta(self, pregunta: str) -> list:
+    def vectorizar_consulta(self, pregunta: str, estricto: bool = False) -> list:
         """Vectoriza una pregunta para buscar en el corpus.
 
         Es el lado de consulta de la búsqueda semántica, y existe aquí —y no en
@@ -147,22 +157,41 @@ class SyllabusEmbedder:
         el corpus terminó ingerido con Gemini y consultado con OpenAI: vectores
         de espacios distintos, similitudes sin sentido y ningún error visible.
 
+        Args:
+            estricto: si True, un fallo de la API lanza EmbeddingQuotaExhausted
+                (evaluaciones). Si False (chatbot) degrada suave devolviendo []
+                y reportando el fallo a app.rag.health.
+
         Returns:
-            El vector, o [] si la API falla (quien llama decide qué hacer).
+            El vector, o [] si la API falla en modo no estricto.
         """
         try:
             vectores = self._llamar_api([pregunta], task_type="RETRIEVAL_QUERY")
         except Exception as e:
             logger.error(f"Error vectorizando la consulta: {e}")
+            rag_health.reportar_fallo("embeddings_query", e)
+            if estricto:
+                raise EmbeddingQuotaExhausted(
+                    f"No se pudo vectorizar la consulta RAG: {e}"
+                ) from e
             return []
 
         if not vectores:
+            if estricto:
+                raise EmbeddingQuotaExhausted(
+                    "El proveedor de embeddings devolvió una respuesta vacía."
+                )
             return []
         return vectores[0][: self.expected_dimensions]
 
-    def _procesar_lote_con_cache(self, lote: list) -> list:
+    def _procesar_lote_con_cache(self, lote: list, estricto: bool = False) -> list:
         """
         Procesa un lote usando caché + API.
+
+        Args:
+            estricto: si True y un lote se pierde por rate limit/cuota tras
+                todos los reintentos, lanza EmbeddingQuotaExhausted en vez de
+                omitir el lote en silencio.
 
         Returns:
             Lista de dicts enriquecidos con embedding, en el mismo orden
@@ -219,6 +248,12 @@ class SyllabusEmbedder:
                             f"[Rate Limit 429] Agotados {self.max_retries} reintentos. "
                             f"Lote de {len(textos_miss)} chunks omitido."
                         )
+                        rag_health.reportar_fallo("embeddings_ingesta", e)
+                        if estricto:
+                            raise EmbeddingQuotaExhausted(
+                                f"Embeddings: cuota/tasa agotada tras "
+                                f"{self.max_retries} reintentos: {e}"
+                            ) from e
                         return [r for r in resultados if r is not None]
                 else:
                     logger.error(f"Error no recuperable en embedding: {e}")
@@ -238,7 +273,7 @@ class SyllabusEmbedder:
 
         return [r for r in resultados if r is not None]
 
-    def embedding_generator(self, chunks: list) -> list:
+    def embedding_generator(self, chunks: list, estricto: bool = False) -> list:
         """
         Convierte chunks en embeddings usando OpenAI + caché.
 
@@ -248,6 +283,8 @@ class SyllabusEmbedder:
         - Ante HTTP 429: aplica backoff exponencial con jitter.
         - Ante error no recuperable: salta el lote y continúa.
         - Si hay caché configurado, evita llamadas redundantes.
+        - Si estricto=True, un lote perdido por cuota/rate limit lanza
+          EmbeddingQuotaExhausted en lugar de omitirlo silenciosamente.
 
         Returns:
             Lista de dicts {contenido, embedding}. Puede ser más corta
@@ -268,9 +305,9 @@ class SyllabusEmbedder:
             logger.info(f"[Embedder] Procesando lote {lote_num}/{total_lotes} ({len(lote)} chunks) - Sin pausa estática.")
 
             if self.cache:
-                procesados = self._procesar_lote_con_cache(lote)
+                procesados = self._procesar_lote_con_cache(lote, estricto=estricto)
             else:
-                procesados = self._procesar_lote_sin_cache(lote)
+                procesados = self._procesar_lote_sin_cache(lote, estricto=estricto)
 
             chunks_transformados.extend(procesados)
 
@@ -280,7 +317,7 @@ class SyllabusEmbedder:
         )
         return chunks_transformados
 
-    def _procesar_lote_sin_cache(self, lote: list) -> list:
+    def _procesar_lote_sin_cache(self, lote: list, estricto: bool = False) -> list:
         """Procesa un lote sin caché (fallback cuando no hay cache configurado)."""
         for attempt in range(1, self.max_retries + 1):
             try:
@@ -301,6 +338,12 @@ class SyllabusEmbedder:
                     time.sleep(delay)
                     if attempt >= self.max_retries:
                         logger.error(f"[Rate Limit 429] Lote omitido tras {self.max_retries} reintentos.")
+                        rag_health.reportar_fallo("embeddings_ingesta", e)
+                        if estricto:
+                            raise EmbeddingQuotaExhausted(
+                                f"Embeddings: cuota/tasa agotada tras "
+                                f"{self.max_retries} reintentos: {e}"
+                            ) from e
                         return []
                 else:
                     logger.error(f"Error no recuperable: {e}")

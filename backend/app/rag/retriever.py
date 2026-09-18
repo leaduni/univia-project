@@ -2,7 +2,8 @@ import logging
 from supabase import Client
 
 from app.core.database import get_supabase
-from app.rag.embedder import SyllabusEmbedder
+from app.rag import health as rag_health
+from app.rag.embedder import EmbeddingQuotaExhausted, SyllabusEmbedder
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +25,25 @@ class SyllabusRetriever:
         )
         self.model_name = self.embedder.model_name
 
-    def vectorizar_pregunta(self, pregunta: str) -> list:
+    def vectorizar_pregunta(self, pregunta: str, estricto: bool = False) -> list:
         logger.debug("Vectorizando el query ...")
-        return self.embedder.vectorizar_consulta(pregunta)
+        vector = self.embedder.vectorizar_consulta(pregunta, estricto=estricto)
+        if not vector:
+            # Vector vacío sin excepción: proveedor devolvió respuesta vacía.
+            logger.error(
+                "RAG SIN VECTOR DE CONSULTA: el proveedor de embeddings no "
+                "devolvió un vector (¿saldo agotado?). "
+                "Último fallo registrado: %s",
+                rag_health.ultimo_fallo("embeddings_query"),
+            )
+            if estricto:
+                raise EmbeddingQuotaExhausted(
+                    "El proveedor de embeddings no vectorizó la consulta."
+                )
+        return vector
 
-    def buscar_contexto(self, pregunta: str, limit: int = 5, umbral_similitud: float = 0.5, curso_id: int = None) -> list:
-        pregunta_vectorizada = self.vectorizar_pregunta(pregunta)
+    def buscar_contexto(self, pregunta: str, limit: int = 5, umbral_similitud: float = 0.5, curso_id: int = None, estricto: bool = False) -> list:
+        pregunta_vectorizada = self.vectorizar_pregunta(pregunta, estricto=estricto)
 
         if not pregunta_vectorizada:
             return []
@@ -59,8 +73,8 @@ class SyllabusRetriever:
             logger.error(f"Error en la base de datos al buscar contexto: {e}")
             return []
 
-    def buscar_contexto_por_nombre(self, pregunta: str, curso_nombre: str = None, limit: int = 5, umbral_similitud: float = 0.5, profesor_id: int = None) -> list:
-        pregunta_vectorizada = self.vectorizar_pregunta(pregunta)
+    def buscar_contexto_por_nombre(self, pregunta: str, curso_nombre: str = None, limit: int = 5, umbral_similitud: float = 0.5, profesor_id: int = None, estricto: bool = False) -> list:
+        pregunta_vectorizada = self.vectorizar_pregunta(pregunta, estricto=estricto)
 
         if not pregunta_vectorizada:
             return []

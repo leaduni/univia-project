@@ -137,7 +137,7 @@ interface BloqueEventoProps {
   onAutoReschedule?: (id: string) => void
 }
 function BloqueEvento({ evento, etiquetas, filtros, onClick, totalHorasPx, onAutoReschedule }: BloqueEventoProps) {
-  const activo = filtros[evento.etiquetaId]
+  const activo = filtros[evento.etiquetaId] !== false
   const etiqueta = etiquetas.find(e => e.id === evento.etiquetaId)
   
   const isExamen = evento.tipo === 'examen'
@@ -175,12 +175,12 @@ function BloqueEvento({ evento, etiquetas, filtros, onClick, totalHorasPx, onAut
 
   return (
     <div
-      role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); onClick(e); }} onKeyDown={e => e.key === "Enter" && onClick(e as any)}
+      role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); onClick(e); }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={e => e.key === "Enter" && onClick(e as any)}
       className={`absolute left-1 right-1 rounded-md cursor-pointer overflow-hidden
         ${s.bg} ${s.bgHover} ${s.border} ${s.glow}
         transition-all duration-300 ease-in-out hover:scale-[1.01] hover:-translate-y-px hover:z-20
         focus:outline-none focus:ring-2 focus:ring-white/20 select-none
-        ${activo ? "opacity-100 scale-100 z-10" : "opacity-0 scale-95 pointer-events-none z-0"}
+        ${activo ? "opacity-100 scale-100 z-10" : "opacity-30 scale-95 pointer-events-none z-0 grayscale"}
         ${estaVencido ? "border-l-[4px] border-l-rose-500" : ""}
         ${evento.completed ? "opacity-75" : ""}`}
       style={{ top: `${topPx}px`, height: `${heightPx}px` }}
@@ -476,10 +476,15 @@ function VistaSemana({
   const hoyStr = formatearISO(new Date())
 
   useEffect(() => {
-    const endH = parseInt(sleepSettings.end.split(":")[0], 10)
-    const el = document.getElementById(`hour-${Math.max(0, endH - 1)}`) // Scroll 1 hour above to give breathing room
+    // Find the earliest event in the current week view
+    let earliestHour = 8 // Default to 8 AM
+    if (eventos.length > 0) {
+      earliestHour = Math.min(...eventos.map(e => e.horaInicio))
+    }
+    const targetHour = Math.max(0, Math.floor(earliestHour) - 1) // 1 hour above to give breathing room
+    const el = document.getElementById(`hour-${targetHour}`)
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
-  }, [sleepSettings])
+  }, [eventos])
 
   return (
     <div className="flex-1 overflow-auto custom-scrollbar">
@@ -517,10 +522,15 @@ function VistaDia({
   const esHoy = formatearISO(new Date()) === isoDate
 
   useEffect(() => {
-    const endH = parseInt(sleepSettings.end.split(":")[0], 10)
-    const el = document.getElementById(`hour-${Math.max(0, endH - 1)}`)
+    // Find the earliest event in the current day view
+    let earliestHour = 8 // Default to 8 AM
+    if (evsDia.length > 0) {
+      earliestHour = Math.min(...evsDia.map(e => e.horaInicio))
+    }
+    const targetHour = Math.max(0, Math.floor(earliestHour) - 1)
+    const el = document.getElementById(`hour-${targetHour}`)
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
-  }, [sleepSettings])
+  }, [evsDia])
 
   return (
     <div className="flex-1 overflow-auto custom-scrollbar flex">

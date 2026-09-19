@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import {
   BookMarked,
+  CalendarDays,
   ChevronDown,
   FlaskConical,
   GraduationCap,
@@ -234,8 +235,15 @@ export function ExplorarMenu() {
                       onNavegar={() => setAbierto(false)}
                     />
                   </li>
-                  {/* Sin destino todavía. Se muestran deshabilitadas en vez de
-                      enlazar a una página que no existe. */}
+                  <li>
+                    <Herramienta
+                      icono={CalendarDays}
+                      label="Agenda Inteligente"
+                      href="/agenda"
+                      onNavegar={() => setAbierto(false)}
+                      destacado
+                    />
+                  </li>
                   <li>
                     <Herramienta icono={Sparkles} label="Evaluaciones con IA" />
                   </li>
@@ -316,11 +324,13 @@ function Herramienta({
   label,
   href,
   onNavegar,
+  destacado,
 }: {
   icono: any
   label: string
   href?: string
   onNavegar?: () => void
+  destacado?: boolean
 }) {
   if (!href) {
     return (
@@ -331,6 +341,25 @@ function Herramienta({
           pronto
         </span>
       </span>
+    )
+  }
+
+  if (destacado) {
+    return (
+      <Link
+        href={href}
+        onClick={onNavegar}
+        className="flex items-center gap-2 text-xs font-semibold transition-all group"
+        style={{ color: "#c4b5fd" }}
+      >
+        <span className="flex items-center justify-center w-5 h-5 rounded-md gradient-brand">
+          <Icono className="w-3 h-3 text-white" />
+        </span>
+        {label}
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#7957f1]/20 text-[#c4b5fd] border border-[#7957f1]/30">
+          nuevo
+        </span>
+      </Link>
     )
   }
 

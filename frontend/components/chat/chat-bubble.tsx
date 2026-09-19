@@ -363,10 +363,22 @@ export function ChatBubble() {
     },
     [session?.access_token, enviando, enLinea, user?.id],
   )
-const manejarInputChange = useCallback((texto: string) => {
+  const manejarInputChange = useCallback((texto: string) => {
     inputValueRef.current = texto
     setInputValue(texto)
   }, [])
+
+  useEffect(() => {
+    const handleOpenChat = (e: Event) => {
+      const customEvent = e as CustomEvent<{ initialContext?: string }>
+      abrirChat()
+      if (customEvent.detail?.initialContext) {
+        manejarInputChange(`Ayúdame a repasar para mi examen de: "${customEvent.detail.initialContext}"`)
+      }
+    }
+    window.addEventListener("open-univia-chat", handleOpenChat)
+    return () => window.removeEventListener("open-univia-chat", handleOpenChat)
+  }, [abrirChat, manejarInputChange])
 
   const manejarEnvio = useCallback(() => {
     const texto = inputValueRef.current.trim()

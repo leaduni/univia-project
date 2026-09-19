@@ -11,9 +11,10 @@ interface CourseDetailsPanelProps {
   course: CourseNodeData
   post: CourseNodeData[]
   onClose: () => void
+  onMarkCompleted?: (courseId: string) => void
 }
 
-export function CourseDetailsPanel({ course, post, onClose }: CourseDetailsPanelProps) {
+export function CourseDetailsPanel({ course, post, onClose, onMarkCompleted }: CourseDetailsPanelProps) {
   const fecha = course.fecha_completado ? new Date(course.fecha_completado) : null
   const fechaValida = fecha && !Number.isNaN(fecha.getTime()) ? fecha.toLocaleDateString("es-PE") : null
 
@@ -85,13 +86,24 @@ export function CourseDetailsPanel({ course, post, onClose }: CourseDetailsPanel
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={onClose}
-        className="mt-auto rounded-md border border-border px-2 py-1.5 text-[11px] text-muted-foreground transition-colors hover:border-foreground/50 hover:text-foreground"
-      >
-        Cerrar
-      </button>
+      <div className="mt-auto flex flex-col gap-2">
+        {(course.status === "in_progress" || course.status === "available") && onMarkCompleted && (
+          <button
+            type="button"
+            onClick={() => onMarkCompleted(course.id)}
+            className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1.5 text-[11px] font-semibold text-emerald-400 transition-colors hover:bg-emerald-500/20 hover:text-emerald-300"
+          >
+            Marcar como Aprobado
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-md border border-border px-2 py-1.5 text-[11px] text-muted-foreground transition-colors hover:border-foreground/50 hover:text-foreground"
+        >
+          Cerrar
+        </button>
+      </div>
     </div>
   )
 }

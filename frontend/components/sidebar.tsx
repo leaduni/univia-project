@@ -1,6 +1,6 @@
 // Navegación lateral de la app colapsable y armónica
 "use client"
-import { Grid, FileText, User, GraduationCap, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react"
+import { Grid, FileText, User, GraduationCap, MessageSquare, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -15,6 +15,7 @@ interface SidebarProps {
 const MENU = [
   { icon: Grid, label: "Mi aprendizaje", id: "Dashboard", href: "/dashboard" },
   { icon: GraduationCap, label: "Mi malla", id: "Malla", href: "/malla" },
+  { icon: CalendarDays, label: "Agenda", id: "Agenda", href: "/agenda" },
   { icon: FileText, label: "Recursos", id: "Recursos", href: "/recursos" },
   { icon: MessageSquare, label: "Sugerencias", id: "Feedback", href: "/dashboard/feedback" },
   { icon: User, label: "Perfil", id: "Perfil", href: "/perfil" },

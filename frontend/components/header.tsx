@@ -39,6 +39,7 @@ const ACCESOS = [
   { label: "Mi aprendizaje", href: "/dashboard" },
   { label: "Mi malla", href: "/malla" },
   { label: "Recursos", href: "/recursos" },
+  { label: "Agenda", href: "/agenda" },
   { label: "Foro", href: "/foro" },
   { label: "Mensajes", href: "/mensajes" },
   { label: "Sugerencias", href: "/dashboard/feedback" },
@@ -64,7 +65,13 @@ export function Header({ onMenuClick }: HeaderProps) {
       rafId.current = null
       const posicion = ultimoScroll.current
       setIsAtTop(posicion === 0)
-      setIsHidden(posicion > ultimoAplicado.current && posicion > 0)
+      
+      if (pathname.startsWith("/agenda")) {
+        setIsHidden(false)
+      } else {
+        setIsHidden(posicion > ultimoAplicado.current && posicion > 0)
+      }
+      
       ultimoAplicado.current = posicion
     }
 
@@ -88,7 +95,7 @@ export function Header({ onMenuClick }: HeaderProps) {
       main?.removeEventListener("scroll", manejarScroll)
       if (rafId.current != null) cancelAnimationFrame(rafId.current)
     }
-  }, [])
+  }, [pathname])
 
   return (
     <header

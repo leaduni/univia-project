@@ -481,8 +481,12 @@ def _handler_consulta_prerrequisitos(mensaje: str, supabase, user, token: str) -
     """Qué hay que llevar antes de X, según la malla del estudiante."""
 
     try:
-        from app.routers.malla import _obtener_malla_del_perfil
-        carrera_id, malla_id = _obtener_malla_del_perfil(supabase, user)
+        resp = supabase.table("perfiles").select("carrera_id,malla_id").eq("id", user.id).single().execute()
+        datos = getattr(resp, "data", None) or {}
+        carrera_id = datos.get("carrera_id")
+        malla_id = datos.get("malla_id")
+        if not carrera_id or not malla_id:
+            raise ValueError("Onboarding incompleto")
     except Exception as e:
         # _obtener_malla_del_perfil lanza HTTPException cuando falta el onboarding.
         logger.info(f"Malla no disponible para {user.id}: {e}")

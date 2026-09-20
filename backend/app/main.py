@@ -117,7 +117,7 @@ async def http_exception_handler(request, exc: HTTPException):
         return JSONResponse(status_code=exc.status_code, content=exc.detail)
     return JSONResponse(
         status_code=exc.status_code,
-        content=ErrorResponse(errors=[ErrorDetail(field="general", message=str(exc.detail))]).model_dump(),
+        content=ErrorResponse(errors=[ErrorDetail(field="general", message=exc.detail)]).model_dump(),
     )
 
 
@@ -143,7 +143,7 @@ async def root():
     return {"message": "UniVia API v2.0 - Online", "status": "healthy"}
 
 # Importar Routers
-from app.routers import malla, usuarios, onboarding, dashboard, cursos, evaluaciones, services, recursos, chatbot, feedback, foro, dm
+from app.routers import malla, usuarios, onboarding, dashboard, cursos, evaluaciones, services, recursos, chatbot, feedback, foro, dm, agenda, horarios
 
 app.include_router(malla.router, prefix="/api", tags=["malla"])
 app.include_router(usuarios.router, prefix="/api", tags=["usuarios"])
@@ -157,3 +157,5 @@ app.include_router(chatbot.router, prefix="/api", tags=["chatbot"])
 app.include_router(feedback.router, prefix="/api", tags=["feedback"])
 app.include_router(foro.router, prefix="/api", tags=["foro"])
 app.include_router(dm.router, prefix="/api", tags=["dm"])
+app.include_router(agenda.router, prefix="/api", tags=["agenda"])
+app.include_router(horarios.router, prefix="/api", tags=["horarios"])

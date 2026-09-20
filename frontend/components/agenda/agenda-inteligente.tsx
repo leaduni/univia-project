@@ -21,8 +21,14 @@ import {
 } from "./calendar-grid"
 import { useSemesterRecurrence } from "@/lib/hooks/use-semester"
 import { FocusMode } from "./focus-mode"
-
 import { BarraIA } from "./barra-ia"
+import {
+  fetchEventos, crearEvento, editarEvento, eliminarEvento,
+  fetchEtiquetas, crearEtiqueta as crearEtiquetaAPI,
+  fetchConfiguracion, guardarConfiguracion,
+  registrarSesion, fetchProductividad,
+  type AgendaEvento, type AgendaEtiqueta, type AgendaConfiguracion, type Productividad
+} from "@/lib/agenda-service"
 
 // ─── Tipos y Helpers ──────────────────────────────────────────────────────────
 
@@ -48,7 +54,7 @@ function countdown(ms: number) {
   return { txt: d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`, urgente: d < 2 }
 }
 
-// ─── Mock data inicial ────────────────────────────────────────────────────────
+// ─── Fallback data (used when API is not available) ───────────────────────────
 
 const ETIQUETAS_BASE: Etiqueta[] = [
   { id: "c1", nombre: "Clases Univ.", color: "indigo" },
@@ -57,27 +63,30 @@ const ETIQUETAS_BASE: Etiqueta[] = [
   { id: "c4", nombre: "Bloques de Estudio", color: "fuchsia" },
 ]
 
-function getIso(diaOffsetSemanaActual: number) {
-  const d = new Date()
-  const hoyDia = d.getDay() === 0 ? 6 : d.getDay() - 1
-  d.setDate(d.getDate() - hoyDia + diaOffsetSemanaActual)
-  return formatearISO(d)
+/** Convierte etiquetas de la API (id numérico) al formato del componente (id string). */
+function apiEtiquetaToLocal(e: AgendaEtiqueta): Etiqueta {
+  return { id: String(e.id), nombre: e.nombre, color: e.color as any }
 }
 
-const EVENTOS_BASE: CalendarioEvento[] = [
-  { id: "e1", titulo: "Sistemas Operativos", subtitulo: "Aula B-204", etiquetaId: "c1", fechaISO: getIso(0), horaInicio: 0, duracion: 2 },
-  { id: "e2", titulo: "Cálculo Diferencial", subtitulo: "Aula A-101", etiquetaId: "c1", fechaISO: getIso(1), horaInicio: 1, duracion: 1.5 },
-  { id: "e3", titulo: "Programación Web", subtitulo: "Lab. 3", etiquetaId: "c1", fechaISO: getIso(2), horaInicio: 3, duracion: 2 },
-  { id: "e4", titulo: "Base de Datos", subtitulo: "Aula C-305", etiquetaId: "c1", fechaISO: getIso(3), horaInicio: 0.5, duracion: 2 },
-  { id: "ex1", titulo: "Parcial SO", subtitulo: "Caps. 1-5 + Threads", etiquetaId: "c2", tipo: 'examen', fechaISO: getIso(4), horaInicio: 5, duracion: 2 },
-  { id: "d1", titulo: "Gym — Pierna", subtitulo: "Leg press", etiquetaId: "c3", fechaISO: getIso(0), horaInicio: 4.5, duracion: 1.5 },
-  { id: "ia1", titulo: "Repaso: Node.js", subtitulo: "APIs REST", etiquetaId: "c4", fechaISO: getIso(0), horaInicio: 7, duracion: 1.5 },
-]
-
-const EXAMENES_MOCK: Examen[] = [
-  { id: "x1", nombre: "Parcial Sistemas Operativos", fechaTarget: new Date(Date.now() + 3 * 86400000 + 14400000) },
-  { id: "x2", nombre: "Práctica Cálculo Diferencial", fechaTarget: new Date(Date.now() + 5 * 86400000 + 7200000) },
-]
+/** Convierte evento de la API al formato del componente CalendarioEvento. */
+function apiEventoToLocal(e: AgendaEvento): CalendarioEvento {
+  return {
+    id: String(e.id),
+    titulo: e.titulo,
+    subtitulo: e.subtitulo || e.descripcion || undefined,
+    etiquetaId: e.etiqueta_id ? String(e.etiqueta_id) : "",
+    tipo: e.tipo === 'examen' ? 'examen' : undefined,
+    fechaISO: e.fecha_iso,
+    fechaFinISO: e.fecha_fin_iso || undefined,
+    horaInicio: e.hora_inicio,
+    duracion: e.duracion,
+    todoElDia: e.todo_el_dia,
+    recurrencia: e.recurrencia === 'none' ? 'No se repite' : e.recurrencia,
+    ubicacion: e.ubicacion || undefined,
+    videollamada: e.videollamada || undefined,
+    completed: e.completed,
+  }
+}
 
 // ─── Componentes Pequeños ─────────────────────────────────────────────────────
 
@@ -1000,19 +1009,25 @@ export function AgendaInteligente() {
   const [popoverEvent, setPopoverEvent] = useState<CalendarioEvento | null>(null)
   const [isFocusModeOpen, setIsFocusModeOpen] = useState(false)
   const [focusEvent, setFocusEvent] = useState<CalendarioEvento | null>(null)
+  const [pomodoroStartTime, setPomodoroStartTime] = useState<string | null>(null)
 
   // -- Reprogramación Anti-culpa --
-  const handleAutoReschedule = useCallback((eventoId: string) => {
+  const handleAutoReschedule = useCallback(async (eventoId: string) => {
+    const numId = parseInt(eventoId)
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    const iso = formatearISO(tomorrow)
+
+    // Actualizar local inmediatamente
     setEventos(prev => prev.map(ev => {
-      if (ev.id === eventoId) {
-        const tomorrow = new Date()
-        tomorrow.setDate(tomorrow.getDate() + 1)
-        const iso = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`
-        return { ...ev, fechaISO: iso, horaInicio: 18, completed: false }
-      }
+      if (ev.id === eventoId) return { ...ev, fechaISO: iso, horaInicio: 18, completed: false }
       return ev
     }))
-    alert("Bloque reorganizado con IA ✨")
+
+    // Persistir en backend
+    if (!isNaN(numId)) {
+      editarEvento(numId, { fecha_iso: iso, hora_inicio: 18, completed: false }).catch(() => {})
+    }
   }, [])
   
   // Settings de Sueño y Semestre
@@ -1031,35 +1046,93 @@ export function AgendaInteligente() {
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>(ETIQUETAS_BASE)
   const [isTagsExpanded, setIsTagsExpanded] = useState(false)
   const [filtros, setFiltros] = useState<Record<string, boolean>>(ETIQUETAS_BASE.reduce((acc, e) => ({ ...acc, [e.id]: true }), {}))
-  const [eventos, setEventos] = useState<CalendarioEvento[]>(EVENTOS_BASE)
+  const [eventos, setEventos] = useState<CalendarioEvento[]>([])
   const [modalPrefill, setModalPrefill] = useState<OpenModalParams | null>(null)
+  const [apiReady, setApiReady] = useState(false)
+
+  // ─ Cargar datos del backend al montar ─
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        // Cargar etiquetas desde el backend
+        const etqs = await fetchEtiquetas()
+        if (cancelled) return
+        const localEtqs = etqs.map(apiEtiquetaToLocal)
+        setEtiquetas(localEtqs)
+        setFiltros(localEtqs.reduce((acc, e) => ({ ...acc, [e.id]: true }), {} as Record<string, boolean>))
+
+        // Cargar eventos
+        const evs = await fetchEventos()
+        if (cancelled) return
+        setEventos(evs.map(apiEventoToLocal))
+
+        // Cargar configuración
+        const cfg = await fetchConfiguracion()
+        if (cancelled) return
+        setSleepSettings({ start: cfg.sleep_start, end: cfg.sleep_end })
+        if (cfg.semester_start && cfg.semester_end) {
+          setSemesterSettings({ start: cfg.semester_start, end: cfg.semester_end })
+        }
+
+        setApiReady(true)
+      } catch (err) {
+        console.warn("[Agenda] API no disponible, usando datos locales:", err)
+        // Mantener los datos fallback ya inicializados
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
 
   const semDates = useSemesterRecurrence(semesterSettings.start, semesterSettings.end)
 
-  useEffect(() => {
-    setEventos(prev => {
-      const keptEvents = prev.filter(e => !e.id.includes('_gen_') && !(EVENTOS_BASE.find(b => b.id === e.id && b.etiquetaId === "c1")))
-      const newEvents = [...keptEvents]
-      
-      for (const ev of EVENTOS_BASE) {
-        if (ev.etiquetaId === "c1") {
-          const dateObj = new Date(ev.fechaISO + "T00:00:00")
-          const dayOfWeek = dateObj.getDay()
-          const occurrences = semDates.generateRecurringDates(dayOfWeek)
-          for (const occ of occurrences) {
-            newEvents.push({
-              ...ev,
-              id: `${ev.id}_gen_${occ.getTime()}`,
-              fechaISO: formatearISO(occ)
-            })
-          }
-        } else if (!keptEvents.find(e => e.id === ev.id)) {
-          newEvents.push(ev)
+  // Generar recurrencias locales solo para eventos con recurrencia semanal
+  const eventosConRecurrencia = useMemo(() => {
+    const generados: CalendarioEvento[] = []
+    const normales: CalendarioEvento[] = []
+
+    for (const ev of eventos) {
+      if (ev.recurrencia && ev.recurrencia !== 'No se repite' && ev.recurrencia !== 'none') {
+        const dateObj = new Date(ev.fechaISO + "T00:00:00")
+        const dayOfWeek = dateObj.getDay()
+        const occurrences = semDates.generateRecurringDates(dayOfWeek)
+        for (const occ of occurrences) {
+          generados.push({
+            ...ev,
+            id: `${ev.id}_gen_${occ.getTime()}`,
+            fechaISO: formatearISO(occ)
+          })
         }
+      } else {
+        normales.push(ev)
       }
-      return newEvents
-    })
-  }, [semesterSettings.start, semesterSettings.end, semDates])
+    }
+    return [...normales, ...generados]
+  }, [eventos, semDates])
+
+  // Derivar exámenes/evaluaciones próximas dinámicamente desde los eventos reales del usuario
+  const examenesProximos = useMemo(() => {
+    const evalEtq = etiquetas.find(e => 
+      e.nombre.toLowerCase().includes("evalua") || 
+      e.nombre.toLowerCase().includes("examen") ||
+      e.nombre.toLowerCase().includes("parcial") ||
+      e.nombre.toLowerCase().includes("final")
+    )
+    const now = new Date()
+    return eventos
+      .filter(ev => ev.tipo === 'examen' || (evalEtq && ev.etiquetaId === evalEtq.id))
+      .map(ev => {
+        const h = Math.floor(ev.horaInicio)
+        const m = Math.round((ev.horaInicio - h) * 60)
+        const timeStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`
+        const fechaTarget = new Date(`${ev.fechaISO}T${timeStr}`)
+        return { id: ev.id, nombre: ev.titulo, fechaTarget }
+      })
+      .filter(ex => ex.fechaTarget.getTime() >= now.getTime() - 86400000)
+      .sort((a, b) => a.fechaTarget.getTime() - b.fechaTarget.getTime())
+      .slice(0, 5)
+  }, [eventos, etiquetas])
   
   // Modo Semana de Exámenes
   const [examWeekMode, setExamWeekMode] = useState(false)
@@ -1121,7 +1194,33 @@ export function AgendaInteligente() {
       {isCreateModalOpen && (
         <ModalCrearEvento
           onClose={() => { setIsCreateModalOpen(false); setModalPrefill(null) }}
-          onGuardar={(ev) => setEventos(prev => [...prev, ev])}
+          onGuardar={async (ev) => {
+            // Agregar localmente inmediato para UI responsiva
+            setEventos(prev => [...prev, ev])
+            // Persistir en backend
+            try {
+              const recMap: Record<string, string> = { 'No se repite': 'none', 'Cada día': 'daily', 'Cada semana': 'weekly', 'Días laborables (lun-vie)': 'weekdays' }
+              const saved = await crearEvento({
+                titulo: ev.titulo,
+                subtitulo: ev.subtitulo,
+                tipo: ev.tipo === 'examen' ? 'examen' : 'evento',
+                etiqueta_id: ev.etiquetaId ? parseInt(ev.etiquetaId) : null,
+                fecha_iso: ev.fechaISO,
+                fecha_fin_iso: ev.fechaFinISO,
+                hora_inicio: ev.horaInicio,
+                duracion: ev.duracion,
+                todo_el_dia: ev.todoElDia || false,
+                recurrencia: recMap[ev.recurrencia || ''] || 'none',
+                ubicacion: ev.ubicacion,
+                videollamada: ev.videollamada,
+                descripcion: ev.subtitulo,
+              })
+              // Reemplazar el evento local con el del backend (tiene ID real)
+              setEventos(prev => prev.map(e => e.id === ev.id ? apiEventoToLocal(saved) : e))
+            } catch (err) {
+              console.warn("[Agenda] No se pudo guardar en backend:", err)
+            }
+          }}
           prefill={modalPrefill}
           etiquetas={etiquetas}
           onOpenCrearEtiqueta={() => setIsTagModalOpen(true)}
@@ -1131,16 +1230,35 @@ export function AgendaInteligente() {
       {isTagModalOpen && (
         <ModalCrearEtiqueta
           onClose={() => setIsTagModalOpen(false)}
-          onCrear={(etq) => { setEtiquetas(p => [...p, etq]); setFiltros(p => ({ ...p, [etq.id]: true })) }}
+          onCrear={async (etq) => {
+            // Agregar localmente
+            setEtiquetas(p => [...p, etq])
+            setFiltros(p => ({ ...p, [etq.id]: true }))
+            // Persistir en backend
+            try {
+              const saved = await crearEtiquetaAPI({ nombre: etq.nombre, color: etq.color })
+              const localSaved = apiEtiquetaToLocal(saved)
+              setEtiquetas(p => p.map(e => e.id === etq.id ? localSaved : e))
+              setFiltros(p => { const n = { ...p }; delete n[etq.id]; n[localSaved.id] = true; return n })
+            } catch (err) {
+              console.warn("[Agenda] No se pudo crear etiqueta en backend:", err)
+            }
+          }}
         />
       )}
 
       {isSleepModalOpen && (
         <ModalAjustesGeneral
           sleepSettings={sleepSettings}
-          onSaveSleep={setSleepSettings}
+          onSaveSleep={(s) => {
+            setSleepSettings(s)
+            guardarConfiguracion({ sleep_start: s.start, sleep_end: s.end }).catch(() => {})
+          }}
           semesterSettings={semesterSettings}
-          onSaveSemester={setSemesterSettings}
+          onSaveSemester={(s) => {
+            setSemesterSettings(s)
+            guardarConfiguracion({ semester_start: s.start, semester_end: s.end }).catch(() => {})
+          }}
           onClose={() => setIsSleepModalOpen(false)}
         />
       )}
@@ -1153,7 +1271,12 @@ export function AgendaInteligente() {
           etiqueta={etiquetas.find(e => e.id === popoverEvent.etiquetaId) || ETIQUETAS_BASE[0]}
           onClose={() => setPopoverEvent(null)}
           onOpenAI={openAIPanel}
-          onDelete={() => { setEventos(p => p.filter(ev => ev.id !== popoverEvent.id)); setPopoverEvent(null) }}
+          onDelete={() => {
+            setEventos(p => p.filter(ev => ev.id !== popoverEvent.id))
+            setPopoverEvent(null)
+            const numId = parseInt(popoverEvent.id)
+            if (!isNaN(numId)) eliminarEvento(numId).catch(() => {})
+          }}
           onEdit={() => {
             setModalPrefill({ horaInicio: popoverEvent.horaInicio, fecha: new Date(popoverEvent.fechaISO + "T00:00:00") })
             setPopoverEvent(null)
@@ -1162,11 +1285,15 @@ export function AgendaInteligente() {
           onStartFocus={() => {
             setPopoverEvent(null)
             setFocusEvent(popoverEvent)
+            setPomodoroStartTime(new Date().toISOString())
             setIsFocusModeOpen(true)
             setIsSidebarOpen(true)
           }}
           onToggleCompleted={() => {
-            setEventos(prev => prev.map(ev => ev.id === popoverEvent.id ? { ...ev, completed: !ev.completed } : ev))
+            const newCompleted = !popoverEvent.completed
+            setEventos(prev => prev.map(ev => ev.id === popoverEvent.id ? { ...ev, completed: newCompleted } : ev))
+            const numId = parseInt(popoverEvent.id)
+            if (!isNaN(numId)) editarEvento(numId, { completed: newCompleted }).catch(() => {})
           }}
         />
       )}
@@ -1300,7 +1427,7 @@ export function AgendaInteligente() {
           <div className={`flex-1 min-w-0 bg-[#090b1c] border rounded-3xl flex flex-col overflow-hidden h-[calc(100vh-220px)] transition-all duration-500 ${examWeekMode ? 'border-purple-500/30 shadow-[inset_0_0_20px_rgba(168,85,247,0.05),0_12px_40px_rgba(0,0,0,0.4)]' : 'border-slate-800/60 shadow-[0_12px_40px_rgba(0,0,0,0.4)]'}`}>
             <CalendarioGrid
               vista={currentView}
-              eventos={eventos}
+              eventos={eventosConRecurrencia}
               etiquetas={etiquetas}
               filtros={filtrosEfectivos}
               baseDate={baseDate}
@@ -1348,15 +1475,19 @@ export function AgendaInteligente() {
               <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg">
                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><AlertTriangle className="w-3.5 h-3.5 text-rose-500" /> Radar Próximo</p>
                 <div className="space-y-2.5">
-                  {EXAMENES_MOCK.map(ex => {
-                    const { txt, urgente } = countdown(ex.fechaTarget.getTime() - new Date().getTime())
-                    return (
-                      <div key={ex.id} onClick={() => openAIPanel(ex.nombre)} className={`cursor-pointer rounded-xl p-3 transition-all hover:scale-[1.02] ${urgente ? "bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20" : "bg-white/5 border border-white/5 hover:bg-white/10"}`}>
-                        <p className="text-xs font-semibold text-slate-200 truncate">{ex.nombre}</p>
-                        <p className={`text-[10px] font-mono font-bold mt-1 ${urgente ? "text-rose-400" : "text-indigo-400"}`}>En {txt}</p>
-                      </div>
-                    )
-                  })}
+                  {examenesProximos.length > 0 ? (
+                    examenesProximos.map(ex => {
+                      const { txt, urgente } = countdown(ex.fechaTarget.getTime() - new Date().getTime())
+                      return (
+                        <div key={ex.id} onClick={() => openAIPanel(ex.nombre)} className={`cursor-pointer rounded-xl p-3 transition-all hover:scale-[1.02] ${urgente ? "bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20" : "bg-white/5 border border-white/5 hover:bg-white/10"}`}>
+                          <p className="text-xs font-semibold text-slate-200 truncate">{ex.nombre}</p>
+                          <p className={`text-[10px] font-mono font-bold mt-1 ${urgente ? "text-rose-400" : "text-indigo-400"}`}>En {txt}</p>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <p className="text-xs text-slate-500 italic py-1 text-center">Sin exámenes próximos</p>
+                  )}
                 </div>
               </div>
 
@@ -1387,13 +1518,28 @@ export function AgendaInteligente() {
               {isFocusModeOpen && focusEvent ? (
                 <SidebarPomodoro 
                   evento={focusEvent} 
-                  onClose={() => { setIsFocusModeOpen(false); setFocusEvent(null) }} 
-                  onComplete={(minutosEstudiados, isFinishedEarly) => {
+                  onClose={() => { setIsFocusModeOpen(false); setFocusEvent(null); setPomodoroStartTime(null) }} 
+                  onComplete={async (minutosEstudiados, isFinishedEarly) => {
                     if (!isFinishedEarly) {
                       setEventos(prev => prev.map(ev => ev.id === focusEvent.id ? { ...ev, completed: true } : ev))
                     }
+                    // Registrar sesión en backend
+                    try {
+                      const numId = parseInt(focusEvent.id)
+                      await registrarSesion({
+                        evento_id: !isNaN(numId) ? numId : undefined,
+                        minutos_configurados: minutosEstudiados,
+                        minutos_reales: minutosEstudiados,
+                        finalizado_temprano: isFinishedEarly,
+                        started_at: pomodoroStartTime || new Date().toISOString(),
+                        ended_at: new Date().toISOString(),
+                      })
+                    } catch (err) {
+                      console.warn("[Agenda] No se pudo registrar sesión:", err)
+                    }
                     setIsFocusModeOpen(false)
                     setFocusEvent(null)
+                    setPomodoroStartTime(null)
                   }}
                 />
               ) : (

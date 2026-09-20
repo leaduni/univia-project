@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _resolver_malla_id(supabase, carrera_id: int, malla_id: Optional[int] = None) -> Optional[int]:
+def _resolver_malla_id(supabase, carrera_id: Optional[int], malla_id: Optional[int] = None) -> Optional[int]:
     """Obtiene el malla_id directo o busca la malla vigente de la carrera.
 
     Si existen varias mallas vigentes (es_vigente = true) para la carrera, se
@@ -643,7 +643,8 @@ async def complete_onboarding(
             .select("curso_id, status") \
             .eq("perfil_id", user.id) \
             .execute()
-        db_status: Dict[int, str] = {p["curso_id"]: p["status"] for p in (progreso_db.data or [])}
+        progreso_raw = getattr(progreso_db, "data", None) or []
+        db_status: Dict[int, str] = {p["curso_id"]: p["status"] for p in progreso_raw if isinstance(p, dict)}
 
         def nombre_curso(cid: int) -> str:
             return cursos_en_carrera.get(cid, {}).get("name", str(cid))

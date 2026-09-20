@@ -52,6 +52,7 @@ import base64
 import logging
 import os
 import re
+import threading
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
@@ -80,26 +81,97 @@ def _redactar_claves(texto: str) -> str:
 # openai, groq, gemini. LLM_FALLBACK (singular) se mantiene como compatibilidad
 # hacia atrás para despliegues viejos que aún la tengan.
 #
-# Cascada por defecto (gratuita primero, pagado al final):
+# Cascada por defecto (gratuita primero). OpenAI NO participa en generación:
+# su clave (OPEN_AI_INGEST_API_KEY) queda reservada EXCLUSIVAMENTE para
+# embeddings (text-embedding-3-small) y OCR de respaldo. Solo si
+# ALLOW_OPENAI_GENERATION=true se añade a la cadena como último recurso.
 #   gemini (Gemini 2.0 Flash, pool de claves gratuitas)
 #     -> groq (llama-3.3-70b-versatile, pool de claves gratuitas)
-#       -> openai (GPT, último recurso pagado)
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
 LLM_FALLBACK = os.getenv("LLM_FALLBACK")
 LLM_FALLBACKS = [
     p.strip().lower()
     for p in (
-        os.getenv("LLM_FALLBACKS") or LLM_FALLBACK or "groq,openai"
+        os.getenv("LLM_FALLBACKS") or LLM_FALLBACK or "groq"
     ).split(",")
     if p.strip()
 ]
+
+def _permitido_en_generacion(nombre: str) -> bool:
+    """OpenAI queda prohibido para redacción salvo bandera explícita.
+
+    Garantía de costo: con ALLOW_OPENAI_GENERATION distinto de "true",
+    ninguna llamada de generación de texto toca el saldo de OpenAI
+    (embeddings y OCR son servicios aparte, no pasan por generar()).
+    """
+    if nombre.lower() == "openai" and os.getenv("ALLOW_OPENAI_GENERATION", "").lower() != "true":
+        logger.warning(
+            "Proveedor 'openai' excluido de la generación (ALLOW_OPENAI_GENERATION != true); "
+            "OpenAI queda reservado para embeddings."
+        )
+        return False
+    return True
 
 # Modelos de generación por proveedor. Se dejan configurables porque el costo
 # por millón de tokens cambia bastante entre familias y el presupuesto del
 # piloto es acotado.
 MODELO_GENERACION = os.getenv("OPENAI_GEN_MODEL", "gpt-4o-mini")
-MODELO_GROQ = os.getenv("GROQ_GEN_MODEL", "llama-3.3-70b-versatile")
-MODELO_GEMINI = os.getenv("GEMINI_GEN_MODEL", "gemini-3.6-flash")
+MODELO_GROQ = os.getenv("GROQ_GEN_MODEL", "openai/gpt-oss-120b")
+MODELO_GEMINI = os.getenv("GEMINI_GEN_MODEL", "gemini-3.6-flash")  # 2.0-flash: retirado por la API
+
+# ---------------------------------------------------------------------------
+# Telemetría de consumo (tokens + costo estimado en USD)
+# ---------------------------------------------------------------------------
+# Tarifas por millón de tokens (input, output). Gemini y Groq corren en free
+# tier por diseño de la cascada, así que su costo se registra siempre en $0:
+# las tarifas quedan tabuladas igualmente por si algún día se sale del free
+# tier o se habilita OpenAI con ALLOW_OPENAI_GENERATION=true.
+TARIFAS_USD_POR_MILLON = {
+    "gemini-2.0-flash": (0.10, 0.40),
+    "gemini-3.6-flash": (0.0, 0.0),
+    "llama-3.3-70b-versatile": (0.0, 0.0),
+    "llama-3.1-8b-instant": (0.0, 0.0),
+    "openai/gpt-oss-120b": (0.0, 0.0),
+    "gpt-4o-mini": (0.15, 0.60),
+    "gpt-4.1": (2.00, 8.00),
+    "gpt-4.1-mini": (0.40, 1.60),
+}
+_PROVEEDORES_FREE_TIER = {"gemini", "groq"}
+
+_telemetria = threading.local()
+
+
+def registrar_uso(proveedor: str, modelo: str, prompt_tokens: int, completion_tokens: int) -> dict:
+    """Registra el consumo de la última llamada LLM (thread-local).
+
+    Devuelve y almacena un dict {proveedor, modelo, tokens:{prompt, completion,
+    total}, costo_usd}. Gratuito por diseño: gemini/groq siempre $0.0000.
+    """
+    entrada = int(prompt_tokens or 0)
+    salida = int(completion_tokens or 0)
+    if proveedor in _PROVEEDORES_FREE_TIER:
+        costo = 0.0
+    else:
+        tarifa_in, tarifa_out = TARIFAS_USD_POR_MILLON.get(modelo, (0.0, 0.0))
+        costo = (entrada * tarifa_in + salida * tarifa_out) / 1_000_000
+    metrica = {
+        "proveedor": proveedor,
+        "modelo": modelo,
+        "tokens": {"prompt": entrada, "completion": salida, "total": entrada + salida},
+        "costo_usd": round(costo, 6),
+    }
+    _telemetria.ultima = metrica
+    logger.info(
+        "[telemetria] %s (%s) | tokens in=%s out=%s total=%s | costo est. $%.4f",
+        proveedor, modelo, entrada, salida, entrada + salida, costo,
+    )
+    return metrica
+
+
+def obtener_ultima_telemetria() -> Optional[dict]:
+    """Devuelve la métrica de la última llamada LLM de ESTE hilo, o None."""
+    return getattr(_telemetria, "ultima", None)
+
 
 # Modelo de generación de evaluaciones, en GPT. gpt-4.1 (no mini) por defecto:
 # escribir preguntas de examen correctas y bien explicadas es la parte que más
@@ -268,6 +340,9 @@ def _llamar_openai(cliente, *, modelo, mensajes, max_tokens, stream, json_mode) 
         getattr(uso, "prompt_tokens", "?"),
         getattr(uso, "completion_tokens", "?"),
     )
+    if uso:
+        registrar_uso("openai", modelo, getattr(uso, "prompt_tokens", 0) or 0,
+                      getattr(uso, "completion_tokens", 0) or 0)
     if respuesta.choices[0].finish_reason == "length":
         logger.warning("La respuesta se cortó por max_tokens (%s).", max_tokens)
 
@@ -296,23 +371,38 @@ def _llamar_groq(cliente, *, modelo, mensajes, max_tokens, stream, json_mode) ->
         )
 
     respuesta = cliente.chat.completions.create(**kwargs)
+    uso = respuesta.usage
+    if uso:
+        registrar_uso("groq", modelo, getattr(uso, "prompt_tokens", 0) or 0,
+                      getattr(uso, "completion_tokens", 0) or 0)
     return respuesta.choices[0].message.content or ""
 
 
 def _llamar_gemini(cliente, *, modelo, mensajes, max_tokens, stream, json_mode) -> str:
-    """Una llamada de chat a Gemini; devuelve el texto de la respuesta."""
-    config = {"max_output_tokens": max_tokens}
+    """Una llamada de chat a Gemini (SDK google.genai); devuelve el texto."""
+    from google.genai import types
+
+    config = types.GenerateContentConfig(max_output_tokens=max_tokens)
     if json_mode:
-        config["response_mime_type"] = "application/json"
+        config.response_mime_type = "application/json"
 
     contenido = "\n\n".join(
         f"{m['role'].upper()}: {m['content']}" for m in mensajes
     )
     if stream:
-        flujo = cliente.generate_content(contenido, generation_config=config, stream=True)
+        flujo = cliente.models.generate_content_stream(
+            model=modelo, contents=contenido, config=config
+        )
         return "".join(fragmento.text or "" for fragmento in flujo)
 
-    respuesta = cliente.generate_content(contenido, generation_config=config)
+    respuesta = cliente.models.generate_content(
+        model=modelo, contents=contenido, config=config
+    )
+    uso = getattr(respuesta, "usage_metadata", None)
+    if uso:
+        registrar_uso("gemini", modelo,
+                      getattr(uso, "prompt_token_count", 0) or 0,
+                      getattr(uso, "candidates_token_count", 0) or 0)
     try:
         return respuesta.text or ""
     except ValueError:
@@ -360,14 +450,13 @@ def _pool_gemini_() -> Optional[MultiKeyPool]:
     global _pool_gemini
     if _pool_gemini is None:
         try:
-            import google.generativeai as genai
+            from google import genai
         except ImportError:
-            logger.error("Paquete 'google-generativeai' no instalado: Gemini queda deshabilitado.")
+            logger.error("Paquete 'google-genai' no instalado: Gemini queda deshabilitado.")
             return None
 
         def _construir(clave: str):
-            genai.configure(api_key=clave)
-            return genai.GenerativeModel(model_name=MODELO_GEMINI)
+            return genai.Client(api_key=clave)
 
         _pool_gemini = MultiKeyPool("GEMINI_API_KEY", _construir)
         if not _pool_gemini.tiene_claves:
@@ -551,10 +640,20 @@ def generar(
     Raises:
         RuntimeError: si ningún proveedor está disponible o ambos fallan.
     """
-    proveedor = _proveedor(LLM_PROVIDER)
+    # Cadena de proveedores: principal primero, después los fallbacks en
+    # orden, sin repetir el nombre del principal. OpenAI queda excluido salvo
+    # ALLOW_OPENAI_GENERATION=true (aislamiento de costo: solo embeddings).
+    nombres = [LLM_PROVIDER] + [p for p in LLM_FALLBACKS if p != LLM_PROVIDER.lower()]
+    cadena = [n for n in nombres if _permitido_en_generacion(n)]
+    if not cadena:
+        raise RuntimeError(
+            "Ningún proveedor de generación habilitado (OpenAI requiere ALLOW_OPENAI_GENERATION=true)."
+        )
+
+    proveedor = _proveedor(cadena[0])
     if proveedor is None:
         raise RuntimeError(
-            f"LLM_PROVIDER '{LLM_PROVIDER}' no disponible: falta la clave o el SDK."
+            f"LLM_PROVIDER '{cadena[0]}' no disponible: falta la clave o el SDK."
         )
 
     mensajes = []
@@ -562,9 +661,6 @@ def generar(
         mensajes.append({"role": "system", "content": system})
     mensajes.append({"role": "user", "content": prompt})
 
-    # Cadena de proveedores: principal primero, después los fallbacks en
-    # orden, sin repetir el nombre del principal.
-    cadena = [LLM_PROVIDER] + [p for p in LLM_FALLBACKS if p != LLM_PROVIDER.lower()]
 
     error_principal: Optional[Exception] = None
     for i, nombre in enumerate(cadena):
@@ -671,6 +767,10 @@ def generar_gpt(
         getattr(uso, "prompt_tokens", "?"),
         getattr(uso, "completion_tokens", "?"),
     )
+    if uso:
+        registrar_uso("openai", kwargs["model"],
+                      getattr(uso, "prompt_tokens", 0) or 0,
+                      getattr(uso, "completion_tokens", 0) or 0)
     if respuesta.choices[0].finish_reason == "length":
         logger.warning("La respuesta se cortó por max_tokens (%s).", max_tokens)
 
@@ -941,13 +1041,13 @@ def chatear_gemini_con_clave(
         RuntimeError: si el paquete falta o la clave es inválida.
     """
     try:
-        import google.generativeai as genai
+        from google import genai
+        from google.genai import types
     except ImportError:
-        raise RuntimeError("Paquete 'google-generativeai' no instalado para BYOK.")
+        raise RuntimeError("Paquete 'google-genai' no instalado para BYOK.")
 
     try:
-        genai.configure(api_key=api_key)
-        modelo = genai.GenerativeModel(model_name=MODELO_GEMINI)
+        cliente = genai.Client(api_key=api_key)
     except Exception as e:
         # Sin `from e`: la excepción original puede arrastrar la clave en la URL.
         raise RuntimeError(f"Clave de Gemini inválida ({type(e).__name__}).") from None
@@ -955,12 +1055,16 @@ def chatear_gemini_con_clave(
     contenido = "\n\n".join(
         f"{m['role'].upper()}: {m['content']}" for m in mensajes
     )
-    config: dict = {"max_output_tokens": max_tokens, "temperature": temperature}
-    if system:
-        config["system_instruction"] = system
+    config = types.GenerateContentConfig(
+        max_output_tokens=max_tokens,
+        temperature=temperature,
+        system_instruction=system if system else None,
+    )
 
     if stream:
-        flujo = modelo.generate_content(contenido, generation_config=config, stream=True)
+        flujo = cliente.models.generate_content_stream(
+            model=MODELO_GEMINI, contents=contenido, config=config
+        )
 
         def _generar():
             for fragmento in flujo:
@@ -970,7 +1074,9 @@ def chatear_gemini_con_clave(
 
         return _generar()
 
-    respuesta = modelo.generate_content(contenido, generation_config=config)
+    respuesta = cliente.models.generate_content(
+        model=MODELO_GEMINI, contents=contenido, config=config
+    )
     return respuesta.text or ""
 
 
@@ -997,25 +1103,33 @@ def generar_gemini_con_clave(
         RuntimeError: si falta el SDK o la clave es inválida.
     """
     try:
-        import google.generativeai as genai
+        from google import genai
+        from google.genai import types
     except ImportError:
-        raise RuntimeError("Paquete 'google-generativeai' no instalado para BYOK.")
+        raise RuntimeError("Paquete 'google-genai' no instalado para BYOK.")
 
     try:
-        genai.configure(api_key=api_key)
-        cliente = genai.GenerativeModel(model_name=modelo or MODELO_GEMINI)
+        cliente = genai.Client(api_key=api_key)
     except Exception as e:
         # Sin `from e`: la excepción original puede arrastrar la clave en la URL.
         raise RuntimeError(f"Clave de Gemini inválida ({type(e).__name__}).") from None
 
-    config: dict = {"max_output_tokens": max_tokens}
+    modelo_efectivo = modelo or MODELO_GEMINI
+    config = types.GenerateContentConfig(max_output_tokens=max_tokens)
     if json_mode:
-        config["response_mime_type"] = "application/json"
+        config.response_mime_type = "application/json"
     if system:
-        # system_instruction se pasa en la llamada a generate_content.
-        config["system_instruction"] = system
+        # system_instruction es nativo del SDK nuevo.
+        config.system_instruction = system
 
-    respuesta = cliente.generate_content(prompt, generation_config=config)
+    respuesta = cliente.models.generate_content(
+        model=modelo_efectivo, contents=prompt, config=config
+    )
+    uso = getattr(respuesta, "usage_metadata", None)
+    if uso:
+        registrar_uso("gemini", modelo_efectivo,
+                      getattr(uso, "prompt_token_count", 0) or 0,
+                      getattr(uso, "candidates_token_count", 0) or 0)
     return respuesta.text or ""
 
 
@@ -1094,6 +1208,10 @@ def chatear(
                 getattr(uso, "prompt_tokens", "?"),
                 getattr(uso, "completion_tokens", "?"),
             )
+            if uso:
+                registrar_uso("groq", modelo or MODELO_CHATBOT,
+                              getattr(uso, "prompt_tokens", 0) or 0,
+                              getattr(uso, "completion_tokens", 0) or 0)
             return respuesta.choices[0].message.content or ""
 
         logger.warning(

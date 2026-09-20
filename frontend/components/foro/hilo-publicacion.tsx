@@ -1,11 +1,12 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { ArrowBigDown, ArrowBigUp, CalendarDays, CheckCircle2, Loader2, MessageSquare, Send } from "lucide-react"
+import { ArrowBigDown, ArrowBigUp, Bookmark, CalendarDays, CheckCircle2, Eye, Loader2, MessageSquare, Send } from "lucide-react"
 import { foroService } from "@/lib/foro-service"
 import type { Comentario, Publicacion } from "@/types/foro"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import MarkdownRenderer from "@/components/ui/markdown-renderer"
 import { cn } from "@/lib/utils"
 import { BadgeModerador } from "./badge-moderador"
 import { BotonDM } from "./boton-dm"
@@ -71,6 +72,19 @@ export function HiloPublicacion({ publicacionId, publicacionInicial }: HiloPubli
       activo = false
     }
   }, [publicacionId, publicacionInicial])
+
+  // Vista única (Fase 5): una por usuario e hilo, fire-and-forget; si el
+  // backend confirma que fue nueva, se refleja el contador en pantalla.
+  useEffect(() => {
+    foroService
+      .registrarVista(publicacionId)
+      .then((resp) => {
+        setPublicacion((p) =>
+          p ? { ...p, num_vistas: Math.max(p.num_vistas ?? 0, resp.num_vistas) } : p,
+        )
+      })
+      .catch(() => {})
+  }, [publicacionId])
 
   // Árbol de comentarios: agrupa por parent_id.
   const arbol = useMemo(() => {
@@ -233,8 +247,16 @@ export function HiloPublicacion({ publicacionId, publicacionInicial }: HiloPubli
   return (
     <div className="space-y-6">
       {/* Cuerpo de la publicación */}
-      <article className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-poppins font-semibold text-xl text-foreground">{publicacion.titulo}</h1>
+      <article className="rounded-2xl border border-white/10 bg-card/80 backdrop-blur-md p-6">
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="font-poppins font-semibold text-xl text-foreground">{publicacion.titulo}</h1>
+          {publicacion.estado === "resuelta" && (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-400">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Resuelta
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2 mt-2 text-[11px] text-muted-foreground">
           <span>{publicacion.autor_nombre || "Estudiante"}</span>
           <BadgeModerador perfilId={publicacion.autor_perfil_id} />
@@ -255,18 +277,45 @@ export function HiloPublicacion({ publicacionId, publicacionInicial }: HiloPubli
           </div>
         )}
 
-        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap mt-4">
-          {publicacion.cuerpo}
-        </p>
+        {/* Cuerpo con Markdown (bloques de código con sintaxis incluidos) */}
+        <div className="mt-4 text-sm leading-relaxed">
+          <MarkdownRenderer content={publicacion.cuerpo} />
+        </div>
 
-        {/* Votos de la publicación */}
-        <div className="flex items-center gap-1 mt-4 pt-4 border-t border-border/60">
+        {/* Votos, vistas y guardado de la publicación */}
+        <div className="flex items-center gap-1 mt-4 pt-4 border-t border-white/10">
           <VotoBotones
             numVotos={publicacion.num_votos}
             miVoto={publicacion.mi_voto}
             deshabilitado={votandoPub}
             onVotar={votarPublicacion}
           />
+          <span className="ml-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Eye className="h-4 w-4" />
+            <span className="tabular-nums">{publicacion.num_vistas}</span>
+          </span>
+          <button
+            type="button"
+            aria-label={publicacion.guardado ? "Quitar de guardados" : "Guardar hilo"}
+            aria-pressed={publicacion.guardado}
+            onClick={() => {
+              const previo = publicacion.guardado
+              setPublicacion((p) => (p ? { ...p, guardado: !previo } : p))
+              const accion = previo
+                ? foroService.quitarGuardado(publicacion.id)
+                : foroService.guardarPublicacion(publicacion.id)
+              accion.catch(() =>
+                setPublicacion((p) => (p ? { ...p, guardado: previo } : p)),
+              )
+            }}
+            className={cn(
+              "ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors hover:bg-white/5",
+              publicacion.guardado ? "text-[#7957f1]" : "text-muted-foreground",
+            )}
+          >
+            <Bookmark className={cn("h-4 w-4", publicacion.guardado && "fill-[#7957f1]")} />
+            {publicacion.guardado ? "Guardado" : "Guardar"}
+          </button>
         </div>
 
         {/* Sugerencia IA del bot (solo si existe) */}
@@ -287,7 +336,7 @@ export function HiloPublicacion({ publicacionId, publicacionInicial }: HiloPubli
       </article>
 
       {/* Formulario de comentario */}
-      <form onSubmit={enviarComentario} className="rounded-2xl border border-border bg-card p-4">
+      <form onSubmit={enviarComentario} className="rounded-2xl border border-white/10 bg-card/80 backdrop-blur-md p-4">
         {envError && (
           <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2 mb-2">
             {envError}
@@ -383,7 +432,7 @@ function ComentarioNodo({
 
   return (
     <div className={cn(profundidad > 0 && "ml-6")}>
-      <div className="rounded-2xl border border-border bg-card p-4">
+      <div className="rounded-2xl border border-white/10 bg-card/80 backdrop-blur-md p-4">
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground mb-1">
           <span className="font-medium text-foreground">{comentario.autor_nombre || "Estudiante"}</span>
           <BadgeModerador perfilId={comentario.autor_perfil_id} />

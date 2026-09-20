@@ -38,7 +38,47 @@ export interface Publicacion {
   num_comentarios: number
   num_votos: number
   mi_voto: number
+  // Métricas y adjuntos del feed (Fase 5).
+  num_vistas: number
+  portada_url?: string | null
+  tipo_contenido: string
+  guardado: boolean
+  seccion_tipo?: TipoSeccion | null
+  seccion_titulo?: string | null
+  facultad_nombre?: string | null
   sugerencia_ia?: SugerenciaIA | null
+}
+
+/** Ordenamiento del feed global (Fase 5). */
+export type OrdenFeed = "recientes" | "comentados" | "tendencia"
+
+/** Filtros rápidos del feed global (Fase 5). */
+export type FiltroFeed = "mis-hilos" | "guardados" | "sin-resolver" | "mi-actividad"
+
+/** Parámetros de consulta de GET /api/foro/feed. */
+export interface FeedParams {
+  q?: string
+  seccion_id?: number
+  facultad_id?: number
+  tag?: string
+  estado?: EstadoPublicacion
+  orden?: OrdenFeed
+  filtro?: FiltroFeed
+  limit?: number
+  cursor?: string | null
+}
+
+/** Espejo de `FeedOut`. */
+export interface FeedRespuesta {
+  publicaciones: Publicacion[]
+  siguiente_cursor?: string | null
+  total: number
+}
+
+/** Espejo de `TendenciasOut`. */
+export interface TendenciasRespuesta {
+  publicaciones: Publicacion[]
+  ventana: "24h" | "7d"
 }
 
 /** Espejo de `ComentarioOut`. */

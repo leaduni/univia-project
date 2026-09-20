@@ -212,7 +212,9 @@ async def importar_pdf(file: UploadFile = File(...), user_data=Depends(get_curre
 
     texto_completo = ""
     try:
-        with pdfplumber.open(file.file) as pdf:
+        import io
+        pdf_bytes = io.BytesIO(await file.read())
+        with pdfplumber.open(pdf_bytes) as pdf:
             for page in pdf.pages:
                 texto_completo += page.extract_text() + "\n"
     except Exception as e:

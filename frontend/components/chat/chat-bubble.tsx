@@ -12,6 +12,7 @@ import { useGSAP } from "@gsap/react"
 import { MessageCircle, X } from "lucide-react"
 import gsap from "gsap"
 import { useAuth } from "@/components/providers/auth-context"
+import { useByok } from "@/components/providers/byok-context"
 import { apiService } from "@/lib/api-service"
 import { enviarMensajeChat } from "@/lib/chatbot-service"
 import { useOnline } from "@/lib/use-online"
@@ -81,6 +82,9 @@ function mapearMensajeGuardado(fila: FilaMensajeGuardado): MensajeChat {
 export function ChatBubble() {
   const { user, session } = useAuth()
   const enLinea = useOnline()
+  // BYOK: la clave propia del estudiante (vive en su navegador) y el acceso
+  // global al modal de configuración.
+  const { claveByok, modoByok, abrirModalByok } = useByok()
 
   const [abierto, setAbierto] = useState(false)
   // true mientras la conversación está en modo expandido (panel grande).
@@ -214,7 +218,11 @@ export function ChatBubble() {
     if (!abierto) return
 
     const alHacerClicFuera = (e: MouseEvent) => {
-      if (contenedorRef.current && !contenedorRef.current.contains(e.target as Node)) {
+      // El modal BYOK se abre desde el chat pero vive fuera del contenedor:
+      // un clic sobre él no debe cerrar la conversación.
+      const objetivo = e.target as HTMLElement
+      if (objetivo.closest?.("[data-byok-modal]")) return
+      if (contenedorRef.current && !contenedorRef.current.contains(objetivo)) {
         cerrarChat()
       }
     }
@@ -343,6 +351,7 @@ export function ChatBubble() {
             },
           },
           controlador.signal,
+          claveByok,
         )
       } catch (error) {
         const err = error as { name?: string; message?: string } | null
@@ -361,7 +370,7 @@ export function ChatBubble() {
         if (!abiertoRef.current) setSinVer(true)
       }
     },
-    [session?.access_token, enviando, enLinea, user?.id],
+    [session?.access_token, enviando, enLinea, user?.id, claveByok],
   )
 const manejarInputChange = useCallback((texto: string) => {
     inputValueRef.current = texto
@@ -434,6 +443,8 @@ const manejarInputChange = useCallback((texto: string) => {
               conversacionId={conversacionIdRef.current}
               isExpanded={isExpanded}
               onToggleExpand={() => setIsExpanded((previo) => !previo)}
+              modoByok={modoByok}
+              onAbrirByok={abrirModalByok}
             />
           </div>
         )}

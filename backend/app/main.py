@@ -28,9 +28,11 @@ async def lifespan(app: FastAPI):
     """Cierra los clientes httpx persistentes al apagar la app."""
     yield
     try:
-        from app.routers import services, feedback
+        from app.routers import services, feedback, silabos_ruta
         await services._http.aclose()
         await feedback._http_feedback.aclose()
+        from app.core.notificaciones_dev import _http_devs
+        await _http_devs.aclose()
     except Exception as e:
         logger.warning("No se pudieron cerrar los clientes HTTP: %s", e)
 
@@ -143,7 +145,7 @@ async def root():
     return {"message": "UniVia API v2.0 - Online", "status": "healthy"}
 
 # Importar Routers
-from app.routers import malla, usuarios, onboarding, dashboard, cursos, evaluaciones, services, recursos, chatbot, feedback, foro, dm, evaluaciones_calificables, notas, gamificacion
+from app.routers import malla, usuarios, onboarding, dashboard, cursos, evaluaciones, services, recursos, chatbot, feedback, foro, dm, evaluaciones_calificables, notas, gamificacion, silabos_ruta
 
 app.include_router(malla.router, prefix="/api", tags=["malla"])
 app.include_router(usuarios.router, prefix="/api", tags=["usuarios"])
@@ -160,3 +162,4 @@ app.include_router(foro.router, prefix="/api", tags=["foro"])
 app.include_router(dm.router, prefix="/api", tags=["dm"])
 app.include_router(notas.router, prefix="/api", tags=["notas"])
 app.include_router(gamificacion.router, prefix="/api", tags=["gamificacion"])
+app.include_router(silabos_ruta.router, prefix="/api", tags=["silabos-ruta"])

@@ -9,6 +9,7 @@ import { EvaluacionIA } from "./learning-path/evaluacion-ia"
 import { GradesHistoryCard } from "./gamificacion/grades-history-card"
 import { Sparkles, GraduationCap, Calendar, FileText, Target, Lock, CheckCircle2 } from "lucide-react"
 import { apiService } from "@/lib/api-service"
+import { EmptyStateRutaAprendizaje } from "./learning-path/empty-state-ruta-aprendizaje"
 
 const TABS = [
   { key: "path", label: "Ruta de aprendizaje" },
@@ -35,27 +36,28 @@ export function LearningPath({ courseId }: LearningPathProps) {
   const [completeSuccess, setCompleteSuccess] = useState(false)
   const [examCount, setExamCount] = useState(0)
 
-  useEffect(() => {
-    const fetchLearningPath = async () => {
-      try {
-        setIsLoading(true)
-        const cleanId = courseId.toString().startsWith("c")
-          ? courseId.toString().substring(1)
-          : courseId
-        const result = await apiService.getLearningPath(cleanId)
-        setData(result)
-      } catch (err: any) {
-        if (err.status === 403) {
-          setAccessDenied(true)
-        } else {
-          setError(err.message || "Error al cargar la ruta de aprendizaje.")
-        }
-        console.error(err)
-      } finally {
-        setIsLoading(false)
+  const cargarRuta = async () => {
+    try {
+      setIsLoading(true)
+      const cleanId = courseId.toString().startsWith("c")
+        ? courseId.toString().substring(1)
+        : courseId
+      const result = await apiService.getLearningPath(cleanId)
+      setData(result)
+    } catch (err: any) {
+      if (err.status === 403) {
+        setAccessDenied(true)
+      } else {
+        setError(err.message || "Error al cargar la ruta de aprendizaje.")
       }
+      console.error(err)
+    } finally {
+      setIsLoading(false)
     }
-    fetchLearningPath()
+  }
+
+  useEffect(() => {
+    cargarRuta()
   }, [courseId])
 
   if (isLoading) {
@@ -187,6 +189,11 @@ export function LearningPath({ courseId }: LearningPathProps) {
           <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#1a233d] text-sky-300 border border-[#283b66]">
             {curso.ciclo_roman || `Ciclo ${curso.ciclo || "III"}`}
           </span>
+          {data?.ruta_origen && data.ruta_origen !== "oficial" && (
+            <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/40">
+              {data.ruta_origen === "ia_provisional" ? "Ruta provisional (IA)" : "Ruta personal"}
+            </span>
+          )}
           {(progress ?? 0) < 100 && (
             <button
               onClick={() => setShowCompleteModal(true)}
@@ -287,11 +294,22 @@ export function LearningPath({ courseId }: LearningPathProps) {
 
           {/* Tab Panels */}
           {activeTab === "path" && (
-            <LearningTimeline
-              courseId={courseId}
-              timeline={timeline}
-              onStartEvaluation={handleStartEvaluation}
-            />
+            timeline.length === 0 ? (
+              <EmptyStateRutaAprendizaje
+                courseId={courseId.toString().startsWith("c")
+                  ? courseId.toString().substring(1)
+                  : courseId}
+                nombreCurso={curso?.name || "este curso"}
+                solicitudSilabo={data?.solicitud_silabo}
+                onRutaCreada={cargarRuta}
+              />
+            ) : (
+              <LearningTimeline
+                courseId={courseId}
+                timeline={timeline}
+                onStartEvaluation={handleStartEvaluation}
+              />
+            )
           )}
           {activeTab === "exams" && (
             <ExamBank courseId={courseId} onCountChange={setExamCount} />

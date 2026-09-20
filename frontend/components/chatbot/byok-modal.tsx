@@ -6,6 +6,7 @@
 import { useState, type ReactNode } from "react"
 import {
   CheckCircle2,
+  ShieldCheck,
   ChevronDown,
   Eye,
   EyeOff,
@@ -33,7 +34,9 @@ export function ByokModal({ abierto, token, claveGuardada, onCerrar, onCambio }:
   const [visible, setVisible] = useState(false)
   const [validando, setValidando] = useState(false)
   const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null)
-  const [guiaAbierta, setGuiaAbierta] = useState(false)
+  // Primera vez (sin clave guardada): la guía viene desplegada para que el
+  // camino feliz sea obvio; con clave ya guardada, queda colapsada.
+  const [guiaAbierta, setGuiaAbierta] = useState(!claveGuardada)
 
   if (!abierto) return null
 
@@ -75,10 +78,11 @@ export function ByokModal({ abierto, token, claveGuardada, onCerrar, onCambio }:
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4"
       role="dialog"
       aria-modal="true"
       aria-label="Configurar tu propia clave de IA"
+      data-byok-modal
       onClick={onCerrar}
     >
       <div
@@ -102,18 +106,36 @@ export function ByokModal({ abierto, token, claveGuardada, onCerrar, onCambio }:
         </div>
 
         <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
-          {/* Explicación */}
+          {/* Explicación: para qué sirve */}
           <div className="space-y-2 text-sm text-muted-foreground leading-relaxed">
             <p className="flex items-start gap-2">
               <Sparkles className="w-4 h-4 mt-0.5 text-[#c4b5fd] shrink-0" aria-hidden="true" />
               <span>
-                En horas pico la cuota compartida de UniVia puede saturarse. Con tu propia clave
-                de Google Gemini usás tu cupo gratuito y el asistente responde al instante, sin fila.
+                Cuando muchos estudiantes usan UniVia a la vez, la cuota compartida se satura.
+                Con tu propia clave gratuita de Google AI Studio, el asistente te responde
+                al instante, sin fila.
               </span>
             </p>
-            <p className="text-xs text-muted-foreground/70">
-              Tu clave se guarda <b>solo en tu navegador</b> y nunca se envía a la base de datos.
+          </div>
+
+          {/* Garantía de privacidad */}
+          <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/5 px-3 py-2.5 space-y-1.5">
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-300">
+              <ShieldCheck className="w-4 h-4 shrink-0" aria-hidden="true" />
+              Tu privacidad, garantizada
             </p>
+            <ul className="text-xs text-muted-foreground leading-relaxed list-disc ml-5 space-y-1">
+              <li>
+                Tu clave se guarda <b>solo en tu navegador</b> (almacenamiento local de este
+                dispositivo). Nunca toca nuestra base de datos.
+              </li>
+              <li>
+                Viaja <b>encriptada</b> por HTTPS en una cabecera exclusiva; el servidor la usa
+                solo durante ese mensaje, <b>no la guarda ni la registra en ningún log</b> y la
+                descarta al instante.
+              </li>
+              <li>Puedes borrarla cuando quieras con el botón de basura.</li>
+            </ul>
           </div>
 
           {/* Input con máscara */}
@@ -177,15 +199,18 @@ export function ByokModal({ abierto, token, claveGuardada, onCerrar, onCambio }:
               onClick={() => setGuiaAbierta((v) => !v)}
               className="w-full flex items-center justify-between text-xs font-medium text-muted-foreground hover:text-foreground"
             >
-              <span>¿Cómo conseguirla? (Google AI Studio, 2 min)</span>
+              <span>¿No tienes clave? Consíguela gratis en 2 pasos</span>
               <ChevronDown className={`w-4 h-4 transition-transform ${guiaAbierta ? "rotate-180" : ""}`} />
             </button>
             {guiaAbierta && (
               <ol className="mt-2 space-y-1.5 text-xs text-muted-foreground list-decimal ml-4 leading-relaxed">
-                <li>Abrí <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-[#c4b5fd] underline">aistudio.google.com/apikey</a> e iniciá sesión con tu cuenta de Google.</li>
-                <li>Hacé clic en <b>“Create API key”</b> y elegí un proyecto.</li>
-                <li>Copiá la clave (empieza por <b>AIza…</b>).</li>
-                <li>Pégala acá arriba y dale a <b>“Guardar y probar”</b>.</li>
+                <li>
+                  Entra a <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-[#c4b5fd] underline">aistudio.google.com/apikey</a> con
+                  tu cuenta de Google y pulsa <b>“Create API key”</b>.
+                </li>
+                <li>
+                  Copia la clave (empieza por <b>AIza…</b>), pégala arriba y dale a <b>“Guardar y probar”</b>.
+                </li>
               </ol>
             )}
           </div>

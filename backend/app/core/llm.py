@@ -8,8 +8,18 @@ misma cuenta de OpenAI salvo lo señalado):
     EMBEDDINGS (ingesta Y consulta, mismo proveedor  -> OpenAI, OPEN_AI_INGEST_API_KEY
     siempre — ver EMBEDDINGS_PROVIDER en el .env)       (ver app/rag/embedder.py)
     ETIQUETADO DE TEXTO (ingesta)                    -> OpenAI, OPEN_AI_INGEST_API_KEY
-    GENERACIÓN DE EVALUACIONES                       -> GPT, OPEN_AI_INGEST_API_KEY
-    CHATBOT FLOTANTE                                 -> Groq, GROQ_API_KEY
+    GENERACIÓN DE EVALUACIONES                       -> cascada LLM_PROVIDER=gemini ->
+                                                       LLM_FALLBACKS (groq, luego openai
+                                                       pagado como último recurso)
+    CHATBOT FLOTANTE                                 -> Groq, pool GROQ_API_KEY(_1.._3)
+                                                       con cascada de respaldo
+
+Cascada de generación (gratuita primero, pago al final):
+    Gemini 2.0 Flash (pool GEMINI_API_KEY[_1..3])
+      -> Groq llama-3.3-70b-versatile (pool GROQ_API_KEY[_1..3])
+        -> OpenAI GPT (último recurso pagado)
+Cada proveedor gratuito rota sus claves ante 429 vía MultiKeyPool antes de
+ceder el paso al siguiente eslabón de la cascada.
 
 El OCR de Vision es la parte de mayor volumen (una llamada por página escaneada
 de cada PDF) y la que primero agota cuota/crédito, así que va por una cuenta de
@@ -41,6 +51,7 @@ cachea automáticamente los prefijos repetidos, sin `cache_control` explícito.
 import base64
 import logging
 import os
+import re
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
@@ -51,19 +62,44 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+# La clave BYOK del usuario jamás debe aparecer en los logs. Algunos SDK de
+# proveedores incrustan la URL de la petición (con ?key=AIza...) en el texto
+# de sus excepciones, así que cada mensaje que derive de una excepción de un
+# proveedor se pasa por este filtro antes de loguearse.
+_PATRON_CLAVE_URL = re.compile(r"key=[^&\s\"']+")
+
+
+def _redactar_claves(texto: str) -> str:
+    """Sustituye cualquier `key=...` de un mensaje de error por `key=***`."""
+    return _PATRON_CLAVE_URL.sub("key=***", texto)
+
 # --- Generación multi-proveedor ---------------------------------------------
-# LLM_PROVIDER elige el proveedor principal; LLM_FALLBACK es el respaldo que
-# se usa automáticamente si el principal responde 429 (cuota/tasa) o falla por
-# conexión (5xx). Valores válidos: openai, groq, gemini.
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
-LLM_FALLBACK = os.getenv("LLM_FALLBACK", "gemini")
+# LLM_PROVIDER elige el proveedor principal; LLM_FALLBACKS es la lista de
+# respaldos (separada por comas) que se prueba en orden si el principal
+# responde 429 (cuota/tasa) o falla por conexión (5xx). Valores válidos:
+# openai, groq, gemini. LLM_FALLBACK (singular) se mantiene como compatibilidad
+# hacia atrás para despliegues viejos que aún la tengan.
+#
+# Cascada por defecto (gratuita primero, pagado al final):
+#   gemini (Gemini 2.0 Flash, pool de claves gratuitas)
+#     -> groq (llama-3.3-70b-versatile, pool de claves gratuitas)
+#       -> openai (GPT, último recurso pagado)
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
+LLM_FALLBACK = os.getenv("LLM_FALLBACK")
+LLM_FALLBACKS = [
+    p.strip().lower()
+    for p in (
+        os.getenv("LLM_FALLBACKS") or LLM_FALLBACK or "groq,openai"
+    ).split(",")
+    if p.strip()
+]
 
 # Modelos de generación por proveedor. Se dejan configurables porque el costo
 # por millón de tokens cambia bastante entre familias y el presupuesto del
 # piloto es acotado.
 MODELO_GENERACION = os.getenv("OPENAI_GEN_MODEL", "gpt-4o-mini")
 MODELO_GROQ = os.getenv("GROQ_GEN_MODEL", "llama-3.3-70b-versatile")
-MODELO_GEMINI = os.getenv("GEMINI_GEN_MODEL", "gemini-2.0-flash")
+MODELO_GEMINI = os.getenv("GEMINI_GEN_MODEL", "gemini-3.6-flash")
 
 # Modelo de generación de evaluaciones, en GPT. gpt-4.1 (no mini) por defecto:
 # escribir preguntas de examen correctas y bien explicadas es la parte que más
@@ -78,13 +114,91 @@ MODELO_INGESTA = os.getenv("OPENAI_INGEST_MODEL", "gpt-4.1-mini")
 # Modelo del chatbot, en el free tier de Groq. Groq rota su catálogo con cierta
 # frecuencia (los Llama 3.x de chat ya no están disponibles), así que un modelo
 # retirado se manifiesta como un 404 model_not_found y no como un fallo de clave.
-MODELO_CHATBOT = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+MODELO_CHATBOT = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 _cliente: Optional[OpenAI] = None
 _cliente_ingesta: Optional[OpenAI] = None
-_cliente_groq = None
 _cliente_gemini = None
 _cliente_chatbot: Optional[OpenAI] = None
+
+
+# ---------------------------------------------------------------------------
+# Pool de claves por proveedor (rotación ante 429)
+# ---------------------------------------------------------------------------
+
+class _EntradaPool:
+    """Una clave del pool, con su cliente construido perezosamente y cooldown."""
+    def __init__(self, clave: str, construir: Callable[[str], Any]):
+        self.clave = clave
+        self._construir = construir
+        self._cliente: Any = None
+        self.cooldown_hasta: float = 0.0
+
+    @property
+    def cliente(self) -> Any:
+        if self._cliente is None:
+            self._cliente = self._construir(self.clave)
+        return self._cliente
+
+
+def _recolectar_claves(variable: str, maximo: int = 3) -> list:
+    """Lee la clave base (sin sufijo) + VARIABLE_1..N del .env, sin duplicados."""
+    claves: list = []
+    base = os.getenv(variable)
+    if base:
+        claves.append(base)
+    for i in range(1, maximo + 1):
+        clave = os.getenv(f"{variable}_{i}")
+        if clave and clave not in claves:
+            claves.append(clave)
+    return claves
+
+
+class MultiKeyPool:
+    """Pool de claves de un mismo proveedor, con rotación round-robin.
+
+    Cada clave está envuelta en una _EntradaPool con cooldown individual: ante
+    un 429 el proveedor deja fuera esa clave por `cooldown_segundos` y el
+    resto sigue respondiendo. Es la mitigación de los límites de tasa del
+    free tier ante picos de tráfico — multiplicar claves multiplica cuota.
+    """
+
+    def __init__(self, variable: str, construir: Callable[[str], Any], cooldown_segundos: float = 60.0):
+        self.variable = variable
+        self._entradas = [
+            _EntradaPool(clave, construir) for clave in _recolectar_claves(variable)
+        ]
+        self._indice = 0
+        self.cooldown_segundos = cooldown_segundos
+        if self._entradas:
+            logger.info("Pool %s listo con %d clave(s).", variable, len(self._entradas))
+
+    @property
+    def tiene_claves(self) -> bool:
+        return bool(self._entradas)
+
+    def siguiente(self) -> Optional[_EntradaPool]:
+        """Devuelve la próxima entrada fuera de cooldown, o None si no hay."""
+        import time
+        ahora = time.monotonic()
+        n = len(self._entradas)
+        for salto in range(n):
+            entrada = self._entradas[(self._indice + salto) % n]
+            if entrada.cooldown_hasta <= ahora:
+                self._indice = (self._indice + salto + 1) % n
+                return entrada
+        return None
+
+    def castigar(self, entrada: _EntradaPool) -> None:
+        """Saca de rotación la clave durante `cooldown_segundos` (429/5xx)."""
+        import time
+        entrada.cooldown_hasta = time.monotonic() + self.cooldown_segundos
+        logger.warning(
+            "Pool %s: clave #%d en cooldown %.0fs por rate limit.",
+            self.variable,
+            self._entradas.index(entrada) + 1,
+            self.cooldown_segundos,
+        )
 
 
 def get_openai_generacion() -> Optional[OpenAI]:
@@ -199,7 +313,14 @@ def _llamar_gemini(cliente, *, modelo, mensajes, max_tokens, stream, json_mode) 
         return "".join(fragmento.text or "" for fragmento in flujo)
 
     respuesta = cliente.generate_content(contenido, generation_config=config)
-    return respuesta.text or ""
+    try:
+        return respuesta.text or ""
+    except ValueError:
+        # Sin texto utilizable (p. ej. respuesta cortada por max_tokens o
+        # bloqueada): se devuelve vacío en lugar de reventar, igual que los
+        # otros proveedores.
+        logger.warning("Gemini respondió sin texto utilizable (finish_reason anómalo).")
+        return ""
 
 
 def _proveedor_openai() -> Optional[ProveedorLLM]:
@@ -215,47 +336,111 @@ def _proveedor_openai() -> Optional[ProveedorLLM]:
     )
 
 
-def _proveedor_groq() -> Optional[ProveedorLLM]:
-    """Factory del proveedor Groq. None si falta la clave o el SDK."""
-    global _cliente_groq
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        logger.error("GROQ_API_KEY no configurada: el proveedor Groq queda deshabilitado.")
-        return None
-    if _cliente_groq is None:
-        try:
-            from groq import Groq
-        except ImportError:
-            logger.error("Paquete 'groq' no instalado: el proveedor Groq queda deshabilitado.")
-            return None
-        _cliente_groq = Groq(api_key=api_key, timeout=90.0, max_retries=2)
-    return ProveedorLLM(
-        nombre="groq",
-        modelo=MODELO_GROQ,
-        cliente=_cliente_groq,
-        llamar=_llamar_groq,
-    )
+# Pool compartido Groq: se usa tanto en generar() como en el chatbot, para que
+# el cooldown de una clave se respete en todos los puntos del backend.
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+_pool_groq: Optional[MultiKeyPool] = None
+_pool_gemini: Optional[MultiKeyPool] = None
 
 
-def _proveedor_gemini() -> Optional[ProveedorLLM]:
-    """Factory del proveedor Gemini. None si falta la clave o el SDK."""
-    global _cliente_gemini
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        logger.error("GEMINI_API_KEY no configurada: Gemini queda deshabilitado.")
-        return None
-    if _cliente_gemini is None:
+def _pool_groq_() -> Optional[MultiKeyPool]:
+    """Pool de Groq. Usa el SDK de OpenAI (API compatible), sin dependencia extra."""
+    global _pool_groq
+    if _pool_groq is None:
+        def _construir(clave: str):
+            return OpenAI(api_key=clave, base_url=GROQ_BASE_URL, timeout=90.0, max_retries=1)
+
+        _pool_groq = MultiKeyPool("GROQ_API_KEY", _construir)
+        if not _pool_groq.tiene_claves:
+            logger.error("Ninguna GROQ_API_KEY[_N] configurada: Groq queda deshabilitado.")
+    return _pool_groq
+
+
+def _pool_gemini_() -> Optional[MultiKeyPool]:
+    global _pool_gemini
+    if _pool_gemini is None:
         try:
             import google.generativeai as genai
         except ImportError:
             logger.error("Paquete 'google-generativeai' no instalado: Gemini queda deshabilitado.")
             return None
-        genai.configure(api_key=api_key)
-        _cliente_gemini = genai.GenerativeModel(model_name=MODELO_GEMINI)
+
+        def _construir(clave: str):
+            genai.configure(api_key=clave)
+            return genai.GenerativeModel(model_name=MODELO_GEMINI)
+
+        _pool_gemini = MultiKeyPool("GEMINI_API_KEY", _construir)
+        if not _pool_gemini.tiene_claves:
+            logger.error("Ninguna GEMINI_API_KEY[_N] configurada: Gemini queda deshabilitado.")
+    return _pool_gemini
+
+
+class ProveedorPoolExhausted(RuntimeError):
+    """Todas las claves del pool están agotadas/inutilizables ahora mismo."""
+
+
+def _generar_con_pool(
+    pool: MultiKeyPool,
+    llamar: Callable,
+    mensajes: list,
+    max_tokens: int,
+    modelo: str,
+    stream: bool,
+    json_mode: bool,
+) -> str:
+    """Ejecuta la llamada rotando claves dentro del pool ante 429/5xx.
+
+    Prueba cada clave disponible una vez; las que responden con error
+    reintentable quedan en cooldown. Si ninguna responde, lanza
+    ProveedorPoolExhausted para que la cascada salte al siguiente proveedor.
+    """
+    errores: list = []
+    for _ in range(len(pool._entradas)):
+        entrada = pool.siguiente()
+        if entrada is None:
+            break
+        try:
+            return llamar(
+                entrada.cliente,
+                modelo=modelo,
+                mensajes=mensajes,
+                max_tokens=max_tokens,
+                stream=stream,
+                json_mode=json_mode,
+            )
+        except Exception as e:
+            errores.append(e)
+            if _es_error_reintentable(e):
+                pool.castigar(entrada)
+                continue
+            raise
+    raise ProveedorPoolExhausted(
+        f"Pool {pool.variable} agotado ({len(errores)} clave(s) fallaron): {errores[-1] if errores else 'sin claves'}"
+    )
+
+
+def _proveedor_groq() -> Optional[ProveedorLLM]:
+    """Proveedor Groq respaldado por su pool de claves."""
+    pool = _pool_groq_()
+    if pool is None or not pool.tiene_claves:
+        return None
+    return ProveedorLLM(
+        nombre="groq",
+        modelo=MODELO_GROQ,
+        cliente=pool,
+        llamar=_llamar_groq,
+    )
+
+
+def _proveedor_gemini() -> Optional[ProveedorLLM]:
+    """Proveedor Gemini respaldado por su pool de claves."""
+    pool = _pool_gemini_()
+    if pool is None or not pool.tiene_claves:
+        return None
     return ProveedorLLM(
         nombre="gemini",
         modelo=MODELO_GEMINI,
-        cliente=_cliente_gemini,
+        cliente=pool,
         llamar=_llamar_gemini,
     )
 
@@ -287,7 +472,21 @@ def _ejecutar_llamada(
     stream: bool,
     json_mode: bool,
 ) -> str:
-    """Ejecuta una llamada a través del contrato ProveedorLLM."""
+    """Ejecuta una llamada a través del contrato ProveedorLLM.
+
+    Si el proveedor está respaldado por un MultiKeyPool, la llamada rota
+    claves ante 429/5xx antes de rendirse (ProveedorPoolExhausted).
+    """
+    if isinstance(proveedor.cliente, MultiKeyPool):
+        return _generar_con_pool(
+            proveedor.cliente,
+            proveedor.llamar,
+            mensajes,
+            max_tokens,
+            modelo or proveedor.modelo,
+            stream,
+            json_mode,
+        )
     return proveedor.llamar(
         proveedor.cliente,
         modelo=modelo or proveedor.modelo,
@@ -333,8 +532,8 @@ def generar(
     """Una llamada de generación al proveedor principal; devuelve el texto.
 
     Si el proveedor principal falla por cuota/tasa (429) o error de conexión
-    del servidor (5xx), la llamada se reintenta automáticamente con el
-    proveedor definido en LLM_FALLBACK, sin intervención del llamador.
+    del servidor (5xx), la llamada se reintenta automáticamente con cada
+    proveedor de LLM_FALLBACKS, en orden, sin intervención del llamador.
 
     Args:
         prompt: mensaje del usuario.
@@ -363,44 +562,46 @@ def generar(
         mensajes.append({"role": "system", "content": system})
     mensajes.append({"role": "user", "content": prompt})
 
-    try:
-        return _ejecutar_llamada(
-            proveedor, mensajes, max_tokens, modelo, stream, json_mode
-        )
-    except Exception as error_principal:
-        if not (
-            LLM_FALLBACK
-            and LLM_FALLBACK.lower() != LLM_PROVIDER.lower()
-            and _es_error_reintentable(error_principal)
-        ):
-            raise
+    # Cadena de proveedores: principal primero, después los fallbacks en
+    # orden, sin repetir el nombre del principal.
+    cadena = [LLM_PROVIDER] + [p for p in LLM_FALLBACKS if p != LLM_PROVIDER.lower()]
 
-        proveedor_respaldo = _proveedor(LLM_FALLBACK)
-        if proveedor_respaldo is None:
-            logger.error(
-                "Fallback '%s' no disponible; se propaga el error original de '%s': %s",
-                LLM_FALLBACK,
-                LLM_PROVIDER,
+    error_principal: Optional[Exception] = None
+    for i, nombre in enumerate(cadena):
+        if i == 0:
+            proveedor_actual = proveedor
+        else:
+            if not error_principal or not _es_error_reintentable(error_principal):
+                # El último fallo no justifica fallback (400, auth, etc.):
+                # propagarlo preserva el comportamiento anterior.
+                raise error_principal  # type: ignore[misc]
+            proveedor_actual = _proveedor(nombre)
+            if proveedor_actual is None:
+                logger.error("Fallback '%s' no disponible; se omite.", nombre)
+                continue
+            logger.warning(
+                "Llamada a '%s' falló (%s: %s). Reintentando con '%s'.",
+                cadena[i - 1],
+                type(error_principal).__name__,
                 error_principal,
+                nombre,
             )
-            raise
-
-        logger.warning(
-            "Llamada a '%s' falló (%s: %s). Reintentando con el fallback '%s'.",
-            LLM_PROVIDER,
-            type(error_principal).__name__,
-            error_principal,
-            LLM_FALLBACK,
-        )
         try:
             return _ejecutar_llamada(
-                proveedor_respaldo, mensajes, max_tokens, None, stream, json_mode
+                proveedor_actual,
+                mensajes,
+                max_tokens,
+                modelo if i == 0 else None,
+                stream,
+                json_mode,
             )
-        except Exception as error_respaldo:
-            raise RuntimeError(
-                f"Fallo en '{LLM_PROVIDER}' ({error_principal}) y en el fallback "
-                f"'{LLM_FALLBACK}' ({error_respaldo})."
-            ) from error_respaldo
+        except Exception as e:
+            error_principal = e
+
+    raise RuntimeError(
+        f"Fallaron todos los proveedores de la cascada {cadena}. "
+        f"Último error: {error_principal}"
+    ) from error_principal
 
 
 class LLMSaldoAgotado(RuntimeError):
@@ -679,28 +880,21 @@ def generar_ingesta_gemini(
 # Chatbot (Groq)
 # ---------------------------------------------------------------------------
 
-GROQ_BASE_URL = "https://api.groq.com/openai/v1"
-
-
 def get_groq() -> Optional[OpenAI]:
-    """Cliente del chatbot, o None si no hay clave configurada.
+    """Cliente del chatbot, o None si no hay ninguna clave configurada.
 
-    Groq expone una API compatible con la de OpenAI, así que se reusa ese SDK
-    con otra base_url en vez de sumar una dependencia más.
+    Devuelve el cliente de la próxima entrada disponible del pool de Groq
+    (rotación round-robin, cooldown ante 429). La rotación real entre claves
+    dentro de una misma conversación la hace chatear().
     """
-    global _cliente_chatbot
-    if _cliente_chatbot is not None:
-        return _cliente_chatbot
-
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        logger.error("GROQ_API_KEY no configurada: el chatbot queda deshabilitado.")
+    pool = _pool_groq_()
+    if pool is None or not pool.tiene_claves:
         return None
-
-    # El chatbot responde en vivo mientras el usuario espera: un timeout corto
-    # es preferible a dejar la burbuja cargando indefinidamente.
-    _cliente_chatbot = OpenAI(api_key=api_key, base_url=GROQ_BASE_URL, timeout=30.0, max_retries=1)
-    return _cliente_chatbot
+    entrada = pool.siguiente()
+    if entrada is None:
+        logger.error("Pool de Groq agotado (todas las claves en cooldown).")
+        return None
+    return entrada.cliente
 
 
 @dataclass
@@ -755,7 +949,8 @@ def chatear_gemini_con_clave(
         genai.configure(api_key=api_key)
         modelo = genai.GenerativeModel(model_name=MODELO_GEMINI)
     except Exception as e:
-        raise RuntimeError(f"Clave de Gemini inválida ({type(e).__name__}).") from e
+        # Sin `from e`: la excepción original puede arrastrar la clave en la URL.
+        raise RuntimeError(f"Clave de Gemini inválida ({type(e).__name__}).") from None
 
     contenido = "\n\n".join(
         f"{m['role'].upper()}: {m['content']}" for m in mensajes
@@ -810,7 +1005,8 @@ def generar_gemini_con_clave(
         genai.configure(api_key=api_key)
         cliente = genai.GenerativeModel(model_name=modelo or MODELO_GEMINI)
     except Exception as e:
-        raise RuntimeError(f"Clave de Gemini inválida ({type(e).__name__}).") from e
+        # Sin `from e`: la excepción original puede arrastrar la clave en la URL.
+        raise RuntimeError(f"Clave de Gemini inválida ({type(e).__name__}).") from None
 
     config: dict = {"max_output_tokens": max_tokens}
     if json_mode:
@@ -861,29 +1057,56 @@ def chatear(
             stream=stream,
         )
 
-    cliente = get_groq()
-    if cliente is None:
-        raise RuntimeError("GROQ_API_KEY no configurada.")
-
+    pool = _pool_groq_()
     lista_mensajes: Any = ([{"role": "system", "content": system}] if system else []) + mensajes
 
-    respuesta: Any = cliente.chat.completions.create(
-        model=modelo or MODELO_CHATBOT,
+    if pool is not None and pool.tiene_claves:
+        ultimo_error: Optional[Exception] = None
+        respuesta: Any = None
+        for _ in range(len(pool._entradas)):
+            entrada = pool.siguiente()
+            if entrada is None:
+                break
+            try:
+                respuesta = entrada.cliente.chat.completions.create(
+                    model=modelo or MODELO_CHATBOT,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    messages=lista_mensajes,
+                    stream=stream,
+                )
+                break
+            except Exception as e:
+                ultimo_error = e
+                if _es_error_reintentable(e):
+                    pool.castigar(entrada)
+                    continue
+                raise
+
+        if respuesta is not None:
+            if stream:
+                # El uso de tokens no viene hasta el último chunk; lo registra quien consuma.
+                return respuesta
+            uso = respuesta.usage
+            logger.info(
+                "Groq %s | in=%s out=%s",
+                modelo or MODELO_CHATBOT,
+                getattr(uso, "prompt_tokens", "?"),
+                getattr(uso, "completion_tokens", "?"),
+            )
+            return respuesta.choices[0].message.content or ""
+
+        logger.warning(
+            "Pool de Groq agotado (%s). El chatbot cae a la cascada de generar().",
+            ultimo_error,
+        )
+    else:
+        logger.error("Ninguna GROQ_API_KEY[_N] configurada; se intenta la cascada de generar().")
+
+    # Fallback de emergencia: cascada Gemini -> OpenAI vía generar().
+    return generar(
+        prompt="\n\n".join(f"{m['role'].upper()}: {m['content']}" for m in mensajes),
+        system=system,
         max_tokens=max_tokens,
-        temperature=temperature,
-        messages=lista_mensajes,
         stream=stream,
     )
-
-    if stream:
-        # El uso de tokens no viene hasta el último chunk; lo registra quien consuma.
-        return respuesta
-
-    uso = respuesta.usage
-    logger.info(
-        "Groq %s | in=%s out=%s",
-        modelo or MODELO_CHATBOT,
-        getattr(uso, "prompt_tokens", "?"),
-        getattr(uso, "completion_tokens", "?"),
-    )
-    return respuesta.choices[0].message.content or ""

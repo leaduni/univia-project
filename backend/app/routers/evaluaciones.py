@@ -14,7 +14,14 @@ from typing import List, Optional, Dict, Any, Union, AsyncGenerator
 from dotenv import load_dotenv
 load_dotenv()
 
-from app.core.llm import MODELO_GENERACION_GPT, generar_gpt, generar_gemini_con_clave, LLMSaldoAgotado, get_openai
+from app.core.llm import (
+    MODELO_GENERACION_GPT,
+    generar,
+    generar_gpt,
+    generar_gemini_con_clave,
+    LLMSaldoAgotado,
+    get_openai,
+)
 from app.rag.retriever import SyllabusRetriever
 from app.rag.embedder import EmbeddingQuotaExhausted
 from app.core.auth_utils import get_current_user
@@ -25,6 +32,18 @@ logger = logging.getLogger("evaluaciones_tracer")
 # líneas en los logs y fijaría el nivel a DEBUG en producción.
 
 router = APIRouter()
+
+
+def _hay_proveedor_gratuito() -> bool:
+    """True si hay al menos una clave del pool gratuito (Gemini o Groq)."""
+    return any(
+        os.getenv(nombre)
+        for nombre in (
+            "GEMINI_API_KEY", "GEMINI_API_KEY_1", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3",
+            "GROQ_API_KEY", "GROQ_API_KEY_1", "GROQ_API_KEY_2", "GROQ_API_KEY_3",
+        )
+    )
+
 
 _retriever: Optional[SyllabusRetriever] = None
 
@@ -1009,8 +1028,8 @@ async def generar_evaluacion(
     user, token = user_data
     api_key_gemini = (x_user_llm_key or "").strip() or None
 
-    if not get_openai():
-        raise HTTPException(status_code=500, detail="API Key de OpenAI no configurada")
+    if not get_openai() and not api_key_gemini and not _hay_proveedor_gratuito():
+        raise HTTPException(status_code=500, detail="No hay ningún proveedor de IA configurado.")
 
     try:
         if len(config.temas) == 1:
@@ -1029,26 +1048,41 @@ async def generar_evaluacion(
         else:
             prompt = generar_prompt_teorico(config, contexto)
 
-        try:
-            raw_content = await asyncio.to_thread(
-                generar_gpt,
-                prompt=prompt,
-                system=SYSTEM_MSG_EVALUACION,
-                max_tokens=16000,
-                json_mode=True,
-            )
-        except LLMSaldoAgotado:
-            # Nivel 1 (BYOK Gemini): reintenta con la clave del usuario.
-            if not api_key_gemini:
-                raise
-            raw_content = await asyncio.to_thread(
-                generar_gemini_con_clave,
-                api_key_gemini,
-                prompt,
-                system=SYSTEM_MSG_EVALUACION,
-                max_tokens=16000,
-                json_mode=True,
-            )
+        # Cascada: BYOK Gemini (Nivel 0) -> generar() gratuito (Gemini pool ->
+        # Groq pool) -> generar_gpt (OpenAI pagado, último recurso).
+        raw_content: Optional[str] = None
+        if api_key_gemini:
+            try:
+                raw_content = await asyncio.to_thread(
+                    generar_gemini_con_clave,
+                    api_key_gemini,
+                    prompt,
+                    system=SYSTEM_MSG_EVALUACION,
+                    max_tokens=16000,
+                    json_mode=True,
+                )
+            except Exception as e:
+                logger.warning("BYOK Gemini falló (%s); se intenta la cascada gratuita.", e)
+        if raw_content is None:
+            try:
+                raw_content = await asyncio.to_thread(
+                    generar,
+                    prompt=prompt,
+                    system=SYSTEM_MSG_EVALUACION,
+                    max_tokens=16000,
+                    json_mode=True,
+                )
+            except Exception as gratis_error:
+                logger.warning(
+                    "Cascada gratuita agotada (%s). Último recurso: GPT pagado.", gratis_error
+                )
+                raw_content = await asyncio.to_thread(
+                    generar_gpt,
+                    prompt=prompt,
+                    system=SYSTEM_MSG_EVALUACION,
+                    max_tokens=16000,
+                    json_mode=True,
+                )
 
         data = parse_llm_json_response(raw_content)
         
@@ -1318,18 +1352,38 @@ def _parsear_pregunta_delimitada(texto: str, idx: int, tipo_real: str) -> dict:
 async def _generar_una_pregunta(idx: int, prompt: str, tipo_real: str, api_key_gemini: Optional[str] = None) -> dict:
     """Genera 1 pregunta en texto plano con marcadores. Reintenta si la estructura falla.
 
-    Cascada de 3 pasos: OpenAI global (generar_gpt) -> si saldo agotado y hay
-    clave BYOK de Gemini, reintentar con generar_gemini_con_clave -> propagar.
+    Cascada: Nivel 0 = BYOK Gemini del usuario (si hay clave) ->
+    cascada gratuita generar() (Gemini pool -> Groq pool) ->
+    último recurso pagado generar_gpt (OpenAI) -> propagar.
     """
     loop = asyncio.get_running_loop()
 
-    def _call():
-        return generar_gpt(prompt=prompt, system=SYSTEM_MSG_TEORICO, max_tokens=4000)
+    def _call_gratuito():
+        return generar(prompt=prompt, system=SYSTEM_MSG_TEORICO, max_tokens=4000)
 
-    def _call_gemini():
+    def _call_gemini_byok():
         return generar_gemini_con_clave(
             api_key_gemini, prompt, system=SYSTEM_MSG_TEORICO, max_tokens=4000
         )
+
+    def _call():
+        # BYOK del usuario abre su propio cupo y va primero.
+        if api_key_gemini:
+            try:
+                return _call_gemini_byok()
+            except Exception as e:
+                logger.warning(
+                    "Pregunta %d: BYOK Gemini falló (%s); se intenta la cascada gratuita.",
+                    idx + 1, e,
+                )
+        try:
+            return _call_gratuito()
+        except Exception as gratis_error:
+            logger.warning(
+                "Pregunta %d: cascada gratuita agotada (%s). Último recurso: GPT pagado.",
+                idx + 1, gratis_error,
+            )
+            return generar_gpt(prompt=prompt, system=SYSTEM_MSG_TEORICO, max_tokens=4000)
 
     ultimo_error = None
     for intento in range(3):
@@ -1338,13 +1392,14 @@ async def _generar_una_pregunta(idx: int, prompt: str, tipo_real: str, api_key_g
         except LLMSaldoAgotado:
             if not api_key_gemini:
                 raise
-            # Nivel 1 (BYOK Gemini): reintenta con la clave del usuario.
+            # La cuenta pagada de OpenAI está sin saldo y era el último
+            # eslabón: reintenta directo con la clave BYOK del usuario.
             try:
-                raw = await loop.run_in_executor(None, _call_gemini)
+                raw = await loop.run_in_executor(None, _call_gemini_byok)
             except Exception as e:
                 ultimo_error = e
                 logger.warning(
-                    "Pregunta %d intento %d: falló también Gemini (%s).",
+                    "Pregunta %d intento %d: falló también Gemini BYOK (%s).",
                     idx + 1, intento + 1, e,
                 )
                 raise
@@ -1464,13 +1519,33 @@ async def generar_evaluacion_stream(
                         "sin texto adicional ni bloques Markdown."
                     )
                 loop = asyncio.get_running_loop()
+
+                # Cascada: generar() (Gemini pool -> Groq pool, JSON nativo)
+                # con generar_gpt (OpenAI pagado) como último recurso.
                 def _call_prog():
-                    return generar_gpt(
-                        prompt=prompt_prog,
-                        system="Eres un arquitecto de software senior. Responde ÚNICAMENTE con JSON válido, sin texto adicional ni bloques de código.",
-                        max_tokens=6000,
-                        json_mode=True,
+                    system_prog = (
+                        "Eres un arquitecto de software senior. Responde ÚNICAMENTE "
+                        "con JSON válido, sin texto adicional ni bloques de código."
                     )
+                    try:
+                        return generar(
+                            prompt=prompt_prog,
+                            system=system_prog,
+                            max_tokens=6000,
+                            json_mode=True,
+                        )
+                    except Exception as gratis_error:
+                        logger.warning(
+                            "Cascada gratuita agotada para evaluación de programación (%s). "
+                            "Último recurso: GPT pagado.",
+                            gratis_error,
+                        )
+                        return generar_gpt(
+                            prompt=prompt_prog,
+                            system=system_prog,
+                            max_tokens=6000,
+                            json_mode=True,
+                        )
 
                 raw = await loop.run_in_executor(None, _call_prog)
                 logger.info(f"PASO 5 COMPLETADO: Respuesta cruda recibida ({len(raw)} caracteres).")
@@ -1671,16 +1746,43 @@ Para cualquier fórmula matemática, usa la sintaxis de LaTeX: $...$ para fórmu
 """
 
     try:
-        return await asyncio.to_thread(generar_gpt, prompt=prompt, max_tokens=1500)
+        try:
+            return await asyncio.to_thread(generar, prompt=prompt, max_tokens=1500)
+        except Exception:
+            return await asyncio.to_thread(generar_gpt, prompt=prompt, max_tokens=1500)
     except Exception:
         return f"Retroalimentación automática: Has obtenido un {porcentaje:.1f}%. {'¡Excelente trabajo!' if porcentaje >= 70 else 'Sigue practicando para mejorar.'}"
 
 @router.get("/evaluaciones/test")
 async def test_generacion():
-    """Endpoint de prueba para verificar que la generación con GPT funciona."""
+    """Endpoint de prueba para verificar que la cascada de generación funciona.
+
+    Refleja la arquitectura real: primero la cascada gratuita (Gemini -> Groq)
+    y, solo si aquella falla, el último recurso pagado (OpenAI).
+    """
+    resultado: Dict[str, Any] = {
+        "gratuito": None,
+        "pagado_ultimo_recurso": None,
+    }
+
+    try:
+        texto = await asyncio.to_thread(
+            generar,
+            prompt="Di 'Hola, UniVia está listo para generar evaluaciones!'",
+            max_tokens=100,
+        )
+        resultado["gratuito"] = {"status": "success", "response": texto}
+        resultado["status"] = "success"
+        resultado["message"] = "Cascada gratuita (Gemini/Groq) funcionando correctamente"
+        return resultado
+    except Exception as e:
+        resultado["gratuito"] = {"status": "error", "message": str(e)}
 
     if not get_openai():
-        return {"status": "error", "message": "API Key de OpenAI no configurada"}
+        resultado["pagado_ultimo_recurso"] = {"status": "error", "message": "API Key de OpenAI no configurada"}
+        resultado["status"] = "error"
+        resultado["message"] = "Ningún proveedor disponible (ni gratuito ni pagado)."
+        return resultado
 
     try:
         texto = await asyncio.to_thread(
@@ -1688,13 +1790,12 @@ async def test_generacion():
             prompt="Di 'Hola, UniVia está listo para generar evaluaciones!'",
             max_tokens=100,
         )
-        return {
-            "status": "success",
-            "message": f"GPT ({MODELO_GENERACION_GPT}) funcionando correctamente",
-            "response": texto,
-        }
+        resultado["pagado_ultimo_recurso"] = {"status": "success", "response": texto}
+        resultado["status"] = "success"
+        resultado["message"] = f"GPT ({MODELO_GENERACION_GPT}) funcionando correctamente como último recurso"
     except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e)
-        }
+        resultado["pagado_ultimo_recurso"] = {"status": "error", "message": str(e)}
+        resultado["status"] = "error"
+        resultado["message"] = str(e)
+
+    return resultado

@@ -333,7 +333,12 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
                 "progress": progress_pct
             },
             "timeline": timeline_steps,
-            "ai_insights": ai_insights
+            "ai_insights": ai_insights,
+            # Fase 11: origen de la ruta ('oficial' | 'usuario' | 'ia_provisional')
+            # y trazabilidad de sílabo pendiente para el empty-state del frontend.
+            "ruta_origen": datos.get("ruta_origen"),
+            "hay_oficial": datos.get("hay_oficial", False),
+            "solicitud_silabo": datos.get("solicitud_silabo"),
         }
     except HTTPException:
         raise

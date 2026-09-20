@@ -7,7 +7,7 @@
 import { useEffect, useRef, type KeyboardEvent } from "react"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
-import { ChevronDown, Maximize2, Minimize2, Send, Sparkles, Square, Trash2, X } from "lucide-react"
+import { ChevronDown, KeyRound, Maximize2, Minimize2, Send, Sparkles, Square, Trash2, X } from "lucide-react"
 import { MessageBubble } from "./message-bubble"
 import type { MensajeChat, RecursoAdjuntoChat } from "@/types/chatbot"
 import { CHAT_TOKENS } from "./chat-tokens"
@@ -69,6 +69,10 @@ interface ChatPanelProps {
   isExpanded?: boolean
   /** Alterna el modo expandido/compacto del chat desde la cabecera. */
   onToggleExpand?: () => void
+  /** BYOK: true si el estudiante tiene su propia clave de Gemini activa. */
+  modoByok?: boolean
+  /** Abre el modal global de configuración BYOK. */
+  onAbrirByok?: () => void
 }
 
 export function ChatPanel({
@@ -85,6 +89,8 @@ export function ChatPanel({
   conversacionId,
   isExpanded = false,
   onToggleExpand,
+  modoByok = false,
+  onAbrirByok,
 }: ChatPanelProps) {
   const panelRef = useRef<HTMLDivElement | null>(null)
   const chipsRef = useRef<HTMLDivElement | null>(null)
@@ -225,10 +231,41 @@ export function ChatPanel({
                 aria-hidden="true"
               />
               {isOnline ? "En línea" : "Sin conexión"}
+              {onAbrirByok && (
+                <button
+                  type="button"
+                  onClick={onAbrirByok}
+                  title={modoByok ? "Usando tu clave personal (clic para gestionarla)" : "Usando la cuota compartida (clic para usar tu propia clave)"}
+                  className={`shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full transition-colors ${
+                    modoByok
+                      ? "bg-emerald-400/20 text-emerald-300 hover:bg-emerald-400/30"
+                      : "bg-muted text-muted-foreground hover:bg-muted/70"
+                  }`}
+                >
+                  {modoByok && <span className="w-1.5 h-1.5 rounded-full bg-emerald-300" aria-hidden="true" />}
+                  {modoByok ? "Tu clave personal" : "Cuota compartida"}
+                </button>
+              )}
             </p>
           </div>
         </div>
         <div className="relative flex items-center gap-1 shrink-0">
+          {onAbrirByok && (
+            <button
+              type="button"
+              onClick={onAbrirByok}
+              aria-label="Configurar tu propia clave de IA"
+              title="Configurar tu propia clave de IA"
+              className={`h-8 rounded-full flex items-center gap-1.5 px-2.5 text-[11px] font-semibold transition-all active:scale-[0.90] ${
+                modoByok
+                  ? "bg-emerald-400/15 text-emerald-300 hover:bg-emerald-400/25"
+                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+              }`}
+            >
+              <KeyRound className="w-4 h-4" aria-hidden="true" />
+              {modoByok ? "Clave activa" : "Mi clave IA"}
+            </button>
+          )}
           <button
             type="button"
             onClick={onToggleExpand}

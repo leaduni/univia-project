@@ -163,16 +163,16 @@ export interface ResultadoValidacionClave {
 
 /**
  * Valida la clave BYOK de Gemini contra el backend con una micro-llamada real.
- * La clave viaja solo en el body de esta petición, nunca se persiste.
+ * La clave viaja solo en el header X-User-LLM-Key (igual que en el chat),
+ * nunca en el body ni en la URL, y nunca se persiste.
  */
 export async function validateKey(token: string, key: string): Promise<ResultadoValidacionClave> {
   const response = await fetch(`${API_URL}/chatbot/validate-key`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
       Authorization: token ? `Bearer ${token}` : "",
+      "X-User-LLM-Key": key,
     },
-    body: JSON.stringify({ clave: key }),
   })
   if (!response.ok) {
     return { valid: false, error: "No se pudo validar la clave. Intenta de nuevo." }

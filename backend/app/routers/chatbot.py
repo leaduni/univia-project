@@ -33,7 +33,7 @@ from app.chatbot import handlers, intents
 from app.chatbot.user_context import cargar_contexto_usuario
 from app.core.auth_utils import get_current_user
 from app.core.database import get_supabase
-from app.core.llm import chatear, chatear_gemini_con_clave, get_groq
+from app.core.llm import _redactar_claves, chatear, chatear_gemini_con_clave, get_groq
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -164,10 +164,6 @@ class NuevoMensaje(BaseModel):
     # primer evento del stream. Ahorra al frontend un POST previo para el
     # primer mensaje, que es el caso más común.
     conversacion_id: Optional[int] = None
-
-
-class ValidarClave(BaseModel):
-    clave: str = Field(..., min_length=1, description="API key de Gemini aportada por el usuario (BYOK).")
 
 
 # ---------------------------------------------------------------------------
@@ -337,7 +333,7 @@ async def _chunks_sin_bloquear(
                 # compartida de UniVia (Nivel 1) en el mismo turno.
                 logger.warning(
                     "BYOK falló antes del primer token (%s: %s); se usa la cuota compartida.",
-                    type(e).__name__, e,
+                    type(e).__name__, _redactar_claves(str(e)),
                 )
                 try:
                     _agotar(_responder(mensajes, system_extra))
@@ -624,7 +620,9 @@ async def enviar_mensaje(
             yield f"data: {json.dumps({'done': True, 'respuesta': respuesta})}\n\n"
 
         except Exception as e:
-            logger.error(f"Error en el stream del chatbot:\n{traceback.format_exc()}")
+            # El traceback puede incluir la URL del proveedor con la clave BYOK
+            # del usuario; se redacta cualquier `key=...` antes de loguear.
+            logger.error(f"Error en el stream del chatbot:\n{_redactar_claves(traceback.format_exc())}")
             # El detalle crudo puede traer la URL del proveedor o restos de la
             # petición; al usuario le va un mensaje accionable.
             mensaje_error = (
@@ -642,14 +640,20 @@ async def enviar_mensaje(
 
 
 @router.post("/chatbot/validate-key")
-async def validar_clave(datos: ValidarClave, user_data=Depends(get_current_user)):
+async def validar_clave(
+    user_data=Depends(get_current_user),
+    x_user_llm_key: Optional[str] = Header(None, alias="X-User-LLM-Key"),
+):
     """Valida la clave BYOK de Gemini con una micro-llamada real.
 
-    No persiste ni loguea la clave. Devuelve 200 con `valid` true/false; se
-    prefiere 200 (y no 4xx) para distinguir una clave mala o cuota agotada de
-    un problema de autenticación del endpoint.
+    La clave llega por el header `X-User-LLM-Key` (igual que en /mensajes),
+    nunca por el body: las cabeceras no quedan en los logs de acceso de la URL
+    ni forman parte del payload. Tampoco se persiste ni se loguea aquí.
+    Devuelve 200 con `valid` true/false; se prefiere 200 (y no 4xx) para
+    distinguir una clave mala o cuota agotada de un problema de autenticación
+    del endpoint.
     """
-    clave = datos.clave.strip()
+    clave = (x_user_llm_key or "").strip()
     if not clave:
         return {"valid": False, "error": "La clave está vacía."}
 

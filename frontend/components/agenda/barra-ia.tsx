@@ -1,22 +1,47 @@
-import { useState, useRef } from "react"
-import { Sparkles, Loader2, Paperclip, X, Image as ImageIcon, FileText } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { Sparkles, Loader2, Paperclip, X, Image as ImageIcon, FileText, Command } from "lucide-react"
+
+const SUGGESTIONS = [
+  "✨ Crear plan de repaso para mi próximo examen",
+  "📅 Bloquear mi fin de semana para estudiar",
+  "🧠 Resumen de mis horas de estudio enfocadas"
+]
 
 export function BarraIA() {
   const [prompt, setPrompt] = useState("")
-  const [isAILoading, setIsAILoading] = useState(false)
+  const [isFocused, setIsFocused] = useState(false)
   const [attachedFile, setAttachedFile] = useState<File | null>(null)
+  
+  const inputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleAIGenerate = (e: React.FormEvent) => {
-    e.preventDefault()
-    if ((!prompt.trim() && !attachedFile) || isAILoading) return
+  // Atajo de teclado Ctrl+K o Cmd+K
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        inputRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  const handleSubmit = (text: string) => {
+    if (!text.trim() && !attachedFile) return
     
-    setIsAILoading(true)
-    setTimeout(() => {
-      setIsAILoading(false)
-      setPrompt("")
-      setAttachedFile(null)
-    }, 2500)
+    // Emitir evento para abrir el panel de IA
+    window.dispatchEvent(new CustomEvent("open-univia-chat", { detail: { initialContext: text } }))
+    
+    setPrompt("")
+    setAttachedFile(null)
+    inputRef.current?.blur()
+    setIsFocused(false)
+  }
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    handleSubmit(prompt)
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -26,7 +51,7 @@ export function BarraIA() {
   }
 
   return (
-    <div className="relative flex-1 sm:w-96 flex flex-col">
+    <div className="relative flex-1 sm:w-96 flex flex-col z-50">
       {/* Píldora Flotante Arriba */}
       {attachedFile && (
         <div className="absolute -top-7 left-2 z-10 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 text-[10px] font-medium backdrop-blur-md animate-in slide-in-from-bottom-2 fade-in duration-200 shadow-lg">
@@ -38,47 +63,69 @@ export function BarraIA() {
         </div>
       )}
 
-      <form onSubmit={handleAIGenerate} className="relative w-full flex items-center">
-        <input 
-          type="file" 
-          ref={fileInputRef} 
-          hidden 
-          accept="image/*,.pdf" 
-          onChange={handleFileChange} 
-        />
-        <button 
-          type="button" 
-          disabled={isAILoading}
-          onClick={() => fileInputRef.current?.click()}
-          className="absolute left-1.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors text-slate-400 hover:text-indigo-400 disabled:opacity-50"
-          title="Adjuntar archivo o imagen"
-        >
-          <Paperclip className="w-4 h-4" />
-        </button>
-        
-        <input 
-          disabled={isAILoading} 
-          type="text" 
-          value={prompt} 
-          onChange={e => setPrompt(e.target.value)} 
-          placeholder={isAILoading ? "Analizando contenido..." : "Ej. Crea un bloque de repaso para S.O. mañana a las 3pm"} 
-          className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-9 py-2 text-sm text-slate-100 placeholder:text-slate-400 focus:border-indigo-500/50 transition-all shadow-inner disabled:opacity-50" 
-        />
-        
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-          {isAILoading ? (
-            <Loader2 className="w-4 h-4 text-indigo-400 animate-spin" />
-          ) : (
-            <Sparkles className="w-4 h-4 text-indigo-400" />
-          )}
+      <form onSubmit={handleFormSubmit} className="relative w-full">
+        {/* Contenedor del gradiente dinámico */}
+        <div className={`relative rounded-xl p-[1px] transition-all duration-300 ${isFocused ? 'bg-gradient-to-r from-pink-500 to-purple-500 shadow-[0_0_15px_rgba(217,70,239,0.4)]' : 'bg-transparent'}`}>
+          <div className="relative w-full flex items-center bg-[#11121d] rounded-xl overflow-hidden">
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              hidden 
+              accept="image/*,.pdf" 
+              onChange={handleFileChange} 
+            />
+            <button 
+              type="button" 
+              onClick={() => fileInputRef.current?.click()}
+              className="absolute left-1.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors text-slate-400 hover:text-indigo-400"
+              title="Adjuntar archivo o imagen"
+            >
+              <Paperclip className="w-4 h-4" />
+            </button>
+            
+            <input 
+              ref={inputRef}
+              type="text" 
+              value={prompt} 
+              onChange={e => setPrompt(e.target.value)} 
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setTimeout(() => setIsFocused(false), 200)}
+              placeholder="Pregúntale a UniVia..." 
+              className={`w-full bg-transparent border-none pl-9 pr-14 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:ring-0 focus:outline-none transition-all ${!isFocused ? 'border border-white/10 shadow-inner rounded-xl' : ''}`} 
+              aria-label="Paleta de comandos de IA"
+            />
+            
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pointer-events-none">
+              <Sparkles className={`w-4 h-4 transition-colors duration-300 ${isFocused ? 'text-pink-400' : 'text-indigo-400'}`} />
+            </div>
+          </div>
         </div>
+
+        {/* Menú Flotante de Sugerencias (Popover) */}
+        {isFocused && (
+          <div className="absolute top-full left-0 right-0 mt-2 bg-[#1c1d2e] border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="px-3 py-2 border-b border-white/5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Sugerencias</span>
+            </div>
+            <div className="flex flex-col py-1">
+              {SUGGESTIONS.map((sug, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault(); // Evita perder el foco antes de ejecutar la acción
+                    setPrompt(sug);
+                    handleSubmit(sug);
+                  }}
+                  className="text-left px-4 py-2.5 text-xs text-slate-300 hover:bg-white/5 hover:text-white transition-colors"
+                >
+                  {sug}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </form>
-      
-      {isAILoading && attachedFile && (
-        <span className="absolute -bottom-5 left-2 text-[10px] text-indigo-400 animate-pulse font-medium">
-          Analizando documento y extrayendo fechas...
-        </span>
-      )}
     </div>
   )
 }

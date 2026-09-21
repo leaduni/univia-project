@@ -521,8 +521,10 @@ def _handler_duda_academica(
     fallback_relacional: bool = False,
 ) -> Contexto:
     """Recupera fragmentos del corpus vectorizado para responder con material real."""
+    profesor_id = None
     try:
         from app.rag.retriever import SyllabusRetriever
+
 
         curso = {"id": curso_id_forzado} if curso_id_forzado is not None else None
         if curso is None:
@@ -632,9 +634,12 @@ def _handler_duda_academica(
 def _handler_estado_academico(mensaje: str, supabase, user, token: str) -> Contexto:
     """Arma el expediente del estudiante: avance, promedio y cursos."""
     try:
-        from app.routers.malla import _obtener_malla_del_perfil
-
-        carrera_id, malla_id = _obtener_malla_del_perfil(supabase, user)
+        resp = supabase.table("perfiles").select("carrera_id,malla_id").eq("id", user.id).single().execute()
+        datos = getattr(resp, "data", None) or {}
+        carrera_id = datos.get("carrera_id")
+        malla_id = datos.get("malla_id")
+        if not carrera_id or not malla_id:
+            raise ValueError("Onboarding incompleto")
     except Exception as e:
         # _obtener_malla_del_perfil lanza HTTPException cuando falta el
         # onboarding. Aquí no se propaga: en un chat eso se dice hablando.
@@ -816,6 +821,71 @@ def _handler_soporte_humano(mensaje: str, supabase, user, token: str) -> Context
     )
 
 
+def _handler_agenda(mensaje: str, supabase, user, token: str) -> Contexto:
+    """Agenda del estudiante: lee eventos próximos y productividad de Supabase."""
+    from datetime import date, timedelta
+
+    perfil_id = user.id
+    hoy = date.today()
+    en_14d = hoy + timedelta(days=14)
+
+    # Eventos de las próximas 2 semanas
+    resp_ev = (
+        supabase.table("agenda_eventos")
+        .select("titulo, tipo, fecha_iso, hora_inicio, duracion, completed, ubicacion")
+        .eq("perfil_id", perfil_id)
+        .gte("fecha_iso", hoy.isoformat())
+        .lte("fecha_iso", en_14d.isoformat())
+        .order("fecha_iso")
+        .order("hora_inicio")
+        .limit(30)
+        .execute()
+    )
+    eventos = getattr(resp_ev, "data", None) or []
+
+    # Productividad semanal
+    dia_sem = hoy.weekday()
+    lunes = hoy - timedelta(days=dia_sem)
+    resp_ses = (
+        supabase.table("sesiones_estudio")
+        .select("minutos_reales")
+        .eq("perfil_id", perfil_id)
+        .gte("started_at", lunes.isoformat())
+        .execute()
+    )
+    sesiones = getattr(resp_ses, "data", None) or []
+    horas_est = round(sum(s.get("minutos_reales", 0) for s in sesiones) / 60, 1)
+
+    # Armar resumen
+    lineas = []
+    for ev in eventos:
+        hora_i = float(ev.get("hora_inicio", 0))
+        h = int(hora_i)
+        m = int((hora_i - h) * 60)
+        hora_str = f"{h:02d}:{m:02d}"
+        estado = "✅" if ev.get("completed") else ""
+        ubi = f" ({ev['ubicacion']})" if ev.get("ubicacion") else ""
+        lineas.append(
+            f"- {ev['fecha_iso']} {hora_str} | {ev['titulo']} [{ev.get('tipo','evento')}]{ubi} {estado}"
+        )
+
+    bloque = "AGENDA DEL ESTUDIANTE (próximas 2 semanas):\n"
+    if lineas:
+        bloque += "\n".join(lineas)
+    else:
+        bloque += "No hay eventos registrados en las próximas 2 semanas."
+    bloque += f"\n\nProductividad esta semana: {horas_est} horas de estudio enfocado, {len(sesiones)} sesiones Pomodoro."
+
+    return Contexto(
+        system_extra=(
+            "El estudiante pregunta sobre su agenda u horario. Tienes sus eventos "
+            "y productividad inyectados abajo. Responde de forma concisa y útil, "
+            "destacando lo más relevante. No inventes eventos que no estén en los datos."
+        ),
+        bloque=bloque,
+    )
+
+
 def _handler_general(mensaje: str, supabase, user, token: str) -> Contexto:
     """Conversación normal: sin contexto extra."""
     return Contexto()
@@ -845,6 +915,7 @@ _HANDLERS = {
     intents.CRONOGRAMA: _handler_cronograma,
     intents.FLASHCARDS: _handler_flashcards,
     intents.GENERAL: _handler_general,
+    intents.AGENDA: _handler_agenda,
 }
 
 

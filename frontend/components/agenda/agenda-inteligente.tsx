@@ -4,10 +4,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import {
   Sparkles, Wand2, Calendar, Clock, AlertTriangle, ChevronLeft,
-  ChevronRight, Plus, Loader2, X, CheckSquare, AlignLeft,
+  ChevronRight, Plus, Loader2, X, CheckSquare, AlignLeft, RefreshCw, Zap,
   PanelRightClose, PanelRightOpen, CalendarDays, CalendarRange, List,
   Check, LayoutGrid, Layers, Tag, MapPin, Repeat, Video, Bell, Users, ChevronDown, Pencil, Trash2, Settings, UploadCloud, FileText,
-  Play, Pause, RotateCcw, CheckCircle2
+  Play, Pause, RotateCcw, CheckCircle2, Brain, Coffee, Send, Info, Maximize2, Minimize2, GraduationCap
 } from "lucide-react"
 
 import {
@@ -19,9 +19,17 @@ import {
   type OpenModalParams,
   getEstiloColor
 } from "./calendar-grid"
+import { useSemesterRecurrence } from "@/lib/hooks/use-semester"
 import { FocusMode } from "./focus-mode"
-
 import { BarraIA } from "./barra-ia"
+import { AddCourseSectionModal } from "./AddCourseSectionModal"
+import {
+  fetchEventos, crearEvento, editarEvento, eliminarEvento,
+  fetchEtiquetas, crearEtiqueta as crearEtiquetaAPI,
+  fetchConfiguracion, guardarConfiguracion,
+  registrarSesion, fetchProductividad,
+  type AgendaEvento, type AgendaEtiqueta, type AgendaConfiguracion, type Productividad
+} from "@/lib/agenda-service"
 
 // ─── Tipos y Helpers ──────────────────────────────────────────────────────────
 
@@ -47,7 +55,7 @@ function countdown(ms: number) {
   return { txt: d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`, urgente: d < 2 }
 }
 
-// ─── Mock data inicial ────────────────────────────────────────────────────────
+// ─── Fallback data (used when API is not available) ───────────────────────────
 
 const ETIQUETAS_BASE: Etiqueta[] = [
   { id: "c1", nombre: "Clases Univ.", color: "indigo" },
@@ -56,27 +64,30 @@ const ETIQUETAS_BASE: Etiqueta[] = [
   { id: "c4", nombre: "Bloques de Estudio", color: "fuchsia" },
 ]
 
-function getIso(diaOffsetSemanaActual: number) {
-  const d = new Date()
-  const hoyDia = d.getDay() === 0 ? 6 : d.getDay() - 1
-  d.setDate(d.getDate() - hoyDia + diaOffsetSemanaActual)
-  return formatearISO(d)
+/** Convierte etiquetas de la API (id numérico) al formato del componente (id string). */
+function apiEtiquetaToLocal(e: AgendaEtiqueta): Etiqueta {
+  return { id: String(e.id), nombre: e.nombre, color: e.color as any }
 }
 
-const EVENTOS_BASE: CalendarioEvento[] = [
-  { id: "e1", titulo: "Sistemas Operativos", subtitulo: "Aula B-204", etiquetaId: "c1", fechaISO: getIso(0), horaInicio: 0, duracion: 2 },
-  { id: "e2", titulo: "Cálculo Diferencial", subtitulo: "Aula A-101", etiquetaId: "c1", fechaISO: getIso(1), horaInicio: 1, duracion: 1.5 },
-  { id: "e3", titulo: "Programación Web", subtitulo: "Lab. 3", etiquetaId: "c1", fechaISO: getIso(2), horaInicio: 3, duracion: 2 },
-  { id: "e4", titulo: "Base de Datos", subtitulo: "Aula C-305", etiquetaId: "c1", fechaISO: getIso(3), horaInicio: 0.5, duracion: 2 },
-  { id: "ex1", titulo: "Parcial SO", subtitulo: "Caps. 1-5 + Threads", etiquetaId: "c2", tipo: 'examen', fechaISO: getIso(4), horaInicio: 5, duracion: 2 },
-  { id: "d1", titulo: "Gym — Pierna", subtitulo: "Leg press", etiquetaId: "c3", fechaISO: getIso(0), horaInicio: 4.5, duracion: 1.5 },
-  { id: "ia1", titulo: "Repaso: Node.js", subtitulo: "APIs REST", etiquetaId: "c4", fechaISO: getIso(0), horaInicio: 7, duracion: 1.5 },
-]
-
-const EXAMENES_MOCK: Examen[] = [
-  { id: "x1", nombre: "Parcial Sistemas Operativos", fechaTarget: new Date(Date.now() + 3 * 86400000 + 14400000) },
-  { id: "x2", nombre: "Práctica Cálculo Diferencial", fechaTarget: new Date(Date.now() + 5 * 86400000 + 7200000) },
-]
+/** Convierte evento de la API al formato del componente CalendarioEvento. */
+function apiEventoToLocal(e: AgendaEvento): CalendarioEvento {
+  return {
+    id: String(e.id),
+    titulo: e.titulo,
+    subtitulo: e.subtitulo || e.descripcion || undefined,
+    etiquetaId: e.etiqueta_id ? String(e.etiqueta_id) : "",
+    tipo: e.tipo === 'examen' ? 'examen' : undefined,
+    fechaISO: e.fecha_iso,
+    fechaFinISO: e.fecha_fin_iso || undefined,
+    horaInicio: e.hora_inicio,
+    duracion: e.duracion,
+    todoElDia: e.todo_el_dia,
+    recurrencia: e.recurrencia === 'none' ? 'No se repite' : e.recurrencia,
+    ubicacion: e.ubicacion || undefined,
+    videollamada: e.videollamada || undefined,
+    completed: e.completed,
+  }
+}
 
 // ─── Componentes Pequeños ─────────────────────────────────────────────────────
 
@@ -103,83 +114,38 @@ function Toggle({ checked, onChange, label, dot }: { checked: boolean; onChange:
   )
 }
 
-function RelojDelDia({ 
-  sleepSettings, eventos, etiquetas, filtros 
+function WidgetProductividadSemanal({ 
+  eventos, etiquetas 
 }: { 
-  sleepSettings: { start: string, end: string }
   eventos: CalendarioEvento[]
   etiquetas: Etiqueta[]
-  filtros: Record<string, boolean>
 }) {
-  const [restanteStr, setRestanteStr] = useState("")
-  const [descTexto, setDescTexto] = useState("")
+  const [horasEstudio, setHorasEstudio] = useState(0)
   const [pct, setPct] = useState(0)
+  const GOAL_HORAS = 20
 
   useEffect(() => {
-    const calc = () => {
-      const hoyStr = formatearISO(new Date())
-      const evsHoy = eventos.filter(e => e.fechaISO === hoyStr)
-      
-      let horasProductivas = 0
-      for (const ev of evsHoy) {
-        if (!filtros[ev.etiquetaId]) continue
-        const etq = etiquetas.find(e => e.id === ev.etiquetaId)
-        if (etq && ["Clases", "Evaluaciones", "Bloques de Estudio"].includes(etq.nombre)) {
-          horasProductivas += ev.duracion
+    const d = new Date()
+    const diaSemana = d.getDay() === 0 ? 6 : d.getDay() - 1
+    const lunes = new Date(d); lunes.setDate(d.getDate() - diaSemana)
+    const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6)
+    
+    let total = 0
+    for (const ev of eventos) {
+      if (ev.completed) {
+        const evDate = new Date(ev.fechaISO + "T00:00:00")
+        if (evDate >= lunes && evDate <= domingo) {
+          const etq = etiquetas.find(e => e.id === ev.etiquetaId)
+          if (etq && etq.nombre === "Bloques de Estudio") {
+            total += ev.duracion
+          }
         }
       }
-
-      const [startH, startM] = sleepSettings.start.split(":").map(Number)
-      const [endH, endM] = sleepSettings.end.split(":").map(Number)
-      const startDecimal = startH + startM / 60
-      const endDecimal = endH + endM / 60
-      
-      let awakeHours = 24
-      if (startDecimal > endDecimal) {
-        awakeHours = 24 - (24 - startDecimal + endDecimal)
-      } else {
-        awakeHours = 24 - (endDecimal - startDecimal)
-      }
-
-      // 1. Porcentaje de productividad (horas estudiadas vs horas despierto)
-      const percentage = awakeHours > 0 ? (horasProductivas / awakeHours) * 100 : 0
-      setPct(Math.min(100, Math.max(0, percentage)))
-
-      // 2. Cálculo real del tiempo restante hasta dormir
-      const now = new Date()
-      const sleepTime = new Date(now)
-      sleepTime.setHours(startH, startM, 0, 0)
-      
-      // Si la hora de dormir ya pasó, calculamos para el día siguiente
-      if (sleepTime <= now) {
-        sleepTime.setDate(sleepTime.getDate() + 1)
-      }
-      
-      const diffMs = sleepTime.getTime() - now.getTime()
-      const diffHoras = diffMs / (1000 * 60 * 60)
-      
-      let restanteTexto = ""
-      if (diffHoras < 1) {
-        const mins = Math.floor(diffMs / 60000)
-        restanteTexto = `${mins} min`
-      } else {
-        const h = Math.floor(diffHoras)
-        const m = Math.floor((diffHoras - h) * 60)
-        restanteTexto = m === 0 ? `${h}h` : `${h}h ${m}m`
-      }
-      
-      setRestanteStr(restanteTexto)
-      
-      const prodText = horasProductivas > 0 
-        ? `(hoy llevas ${horasProductivas.toFixed(1).replace(".0", "")}h de estudio)`
-        : ""
-        
-      setDescTexto(`libres antes de dormir ${prodText}`)
     }
-    calc()
-    const t = setInterval(calc, 60000)
-    return () => clearInterval(t)
-  }, [eventos, etiquetas, filtros, sleepSettings])
+    
+    setHorasEstudio(total)
+    setPct(Math.min(100, (total / GOAL_HORAS) * 100))
+  }, [eventos, etiquetas])
 
   const circ = 2 * Math.PI * 30
   return (
@@ -187,23 +153,164 @@ function RelojDelDia({
       <div className="relative w-[68px] h-[68px] shrink-0">
         <svg className="w-full h-full -rotate-90" viewBox="0 0 68 68">
           <circle cx="34" cy="34" r="30" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="5" />
-          <circle cx="34" cy="34" r="30" fill="none" stroke="url(#cg2)" strokeWidth="5" strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={circ - (pct / 100) * circ} className="transition-all duration-700" />
-          <defs><linearGradient id="cg2" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#6366f1" /><stop offset="100%" stopColor="#d946ef" />
+          <circle cx="34" cy="34" r="30" fill="none" stroke="url(#cgProd)" strokeWidth="5" strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={circ - (pct / 100) * circ} className="transition-all duration-700" />
+          <defs><linearGradient id="cgProd" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#10b981" /><stop offset="100%" stopColor="#3b82f6" />
           </linearGradient></defs>
         </svg>
-        <div className="absolute inset-0 flex items-center justify-center"><Clock className="w-5 h-5 text-indigo-400" /></div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-sm font-bold text-white">{horasEstudio.toFixed(1).replace(".0", "")}</span>
+          <span className="text-[9px] text-slate-400 leading-none -mt-0.5">hrs</span>
+        </div>
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xl font-bold text-white leading-none mb-1">{restanteStr}</p>
-        <p className="text-xs text-slate-300 leading-tight">{descTexto}</p>
-        <div className="mt-2 w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
-          <div className="h-full rounded-full gradient-brand transition-all duration-700" style={{ width: `${pct}%` }} />
-        </div>
+        <p className="text-sm font-bold text-white leading-tight mb-1">Horas de estudio enfocado esta semana</p>
+        <p className="text-xs text-slate-400">Meta: {GOAL_HORAS} hrs</p>
       </div>
     </div>
   )
 }
+
+function SidebarPomodoro({ evento, onClose, onComplete }: { evento: CalendarioEvento, onClose: () => void, onComplete: (minutos: number, early: boolean) => void }) {
+  const [isConfiguring, setIsConfiguring] = useState(true)
+  const [focusMinutes, setFocusMinutes] = useState(50)
+  const [breakMinutes, setBreakMinutes] = useState(10)
+  const [phase, setPhase] = useState<"focus" | "break">("focus")
+  const [timeLeft, setTimeLeft] = useState(50 * 60)
+  const [isRunning, setIsRunning] = useState(false)
+  const [totalStudied, setTotalStudied] = useState(0)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  const handleStart = () => {
+    setIsConfiguring(false)
+    setTimeLeft(focusMinutes * 60)
+    setPhase("focus")
+    setIsRunning(true)
+  }
+
+  useEffect(() => {
+    if (!isRunning || isConfiguring) return
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          if (phase === "focus") {
+            setTotalStudied(t => t + focusMinutes)
+            setPhase("break")
+            return breakMinutes * 60
+          } else {
+            setPhase("focus")
+            return focusMinutes * 60
+          }
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [isRunning, isConfiguring, phase, focusMinutes, breakMinutes])
+
+  const mins = Math.floor(timeLeft / 60)
+  const secs = timeLeft % 60
+  const timeStr = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+
+  const currentTotalSeconds = phase === "focus" ? focusMinutes * 60 : breakMinutes * 60
+  const progress = currentTotalSeconds > 0 ? ((currentTotalSeconds - timeLeft) / currentTotalSeconds) * 100 : 0
+
+  if (isConfiguring) {
+    const configContent = (
+      <div className={`${isFullscreen ? 'w-full max-w-sm scale-110 relative z-10' : ''} bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg relative transition-all duration-300`}>
+        <div className="flex justify-between items-center mb-4">
+          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><Brain className="w-3.5 h-3.5 text-purple-400" /> Pomodoro</p>
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => setIsFullscreen(!isFullscreen)} className="p-1 hover:bg-white/10 rounded-full transition-colors" title={isFullscreen ? "Minimizar" : "Pantalla completa"}>
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" /> : <Maximize2 className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" />}
+            </button>
+            <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full transition-colors"><X className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" /></button>
+          </div>
+        </div>
+        <p className="text-sm font-semibold text-white mb-4 truncate">{evento.titulo}</p>
+        <div className="space-y-4 mb-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-slate-400">Enfoque (min)</span>
+            <input type="number" value={focusMinutes} onChange={e => setFocusMinutes(Number(e.target.value))} className="w-16 bg-white/5 border border-white/10 rounded-lg text-center text-sm font-semibold text-white py-1.5 focus:outline-none focus:border-purple-500" />
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-slate-400">Descanso (min)</span>
+            <input type="number" value={breakMinutes} onChange={e => setBreakMinutes(Number(e.target.value))} className="w-16 bg-white/5 border border-white/10 rounded-lg text-center text-sm font-semibold text-white py-1.5 focus:outline-none focus:border-purple-500" />
+          </div>
+        </div>
+        <button onClick={handleStart} className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-[0_0_15px_rgba(168,85,247,0.3)] transition-all flex items-center justify-center gap-2"><Play className="w-3.5 h-3.5" /> Iniciar Sesión</button>
+      </div>
+    )
+
+    if (isFullscreen) {
+      return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setIsFullscreen(false)} />
+          {configContent}
+        </div>
+      )
+    }
+
+    return configContent
+  }
+
+  const timerContent = (
+    <div className={`${isFullscreen ? 'w-full max-w-sm scale-[1.3] relative z-10' : ''} bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg relative overflow-hidden transition-all duration-500`}>
+      <div className={`absolute inset-0 blur-3xl opacity-20 transition-colors duration-1000 ${phase === "focus" ? "bg-purple-500" : "bg-emerald-500"}`} />
+      <div className="relative z-10">
+        <div className="flex justify-between items-center mb-6">
+          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+            {phase === "focus" ? <Brain className="w-3.5 h-3.5 text-purple-400" /> : <Coffee className="w-3.5 h-3.5 text-emerald-400" />}
+            {phase === "focus" ? "Enfoque" : "Descanso"}
+          </p>
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => setIsFullscreen(!isFullscreen)} className="p-1 hover:bg-white/10 rounded-full transition-colors" title={isFullscreen ? "Minimizar" : "Pantalla completa"}>
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" /> : <Maximize2 className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" />}
+            </button>
+            <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full transition-colors"><X className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" /></button>
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center justify-center pb-2">
+          <div className="relative w-36 h-36 flex items-center justify-center mb-6">
+            <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full -rotate-90">
+              <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
+              <circle cx="50" cy="50" r="46" fill="none" stroke={phase === "focus" ? "#a855f7" : "#10b981"} strokeWidth="6" strokeLinecap="round" strokeDasharray={2 * Math.PI * 46} strokeDashoffset={(2 * Math.PI * 46) * (1 - progress / 100)} className="transition-all duration-1000 ease-linear" />
+            </svg>
+            <span className="text-4xl font-black text-white tabular-nums tracking-tight">{timeStr}</span>
+          </div>
+
+          <div className="flex gap-3 w-full">
+            <button onClick={() => setIsRunning(!isRunning)} className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 shadow-sm">
+              {isRunning ? <><Pause className="w-3.5 h-3.5" /> Pausa</> : <><Play className="w-3.5 h-3.5" /> Seguir</>}
+            </button>
+            <button onClick={() => {
+              if (phase === "focus") {
+                setTotalStudied(t => t + Math.floor((currentTotalSeconds - timeLeft)/60))
+              }
+              onComplete(Math.max(totalStudied, focusMinutes), false)
+            }} className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 shadow-md">
+              <CheckCircle2 className="w-3.5 h-3.5" /> Fin
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  if (isFullscreen) {
+    return (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-md animate-in fade-in" onClick={() => setIsFullscreen(false)} />
+        {timerContent}
+      </div>
+    )
+  }
+
+  return timerContent
+}
+
+
 
 function CustomDatePicker({ currentDate, onSelect, onClose }: { currentDate: Date, onSelect: (d: Date) => void, onClose: () => void }) {
   const [viewDate, setViewDate] = useState(new Date(currentDate))
@@ -319,6 +426,10 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
     return "09:00"
   })
   const [horaFin, setHoraFin] = useState(() => {
+    if (prefill?.horaFin !== undefined) {
+      const h = Math.floor(HORA_INI + prefill.horaFin), m = Math.round((prefill.horaFin % 1) * 60)
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+    }
     if (prefill?.horaInicio !== undefined) {
       const h = Math.floor(HORA_INI + prefill.horaInicio + 1)
       return `${String(h).padStart(2, "0")}:00`
@@ -336,6 +447,14 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
   const [etiquetaSel, setEtiquetaSel] = useState<string>(etiquetas[0]?.id || "")
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false)
   const etiquetaSeleccionada = etiquetas.find(e => e.id === etiquetaSel)
+
+  const [prevEtiquetasLength, setPrevEtiquetasLength] = useState(etiquetas.length)
+  useEffect(() => {
+    if (etiquetas.length > prevEtiquetasLength) {
+      setEtiquetaSel(etiquetas[etiquetas.length - 1].id)
+      setPrevEtiquetasLength(etiquetas.length)
+    }
+  }, [etiquetas, prevEtiquetasLength])
 
   const [guardando, setGuardando] = useState(false)
 
@@ -597,7 +716,7 @@ function ModalCrearEtiqueta({ onClose, onCrear }: { onClose: () => void, onCrear
   )
 }
 
-function EventDetailPopover({ evento, etiqueta, onClose, onEdit, onDelete, onStartFocus, onToggleCompleted }: { evento: CalendarioEvento, etiqueta: Etiqueta, onClose: () => void, onEdit: () => void, onDelete: () => void, onStartFocus?: () => void, onToggleCompleted?: () => void }) {
+function EventDetailPopover({ evento, etiqueta, onClose, onEdit, onDelete, onStartFocus, onToggleCompleted, onOpenAI }: { evento: CalendarioEvento, etiqueta: Etiqueta, onClose: () => void, onEdit: () => void, onDelete: () => void, onStartFocus?: () => void, onToggleCompleted?: () => void, onOpenAI: (ctx: string) => void }) {
   const s = getEstiloColor(etiqueta.color)
   const esEstudio = etiqueta.nombre === "Bloques de Estudio"
   
@@ -666,7 +785,8 @@ function EventDetailPopover({ evento, etiqueta, onClose, onEdit, onDelete, onSta
         {evento.tipo === 'examen' && (
           <div className="mt-5 border-t border-white/5 pt-5">
             <button onClick={() => {
-              alert(`[Módulo de IA] Preparando sesión de repaso para ${evento.titulo}...`)
+              onOpenAI(evento.titulo)
+              onClose()
             }} className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-600/80 to-purple-600/80 hover:from-rose-500 hover:to-purple-500 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md border border-white/20 hover:scale-[1.02]">
               <Sparkles className="w-4 h-4" /> Repasar con IA
             </button>
@@ -691,113 +811,97 @@ function EventDetailPopover({ evento, etiqueta, onClose, onEdit, onDelete, onSta
   )
 }
 
-function ModalSleepSettings({ sleepSettings, onClose, onSave }: { sleepSettings: { start: string, end: string }, onClose: () => void, onSave: (s: { start: string, end: string }) => void }) {
-  const [start, setStart] = useState(sleepSettings.start)
-  const [end, setEnd] = useState(sleepSettings.end)
+function ModalAjustesGeneral({ 
+  sleepSettings, onSaveSleep,
+  semesterSettings, onSaveSemester,
+  onClose
+}: { 
+  sleepSettings: { start: string, end: string }, 
+  onSaveSleep: (s: { start: string, end: string }) => void,
+  semesterSettings: { start: string, end: string },
+  onSaveSemester: (s: { start: string, end: string }) => void,
+  onClose: () => void 
+}) {
+  const to12h = (t24: string) => {
+    if (!t24) return "12:00 AM"
+    const [hStr, mStr] = t24.split(":")
+    let h = parseInt(hStr, 10)
+    const period = h >= 12 ? "PM" : "AM"
+    h = h % 12 || 12
+    return `${h}:${mStr} ${period}`
+  }
+
+  const to24h = (t12: string) => {
+    if (!t12) return "00:00"
+    const [time, period] = t12.split(" ")
+    const [hStr, mStr] = time.split(":")
+    let h = parseInt(hStr, 10)
+    if (period === "PM" && h !== 12) h += 12
+    if (period === "AM" && h === 12) h = 0
+    return `${h.toString().padStart(2, "0")}:${mStr}`
+  }
+
+  const [start12, setStart12] = useState(() => to12h(sleepSettings.start))
+  const [end12, setEnd12] = useState(() => to12h(sleepSettings.end))
+  const [semStart, setSemStart] = useState(semesterSettings.start)
+  const [semEnd, setSemEnd] = useState(semesterSettings.end)
+
+  const timeOptions = useMemo(() => {
+    const opts = []
+    for (let i = 0; i < 24 * 4; i++) {
+      const h = Math.floor(i / 4)
+      const m = (i % 4) * 15
+      const period = h >= 12 ? "PM" : "AM"
+      const h12 = h % 12 || 12
+      opts.push(`${h12}:${m.toString().padStart(2, "0")} ${period}`)
+    }
+    return opts
+  }, [])
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center safe-modal-padding">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-xs bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative z-10 w-full max-w-sm bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
         <div className="px-5 py-4 border-b border-white/[0.08] flex justify-between items-center">
-          <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Settings className="w-4 h-4 text-indigo-400" /> Horas de Sueño</h2>
+          <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Settings className="w-4 h-4 text-indigo-400" /> Configuración</h2>
           <button onClick={onClose} className="w-7 h-7 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"><X className="w-4 h-4 text-slate-400" /></button>
         </div>
-        <div className="p-5 space-y-4">
-          <div>
-            <label className="text-xs text-slate-400 mb-2 block font-medium">Hora de dormir</label>
-            <input type="time" value={start} onChange={e => setStart(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-all [color-scheme:dark]" />
+        
+        <div className="p-5 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+          {/* Configuración de Sueño */}
+          <div className="space-y-4">
+            <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-indigo-400" /> Horas de Sueño</h3>
+            <div>
+              <label className="text-xs text-slate-400 mb-2 block font-medium">Hora de dormir</label>
+              <DropdownMenu value={start12} onChange={setStart12} options={timeOptions} />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-2 block font-medium">Hora de despertar</label>
+              <DropdownMenu value={end12} onChange={setEnd12} options={timeOptions} />
+            </div>
           </div>
-          <div>
-            <label className="text-xs text-slate-400 mb-2 block font-medium">Hora de despertar</label>
-            <input type="time" value={end} onChange={e => setEnd(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-all [color-scheme:dark]" />
+
+          {/* Configuración de Semestre */}
+          <div className="space-y-4 border-t border-white/5 pt-4">
+            <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><CalendarDays className="w-3.5 h-3.5 text-rose-400" /> Fechas del Semestre</h3>
+            <div>
+              <label className="text-xs text-slate-400 mb-2 block font-medium">Día de inicio de clases</label>
+              <input type="date" value={semStart} onChange={e => setSemStart(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-all" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-2 block font-medium">Día de fin de ciclo</label>
+              <input type="date" value={semEnd} onChange={e => setSemEnd(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-all" />
+            </div>
           </div>
         </div>
-        <div className="flex justify-end gap-2 px-5 py-3 border-t border-white/[0.05] bg-[#11121d]">
+
+        <div className="flex justify-end gap-2 px-5 py-3 border-t border-white/[0.05] bg-[#11121d] rounded-b-2xl">
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-all">Cancelar</button>
-          <button onClick={() => { onSave({ start, end }); onClose(); }} className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-all">Guardar</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ModalImportarMatricula({ onClose }: { onClose: () => void }) {
-  const [isDragActive, setIsDragActive] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0])
-    }
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragActive(false)
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setSelectedFile(e.dataTransfer.files[0])
-    }
-  }
-  
-  const startUpload = () => {
-    setIsUploading(true)
-    setTimeout(() => {
-      setIsUploading(false)
-      onClose()
-      alert("¡Matrícula importada con éxito! (Simulación)")
-    }, 3000)
-  }
-
-  return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={!isUploading ? onClose : undefined} />
-      <div className="relative z-10 w-full max-w-md bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
-        <div className="px-5 py-4 border-b border-white/[0.08] flex justify-between items-center">
-          <h2 className="text-sm font-semibold text-white flex items-center gap-2"><UploadCloud className="w-4 h-4 text-indigo-400" /> Importar Matrícula (PDF)</h2>
-          {!isUploading && <button onClick={onClose} className="w-7 h-7 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"><X className="w-4 h-4 text-slate-400" /></button>}
-        </div>
-        <div className="p-8 flex flex-col items-center justify-center">
-          <input type="file" accept=".pdf" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
-          
-          {isUploading ? (
-            <div className="flex flex-col items-center gap-4 py-8">
-              <div className="relative w-16 h-16 flex items-center justify-center">
-                <FileText className="w-10 h-10 text-indigo-400 opacity-50" />
-                <div className="absolute inset-0 border-t-2 border-indigo-400 rounded-full animate-spin" />
-              </div>
-              <p className="text-sm text-slate-300 animate-pulse">Analizando cursos y horarios...</p>
-            </div>
-          ) : selectedFile ? (
-            <div className="w-full h-48 border-2 border-indigo-500/30 bg-indigo-500/10 rounded-xl flex flex-col items-center justify-center p-6 transition-all">
-              <FileText className="w-10 h-10 text-indigo-400 mb-3" />
-              <p className="text-sm font-semibold text-white truncate max-w-full mb-1">{selectedFile.name}</p>
-              <p className="text-xs text-slate-400 mb-5">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
-              
-              <button onClick={startUpload} className="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center justify-center transition-all shadow-md">
-                Analizar horario con IA
-              </button>
-              <button onClick={() => fileInputRef.current?.click()} className="mt-3 text-[11px] font-medium text-slate-400 hover:text-white transition-colors">
-                Cambiar archivo
-              </button>
-            </div>
-          ) : (
-            <div 
-              onDragOver={e => { e.preventDefault(); setIsDragActive(true) }} 
-              onDragLeave={() => setIsDragActive(false)} 
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`w-full h-48 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 cursor-pointer transition-all ${isDragActive ? "border-indigo-400 bg-indigo-500/10" : "border-white/20 bg-white/5 hover:border-indigo-400 hover:bg-white/10"}`}
-            >
-              <UploadCloud className={`w-8 h-8 ${isDragActive ? "text-indigo-400" : "text-slate-400"}`} />
-              <div className="text-center">
-                <p className="text-sm font-medium text-white mb-1">Arrastra tu PDF aquí</p>
-                <p className="text-xs text-slate-400">o haz clic para explorar</p>
-              </div>
-            </div>
-          )}
+          <button onClick={() => { 
+            onSaveSleep({ start: to24h(start12), end: to24h(end12) }); 
+            onSaveSemester({ start: semStart, end: semEnd });
+            onClose(); 
+          }} className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-all">Guardar</button>
         </div>
       </div>
     </div>
@@ -816,6 +920,7 @@ export function AgendaInteligente() {
   const [baseDate, setBaseDate] = useState<Date>(new Date())
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
   const [isViewDropdownOpen, setIsViewDropdownOpen] = useState(false)
+  const [isCreateDropdownOpen, setIsCreateDropdownOpen] = useState(false)
   
   // Estados de Modales
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -823,31 +928,147 @@ export function AgendaInteligente() {
   const [popoverEvent, setPopoverEvent] = useState<CalendarioEvento | null>(null)
   const [isFocusModeOpen, setIsFocusModeOpen] = useState(false)
   const [focusEvent, setFocusEvent] = useState<CalendarioEvento | null>(null)
+  const [pomodoroStartTime, setPomodoroStartTime] = useState<string | null>(null)
 
   // -- Reprogramación Anti-culpa --
-  const handleAutoReschedule = useCallback((eventoId: string) => {
+  const handleAutoReschedule = useCallback(async (eventoId: string) => {
+    const numId = parseInt(eventoId)
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    const iso = formatearISO(tomorrow)
+
+    // Actualizar local inmediatamente
     setEventos(prev => prev.map(ev => {
-      if (ev.id === eventoId) {
-        const tomorrow = new Date()
-        tomorrow.setDate(tomorrow.getDate() + 1)
-        const iso = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`
-        return { ...ev, fechaISO: iso, horaInicio: 18, completed: false }
-      }
+      if (ev.id === eventoId) return { ...ev, fechaISO: iso, horaInicio: 18, completed: false }
       return ev
     }))
-    alert("Bloque reorganizado con IA ✨")
+
+    // Persistir en backend
+    if (!isNaN(numId)) {
+      editarEvento(numId, { fecha_iso: iso, hora_inicio: 18, completed: false }).catch(() => {})
+    }
   }, [])
   
-  // Settings de Sueño
+  // Settings de Sueño y Semestre
   const [sleepSettings, setSleepSettings] = useState({ start: "23:00", end: "07:00" })
+  const [semesterSettings, setSemesterSettings] = useState(() => {
+    const d = new Date()
+    const dEnd = new Date(d)
+    dEnd.setMonth(d.getMonth() + 4)
+    return { start: formatearISO(d), end: formatearISO(dEnd) }
+  })
   const [isSleepModalOpen, setIsSleepModalOpen] = useState(false)
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+  const [isCourseSectionModalOpen, setIsCourseSectionModalOpen] = useState(false)
+  const [isIntegrationsDropdownOpen, setIsIntegrationsDropdownOpen] = useState(false)
   
   // Estados de UI y Datos
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>(ETIQUETAS_BASE)
+  const [isTagsExpanded, setIsTagsExpanded] = useState(false)
   const [filtros, setFiltros] = useState<Record<string, boolean>>(ETIQUETAS_BASE.reduce((acc, e) => ({ ...acc, [e.id]: true }), {}))
-  const [eventos, setEventos] = useState<CalendarioEvento[]>(EVENTOS_BASE)
+  const [eventos, setEventos] = useState<CalendarioEvento[]>([])
   const [modalPrefill, setModalPrefill] = useState<OpenModalParams | null>(null)
+  const [apiReady, setApiReady] = useState(false)
+
+  // ─ Cargar datos del backend al montar ─
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        // Cargar etiquetas desde el backend
+        const etqs = await fetchEtiquetas()
+        if (cancelled) return
+        const localEtqs = etqs.map(apiEtiquetaToLocal)
+        setEtiquetas(localEtqs)
+        setFiltros(localEtqs.reduce((acc, e) => ({ ...acc, [e.id]: true }), {} as Record<string, boolean>))
+
+        // Cargar eventos
+        const evs = await fetchEventos()
+        if (cancelled) return
+        setEventos(evs.map(apiEventoToLocal))
+
+        // Cargar configuración
+        const cfg = await fetchConfiguracion()
+        if (cancelled) return
+        setSleepSettings({ start: cfg.sleep_start, end: cfg.sleep_end })
+        if (cfg.semester_start && cfg.semester_end) {
+          setSemesterSettings({ start: cfg.semester_start, end: cfg.semester_end })
+        }
+
+        setApiReady(true)
+      } catch (err) {
+        console.warn("[Agenda] API no disponible, usando datos locales:", err)
+        // Mantener los datos fallback ya inicializados
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
+  const semDates = useSemesterRecurrence(semesterSettings.start, semesterSettings.end)
+
+  // Generar recurrencias locales solo para eventos con recurrencia semanal
+  const eventosConRecurrencia = useMemo(() => {
+    const generados: CalendarioEvento[] = []
+    const normales: CalendarioEvento[] = []
+
+    for (const ev of eventos) {
+      if (ev.recurrencia && ev.recurrencia !== 'No se repite' && ev.recurrencia !== 'none') {
+        const dateObj = new Date(ev.fechaISO + "T00:00:00")
+        const dayOfWeek = dateObj.getDay()
+        const occurrences = semDates.generateRecurringDates(dayOfWeek)
+        for (const occ of occurrences) {
+          generados.push({
+            ...ev,
+            id: `${ev.id}_gen_${occ.getTime()}`,
+            fechaISO: formatearISO(occ)
+          })
+        }
+      } else {
+        normales.push(ev)
+      }
+    }
+    return [...normales, ...generados]
+  }, [eventos, semDates])
+
+  // Derivar exámenes/evaluaciones próximas dinámicamente desde los eventos reales del usuario
+  const examenesProximos = useMemo(() => {
+    const evalEtq = etiquetas.find(e => 
+      e.nombre.toLowerCase().includes("evalua") || 
+      e.nombre.toLowerCase().includes("examen") ||
+      e.nombre.toLowerCase().includes("parcial") ||
+      e.nombre.toLowerCase().includes("final")
+    )
+    const now = new Date()
+    return eventos
+      .filter(ev => ev.tipo === 'examen' || (evalEtq && ev.etiquetaId === evalEtq.id))
+      .map(ev => {
+        const h = Math.floor(ev.horaInicio)
+        const m = Math.round((ev.horaInicio - h) * 60)
+        const timeStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`
+        const fechaTarget = new Date(`${ev.fechaISO}T${timeStr}`)
+        return { id: ev.id, nombre: ev.titulo, fechaTarget }
+      })
+      .filter(ex => ex.fechaTarget.getTime() >= now.getTime() - 86400000)
+      .sort((a, b) => a.fechaTarget.getTime() - b.fechaTarget.getTime())
+      .slice(0, 5)
+  }, [eventos, etiquetas])
+  
+  // Modo Semana de Exámenes
+  const [examWeekMode, setExamWeekMode] = useState(false)
+
+  const openAIPanel = (context: string) => {
+    window.dispatchEvent(new CustomEvent("open-univia-chat", { detail: { initialContext: context } }))
+  }
+
+  const filtrosEfectivos = useMemo(() => {
+    if (!examWeekMode) return filtros
+    const res = { ...filtros }
+    const clasesEtq = etiquetas.find(e => e.nombre === "Clases Univ.")
+    const deporteEtq = etiquetas.find(e => e.nombre === "Deporte")
+    if (clasesEtq) res[clasesEtq.id] = false
+    if (deporteEtq) res[deporteEtq.id] = false
+    return res
+  }, [filtros, examWeekMode, etiquetas])
 
   // ─ Lógica de Navegación Dinámica ─
   const navegar = (dir: "prev" | "next" | "hoy") => {
@@ -892,7 +1113,33 @@ export function AgendaInteligente() {
       {isCreateModalOpen && (
         <ModalCrearEvento
           onClose={() => { setIsCreateModalOpen(false); setModalPrefill(null) }}
-          onGuardar={(ev) => setEventos(prev => [...prev, ev])}
+          onGuardar={async (ev) => {
+            // Agregar localmente inmediato para UI responsiva
+            setEventos(prev => [...prev, ev])
+            // Persistir en backend
+            try {
+              const recMap: Record<string, string> = { 'No se repite': 'none', 'Cada día': 'daily', 'Cada semana': 'weekly', 'Días laborables (lun-vie)': 'weekdays' }
+              const saved = await crearEvento({
+                titulo: ev.titulo,
+                subtitulo: ev.subtitulo,
+                tipo: ev.tipo === 'examen' ? 'examen' : 'evento',
+                etiqueta_id: ev.etiquetaId ? parseInt(ev.etiquetaId) : null,
+                fecha_iso: ev.fechaISO,
+                fecha_fin_iso: ev.fechaFinISO,
+                hora_inicio: ev.horaInicio,
+                duracion: ev.duracion,
+                todo_el_dia: ev.todoElDia || false,
+                recurrencia: recMap[ev.recurrencia || ''] || 'none',
+                ubicacion: ev.ubicacion,
+                videollamada: ev.videollamada,
+                descripcion: ev.subtitulo,
+              })
+              // Reemplazar el evento local con el del backend (tiene ID real)
+              setEventos(prev => prev.map(e => e.id === ev.id ? apiEventoToLocal(saved) : e))
+            } catch (err) {
+              console.warn("[Agenda] No se pudo guardar en backend:", err)
+            }
+          }}
           prefill={modalPrefill}
           etiquetas={etiquetas}
           onOpenCrearEtiqueta={() => setIsTagModalOpen(true)}
@@ -902,24 +1149,53 @@ export function AgendaInteligente() {
       {isTagModalOpen && (
         <ModalCrearEtiqueta
           onClose={() => setIsTagModalOpen(false)}
-          onCrear={(etq) => { setEtiquetas(p => [...p, etq]); setFiltros(p => ({ ...p, [etq.id]: true })) }}
+          onCrear={async (etq) => {
+            // Agregar localmente
+            setEtiquetas(p => [...p, etq])
+            setFiltros(p => ({ ...p, [etq.id]: true }))
+            // Persistir en backend
+            try {
+              const saved = await crearEtiquetaAPI({ nombre: etq.nombre, color: etq.color })
+              const localSaved = apiEtiquetaToLocal(saved)
+              setEtiquetas(p => p.map(e => e.id === etq.id ? localSaved : e))
+              setFiltros(p => { const n = { ...p }; delete n[etq.id]; n[localSaved.id] = true; return n })
+            } catch (err) {
+              console.warn("[Agenda] No se pudo crear etiqueta en backend:", err)
+            }
+          }}
         />
       )}
 
       {isSleepModalOpen && (
-        <ModalSleepSettings
+        <ModalAjustesGeneral
           sleepSettings={sleepSettings}
+          onSaveSleep={(s) => {
+            setSleepSettings(s)
+            guardarConfiguracion({ sleep_start: s.start, sleep_end: s.end }).catch(() => {})
+          }}
+          semesterSettings={semesterSettings}
+          onSaveSemester={(s) => {
+            setSemesterSettings(s)
+            guardarConfiguracion({ semester_start: s.start, semester_end: s.end }).catch(() => {})
+          }}
           onClose={() => setIsSleepModalOpen(false)}
-          onSave={(s) => setSleepSettings(s)}
         />
       )}
+
+
 
       {popoverEvent && (
         <EventDetailPopover
           evento={popoverEvent}
           etiqueta={etiquetas.find(e => e.id === popoverEvent.etiquetaId) || ETIQUETAS_BASE[0]}
           onClose={() => setPopoverEvent(null)}
-          onDelete={() => { setEventos(p => p.filter(ev => ev.id !== popoverEvent.id)); setPopoverEvent(null) }}
+          onOpenAI={openAIPanel}
+          onDelete={() => {
+            setEventos(p => p.filter(ev => ev.id !== popoverEvent.id))
+            setPopoverEvent(null)
+            const numId = parseInt(popoverEvent.id)
+            if (!isNaN(numId)) eliminarEvento(numId).catch(() => {})
+          }}
           onEdit={() => {
             setModalPrefill({ horaInicio: popoverEvent.horaInicio, fecha: new Date(popoverEvent.fechaISO + "T00:00:00") })
             setPopoverEvent(null)
@@ -928,10 +1204,15 @@ export function AgendaInteligente() {
           onStartFocus={() => {
             setPopoverEvent(null)
             setFocusEvent(popoverEvent)
+            setPomodoroStartTime(new Date().toISOString())
             setIsFocusModeOpen(true)
+            setIsSidebarOpen(true)
           }}
           onToggleCompleted={() => {
-            setEventos(prev => prev.map(ev => ev.id === popoverEvent.id ? { ...ev, completed: !ev.completed } : ev))
+            const newCompleted = !popoverEvent.completed
+            setEventos(prev => prev.map(ev => ev.id === popoverEvent.id ? { ...ev, completed: newCompleted } : ev))
+            const numId = parseInt(popoverEvent.id)
+            if (!isNaN(numId)) editarEvento(numId, { completed: newCompleted }).catch(() => {})
           }}
         />
       )}
@@ -950,8 +1231,37 @@ export function AgendaInteligente() {
         />
       )}
 
-      {isImportModalOpen && (
-        <ModalImportarMatricula onClose={() => setIsImportModalOpen(false)} />
+      {isCourseSectionModalOpen && (
+        <AddCourseSectionModal
+          onClose={() => setIsCourseSectionModalOpen(false)}
+          etiquetas={etiquetas}
+          semesterStart={semesterSettings.start}
+          onAddEvents={async (newEvents) => {
+            // Agregar localmente inmediato
+            setEventos(prev => [...prev, ...newEvents])
+            // Persistir cada evento en backend
+            for (const ev of newEvents) {
+              try {
+                const recMap: Record<string, string> = { 'No se repite': 'none', 'Cada día': 'daily', 'Cada semana': 'weekly', 'Días laborables (lun-vie)': 'weekdays' }
+                const saved = await crearEvento({
+                  titulo: ev.titulo,
+                  subtitulo: ev.subtitulo,
+                  tipo: 'evento',
+                  etiqueta_id: ev.etiquetaId ? parseInt(ev.etiquetaId) : null,
+                  fecha_iso: ev.fechaISO,
+                  hora_inicio: ev.horaInicio,
+                  duracion: ev.duracion,
+                  todo_el_dia: false,
+                  recurrencia: recMap[ev.recurrencia || ''] || 'weekly',
+                  ubicacion: ev.ubicacion,
+                })
+                setEventos(prev => prev.map(e => e.id === ev.id ? apiEventoToLocal(saved) : e))
+              } catch (err) {
+                console.warn('[Agenda] No se pudo guardar clase:', err)
+              }
+            }
+          }}
+        />
       )}
 
       <div className="flex flex-col gap-4" style={{ maxWidth: "1800px", margin: "0 auto", padding: "16px" }}>
@@ -1011,21 +1321,81 @@ export function AgendaInteligente() {
 
             <div className="flex items-center gap-2.5 w-full sm:w-auto">
               <BarraIA />
-              <button onClick={() => { setModalPrefill(null); setIsCreateModalOpen(true) }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.3)] transition-all shrink-0">
-                <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Crear</span>
-              </button>
+              
+              <div className="flex items-center gap-2">
+                {/* Botón de Integraciones */}
+                <div className="relative">
+                  <button onClick={() => setIsIntegrationsDropdownOpen(!isIntegrationsDropdownOpen)} className="flex items-center justify-center w-9 h-9 rounded-xl border border-white/10 bg-white/[0.02] shadow-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all" title="Integraciones y Sincronización">
+                    <Zap className="w-4 h-4" />
+                  </button>
+                  {isIntegrationsDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsIntegrationsDropdownOpen(false)} />
+                      <div className="absolute top-full right-0 mt-2 w-max min-w-[200px] bg-[#1c1d2e] border border-white/10 rounded-xl shadow-xl z-50 py-1.5 animate-in fade-in zoom-in-95 duration-150">
+                        <div className="px-4 py-2 border-b border-white/5 mb-1">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Conexiones</p>
+                        </div>
+                        <button onClick={() => { setIsIntegrationsDropdownOpen(false); setIsCourseSectionModalOpen(true) }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-slate-300 hover:bg-white/5 hover:text-white whitespace-nowrap">
+                          <div className="w-6 h-6 rounded-md bg-emerald-500/20 flex items-center justify-center shrink-0">
+                            <UploadCloud className="w-3.5 h-3.5 text-emerald-400" />
+                          </div>
+                          Importar Matrícula
+                        </button>
+                        <button onClick={() => { setIsIntegrationsDropdownOpen(false); alert("Sincronización con Google Calendar iniciada") }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-slate-300 hover:bg-white/5 hover:text-white whitespace-nowrap">
+                          <div className="w-6 h-6 rounded-md bg-blue-500/20 flex items-center justify-center shrink-0">
+                            <RefreshCw className="w-3.5 h-3.5 text-blue-400" />
+                          </div>
+                          Google Calendar
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Botón Principal: Crear */}
+                <div className="relative">
+                  <button onClick={() => setIsCreateDropdownOpen(!isCreateDropdownOpen)} className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.3)] transition-all shrink-0">
+                    <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Crear</span> <ChevronDown className="w-3 h-3 ml-1 opacity-70" />
+                  </button>
+                  {isCreateDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsCreateDropdownOpen(false)} />
+                      <div className="absolute top-full right-0 mt-2 w-48 bg-[#1c1d2e] border border-white/10 rounded-xl shadow-xl z-50 py-1.5 animate-in fade-in zoom-in-95 duration-150">
+                        <button onClick={() => { setIsCreateDropdownOpen(false); setModalPrefill(null); setIsCreateModalOpen(true) }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-slate-200 hover:bg-white/5">
+                          <div className="w-6 h-6 rounded-md bg-indigo-500/20 flex items-center justify-center shrink-0">
+                            <CalendarDays className="w-3.5 h-3.5 text-indigo-400" /> 
+                          </div>
+                          Nuevo Evento
+                        </button>
+                        <button onClick={() => { setIsCreateDropdownOpen(false); setModalPrefill(null); setIsCreateModalOpen(true) }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-slate-200 hover:bg-white/5 border-t border-white/5">
+                          <div className="w-6 h-6 rounded-md bg-rose-500/20 flex items-center justify-center shrink-0">
+                            <CheckSquare className="w-3.5 h-3.5 text-rose-400" /> 
+                          </div>
+                          Nueva Tarea
+                        </button>
+                        <button onClick={() => { setIsCreateDropdownOpen(false); setIsCourseSectionModalOpen(true) }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-slate-200 hover:bg-white/5 border-t border-white/5">
+                          <div className="w-6 h-6 rounded-md bg-cyan-500/20 flex items-center justify-center shrink-0">
+                            <GraduationCap className="w-3.5 h-3.5 text-cyan-400" /> 
+                          </div>
+                          Inscribir Cursos 2026-II
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         {/* ── ÁREA PRINCIPAL ─────────────────────────────────────────────── */}
         <div className="flex gap-4 relative">
-          <div className="flex-1 min-w-0 bg-[#090b1c] border border-slate-800/60 rounded-3xl shadow-[0_12px_40px_rgba(0,0,0,0.4)] flex flex-col overflow-hidden h-[calc(100vh-220px)]">
+          <div className={`flex-1 min-w-0 bg-[#090b1c] border rounded-3xl flex flex-col overflow-hidden h-[calc(100vh-220px)] transition-all duration-500 ${examWeekMode ? 'border-purple-500/30 shadow-[inset_0_0_20px_rgba(168,85,247,0.05),0_12px_40px_rgba(0,0,0,0.4)]' : 'border-slate-800/60 shadow-[0_12px_40px_rgba(0,0,0,0.4)]'}`}>
             <CalendarioGrid
               vista={currentView}
-              eventos={eventos}
+              eventos={eventosConRecurrencia}
               etiquetas={etiquetas}
-              filtros={filtros}
+              filtros={filtrosEfectivos}
               baseDate={baseDate}
               fechasSemana={fechasSemana}
               sleepSettings={sleepSettings}
@@ -1035,18 +1405,57 @@ export function AgendaInteligente() {
             />
           </div>
 
-          <div className="absolute top-4 z-20 transition-all duration-300" style={{ right: isSidebarOpen ? "calc(280px + 16px - 16px)" : "-16px" }}>
-            <button onClick={() => setIsSidebarOpen(p => !p)} className="w-8 h-8 rounded-full bg-[#11121d] border border-white/10 hover:border-indigo-500/40 hover:bg-indigo-500/10 flex items-center justify-center shadow-lg transition-all">
-              {isSidebarOpen ? <PanelRightClose className="w-4 h-4 text-slate-400" /> : <PanelRightOpen className="w-4 h-4 text-slate-400" />}
+          {/* Botón de Colapsar (Integrado en el layout flex para evitar superposición) */}
+          <div className="flex flex-col justify-center transition-all duration-300 z-30">
+            <button 
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+              className="w-5 h-16 flex items-center justify-center bg-[#11121d] border border-white/10 hover:bg-white/20 transition-all cursor-pointer shadow-[0_4px_20px_rgba(0,0,0,0.5)] rounded-md hover:scale-105"
+              title={isSidebarOpen ? "Ocultar panel" : "Mostrar panel"}
+            >
+              {isSidebarOpen ? <ChevronRight className="w-3.5 h-3.5 text-slate-400" /> : <ChevronLeft className="w-3.5 h-3.5 text-slate-400" />}
             </button>
           </div>
 
-          <div className={`flex flex-col gap-4 overflow-hidden transition-all duration-300 shrink-0`} style={{ width: isSidebarOpen ? "280px" : "0px", opacity: isSidebarOpen ? 1 : 0 }}>
-            <div className="flex flex-col gap-4 overflow-y-auto custom-scrollbar h-full" style={{ width: "280px" }}>
+          <div className={`flex flex-col gap-4 overflow-hidden transition-all duration-300 shrink-0 relative`} style={{ width: isSidebarOpen ? "280px" : "0px", opacity: isSidebarOpen ? 1 : 0 }}>
+            <div className="flex flex-col gap-4 overflow-y-auto custom-scrollbar h-full relative" style={{ width: "280px" }}>
               
-              <button onClick={() => setIsImportModalOpen(true)} className="w-full py-2.5 rounded-xl text-xs font-semibold text-slate-300 bg-transparent border border-dashed border-white/20 hover:border-indigo-400 hover:text-white hover:bg-white/5 transition-all flex items-center justify-center gap-2 group shrink-0">
-                <UploadCloud className="w-4 h-4 group-hover:text-indigo-400 transition-colors" /> Importar Matrícula (PDF)
-              </button>
+              {/* Modo Semana de Exámenes (Toggle reubicado) */}
+              <div className={`p-4 rounded-2xl border transition-all duration-300 shadow-lg ${examWeekMode ? 'bg-purple-900/20 border-purple-500/30' : 'bg-[#11121d] border-white/10'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[11px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-300">
+                    <AlertTriangle className={`w-3.5 h-3.5 ${examWeekMode ? 'text-purple-400' : 'text-slate-500'}`} /> Modo Exámenes
+                  </p>
+                  <button 
+                    onClick={() => setExamWeekMode(!examWeekMode)}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${examWeekMode ? 'bg-purple-600' : 'bg-slate-700'}`}
+                  >
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${examWeekMode ? 'translate-x-5' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-400 leading-tight">
+                  Oculta las clases y muestra solo Evaluaciones para máxima concentración.
+                </p>
+              </div>
+
+              {/* Radar Próximo */}
+              <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><AlertTriangle className="w-3.5 h-3.5 text-rose-500" /> Radar Próximo</p>
+                <div className="space-y-2.5">
+                  {examenesProximos.length > 0 ? (
+                    examenesProximos.map(ex => {
+                      const { txt, urgente } = countdown(ex.fechaTarget.getTime() - new Date().getTime())
+                      return (
+                        <div key={ex.id} onClick={() => openAIPanel(ex.nombre)} className={`cursor-pointer rounded-xl p-3 transition-all hover:scale-[1.02] ${urgente ? "bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20" : "bg-white/5 border border-white/5 hover:bg-white/10"}`}>
+                          <p className="text-xs font-semibold text-slate-200 truncate">{ex.nombre}</p>
+                          <p className={`text-[10px] font-mono font-bold mt-1 ${urgente ? "text-rose-400" : "text-indigo-400"}`}>En {txt}</p>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <p className="text-xs text-slate-500 italic py-1 text-center">Sin exámenes próximos</p>
+                  )}
+                </div>
+              </div>
 
               {/* Etiquetas Sidebar */}
               <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg">
@@ -1057,36 +1466,59 @@ export function AgendaInteligente() {
                   </button>
                 </div>
                 <div className="space-y-1">
-                  {etiquetas.map(etq => <Toggle key={etq.id} checked={filtros[etq.id] || false} onChange={() => toggleFiltro(etq.id)} label={etq.nombre} dot={getEstiloColor(etq.color).dot} />)}
+                  {(isTagsExpanded ? etiquetas : etiquetas.slice(0, 4)).map(etq => (
+                    <Toggle key={etq.id} checked={filtrosEfectivos[etq.id] || false} onChange={() => toggleFiltro(etq.id)} label={etq.nombre} dot={getEstiloColor(etq.color).dot} />
+                  ))}
+                  {etiquetas.length > 4 && (
+                    <button 
+                      onClick={() => setIsTagsExpanded(!isTagsExpanded)}
+                      className="w-full text-[10px] text-slate-500 hover:text-slate-300 font-semibold uppercase tracking-wider py-2 mt-1 transition-colors text-center"
+                    >
+                      {isTagsExpanded ? 'Ocultar' : `Ver todas (${etiquetas.length})`}
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* Reloj del Día */}
-              <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg relative">
-                <div className="flex justify-between items-center mb-4">
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-indigo-400" /> Productividad Hoy</p>
-                  <button onClick={() => setIsSleepModalOpen(true)} className="p-1 hover:bg-white/10 rounded-full transition-colors">
-                    <Settings className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" />
-                  </button>
+              {/* Pomodoro o Widget Productividad */}
+              {isFocusModeOpen && focusEvent ? (
+                <SidebarPomodoro 
+                  evento={focusEvent} 
+                  onClose={() => { setIsFocusModeOpen(false); setFocusEvent(null); setPomodoroStartTime(null) }} 
+                  onComplete={async (minutosEstudiados, isFinishedEarly) => {
+                    if (!isFinishedEarly) {
+                      setEventos(prev => prev.map(ev => ev.id === focusEvent.id ? { ...ev, completed: true } : ev))
+                    }
+                    // Registrar sesión en backend
+                    try {
+                      const numId = parseInt(focusEvent.id)
+                      await registrarSesion({
+                        evento_id: !isNaN(numId) ? numId : undefined,
+                        minutos_configurados: minutosEstudiados,
+                        minutos_reales: minutosEstudiados,
+                        finalizado_temprano: isFinishedEarly,
+                        started_at: pomodoroStartTime || new Date().toISOString(),
+                        ended_at: new Date().toISOString(),
+                      })
+                    } catch (err) {
+                      console.warn("[Agenda] No se pudo registrar sesión:", err)
+                    }
+                    setIsFocusModeOpen(false)
+                    setFocusEvent(null)
+                    setPomodoroStartTime(null)
+                  }}
+                />
+              ) : (
+                <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg relative">
+                  <div className="flex justify-between items-center mb-4">
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-emerald-400" /> Productividad</p>
+                    <button onClick={() => setIsSleepModalOpen(true)} className="p-1 hover:bg-white/10 rounded-full transition-colors">
+                      <Settings className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" />
+                    </button>
+                  </div>
+                  <WidgetProductividadSemanal eventos={eventos} etiquetas={etiquetas} />
                 </div>
-                <RelojDelDia sleepSettings={sleepSettings} eventos={eventos} etiquetas={etiquetas} filtros={filtros} />
-              </div>
-
-              {/* Radar Próximo */}
-              <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg">
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><AlertTriangle className="w-3.5 h-3.5 text-rose-500" /> Radar Próximo</p>
-                <div className="space-y-2.5">
-                  {EXAMENES_MOCK.map(ex => {
-                    const { txt, urgente } = countdown(ex.fechaTarget.getTime() - new Date().getTime())
-                    return (
-                      <div key={ex.id} className={`rounded-xl p-3 transition-all ${urgente ? "bg-rose-500/10 border border-rose-500/20" : "bg-white/5 border border-white/5"}`}>
-                        <p className="text-xs font-semibold text-slate-200 truncate">{ex.nombre}</p>
-                        <p className={`text-[10px] font-mono font-bold mt-1 ${urgente ? "text-rose-400" : "text-indigo-400"}`}>En {txt}</p>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

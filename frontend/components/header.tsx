@@ -9,6 +9,7 @@ import { HeaderSearch } from "./header-search"
 import { ExplorarMenu } from "./explorar-menu"
 import { Logo } from "./logo"
 import { cn } from "@/lib/utils"
+import { prefetchRuta } from "@/lib/prefetch"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -20,6 +21,7 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 
 import { useAuth } from "@/components/providers/auth-context"
+import { GamificationWidget } from "@/components/gamificacion/gamification-widget"
 
 interface HeaderProps {
   onMenuClick: () => void
@@ -38,6 +40,10 @@ const ACCESOS = [
   { label: "Mi aprendizaje", href: "/dashboard" },
   { label: "Mi malla", href: "/malla" },
   { label: "Recursos", href: "/recursos" },
+  { label: "Agenda", href: "/agenda" },
+  { label: "Foro", href: "/foro" },
+  { label: "Mensajes", href: "/mensajes" },
+  { label: "Sugerencias", href: "/dashboard/feedback" },
 ]
 
 export function Header({ onMenuClick }: HeaderProps) {
@@ -46,26 +52,41 @@ export function Header({ onMenuClick }: HeaderProps) {
   const [isAtTop, setIsAtTop] = useState(true)
   const [isHidden, setIsHidden] = useState(false)
   const ultimoScroll = useRef(0)
+  const ultimoAplicado = useRef(0)
+  const rafId = useRef<number | null>(null)
 
   const nombre = user?.nombre_completo || "Estudiante"
 
   useEffect(() => {
     const main = document.querySelector("main")
 
-    const manejarScroll = (event: Event) => {
-      const posicion =
-        event.currentTarget === main
-          ? main.scrollTop
-          : window.scrollY
-
+    // El estado se actualiza una vez por fotograma (rAF throttle) en vez de en
+    // cada evento de scroll, para no re-renderizar el header en cada pixel.
+    const aplicar = () => {
+      rafId.current = null
+      const posicion = ultimoScroll.current
       setIsAtTop(posicion === 0)
-      setIsHidden(posicion > ultimoScroll.current && posicion > 0)
-      ultimoScroll.current = posicion
+      
+      if (pathname.startsWith("/agenda")) {
+        setIsHidden(false)
+      } else {
+        setIsHidden(posicion > ultimoAplicado.current && posicion > 0)
+      }
+      
+      ultimoAplicado.current = posicion
+    }
+
+    const manejarScroll = (event: Event) => {
+      const esMain = !!main && event.currentTarget === main
+      ultimoScroll.current = esMain && main ? main.scrollTop : window.scrollY
+      if (rafId.current != null) return
+      rafId.current = requestAnimationFrame(aplicar)
     }
 
     const posicionInicial = main?.scrollTop ?? window.scrollY
     setIsAtTop(posicionInicial === 0)
     ultimoScroll.current = posicionInicial
+    ultimoAplicado.current = posicionInicial
 
     window.addEventListener("scroll", manejarScroll, { passive: true })
     main?.addEventListener("scroll", manejarScroll, { passive: true })
@@ -73,13 +94,14 @@ export function Header({ onMenuClick }: HeaderProps) {
     return () => {
       window.removeEventListener("scroll", manejarScroll)
       main?.removeEventListener("scroll", manejarScroll)
+      if (rafId.current != null) cancelAnimationFrame(rafId.current)
     }
-  }, [])
+  }, [pathname])
 
   return (
     <header
       className={cn(
-        "absolute top-3 left-0 right-0 z-50 w-[calc(100%-2rem)] mx-auto transition-all duration-300 ease-out",
+        "absolute safe-top-3 left-0 right-0 z-50 w-[calc(100%-2rem)] mx-auto transition-all duration-300 ease-out",
         isHidden
           ? "-translate-y-28 opacity-0 pointer-events-none"
           : "translate-y-0 opacity-100",
@@ -88,7 +110,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           : "rounded-2xl backdrop-blur-xl bg-[rgba(11,12,22,0.75)] border border-white/[0.08] shadow-[0_4px_20px_rgba(0,0,0,0.4)]",
       )}
     >
-      <div className="flex items-center justify-between px-6 py-4 gap-4">
+      <div className="flex items-center justify-between gap-3 px-3 py-3 sm:px-6 sm:py-4 sm:gap-4">
         <div className="flex items-center gap-4 flex-1">
           <Button
             variant="ghost"
@@ -124,6 +146,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                   key={acceso.href}
                   href={acceso.href}
                   aria-current={activo ? "page" : undefined}
+                  onMouseEnter={() => prefetchRuta(acceso.href)}
                   className={cn(
                     "px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap",
                     activo
@@ -137,6 +160,9 @@ export function Header({ onMenuClick }: HeaderProps) {
             })}
             <ExplorarMenu />
           </nav>
+
+          {/* Racha y XP del estudiante, con acceso directo al ranking. */}
+          <GamificationWidget />
 
           {/* Sin punto de "no leídas": no hay fuente de notificaciones todavía
               y un indicador siempre encendido deja de significar algo. */}

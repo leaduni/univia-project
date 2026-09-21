@@ -2,9 +2,7 @@
 
 import { supabase } from './supabase';
 import { leerOCache, invalidarClave, invalidarPrefijo, limpiarCache, TTL } from './api-cache';
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const API_URL = BASE_URL.endsWith('/api') ? BASE_URL : `${BASE_URL}/api`;
+import { API_URL } from './env';
 
 // Toda petición se corta a los 15s. Sin esto, una red que no responde deja al
 // usuario en un spinner indefinido: fetch no tiene timeout propio.
@@ -130,19 +128,25 @@ function manejarNoAutorizado() {
     window.location.assign('/auth/login');
 }
 
-async function fetchWithAuth(url: string, options: RequestInit = {}, customToken?: string) {
+async function fetchWithAuth(url: string, options: RequestInit = {}, customToken?: string, timeoutMs?: number) {
     const token = customToken || await getAuthToken();
     const headers = {
         ...options.headers,
         'Authorization': token ? `Bearer ${token}` : '',
     };
 
-    const response = await fetchConReintentos(url, { ...options, headers });
+    const response = await fetchConReintentos(url, { ...options, headers }, timeoutMs);
     if (response.status === 401) {
         manejarNoAutorizado();
     }
     return response;
 }
+
+/**
+ * `fetchWithAuth` se reutiliza en otros services (p. ej. foro-service.ts) que
+ * necesitan el mismo manejo de token, timeout y reintentos de GET.
+ */
+export { fetchWithAuth };
 
 /**
  * Mensaje legible del cuerpo de un error del backend.
@@ -157,6 +161,23 @@ function extraerMensajeError(body: any): string | null {
     return typeof mensaje === 'string'
         ? mensaje.replace(/^Value error,\s*/i, '')
         : mensaje;
+}
+
+/**
+ * Convierte un error (ApiError, Error o desconocido) en un mensaje legible
+ * para el estudiante. Se usa en pantallas que muestran el fallo directamente.
+ */
+export function mensajeAmigableError(err: unknown): string {
+    if (!err) return "Ocurrió un error inesperado.";
+    const msg = (err as { message?: unknown })?.message;
+    if (typeof msg === "string" && msg.trim()) {
+        const limpio = msg.replace(/^Error:\s*/i, "").replace(/^Value error,\s*/i, "");
+        if (/Failed to fetch|fetch failed|NetworkError/i.test(limpio)) {
+            return "No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.";
+        }
+        return limpio;
+    }
+    return "Ocurrió un error inesperado.";
 }
 
 /**
@@ -175,6 +196,14 @@ export interface ApiError extends Error {
     requiereOnboarding?: boolean;
     /** HTTP 401: la sesión expiró o dejó de ser válida. */
     sesionInvalida?: boolean;
+}
+
+/** Entrada de una unidad creada a mano por el alumno (fase 11). */
+export interface UnidadUsuarioEntrada {
+    titulo: string;
+    descripcion?: string;
+    duracion?: string;
+    topics: string[];
 }
 
 /** Filtros aceptados por GET /recursos. Espejo de `recursos.py`. */
@@ -574,6 +603,102 @@ export const apiService = {
         }
     },
 
+    // --- Fase 11: Ruta de aprendizaje vacía (sílabos, unidades propias, IA) ---
+
+    /**
+     * Sube el sílabo del curso (PDF/imagen) al endpoint multipart del backend.
+     *
+     * Se usa XMLHttpRequest y no fetchWithAuth a propósito: solo XHR expone
+     * `upload.onprogress`, necesario para la barra de progreso real del modal.
+     * El token se obtiene igual que fetchWithAuth (getAuthToken).
+     */
+    async subirSilabo(
+        courseId: string | number,
+        archivo: File,
+        onProgreso?: (porcentaje: number) => void,
+    ) {
+        const MAX_BYTES = 10 * 1024 * 1024;
+        const MIMES_ADMITIDOS = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+        if (!MIMES_ADMITIDOS.includes(archivo.type)) {
+            throw new Error("Tipo de archivo no admitido. Usa PDF o imágenes (PNG, JPG, WEBP).");
+        }
+        if (archivo.size > MAX_BYTES) {
+            throw new Error("El archivo supera los 10 MB.");
+        }
+
+        const token = await getAuthToken();
+        const resultado = await new Promise<any>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', `${API_URL}/cursos/${courseId}/silabo-upload`);
+            if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.upload.onprogress = (evento) => {
+                if (evento.lengthComputable && onProgreso) {
+                    onProgreso(Math.round((evento.loaded / evento.total) * 100));
+                }
+            };
+            xhr.onload = () => {
+                let cuerpo: any = null;
+                try { cuerpo = JSON.parse(xhr.responseText || "null"); } catch { /* sin cuerpo */ }
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(cuerpo);
+                } else {
+                    const error: any = new Error(
+                        extraerMensajeError(cuerpo) || `Error ${xhr.status} al subir el sílabo.`
+                    );
+                    error.status = xhr.status;
+                    reject(error);
+                }
+            };
+            xhr.onerror = () => {
+                const error: any = new Error("No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.");
+                error.esFalloDeRed = true;
+                reject(error);
+            };
+            const formData = new FormData();
+            formData.append('archivo', archivo);
+            xhr.send(formData);
+        });
+        // La solicitud aparece en get_learning_path_datos (solicitud_silabo).
+        invalidarPrefijo(`learning-path:${courseId}`);
+        return resultado;
+    },
+
+    /** Crea unidades/temas propios del alumno (origen='usuario'). */
+    async crearUnidadesUsuario(courseId: string | number, unidades: UnidadUsuarioEntrada[]) {
+        const response = await fetchWithAuth(`${API_URL}/cursos/${courseId}/unidades-usuario`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ unidades }),
+        });
+        if (!response.ok) {
+            const cuerpo = await response.json().catch(() => null);
+            const error: any = new Error(extraerMensajeError(cuerpo) || `Error ${response.status} al crear las unidades.`);
+            error.status = response.status;
+            throw error;
+        }
+        invalidarPrefijo(`learning-path:${courseId}`);
+        return await response.json();
+    },
+
+    /** Genera y persiste una ruta provisional con IA (origen='ia_provisional'). */
+    async generarRutaProvisional(courseId: string | number) {
+        // La cascada LLM puede tardar: timeout elevado solo para esta llamada
+        // (60s); el global del resto de la app se mantiene en 15s.
+        const response = await fetchWithAuth(`${API_URL}/cursos/${courseId}/generar-ruta-provisional`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+        }, undefined, 60_000);
+        if (!response.ok) {
+            const cuerpo = await response.json().catch(() => null);
+            const error: any = new Error(extraerMensajeError(cuerpo) || `Error ${response.status} al generar la ruta provisional.`);
+            error.status = response.status;
+            throw error;
+        }
+        invalidarPrefijo(`learning-path:${courseId}`);
+        return await response.json();
+    },
+
     async downloadPlancha(courseId: string | number, filename: string) {
         try {
             const url = `${API_URL}/curso/${courseId}/plancha/${encodeURIComponent(filename)}`;
@@ -952,4 +1077,25 @@ export const apiService = {
             throw error;
         }
     },
+
+    /**
+     * Ejecuta código fuente en el motor Judge0 (vía endpoint backend autenticado).
+     * Evita llamadas directas a localhost:2358 que fallan en producción.
+     * @param sourceCode - Código fuente a ejecutar.
+     * @param languageId - ID de lenguaje de Judge0 (ej. 71 = Python 3).
+     * @param stdin - Entrada estándar (opcional).
+     */
+    async executeCode(sourceCode: string, languageId: number, stdin: string = '') {
+        const response = await fetchWithAuth(`${API_URL}/services/execute_code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source_code: sourceCode, language_id: languageId, stdin }),
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+            throw new Error(errorData.detail || `Error del motor de ejecución: ${response.status}`);
+        }
+        return response.json();
+    },
 };
+

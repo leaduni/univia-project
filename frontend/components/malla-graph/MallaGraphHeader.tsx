@@ -55,21 +55,27 @@ export function MallaGraphHeader({ stats, avance, filter, onFilterChange }: Mall
         {FILTER_ORDER.map((estado) => {
           const Icon = FILTER_ICONS[estado]
           const activo = filter === estado
+          const bgActive: Record<StatusCurso, string> = {
+            completed: "bg-emerald-500/20 border-emerald-500/50 text-emerald-400",
+            in_progress: "bg-indigo-500/20 border-indigo-500/50 text-indigo-400",
+            available: "bg-blue-500/20 border-blue-500/50 text-blue-400",
+            locked: "bg-slate-500/20 border-slate-500/50 text-slate-300"
+          }
           return (
             <button
               key={estado}
               type="button"
               onClick={() => onFilterChange(activo ? null : estado)}
               aria-pressed={activo}
-              className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] transition-colors ${
+              className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-all ${
                 activo
-                  ? "border-foreground/40 bg-muted text-foreground"
-                  : "border-border text-muted-foreground hover:bg-muted/50"
+                  ? bgActive[estado]
+                  : "border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10 hover:border-white/20"
               }`}
             >
-              <Icon className="h-2.5 w-2.5" aria-hidden />
+              <Icon className="h-3 w-3" aria-hidden />
               {STATUS_LABEL[estado]}
-              <span className="text-muted-foreground tabular-nums">{stats.conteoPorEstado[estado]}</span>
+              <span className={`tabular-nums opacity-80 ${activo ? 'text-inherit' : 'text-muted-foreground'}`}>{stats.conteoPorEstado[estado]}</span>
             </button>
           )
         })}
@@ -77,9 +83,13 @@ export function MallaGraphHeader({ stats, avance, filter, onFilterChange }: Mall
           type="button"
           onClick={() => onFilterChange(null)}
           aria-pressed={filter === null}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-muted/50"
+          className={`ml-auto inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-all ${
+            filter === null
+              ? "border-white/30 bg-white/10 text-foreground"
+              : "border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10 hover:border-white/20"
+          }`}
         >
-          <span className="h-2 w-2 rounded-full bg-muted-foreground/70" aria-hidden />
+          <span className="h-2 w-2 rounded-full bg-current opacity-70" aria-hidden />
           Todos
         </button>
       </div>

@@ -12,6 +12,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
+from app.core.database import ejecutar_con_reintento
+
 logger = logging.getLogger(__name__)
 
 TABLA = "eventos_actividad"
@@ -44,8 +46,12 @@ def registrar_evento(
     tipo: str,
     curso_id: Optional[int] = None,
     metadata: Optional[dict] = None,
+    token: Optional[str] = None,
 ) -> bool:
     """Deja constancia de una actividad. Nunca propaga errores.
+
+    Si se aporta `token`, la inserción se reintenta una vez ante un cierre de
+    conexión de Supabase (socket idle cerrado), pidiendo un cliente fresco.
 
     Returns:
         True si se registró; False si no se pudo (y quedó en el log).
@@ -58,8 +64,14 @@ def registrar_evento(
     if curso_id is not None:
         fila["curso_id"] = curso_id
 
+    def _insertar(sb) -> object:
+        return sb.table(TABLA).insert(fila).execute()
+
     try:
-        supabase.table(TABLA).insert(fila).execute()
+        if token:
+            ejecutar_con_reintento(token, _insertar)
+        else:
+            supabase.table(TABLA).insert(fila).execute()
         return True
     except Exception as e:
         if _tabla_ausente(e):
@@ -85,26 +97,33 @@ def consultar_eventos(
     perfil_id,
     periodo: str = PERIODO_POR_DEFECTO,
     curso_id: Optional[int] = None,
+    token: Optional[str] = None,
 ) -> List[dict]:
     """Eventos del estudiante, filtrados por periodo y curso (RF-22).
 
-    Devuelve lista vacía si la tabla todavía no existe, para que el dashboard
-    siga respondiendo en un entorno sin la migración aplicada.
+    Si se aporta `token`, la consulta se reintenta una vez ante un cierre de
+    conexión de Supabase. Devuelve lista vacía si la tabla todavía no existe,
+    para que el dashboard siga respondiendo en un entorno sin la migración.
     """
-    try:
+    corte = fecha_desde(periodo)
+
+    def _consultar(sb) -> object:
         consulta = (
-            supabase.table(TABLA)
+            sb.table(TABLA)
             .select("tipo, curso_id, metadata, created_at")
             .eq("perfil_id", str(perfil_id))
         )
-
-        corte = fecha_desde(periodo)
         if corte:
             consulta = consulta.gte("created_at", corte)
         if curso_id is not None:
             consulta = consulta.eq("curso_id", curso_id)
+        return consulta.order("created_at", desc=True).execute()
 
-        resp = consulta.order("created_at", desc=True).execute()
+    try:
+        if token:
+            resp = ejecutar_con_reintento(token, _consultar)
+        else:
+            resp = _consultar(supabase)
         return getattr(resp, "data", None) or []
     except Exception as e:
         if _tabla_ausente(e):

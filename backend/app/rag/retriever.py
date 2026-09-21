@@ -1,26 +1,19 @@
-import os
 import logging
-from dotenv import load_dotenv
-from supabase import Client, create_client
+from supabase import Client
 
-from app.rag.embedder import SyllabusEmbedder
-
-load_dotenv()
+from app.core.database import get_supabase
+from app.rag import health as rag_health
+from app.rag.embedder import EmbeddingQuotaExhausted, SyllabusEmbedder
 
 logger = logging.getLogger(__name__)
 
 class SyllabusRetriever:
     def __init__(self, model_name=None, expected_dimensions=1536, token=None):
-        supabase_url = os.getenv("SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_ANON_KEY")
-        if not supabase_url or not supabase_key:
-            logger.error("No se encontraron las credenciales de usuario para supabase.")
-
-        self.supabase: Client = create_client(supabase_url, supabase_key)
-        if token:
-            # Consulta la base de datos con la sesión del usuario autenticado
-            # (se respetan las políticas RLS) en vez de la clave anónima.
-            self.supabase.postgrest.auth(token)
+        # Reutiliza el cliente del pool LRU en vez de abrir una nueva conexión
+        # TCP/TLS por instancia. get_supabase(token) devuelve el cliente
+        # autenticado del caché si ya existe para ese token; el cliente base
+        # compartido si no hay token. Cero handshakes extra por request.
+        self.supabase: Client = get_supabase(token)
         self.expected_dimensions = expected_dimensions
 
         # La pregunta se vectoriza con el MISMO embedder que ingiere el corpus.
@@ -32,12 +25,25 @@ class SyllabusRetriever:
         )
         self.model_name = self.embedder.model_name
 
-    def vectorizar_pregunta(self, pregunta: str) -> list:
+    def vectorizar_pregunta(self, pregunta: str, estricto: bool = False) -> list:
         logger.debug("Vectorizando el query ...")
-        return self.embedder.vectorizar_consulta(pregunta)
+        vector = self.embedder.vectorizar_consulta(pregunta, estricto=estricto)
+        if not vector:
+            # Vector vacío sin excepción: proveedor devolvió respuesta vacía.
+            logger.error(
+                "RAG SIN VECTOR DE CONSULTA: el proveedor de embeddings no "
+                "devolvió un vector (¿saldo agotado?). "
+                "Último fallo registrado: %s",
+                rag_health.ultimo_fallo("embeddings_query"),
+            )
+            if estricto:
+                raise EmbeddingQuotaExhausted(
+                    "El proveedor de embeddings no vectorizó la consulta."
+                )
+        return vector
 
-    def buscar_contexto(self, pregunta: str, limit: int = 5, umbral_similitud: float = 0.5, curso_id: int = None) -> list:
-        pregunta_vectorizada = self.vectorizar_pregunta(pregunta)
+    def buscar_contexto(self, pregunta: str, limit: int = 5, umbral_similitud: float = 0.5, curso_id: int = None, estricto: bool = False) -> list:
+        pregunta_vectorizada = self.vectorizar_pregunta(pregunta, estricto=estricto)
 
         if not pregunta_vectorizada:
             return []
@@ -67,8 +73,8 @@ class SyllabusRetriever:
             logger.error(f"Error en la base de datos al buscar contexto: {e}")
             return []
 
-    def buscar_contexto_por_nombre(self, pregunta: str, curso_nombre: str = None, limit: int = 5, umbral_similitud: float = 0.5, profesor_id: int = None) -> list:
-        pregunta_vectorizada = self.vectorizar_pregunta(pregunta)
+    def buscar_contexto_por_nombre(self, pregunta: str, curso_nombre: str = None, limit: int = 5, umbral_similitud: float = 0.5, profesor_id: int = None, estricto: bool = False) -> list:
+        pregunta_vectorizada = self.vectorizar_pregunta(pregunta, estricto=estricto)
 
         if not pregunta_vectorizada:
             return []

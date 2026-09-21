@@ -7,6 +7,25 @@ from supabase import Client, create_client
 load_dotenv()
 logger = logging.getLogger(__name__)
 
+
+def _validar_embeddings(chunks: list, expected_dims: int | None = None) -> None:
+    """Guarda defensiva: rechaza chunks sin embedding válido.
+
+    Con expected_dims=None (default) solo exige un embedding no vacío, para no
+    romper tests/llamadores históricos. El pipeline unificado pasa
+    expected_dims=1536 (columna vector(1536) de resource_chunks).
+    """
+    for i, chunk in enumerate(chunks):
+        embedding = chunk.get("embedding")
+        if not isinstance(embedding, (list, tuple)) or not embedding:
+            raise ValueError(f"Chunk {i} no tiene embedding válido.")
+        if expected_dims is not None and len(embedding) != expected_dims:
+            raise ValueError(
+                f"Chunk {i} con embedding de {len(embedding)} dimensiones; "
+                f"se esperaban {expected_dims}."
+            )
+
+
 class SyllabusIngestor:
     def __init__(self, client: Client | None = None):
         if client is not None:
@@ -29,6 +48,7 @@ class SyllabusIngestor:
         curso_id: int,
         drive_modified_time: str | None = None,
         batch_size: int = 100,
+        expected_dims: int | None = None,
     ) -> int:
         """Reemplaza los chunks del recurso en lotes ligeros para evitar el error
         PGRST002/503 por payloads JSON gigantes (~40 MB en una sola RPC).
@@ -39,6 +59,8 @@ class SyllabusIngestor:
         """
         if not chunks:
             raise ValueError("No se encontraron chunks para reemplazar.")
+
+        _validar_embeddings(chunks, expected_dims)
 
         total_insertados = 0
 
@@ -106,10 +128,13 @@ class SyllabusIngestor:
         table_name: str = "resource_chunks",
         batch_size: int = 50,
         drive_modified_time: str | None = None,
+        expected_dims: int | None = None,
     ) -> bool:
         if not chunks:
             logger.warning("No se encontraron chunks para hacer la ingesta.")
             return False
+
+        _validar_embeddings(chunks, expected_dims)
 
         total_chunks = len(chunks)
         logger.info(f"[Supabase] Iniciando ingesta de {total_chunks} fragmentos en {table_name}...")

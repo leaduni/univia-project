@@ -21,7 +21,8 @@ interface ConstellationNode {
   color: Rgb
 }
 
-// Códigos reales de la malla (frontend/lib/mockData.ts): cada nodo es un curso.
+// Códigos de ejemplo para la animación decorativa de la landing; NO se leen
+// de la base de datos (los datos de cursos viven en Supabase vía la API).
 const COURSE_CODES = [
   "CS101",
   "MAT101",

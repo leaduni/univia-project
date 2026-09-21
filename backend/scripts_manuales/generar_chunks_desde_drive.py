@@ -2,37 +2,29 @@
 Conecta los recursos ya ingeridos desde Drive (tabla `recursos`) con el RAG
 del generador de evaluaciones (tabla `resource_chunks`).
 
-A diferencia de app/rag/cargar_compendio.py (que crea una fila nueva en
-`recursos` por cada PDF procesado), este script REUTILIZA los `recurso_id`
-que ya existen: descarga el PDF real desde Drive, lo transcribe con
-SyllabusExtractor, lo trocea y embebe, e inserta los fragmentos apuntando al
-recurso existente.
-
-Alcance de esta corrida: solo tipo Examen/Practica con curso_id resuelto
-(son los que el prompt de evaluaciones usa como "ejercicios reales de
-referencia"; Libro/Compendio/Apunte/Silabo quedan para una fase posterior).
+WRAPPER DELGADO (Fase 1): toda la orquestación por documento vive en
+`app/rag/pipeline.py` (IngestionPipeline). Este script conserva intactos:
+  - los flags CLI históricos (--limit, --max-concurrency, --rpm, --resume,
+    --force, --dry-run, --course_id, --connect-timeout, --read-timeout,
+    --vision-cost-per-call),
+  - la selección/deduplicación de candidatos y la regla "necesita_procesamiento",
+  - el freno tras MAX_FALLOS_SEGUIDOS y el resumen final de costos.
 
 Deduplicación: cuando el mismo archivo de Drive generó varias filas de
 `recursos` (un curso con el mismo código en varias carreras), se procesa una
 sola vez (la de menor curso_id) — search_resource_chunks_by_nombre empareja
-por NOMBRE de curso, no por curso_id, así que un solo recurso embebido ya
-sirve para todas las variantes de carrera que comparten nombre
-(ver base_de_datos/rag/rag_search_by_nombre.sql).
+por NOMBRE de curso, no por curso_id (ver base_de_datos/rag/rag_search_by_nombre.sql).
 
-Reanudable: antes de procesar, se salta cualquier recurso que ya tenga filas
-en resource_chunks. Si la cuota diaria de Gemini se agota, el script deja de
-avanzar (la extracción empieza a devolver texto vacío) y se detiene solo tras
-unos pocos fallos seguidos — se puede volver a correr al día siguiente sin
-flags manuales.
+Reanudable: checkpoints por página en disco + rag_status en `recursos`. Si la
+cuota diaria de Gemini se agota, el script se detiene tras unos pocos fallos
+seguidos y se puede volver a correr al día siguiente sin flags manuales.
 """
 import argparse
 import asyncio
 import logging
 import os
 import re
-import shutil
 import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -45,39 +37,20 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 from app.core.database import get_admin_client
 from app.rag.extractor import SyllabusExtractor
-from app.rag.extraction_checkpoint import ExtractionCheckpoint
-from app.rag.chunker import SyllabusChunker
-from app.rag.embedder import SyllabusEmbedder
 from app.rag.cost_tracker import cost_tracker
-from app.rag.drive_downloader import (
-    NetworkDownloadError,
-    RecursoInaccesible,
-    download_drive_file,
+from app.rag.pipeline import (
+    ESTADO_COMPLETE,
+    ESTADO_NETWORK_ERROR,
+    ESTADO_RECLAMADO_POR_OTRO,
+    ESTADO_SKIPPED_PERMISSIONS,
+    ConfigIngesta,
+    FuenteDocumento,
+    IngestionPipeline,
 )
-from app.rag.ingest import SyllabusIngestor
 
 TIPOS_OBJETIVO = ["Silabo", "Libro", "Teoria", "Apunte", "Compendio", "Examen", "Practica", "examen", "practica"]
 TIPOS_NATIVOS = {"Silabo", "Libro", "Teoria", "Apunte", "Compendio"}
 MAX_FALLOS_SEGUIDOS = 3  # señal heurística de cuota diaria agotada
-DOWNLOAD_DIR = Path(tempfile.gettempdir()) / "univia_rag_drive"
-
-
-def descargar_pdf(
-    drive_file_id: str,
-    connect_timeout: int = 15,
-    read_timeout: int = 180,
-    max_retries: int = 3,
-) -> str:
-    """Descarga el PDF a un archivo temporal y devuelve su ruta."""
-    DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    tmp_path = DOWNLOAD_DIR / f"{drive_file_id}.pdf"
-    logging.info("Descargando Drive file_id=%s con gdown.", drive_file_id)
-    pdf_path = download_drive_file(drive_file_id, tmp_path, max_retries=max_retries)
-    if not pdf_path:
-        raise RecursoInaccesible(
-            f"No se pudo descargar la ruta para drive_file_id={drive_file_id}"
-        )
-    return pdf_path
 
 
 def parse_course_ids(value: str) -> list[int]:
@@ -180,44 +153,6 @@ def necesita_procesamiento(sb, recurso: dict, force: bool = False) -> bool:
     return not ya_procesado(sb, recurso["id"])
 
 
-def actualizar_estado(sb, recurso_id: int, estado: str, max_intentos: int = 3) -> None:
-    """Actualiza el rag_status del recurso con reintentos frente a microcortes
-    de red o fallos de conexión SSL con Supabase."""
-    for intento in range(1, max_intentos + 1):
-        try:
-            sb.table("recursos").update({"rag_status": estado}).eq("id", recurso_id).execute()
-            return
-        except Exception as e:
-            logging.error(
-                f"Error actualizando estado del recurso {recurso_id} a '{estado}' "
-                f"(intento {intento}/{max_intentos}): {e}."
-            )
-            if intento < max_intentos:
-                time.sleep(2)
-
-
-def reclamar_recurso(sb, recurso_id: int, force: bool = False) -> bool:
-    """Reclama atómicamente una fila antes de iniciar su procesamiento."""
-    query = sb.table("recursos").update({"rag_status": "processing"}).eq(
-        "id", recurso_id
-    )
-    if not force:
-        query = query.in_("rag_status", ["pending", "failed", "skipped_permissions"])
-    resp = query.execute()
-    return bool(resp.data)
-
-
-def preparar_checkpoints(pdf_path: str, modified_time: str | None, resume: bool) -> None:
-    checkpoint_dir = Path(pdf_path).parent / f"{Path(pdf_path).stem}_checkpoints"
-    marker = checkpoint_dir / ".drive_modified_time"
-    version_anterior = marker.read_text(encoding="utf-8") if marker.exists() else None
-    version_actual = modified_time or ""
-    if checkpoint_dir.exists() and (not resume or version_anterior != version_actual):
-        shutil.rmtree(checkpoint_dir)
-    checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    marker.write_text(version_actual, encoding="utf-8")
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -248,9 +183,7 @@ def main():
 
     sb = get_admin_client()
     extractor = SyllabusExtractor(rpm=args.rpm)
-    chunker = SyllabusChunker()
-    embedder = SyllabusEmbedder()
-    ingestor = SyllabusIngestor(client=sb)
+    pipeline = IngestionPipeline(sb, extractor=extractor)
 
     candidatos = obtener_candidatos(sb, args.course_id, args.force, args.dry_run)
     print(f"Candidatos únicos (Examen/Practica, curso emparejado): {len(candidatos)}")
@@ -282,120 +215,88 @@ def main():
 
     for i, recurso in enumerate(pendientes, 1):
         print(f"[{i}/{len(pendientes)}] {recurso['titulo']} (recurso_id={recurso['id']}, curso_id={recurso['curso_id']})")
-        try:
-            if not reclamar_recurso(sb, recurso["id"], args.force):
-                print("  [OMITIDO] El recurso fue reclamado por otro worker.")
-                omitidos_reclamo += 1
-                continue
-            inicio_descarga = time.perf_counter()
-            tmp_path = descargar_pdf(
-                recurso["drive_file_id"],
-                connect_timeout=args.connect_timeout,
-                read_timeout=args.read_timeout,
-            )
-            tiempo_descarga = time.perf_counter() - inicio_descarga
-            preparar_checkpoints(
-                tmp_path, recurso.get("drive_modified_time"), args.resume
-            )
+        inicio_doc = time.perf_counter()
+        config = ConfigIngesta(
+            recurso_id=recurso["id"],
+            curso_id=recurso["curso_id"],
+            tipo_recurso=recurso.get("tipo") or "Examen",
+            modo_ocr="examenes",
+            modo_extraccion="async",
+            rpm=args.rpm,
+            hybrid=True,
+            forzar_nativo=recurso["tipo"] in TIPOS_NATIVOS,
+            max_concurrency=args.max_concurrency,
+            resume=args.resume,
+            preparar_checkpoints_drive=True,
+            metodo_ingesta="replace",
+            reclamar=True,
+            force=args.force,
+            al_fallar="marcar_fallido",
+            connect_timeout=args.connect_timeout,
+            read_timeout=args.read_timeout,
+        )
+        fuente = FuenteDocumento(
+            tipo="drive",
+            drive_file_id=recurso["drive_file_id"],
+            drive_modified_time=recurso.get("drive_modified_time"),
+        )
+        resultado = asyncio.run(pipeline.procesar_documento(fuente, config))
+        tiempo_doc = time.perf_counter() - inicio_doc
 
-            inicio_extraccion = time.perf_counter()
-            texto = asyncio.run(extractor.extract_text_async(
-                tmp_path,
-                modo="examenes",
-                hybrid=True,
-                forzar_nativo=recurso["tipo"] in TIPOS_NATIVOS,
-                max_concurrency=args.max_concurrency,
-            ))
-            tiempo_extraccion = time.perf_counter() - inicio_extraccion
-            metricas = extractor.last_run_stats
-            paginas_nativas += metricas.get("native_pages", 0)
-            paginas_vision += metricas.get("vision_pages", 0)
-            llamadas_vision += metricas.get("vision_calls", 0)
+        paginas_nativas += resultado.paginas_nativas
+        paginas_vision += resultado.paginas_vision
+        llamadas_vision += resultado.llamadas_vision
 
-            if not texto or not texto.strip():
-                print("  Sin texto extraído (posible cuota agotada o página no legible). Se salta.")
-                actualizar_estado(sb, recurso["id"], "failed")
-                fallidos += 1
-                fallos_seguidos += 1
-                if fallos_seguidos >= MAX_FALLOS_SEGUIDOS:
-                    print(f"\n{MAX_FALLOS_SEGUIDOS} fallos seguidos — probable cuota diaria de Gemini agotada.")
-                    print("Deteniendo la corrida. Progreso guardado: vuelve a correr este script mañana.")
-                    break
-                continue
-
-            total_paginas = int(metricas.get("total_pages", 0))
-            paginas_completadas = ExtractionCheckpoint(tmp_path).completed_pages()
-            paginas_esperadas = set(range(1, total_paginas + 1))
-            if paginas_completadas != paginas_esperadas:
-                faltantes = sorted(paginas_esperadas - paginas_completadas)
-                inesperadas = sorted(paginas_completadas - paginas_esperadas)
-                print(
-                    "  [ERROR] Secuencia de páginas inconsistente. "
-                    f"Faltantes: {faltantes}; inesperadas: {inesperadas}. "
-                    "No se generarán embeddings ni se llamará a la RPC."
-                )
-                actualizar_estado(sb, recurso["id"], "failed")
-                fallidos += 1
-                fallos_seguidos += 1
-                continue
-
-            chunks = chunker.chunk_text(texto)
-            if not chunks:
-                print("  El chunker no generó fragmentos. Se salta.")
-                actualizar_estado(sb, recurso["id"], "failed")
-                fallidos += 1
-                continue
-
-            inicio_embeddings = time.perf_counter()
-            embeddings = embedder.embedding_generator(chunks)
-            tiempo_embeddings = time.perf_counter() - inicio_embeddings
-            if not embeddings:
-                print("  El embedder no generó vectores. Se salta.")
-                actualizar_estado(sb, recurso["id"], "failed")
-                fallidos += 1
-                continue
-
-            inicio_insercion = time.perf_counter()
-            insertados = ingestor.replace(
-                embeddings,
-                recurso_id=recurso["id"],
-                curso_id=recurso["curso_id"],
-                drive_modified_time=recurso.get("drive_modified_time"),
-            )
-            tiempo_insercion = time.perf_counter() - inicio_insercion
-            if insertados != len(embeddings):
-                raise RuntimeError(
-                    f"La RPC confirmó {insertados}/{len(embeddings)} chunks"
-                )
-
+        if resultado.estado == ESTADO_COMPLETE:
             procesados += 1
             fallos_seguidos = 0
             print(
-                f"  OK: {insertados} chunks | páginas native/vision: "
-                f"{metricas.get('native_pages', 0)}/{metricas.get('vision_pages', 0)} | "
-                f"tiempos descarga/extracción/embedding/BD: {tiempo_descarga:.1f}s/"
-                f"{tiempo_extraccion:.1f}s/{tiempo_embeddings:.1f}s/{tiempo_insercion:.1f}s | "
+                f"  OK: {resultado.chunks_insertados} chunks | páginas native/vision: "
+                f"{resultado.paginas_nativas}/{resultado.paginas_vision} | "
+                f"tiempo documento: {tiempo_doc:.1f}s | "
                 f"tokens input/output/embeddings: {cost_tracker.tokens_vision_input}/"
                 f"{cost_tracker.tokens_vision_output}/{cost_tracker.tokens_embeddings} | "
                 f"costo acumulado: ${cost_tracker.obtener_costo_total_usd():.4f} USD"
             )
+            continue
 
-        except RecursoInaccesible as e:
-            print(f"  [OMITIDO] Archivo privado o sin permisos en Drive: {e}")
-            actualizar_estado(sb, recurso["id"], "skipped_permissions")
+        if resultado.estado == ESTADO_SKIPPED_PERMISSIONS:
+            print(f"  [OMITIDO] Archivo privado o sin permisos en Drive: {resultado.detalle}")
             omitidos += 1
-        except NetworkDownloadError as e:
-            print(f"  [RED] No se pudo descargar el recurso {recurso['id']}: {e}")
-            actualizar_estado(sb, recurso["id"], "network_error")
+            continue
+
+        if resultado.estado == ESTADO_RECLAMADO_POR_OTRO:
+            print("  [OMITIDO] El recurso fue reclamado por otro worker.")
+            omitidos_reclamo += 1
+            continue
+
+        if resultado.estado == ESTADO_NETWORK_ERROR:
+            print(f"  [RED] No se pudo descargar el recurso {recurso['id']}: {resultado.detalle}")
             fallidos += 1
-        except Exception as e:
-            print(f"  Error procesando recurso {recurso['id']}: {e}")
-            actualizar_estado(sb, recurso["id"], "failed")
-            fallidos += 1
-            fallos_seguidos += 1
-            if fallos_seguidos >= MAX_FALLOS_SEGUIDOS:
+            # Los errores de red no rompen la racha de cuota (igual que antes).
+            continue
+
+        # Resto: fallos reales.
+        if resultado.causa_fallo == "empty_extraction":
+            print("  Sin texto extraído (posible cuota agotada o página no legible). Se salta.")
+        elif resultado.causa_fallo == "paginas_incompletas":
+            print(f"  [ERROR] {resultado.detalle}")
+        elif resultado.causa_fallo == "no_chunks":
+            print("  El chunker no generó fragmentos. Se salta.")
+        elif resultado.causa_fallo == "no_embeddings":
+            print("  El embedder no generó vectores. Se salta.")
+        else:
+            print(f"  Error procesando recurso {recurso['id']}: {resultado.detalle}")
+        fallidos += 1
+        fallos_seguidos += 1
+        if fallos_seguidos >= MAX_FALLOS_SEGUIDOS:
+            if resultado.causa_fallo == "empty_extraction":
+                print(f"\n{MAX_FALLOS_SEGUIDOS} fallos seguidos — probable cuota diaria de Gemini agotada.")
+                print("Deteniendo la corrida. Progreso guardado: vuelve a correr este script mañana.")
+            else:
                 print(f"\n{MAX_FALLOS_SEGUIDOS} fallos seguidos — deteniendo la corrida.")
-                break
+            break
+
     print("\n=== Resumen ===")
     print(f"Candidatos totales: {len(candidatos)}")
     print(f"Recursos complete: {procesados}")

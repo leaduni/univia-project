@@ -9,9 +9,7 @@
 // /evaluaciones/generar-stream.
 
 import type { AdjuntosChat, IntentChat } from "@/types/chatbot"
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-const API_URL = BASE_URL.endsWith("/api") ? BASE_URL : `${BASE_URL}/api`
+import { API_URL } from "@/lib/env"
 
 // Tiempo para que lleguen las CABECERAS del stream (clasificar intent +
 // arrancar el handler), no para la respuesta completa: el LLM puede tardar
@@ -69,6 +67,7 @@ export async function enviarMensajeChat(
   token: string,
   callbacks: CallbacksMensajeChat,
   signal?: AbortSignal,
+  llmKey?: string | null,
 ): Promise<void> {
   const controladorTimeout = new AbortController()
   const señalCombinada = combinarSignals(signal, controladorTimeout.signal)
@@ -81,6 +80,7 @@ export async function enviarMensajeChat(
       headers: {
         "Content-Type": "application/json",
         Authorization: token ? `Bearer ${token}` : "",
+        ...(llmKey ? { "X-User-LLM-Key": llmKey } : {}),
       },
       body: JSON.stringify({
         mensaje,
@@ -152,4 +152,28 @@ export async function enviarMensajeChat(
       // tengan ya: se ignora.
     }
   }
+}
+
+export interface ResultadoValidacionClave {
+  valid: boolean
+  error?: string
+}
+
+/**
+ * Valida la clave BYOK de Gemini contra el backend con una micro-llamada real.
+ * La clave viaja solo en el header X-User-LLM-Key (igual que en el chat),
+ * nunca en el body ni en la URL, y nunca se persiste.
+ */
+export async function validateKey(token: string, key: string): Promise<ResultadoValidacionClave> {
+  const response = await fetch(`${API_URL}/chatbot/validate-key`, {
+    method: "POST",
+    headers: {
+      Authorization: token ? `Bearer ${token}` : "",
+      "X-User-LLM-Key": key,
+    },
+  })
+  if (!response.ok) {
+    return { valid: false, error: "No se pudo validar la clave. Intenta de nuevo." }
+  }
+  return (await response.json()) as ResultadoValidacionClave
 }

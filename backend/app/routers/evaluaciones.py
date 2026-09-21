@@ -7,29 +7,98 @@ import traceback
 import sys
 import random
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any, Union, AsyncGenerator
+from pydantic import BaseModel, Field, create_model, field_validator
+from typing import List, Optional, Dict, Any, Union, AsyncGenerator, Literal
 from dotenv import load_dotenv
 load_dotenv()
 
-from app.core.llm import MODELO_GENERACION_GPT, generar_gpt, get_openai
+from app.core.llm import (
+    MODELO_GENERACION_GPT,
+    generar,
+    generar_con_meta,
+    generar_gpt,
+    generar_gemini_con_clave,
+    generar_gemini_con_schema,
+    LLMSaldoAgotado,
+    get_openai,
+    obtener_ultima_telemetria,
+)
 from app.rag.retriever import SyllabusRetriever
+from app.rag.embedder import EmbeddingQuotaExhausted
 from app.core.auth_utils import get_current_user
 
 logger = logging.getLogger("evaluaciones_tracer")
-logger.setLevel(logging.DEBUG)
-if not logger.handlers:
-    handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter(
-        "\n[TRACE-EVALUACIONES] %(asctime)s | %(levelname)s | %(message)s",
-        datefmt="%H:%M:%S"
-    )
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+
+# ---------------------------------------------------------------------------
+# Presupuesto de contexto RAG (Punto 2: token trimming)
+# Estimación conservadora para español+LaTeX: ~3.3 caracteres por token.
+# 9.000 chars ≈ 2.700 tokens de contexto, dejando al prompt total por debajo
+# de los 8.000 TPM del free tier de Groq con margen para system + salida.
+# ---------------------------------------------------------------------------
+EVAL_RAG_MAX_CHARS = int(os.getenv("EVAL_RAG_MAX_CHARS", "9000"))
+EVAL_LLM_MAX_CONCURRENCY = max(1, int(os.getenv("EVAL_LLM_MAX_CONCURRENCY", "2")))
+EVAL_MICROBATCH_SIZE = max(1, int(os.getenv("EVAL_MICROBATCH_SIZE", "2")))
+EVAL_SLOT_MAX_RETRIES = max(1, int(os.getenv("EVAL_SLOT_MAX_RETRIES", "3")))
+_semaforo_evaluaciones_estructuradas = asyncio.Semaphore(EVAL_LLM_MAX_CONCURRENCY)
+
+# Regla anti-truncado del JSON de salida: explicaciones largas (debates,
+# recálculos) agotaban max_tokens y dejaban el JSON sin cerrar.
+REGLA_CONCISION_EXPLICACION = (
+    "REGLA DE CONCISIÓN (CRÍTICA, evita truncar el JSON): el campo 'explicacion' "
+    "debe ser directo, conciso y enfocado únicamente en el procedimiento correcto "
+    "(máximo 180 palabras, con los pasos y fórmulas imprescindibles). Queda ESTRICTAMENTE "
+    "PROHIBIDO incluir debates internos, recálculos alternativos, tablas extensas "
+    "ni textos explicativos innecesariamente largos que puedan truncar la respuesta. "
+)
+
+
+def _recortar_items_contexto(items: List[Dict[str, Any]], max_chars: int = EVAL_RAG_MAX_CHARS) -> List[Dict[str, Any]]:
+    """Trunca el conjunto de chunks de contexto al presupuesto de caracteres.
+
+    Cada chunk se cuenta completo si cabe; el último se corta en el último
+    punto/coma anterior al límite (nunca a mitad de frase).
+    """
+    if max_chars is None or max_chars <= 0:
+        return items
+    restantes = max_chars
+    recortados: List[Dict[str, Any]] = []
+    for item in items:
+        contenido = item.get("contenido", "")
+        if len(contenido) <= restantes:
+            recortados.append(item)
+            restantes -= len(contenido)
+            continue
+        if restantes < 200:
+            break
+        corte = contenido[:restantes]
+        # Cortar en el último final de frase para no mutilar texto.
+        ultimo = max(corte.rfind(". "), corte.rfind(".\n"))
+        if ultimo > 200:
+            corte = corte[: ultimo + 1]
+        copia = dict(item)
+        copia["contenido"] = corte.rstrip() + " …"
+        recortados.append(copia)
+        break
+    return recortados
+# El nivel lo controla la configuración global de logging (main.py / env).
+# No se fuerza DEBUG aquí ni se registra un handler propio: eso duplicaría
+# líneas en los logs y fijaría el nivel a DEBUG en producción.
 
 router = APIRouter()
+
+
+def _hay_proveedor_gratuito() -> bool:
+    """True si hay al menos una clave del pool gratuito (Gemini o Groq)."""
+    return any(
+        os.getenv(nombre)
+        for nombre in (
+            "GEMINI_API_KEY", "GEMINI_API_KEY_1", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3",
+            "GROQ_API_KEY", "GROQ_API_KEY_1", "GROQ_API_KEY_2", "GROQ_API_KEY_3",
+        )
+    )
+
 
 _retriever: Optional[SyllabusRetriever] = None
 
@@ -44,13 +113,13 @@ def get_retriever(token: Optional[str] = None) -> Optional[SyllabusRetriever]:
         try:
             return SyllabusRetriever(token=token)
         except Exception as e:
-            print(f"Error al inicializar SyllabusRetriever autenticado: {e}")
+            logger.error("Error al inicializar SyllabusRetriever autenticado: %s", e)
             return None
     if _retriever is None:
         try:
             _retriever = SyllabusRetriever()
         except Exception as e:
-            print(f"Error al inicializar SyllabusRetriever: {e}")
+            logger.error("Error al inicializar SyllabusRetriever: %s", e)
             return None
     return _retriever
 
@@ -71,6 +140,36 @@ class ConfiguracionEvaluacion(BaseModel):
     # (recursos.profesor_id). None = sin filtro, busca en todo el curso.
     profesor_id: Optional[int] = None
 
+    @field_validator("modulo")
+    @classmethod
+    def modulo_no_vacio(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("'modulo' no puede estar vacío.")
+        return v.strip()
+
+    @field_validator("temas")
+    @classmethod
+    def temas_no_vacio(cls, v: List[str]) -> List[str]:
+        temas = [t.strip() for t in v if t and t.strip()]
+        if not temas:
+            raise ValueError("'temas' no puede estar vacío.")
+        return temas
+
+    @field_validator("modulo")
+    @classmethod
+    def validar_modulo(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("Debe seleccionar un módulo para generar la evaluación")
+        return value.strip()
+
+    @field_validator("temas")
+    @classmethod
+    def validar_temas(cls, value: List[str]) -> List[str]:
+        temas = [tema.strip() for tema in value if isinstance(tema, str) and tema.strip()]
+        if not temas:
+            raise ValueError("Debe seleccionar al menos un tema para generar la evaluación")
+        return temas
+
 class CasoDeEjemplo(BaseModel):
     input: str
     output: str
@@ -90,6 +189,20 @@ class Pregunta(BaseModel):
     caso_de_ejemplo: Optional[CasoDeEjemplo] = None
     origen: str = "ia"
     fuente_detalle: Optional[str] = None
+
+
+class PreguntaGeneradaLLM(BaseModel):
+    """Contrato estructurado para una pregunta teórica devuelta por Gemini."""
+    pregunta: str
+    tipo: Literal["unica", "multiple", "verdadero_falso"]
+    opciones: List[str]
+    respuesta_correcta: Union[int, List[int]]
+    explicacion: str
+
+
+class RespuestaEvaluacionLLM(BaseModel):
+    """Contrato de una generación aislada; evita parsear JSON manualmente."""
+    preguntas: List[PreguntaGeneradaLLM]
 
 class Evaluacion(BaseModel):
     """Evaluación completa generada"""
@@ -140,11 +253,10 @@ def obtener_nombre_curso(curso_id: int, token: Optional[str] = None) -> Optional
         if respuesta.data:
             return respuesta.data[0]["name"]
     except Exception as e:
-        print(f"Error al obtener el nombre del curso {curso_id}: {e}")
+        logger.warning("Error al obtener el nombre del curso %s: %s", curso_id, e)
     return None
 
-def recuperar_contexto_semantico(
-    tema_consulta: str, curso_id: int, profesor_id: Optional[int] = None, token: Optional[str] = None
+def recuperar_contexto_semantico(    tema_consulta: str, curso_id: int, profesor_id: Optional[int] = None, token: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """Usa el SyllabusRetriever del módulo RAG para buscar los fragmentos más relevantes del curso.
 
@@ -154,6 +266,11 @@ def recuperar_contexto_semantico(
     profesor (recursos.profesor_id); si ese profesor no tiene documentos
     etiquetados para el tema, el resultado queda vacío en vez de caer de
     vuelta a la búsqueda sin filtrar — el llamador decide qué hacer con eso.
+
+    MODO ESTRICTO (evaluaciones): si el proveedor de embeddings falla por
+    saldo/cuota, se propaga EmbeddingQuotaExhausted en lugar de continuar sin
+    contexto. Un resultado vacío legítimo (curso sin documentos, umbral no
+    superado) sigue devolviendo [] y el modo fallback sintético persiste.
     """
     retriever = get_retriever(token)
     if not retriever:
@@ -161,28 +278,33 @@ def recuperar_contexto_semantico(
 
     curso_nombre = obtener_nombre_curso(curso_id, token)
     if not curso_nombre:
-        print(f"No se pudo resolver el nombre del curso {curso_id}; se omite el filtro por nombre.")
+        logger.warning("No se pudo resolver el nombre del curso %s; se omite el filtro por nombre.", curso_id)
 
     try:
-        # Recuperar pool de alta calidad (hasta 10, umbral 0.4) y muestrear de
-        # forma inteligente: el fragmento de mayor similitud (rank #1, primero
-        # del resultado ordenado de la RPC) siempre se incluye; los otros 4 se
-        # sortean del resto del pool.
+        # Recuperar pool acotado (hasta 6, umbral 0.4) y muestrear: el fragmento
+        # de mayor similitud (rank #1, primero del resultado ordenado de la RPC)
+        # siempre se incluye; los otros 2 se sortean del resto del pool. El
+        # tope de 3 chunks queda recortado por presupuesto de caracteres
+        # (EVAL_RAG_MAX_CHARS) para no reventar los TPM del free tier.
         resultados = retriever.buscar_contexto_por_nombre(
             tema_consulta,
             curso_nombre=curso_nombre,
-            limit=10,
+            limit=6,
             umbral_similitud=0.4,
             profesor_id=profesor_id,
+            estricto=True,
         )
-        if len(resultados) > 5:
+        if len(resultados) > 3:
             mejor_fragmento = resultados[0]
-            resto = random.sample(resultados[1:], k=4)
+            resto = random.sample(resultados[1:], k=2)
             resultados = [mejor_fragmento] + resto
+        resultados = _recortar_items_contexto(resultados)
         return resultados
 
+    except EmbeddingQuotaExhausted:
+        raise
     except Exception as e:
-        print(f"Error al recuperar contexto: {e}")
+        logger.error("Error al recuperar contexto: %s", e)
         return []
 
 # Categorías de enfoque agnósticas al curso: sirven igual para Cálculo,
@@ -205,7 +327,7 @@ def _enfoque_para_indice(idx: int) -> str:
     return ENFOQUES_PREGUNTA[idx % len(ENFOQUES_PREGUNTA)]
 
 
-def DIVERSIDAD_POR_INDICE_BLOQUE(num_preguntas: int) -> str:
+def DIVERSIDAD_POR_INDICE_BLOQUE(num_preguntas: int, indice_inicial: int = 0) -> str:
     """Bloque de prompt que asigna un enfoque obligatorio y distinto a cada
     pregunta por su número de orden, para el modo de una sola llamada JSON.
 
@@ -216,7 +338,7 @@ def DIVERSIDAD_POR_INDICE_BLOQUE(num_preguntas: int) -> str:
     construcción, no por sugerencia.
     """
     lineas = [
-        f"- Pregunta {i + 1}: enfoque obligatorio = {_enfoque_para_indice(i)}."
+        f"- Pregunta {indice_inicial + i + 1}: enfoque obligatorio = {_enfoque_para_indice(indice_inicial + i)}."
         for i in range(num_preguntas)
     ]
     return (
@@ -237,7 +359,11 @@ DIRECTIVA_VARIABILIDAD_PREGUNTAS = (
 )
 
 
-def generar_prompt_teorico(config: ConfiguracionEvaluacion, contexto_recuperado: List[str] = None) -> str:
+def generar_prompt_teorico(
+    config: ConfiguracionEvaluacion,
+    contexto_recuperado: List[str] = None,
+    indice_inicial: int = 0,
+) -> str:
     """Genera el prompt para un curso teórico."""
 
     tipos_pregunta = {
@@ -289,7 +415,7 @@ Cada pregunta DEBE cumplir TODOS estos requisitos:
 5. DISTRACTORES TRAMPA: las 4 opciones deben ser resultados numéricos donde los 3 incorrectos corresponden a errores de cálculo específicos (signo cambiado, componente equivocada, confusión de índice, error de sustitución).
 6. PROHIBIDO ABSOLUTAMENTE: "halla la pendiente de y=mx+b", "dados dos puntos halla la recta", definiciones, fórmulas directas. Si una pregunta se puede resolver en 1 paso, DESÉCHALA.
 7. Genera un conjunto de N preguntas estrictamente ÚNICAS y DISTINTAS entre sí. Está prohibido repetir el mismo ejercicio o generar variantes triviales del mismo problema dentro del mismo lote.
-{DIVERSIDAD_POR_INDICE_BLOQUE(config.num_preguntas)}
+{DIVERSIDAD_POR_INDICE_BLOQUE(config.num_preguntas, indice_inicial)}
 {DIRECTIVA_VARIABILIDAD_PREGUNTAS}
 
 FORMATO LaTeX — KaTeX COMPATIBLE ÚNICAMENTE:
@@ -313,7 +439,7 @@ RESPONDE ÚNICAMENTE con este JSON:
       "tipo": "unica|multiple|verdadero_falso",
       "opciones": ["opción A", "opción B", "opción C", "opción D"],
       "respuesta_correcta": 0,
-      "explicacion": "**Paso 1: Planteamiento e Identificación de Datos.**\nIdentifica las variables, coordenadas, fórmulas clave y condiciones del problema. Explica qué información se extrae del enunciado.\n\n**Paso 2: Desarrollo algebraico detallado.**\nMuestra cada operación y transformación paso a paso usando LaTeX. Incluye sustituciones numéricas, simplificaciones y cálculos intermedios.\n\n**Paso 3: Conclusión y Respuesta Final.**\nPresenta el resultado numérico o vectorial final e indica cuál opción es la correcta."
+      "explicacion": "Aplica la fórmula o procedimiento indicado con los datos relevantes. El resultado obtenido corresponde a la opción correcta."
     }}
   ]
 }}
@@ -358,6 +484,7 @@ El campo 'explicacion' DEBE seguir estrictamente esta estructura Markdown con do
 
 REGLA ESTRICTA: Queda PROHIBIDO mencionar 'opción 0', 'opción 1', 'opción A', etc. Menciona únicamente el valor o vector solución final.
 
+""" + REGLA_CONCISION_EXPLICACION + """
 REGLA CRÍTICA PARA LA SOLUCIÓN (explicacion):
 CADA variable, fórmula o comando LaTeX (\vec, \sqrt, \frac, \text, etc.) DEBE estar estrictamente envuelto entre signos de dólar ($ ... $). Separa siempre con un espacio en blanco los delimitadores de las palabras en español. Ejemplo CORRECTO: "La recta $L_1$ pasa por $A=(2,3)$". Ejemplo INCORRECTO: "La recta$L_1$pasa por$A$". NUNCA generes comandos LaTeX sueltos sin delimitador $.
 """
@@ -425,6 +552,7 @@ REGLAS ESTRICTAS PARA LA GENERACIÓN DEL JSON:
 - "respuesta_correcta" DEBE ser el string EXACTO que resulta de la ejecución del "input" del "caso_de_ejemplo".
 - Los retos deben requerir lógica de programación real y no ser triviales.
 - Usa '\\n' para los saltos de línea dentro de los strings. No uses saltos de línea literales.
+""" + REGLA_CONCISION_EXPLICACION + """
 """
     
     return prompt
@@ -959,46 +1087,93 @@ SYSTEM_MSG_EVALUACION = (
     "CORRECTO: 'La recta $L_1$ pasa por $A=(2,3)$'. INCORRECTO: 'La recta$L_1$pasa por$A$'. "
     "NUNCA generes comandos LaTeX sueltos sin delimitador $. "
     "REGLA ESTRICTA: Queda PROHIBIDO mencionar 'opción 0', 'opción 1', 'opción A', etc. Menciona únicamente el valor o vector solución final. "
-    "Responde ÚNICAMENTE con JSON válido, sin texto adicional."
+    + REGLA_CONCISION_EXPLICACION +
+    " Responde ÚNICAMENTE con JSON válido, sin texto adicional."
 )
 
 @router.post("/evaluaciones/generar", response_model=Evaluacion)
-async def generar_evaluacion(config: ConfiguracionEvaluacion, user_data=Depends(get_current_user)):
+async def generar_evaluacion(
+    config: ConfiguracionEvaluacion,
+    user_data=Depends(get_current_user),
+    x_user_llm_key: Optional[str] = Header(None, alias="X-User-LLM-Key"),
+):
     """
     RF-APR-02, RF-APR-03, RF-APR-04: Genera una evaluación con IA
     basada en el módulo, temas y configuración del estudiante
     """
     
     user, token = user_data
+    api_key_gemini = (x_user_llm_key or "").strip() or None
 
-    if not get_openai():
-        raise HTTPException(status_code=500, detail="API Key de OpenAI no configurada")
+    if not get_openai() and not api_key_gemini and not _hay_proveedor_gratuito():
+        raise HTTPException(status_code=500, detail="No hay ningún proveedor de IA configurado.")
 
     try:
         if len(config.temas) == 1:
             tema_completo = config.temas[0]
         else:
             tema_completo = f"{config.modulo}: {', '.join(config.temas)}"
-        contexto = recuperar_contexto_semantico(tema_completo, config.curso_id, config.profesor_id, token)
+        contexto = await asyncio.to_thread(
+            recuperar_contexto_semantico, tema_completo, config.curso_id, config.profesor_id, token
+        )
 
-        print("\n" + "="*50)
-        print(f"RAG: Se recuperaron {len(contexto)} fragmentos del PDF.")
-        print("="*50 + "\n")
+        logger.info("RAG: Se recuperaron %d fragmentos del PDF.", len(contexto))
 
         if config.curso_id in CURSOS_PROGRAMACION_IDS:
-            print(f"DEBUG: Activando flujo de PROGRAMACIÓN para curso {config.curso_id}")
+            logger.debug("Activando flujo de PROGRAMACIÓN para curso %s.", config.curso_id)
             prompt = generar_prompt_programacion(config, contexto)
         else:
             prompt = generar_prompt_teorico(config, contexto)
 
-        raw_content = generar_gpt(
-            prompt=prompt,
-            system=SYSTEM_MSG_EVALUACION,
-            max_tokens=16000,
-            json_mode=True,
-        )
+        # Cascada: BYOK Gemini (Nivel 0) -> generar() gratuito (Gemini pool ->
+        # Groq pool). OpenAI queda AISLADO de la generación (solo embeddings);
+        # se usa solo si ALLOW_OPENAI_GENERATION=true en el .env.
+        # La telemetría se captura en el MISMO hilo de la llamada (thread-local).
+        raw_content: Optional[str] = None
+        telemetria_gen: Optional[dict] = None
+        if api_key_gemini:
+            try:
+                raw_content, telemetria_gen = await asyncio.to_thread(
+                    _llamada_byok_meta, api_key_gemini, prompt, SYSTEM_MSG_EVALUACION
+                )
+            except Exception as e:
+                logger.warning("BYOK Gemini falló (%s); se intenta la cascada gratuita.", e)
+        if raw_content is None:
+            raw_content, telemetria_gen = await asyncio.to_thread(
+                lambda: generar_con_meta(
+                    prompt=prompt,
+                    system=SYSTEM_MSG_EVALUACION,
+                    max_tokens=8000,
+                    json_mode=True,
+                )
+            )
 
-        data = parse_llm_json_response(raw_content)
+        try:
+            data = parse_llm_json_response(raw_content)
+        except Exception as e_parse:
+            # Cero reintentos a ciegas: UN solo reintento de reparación, pidiendo
+            # al modelo corregir su propia salida a JSON válido.
+            logger.warning("JSON inválido (%s). Reintentando con reparación única.", e_parse)
+            prompt_reparacion = (
+                "La siguiente respuesta debería ser un JSON válido con la clave "
+                "'preguntas' pero falló el parseo, probablemente por truncamiento. "
+                "Reconstruye un JSON COMPLETO y compacto; no continúes el texto "
+                "cortado. Cada 'explicacion' debe tener máximo 180 palabras. "
+                "Devuélvelo como JSON puro, sin texto adicional:\n\n"
+                + (raw_content or "")[:12000]
+            )
+            raw_content, telemetria_rep = await asyncio.to_thread(
+                lambda: generar_con_meta(
+                    prompt=prompt_reparacion,
+                    system=SYSTEM_MSG_EVALUACION,
+                    max_tokens=8000,
+                    json_mode=True,
+                )
+            )
+            telemetria_gen = _combinar_telemetria(telemetria_gen, telemetria_rep)
+            data = parse_llm_json_response(raw_content)
+
+        _telemetria_log("GENERACIÓN", telemetria_gen)
         
         if "preguntas" not in data or not data["preguntas"]:
             raise ValueError("No se generaron preguntas válidas")
@@ -1044,6 +1219,15 @@ async def generar_evaluacion(config: ConfiguracionEvaluacion, user_data=Depends(
         raise HTTPException(
             status_code=500,
             detail=f"Error al parsear respuesta de IA: {str(e)}"
+        )
+    except EmbeddingQuotaExhausted as e:
+        # Modo estricto: el proveedor de embeddings no tiene saldo; sin él el
+        # RAG no puede vectorizar la consulta y la evaluación saldría sin
+        # contexto real. Falla explícito (503) en vez de degradar en silencio.
+        logger.error("RAG no disponible por saldo de embeddings: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail="El servicio de búsqueda de contexto (embeddings) no está disponible temporalmente por saldo/cuota del proveedor. Inténtalo más tarde."
         )
     except Exception as e:
         raise HTTPException(
@@ -1103,6 +1287,7 @@ SYSTEM_MSG_TEORICO = (
     "CORRECTO: 'La recta $L_1$ pasa por $A=(2,3)$'. INCORRECTO: 'La recta$L_1$pasa por$A$'. "
     "NUNCA generes comandos LaTeX sueltos sin delimitador $. "
     "REGLA ESTRICTA: Queda PROHIBIDO mencionar 'opción 0', 'opción 1', 'opción A', etc. Menciona únicamente el valor o vector solución final. "
+    + REGLA_CONCISION_EXPLICACION +
     "Responde SIEMPRE en el formato de texto plano con marcadores @@...@@ que se te indica. NUNCA uses JSON."
 )
 
@@ -1254,71 +1439,289 @@ def _parsear_pregunta_delimitada(texto: str, idx: int, tipo_real: str) -> dict:
     return _sanitize_latex_dict(data)
 
 
-async def _generar_una_pregunta(idx: int, prompt: str, tipo_real: str) -> dict:
-    """Genera 1 pregunta en texto plano con marcadores. Reintenta si la estructura falla."""
+async def _generar_una_pregunta(idx: int, prompt: str, tipo_real: str, api_key_gemini: Optional[str] = None) -> dict:
+    """Genera 1 pregunta en texto plano con marcadores. Reintenta si la estructura falla.
+
+    Cascada: Nivel 0 = BYOK Gemini del usuario (si hay clave) ->
+    cascada gratuita generar() (Gemini pool -> Groq pool) ->
+    último recurso pagado generar_gpt (OpenAI) -> propagar.
+    """
     loop = asyncio.get_running_loop()
 
+    def _call_gratuito():
+        return generar(prompt=prompt, system=SYSTEM_MSG_TEORICO, max_tokens=8000)
+
+    def _call_gemini_byok():
+        return generar_gemini_con_clave(
+            api_key_gemini, prompt, system=SYSTEM_MSG_TEORICO, max_tokens=8000
+        )
+
     def _call():
-        return generar_gpt(prompt=prompt, system=SYSTEM_MSG_TEORICO, max_tokens=4000)
+        # BYOK del usuario abre su propio cupo y va primero.
+        if api_key_gemini:
+            try:
+                return _call_gemini_byok()
+            except Exception as e:
+                logger.warning(
+                    "Pregunta %d: BYOK Gemini falló (%s); se intenta la cascada gratuita.",
+                    idx + 1, e,
+                )
+        try:
+            return _call_gratuito()
+        except Exception as gratis_error:
+            logger.warning(
+                "Pregunta %d: cascada gratuita agotada (%s). Último recurso: GPT pagado.",
+                idx + 1, gratis_error,
+            )
+            return generar_gpt(prompt=prompt, system=SYSTEM_MSG_TEORICO, max_tokens=8000)
 
     ultimo_error = None
     for intento in range(3):
-        raw = await loop.run_in_executor(None, _call)
+        try:
+            raw = await loop.run_in_executor(None, _call)
+        except LLMSaldoAgotado:
+            if not api_key_gemini:
+                raise
+            # La cuenta pagada de OpenAI está sin saldo y era el último
+            # eslabón: reintenta directo con la clave BYOK del usuario.
+            try:
+                raw = await loop.run_in_executor(None, _call_gemini_byok)
+            except Exception as e:
+                ultimo_error = e
+                logger.warning(
+                    "Pregunta %d intento %d: falló también Gemini BYOK (%s).",
+                    idx + 1, intento + 1, e,
+                )
+                raise
+        except Exception as e:
+            ultimo_error = e
+            logger.warning(
+                "Pregunta %d intento %d falló: %s. Reintentando...",
+                idx + 1, intento + 1, e,
+            )
+            continue
+
         try:
             return _parsear_pregunta_delimitada(raw, idx, tipo_real)
         except (ValueError, IndexError) as e:
             ultimo_error = e
-            print(f"Pregunta {idx+1} intento {intento+1} falló: {e}. Reintentando...")
+            logger.warning(
+                "Pregunta %d intento %d falló (parse): %s. Reintentando...",
+                idx + 1, intento + 1, e,
+            )
 
     raise ultimo_error or ValueError("No se pudo generar la pregunta")
 
 
+def _crear_schema_lote(tamano_lote: int) -> type[BaseModel]:
+    """Crea un contrato Gemini que exige exactamente ``tamano_lote`` preguntas."""
+    return create_model(
+        f"RespuestaEvaluacionLote{tamano_lote}LLM",
+        preguntas=(List[PreguntaGeneradaLLM], Field(min_length=tamano_lote, max_length=tamano_lote)),
+    )
+
+
+async def _generar_lote_estructurado(
+    slots: List[int],
+    prompt: str,
+    api_key_gemini: Optional[str] = None,
+) -> List[Pregunta]:
+    """Genera un micro-lote completo; no expone resultados parciales inválidos."""
+    loop = asyncio.get_running_loop()
+    ultimo_error: Optional[Exception] = None
+    schema_lote = _crear_schema_lote(len(slots))
+
+    def _llamar_schema() -> dict:
+        return generar_gemini_con_schema(
+            prompt=prompt,
+            response_schema=schema_lote,
+            system=SYSTEM_MSG_EVALUACION,
+            max_tokens=8000,
+            api_key=api_key_gemini,
+        )
+
+    for intento in range(2):
+        try:
+            respuesta = await loop.run_in_executor(None, _llamar_schema)
+            if respuesta.get("finish_reason") == "MAX_TOKENS":
+                raise ValueError("Gemini truncó el lote por MAX_TOKENS")
+
+            salida = schema_lote.model_validate_json(respuesta.get("text") or "")
+            preguntas: List[Pregunta] = []
+            for slot, pregunta_llm in zip(slots, salida.preguntas):
+                pregunta = pregunta_llm.model_dump()
+                pregunta["id"] = slot + 1
+                preguntas.append(Pregunta(**_sanitize_latex_dict(pregunta)))
+            return preguntas
+        except Exception as error:
+            ultimo_error = error
+            logger.warning(
+                "Lote de slots %s, intento estructurado %d falló: %s.",
+                [slot + 1 for slot in slots],
+                intento + 1,
+                error,
+            )
+
+    raise ultimo_error or ValueError("No se pudo generar un lote estructurado")
+
+
+async def _generar_lote_con_limite(
+    slots: List[int],
+    prompt: str,
+    api_key_gemini: Optional[str] = None,
+) -> List[Pregunta]:
+    """Acota micro-lotes simultáneos para proteger las cuotas locales."""
+    async with _semaforo_evaluaciones_estructuradas:
+        return await _generar_lote_estructurado(slots, prompt, api_key_gemini)
+
+
+async def _generar_pregunta_con_limite(
+    idx: int,
+    prompt: str,
+    api_key_gemini: Optional[str] = None,
+) -> Pregunta:
+    """Compatibilidad para reintentar un único slot con el mismo contrato."""
+    return (await _generar_lote_con_limite([idx], prompt, api_key_gemini))[0]
+
+
+def _combinar_telemetria(primera: Optional[dict], segunda: Optional[dict]) -> Optional[dict]:
+    """Suma el consumo de la llamada original + la de reparación (si hubo)."""
+    if not primera:
+        return segunda
+    if not segunda:
+        return primera
+    tok_a = primera.get("tokens", {})
+    tok_b = segunda.get("tokens", {})
+    return {
+        "proveedor": segunda.get("proveedor", primera.get("proveedor", "?")),
+        "modelo": segunda.get("modelo", primera.get("modelo", "?")),
+        "tokens": {
+            "prompt": tok_a.get("prompt", 0) + tok_b.get("prompt", 0),
+            "completion": tok_a.get("completion", 0) + tok_b.get("completion", 0),
+            "total": tok_a.get("total", 0) + tok_b.get("total", 0),
+        },
+        "costo_usd": round(primera.get("costo_usd", 0.0) + segunda.get("costo_usd", 0.0), 6),
+    }
+
+
+def _generar_json_con_reparacion_meta(prompt: str, system: str, max_tokens: int = 8000) -> tuple[dict, Optional[dict]]:
+    """Igual que _generar_json_con_reparacion, pero devuelve (data, telemetria).
+
+    La telemetría se lee EN EL MISMO HILO de la llamada LLM (la de llm.py es
+    thread-local); suma la llamada inicial y la de reparación si hubo.
+    """
+    raw, telemetria = generar_con_meta(prompt=prompt, system=system, max_tokens=max_tokens, json_mode=True)
+    try:
+        return parse_llm_json_response(raw), telemetria
+    except Exception as e_parse:
+        logger.warning("JSON inválido (%s). Un único reintento de reparación.", e_parse)
+        prompt_reparacion = (
+            "La siguiente respuesta debería ser un JSON válido con la clave "
+            "'preguntas' pero falló el parseo (probablemente quedó TRUNCADO por "
+            "exceso de longitud). Reconstruye el JSON válido COMPLETO, reduciendo "
+            "las 'explicacion' a máximo 180 palabras cada una. "
+            "No continúes el fragmento cortado: reconstruye un JSON completo "
+            "(prohibidos debates internos, recálculos alternativos o tablas "
+            "extensas), y devuélvelo como JSON puro, sin texto adicional ni "
+            "bloques de código:\n\n"
+            + (raw or "")[:12000]
+        )
+        raw2, telemetria2 = generar_con_meta(prompt=prompt_reparacion, system=system, max_tokens=max_tokens, json_mode=True)
+        return parse_llm_json_response(raw2), _combinar_telemetria(telemetria, telemetria2)
+
+
+def _generar_json_con_reparacion(prompt: str, system: str, max_tokens: int = 8000) -> dict:
+    """Una llamada batch JSON a la cascada gratuita + UN reintento de reparación.
+
+    Cero reintentos a ciegas: si el JSON no parsea, se pide al modelo corregir
+    su propia salida una sola vez. OpenAI no participa salvo
+    ALLOW_OPENAI_GENERATION=true (filtro interno de generar()).
+    """
+    data, _ = _generar_json_con_reparacion_meta(prompt, system, max_tokens)
+    return data
+
+
+def _llamada_byok_meta(api_key: str, prompt: str, system: str, max_tokens: int = 8000) -> tuple[str, Optional[dict]]:
+    """BYOK Gemini leyendo la telemetría en el hilo de la llamada."""
+    raw = generar_gemini_con_clave(api_key, prompt, system=system, max_tokens=max_tokens, json_mode=True)
+    return raw, obtener_ultima_telemetria()
+
+
+def _tiene_campos_criticos_pregunta(pregunta: Any) -> bool:
+    """Evita que una pregunta truncada invalide toda la evaluación."""
+    return (
+        isinstance(pregunta, dict)
+        and "respuesta_correcta" in pregunta
+        and isinstance(pregunta.get("opciones"), list)
+    )
+
+
+def _telemetria_log(prefijo: str, telemetria: Optional[dict] = None) -> dict:
+    """Log obligatorio de consumo por evaluación (punto 6) y dict métrico."""
+    t = telemetria or obtener_ultima_telemetria() or {}
+    tokens = t.get("tokens", {})
+    logger.info(
+        "%s GENERACIÓN COMPLETADA | Proveedor: %s (%s) | Tokens: In=%s Out=%s Total=%s | Costo est: $%.4f",
+        prefijo,
+        t.get("proveedor", "?"),
+        t.get("modelo", "?"),
+        tokens.get("prompt", "?"),
+        tokens.get("completion", "?"),
+        tokens.get("total", "?"),
+        t.get("costo_usd", 0.0),
+    )
+    return t
+
+
 @router.post("/evaluaciones/generar-stream")
-async def generar_evaluacion_stream(config: ConfiguracionEvaluacion, user_data=Depends(get_current_user)):
+async def generar_evaluacion_stream(
+    config: ConfiguracionEvaluacion,
+    user_data=Depends(get_current_user),
+    x_user_llm_key: Optional[str] = Header(None, alias="X-User-LLM-Key"),
+):
     """Genera cada pregunta en paralelo (1 llamada por pregunta) y las envía por SSE conforme llegan."""
     user, token = user_data
+    api_key_gemini = (x_user_llm_key or "").strip() or None
 
     logger.info("=" * 60)
     logger.info(f"PASO 1: Nueva petición recibida | curso_id={config.curso_id}, modulo='{config.modulo}', "
                 f"temas={config.temas}, num_preguntas={config.num_preguntas}")
 
-    if not get_openai():
-        logger.error("PASO 1 ERROR: cliente de OpenAI no inicializado - API Key no configurada")
-        raise HTTPException(status_code=500, detail="API Key de OpenAI no configurada")
+    if not _hay_proveedor_gratuito() and not api_key_gemini:
+        logger.error("PASO 1 ERROR: ningún proveedor gratuito de IA configurado (Gemini/Groq).")
+        raise HTTPException(status_code=500, detail="No hay ningún proveedor de IA configurado.")
 
     try:
         logger.info("PASO 2: Buscando contexto semántico / sílabo (RAG)...")
         es_programacion = config.curso_id in CURSOS_PROGRAMACION_IDS
+        if not config.temas:
+            raise HTTPException(status_code=422, detail="El curso no tiene módulos/temario para generar una evaluación.")
         tema_completo = config.temas[0] if len(config.temas) == 1 else f"{config.modulo}: {', '.join(config.temas)}"
-        contexto = recuperar_contexto_semantico(tema_completo, config.curso_id, config.profesor_id, token)
-        temas_str = config.temas[0] if len(config.temas) == 1 else ', '.join(config.temas)
-
-        contexto_bloque = ""
+        try:
+            contexto = await asyncio.to_thread(
+                recuperar_contexto_semantico, tema_completo, config.curso_id, config.profesor_id, token
+            )
+        except EmbeddingQuotaExhausted as e:
+            # Modo estricto: sin embeddings no hay RAG real. El stream aún no
+            # se inició, así que se responde con un 503 explícito.
+            logger.error("PASO 2 ERROR: embeddings sin saldo/cuota: %s", e)
+            raise HTTPException(
+                status_code=503,
+                detail="La búsqueda de contexto no está disponible (saldo de embeddings agotado). Inténtalo más tarde."
+            )
         if contexto:
-            contenidos = [c.get("contenido", "") for c in contexto]
-            contexto_str = "\n\n---\n".join(contenidos)
-            contexto_bloque = (
-                f"### EJERCICIOS REALES DE EXÁMENES UNI — REFERENCIA OBLIGATORIA ###\n"
-                f"{contexto_str}\n"
-                f"### FIN DE REFERENCIA ###\n\n"
-                f"Transforma estos ejercicios: misma estructura y dificultad, solo cambia valores numéricos.\n"
-            )
-            logger.info(f"PASO 2 COMPLETADO: {len(contexto)} fragmentos recuperados ({len(contexto_str)} caracteres).")
+            total_chars = sum(len(c.get("contenido", "")) for c in contexto)
+            logger.info(f"PASO 2 COMPLETADO: {len(contexto)} fragmentos recuperados ({total_chars} caracteres, tope {EVAL_RAG_MAX_CHARS}).")
         else:
-            logger.warning("PASO 2 ALERTA: No se recuperó contexto RAG. Continuando en modo fallback con generación sintética...")
-            contexto_bloque = (
-                "### MODO FALLBACK (SIN REFERENCIAS RAG) ###\n"
-                "No hay ejercicios de referencia cargados para este curso.\n"
-                "Construye UNA pregunta original con nivel de exigencia alto (UNI) que cumpla estrictamente el estándar de dificultad solicitado.\n"
-                "MANTÉN SIEMPRE LA ESTRUCTURA DE MARCADORES @@PREGUNTA@@ ... @@FIN@@ EXACTAMENTE COMO SE INDICA ABAJO.\n\n"
-            )
+            logger.warning("PASO 2 ALERTA: No se recuperó contexto RAG. El prompt batch continuará en modo fallback sintético...")
 
-        logger.info("PASO 3: Verificando cliente de OpenAI...")
-        if not get_openai():
-            logger.error("PASO 3 ERROR: OPEN_AI_INGEST_API_KEY no está configurada en variables de entorno.")
-            raise HTTPException(status_code=500, detail="Falta configuración de API Key de OpenAI en el servidor.")
-        logger.info("PASO 3 OK: API Key presente.")
+        logger.info("PASO 3: Verificando proveedores de generación (Gemini/Groq pool, BYOK)...")
+        logger.info("PASO 3 OK: generación delegada a la cascada gratuita.")
 
+    except HTTPException:
+        # Errores intencionales (422 sin temas, 503 RAG sin saldo) se
+        # propagan tal cual; solo errores inesperados se envuelven en 500.
+        raise
     except Exception as e:
         stack_trace = traceback.format_exc()
         logger.error(f"💥 ERROR CRÍTICO PRE-STREAMING (HTTP 500):\n{stack_trace}")
@@ -1331,6 +1734,7 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion, user_data=D
     async def event_generator() -> AsyncGenerator[str, None]:
         logger.info("PASO 4: Iniciando streaming SSE event_generator...")
         try:
+            yield f"data: {json.dumps({'evento': 'inicio', 'mensaje': 'Generación de evaluación iniciada.'})}\n\n"
             if es_programacion:
                 logger.info("PASO 5: Invocando API de OpenAI (flujo programación)...")
                 cfg1 = ConfiguracionEvaluacion(
@@ -1347,24 +1751,28 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion, user_data=D
                         "sin texto adicional ni bloques Markdown."
                     )
                 loop = asyncio.get_running_loop()
-                def _call_prog():
-                    return generar_gpt(
-                        prompt=prompt_prog,
-                        system="Eres un arquitecto de software senior. Responde ÚNICAMENTE con JSON válido, sin texto adicional ni bloques de código.",
-                        max_tokens=6000,
-                        json_mode=True,
-                    )
 
-                raw = await loop.run_in_executor(None, _call_prog)
-                logger.info(f"PASO 5 COMPLETADO: Respuesta cruda recibida ({len(raw)} caracteres).")
-                logger.info("PASO 6: Parseando JSON de respuesta...")
-                data = parse_llm_json_response(raw)
+                # UNA llamada batch JSON a la cascada gratuita proporciona el
+                # máximo rendimiento: se elimina el último recurso a OpenAI.
+                system_prog = (
+                    "Eres un arquitecto de software senior. Responde ÚNICAMENTE "
+                    "con JSON válido, sin texto adicional ni bloques de código. "
+                    + REGLA_CONCISION_EXPLICACION
+                )
+                data, telemetria_prog = await loop.run_in_executor(
+                    None, _generar_json_con_reparacion_meta, prompt_prog, system_prog
+                )
+                logger.info("PASO 5 COMPLETADO: respuesta JSON batch recibida.")
+                logger.info("PASO 6: Parseando preguntas del JSON...")
                 logger.info(f"PASO 6 COMPLETADO: {len(data.get('preguntas', []))} preguntas parseadas.")
 
-                preguntas = [
-                    Pregunta(**sanitizar_pregunta_backend(sanitizar_pregunta_alucinada(p)))
-                    for p in data.get("preguntas", [])
-                ]
+                preguntas = []
+                for p in data.get("preguntas", []):
+                    pregunta = sanitizar_pregunta_backend(sanitizar_pregunta_alucinada(p))
+                    if not _tiene_campos_criticos_pregunta(pregunta):
+                        logger.warning("Pregunta de programación descartada: faltan campos críticos.")
+                        continue
+                    preguntas.append(Pregunta(**pregunta))
                 preguntas = _asignar_origen(preguntas, contexto)
                 preguntas = _deduplicar_preguntas(preguntas)
                 preguntas = _limpiar_opciones(preguntas)
@@ -1373,57 +1781,93 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion, user_data=D
                     preguntas_dicts = [p.model_dump() for p in preguntas]
                     data["preguntas"] = preguntas_dicts
 
-                yield f"data: {json.dumps({'done': True, 'result': data})}\n\n"
+                metricas = _telemetria_log("PASO 5/6", telemetria_prog)
+                yield f"data: {json.dumps({'done': True, 'result': data, 'metricas': metricas})}\n\n"
                 return
 
-            logger.info(f"PASO 5: Generando {config.num_preguntas} preguntas teóricas en paralelo...")
+            logger.info("PASO 5: Generando %d preguntas en micro-lotes estructurados.", config.num_preguntas)
+            slots = list(range(config.num_preguntas))
+            tamano_lote = min(EVAL_MICROBATCH_SIZE, config.num_preguntas)
+            lotes = [slots[i:i + tamano_lote] for i in range(0, len(slots), tamano_lote)]
+            tareas_lote = []
+            for slots_lote in lotes:
+                config_lote = config.model_copy(update={"num_preguntas": len(slots_lote)})
+                prompt_lote = generar_prompt_teorico(
+                    config_lote,
+                    contexto,
+                    indice_inicial=slots_lote[0],
+                )
+                tareas_lote.append((
+                    slots_lote,
+                    asyncio.create_task(_generar_lote_con_limite(slots_lote, prompt_lote, api_key_gemini)),
+                ))
 
-            # Sanitiza el contexto RAG una sola vez antes del bucle paralelo:
-            # se eliminan metadatos redundantes del chunker, saltos de línea
-            # repetidos y duplicaciones de estructura (overlap) sin recortar
-            # contenido pedagógico ni hacer llamadas extra a la API.
-            contexto_bloque = _sanitizar_contexto_rag(contexto_bloque)
-
-            prompts_tipos = [
-                _prompt_una_pregunta_teorica(i, temas_str, config.tipo_evaluacion, contexto_bloque)
-                for i in range(config.num_preguntas)
-            ]
-
-            preguntas: List[dict] = [None] * config.num_preguntas
-            tareas = [_generar_una_pregunta(i, p, t) for i, (p, t) in enumerate(prompts_tipos)]
-
-            total_errores = 0
-            for coro in asyncio.as_completed(tareas):
+            preguntas_por_slot: Dict[int, Pregunta] = {}
+            slots_fallidos: List[int] = []
+            enunciados_generados: set[str] = set()
+            for slots_lote, tarea_lote in tareas_lote:
+                while not tarea_lote.done():
+                    terminadas, _ = await asyncio.wait({tarea_lote}, timeout=15)
+                    if not terminadas:
+                        yield f"data: {json.dumps({'evento': 'heartbeat', 'lote': [slot + 1 for slot in slots_lote]})}\n\n"
                 try:
-                    pregunta = await coro
-                    pregunta = sanitizar_pregunta_backend(sanitizar_pregunta_alucinada(pregunta))
-                    idx = pregunta.get("id", 1) - 1
-                    preguntas[idx] = pregunta
-                    logger.info(f"PASO 5 PROGRESO: Pregunta {idx + 1}/{config.num_preguntas} generada.")
-                    yield f"data: {json.dumps({'pregunta': pregunta, 'total': config.num_preguntas})}\n\n"
-                except Exception as e:
-                    total_errores += 1
-                    logger.error(f"PASO 5 ERROR generando pregunta: {type(e).__name__}: {e}")
-                    logger.error(traceback.format_exc())
-                    yield f"data: {json.dumps({'advertencia': f'Una pregunta falló: {str(e)}'})}\n\n"
+                    preguntas_lote = tarea_lote.result()
+                except Exception as lote_error:
+                    logger.warning("Lote %s falló: %s", [slot + 1 for slot in slots_lote], lote_error)
+                    slots_fallidos.extend(slots_lote)
+                    yield f"data: {json.dumps({'evento': 'advertencia', 'mensaje': 'Un lote se reintentará por pregunta.', 'codigo': 'reintento_slots'})}\n\n"
+                    continue
 
-            preguntas_ok = [p for p in preguntas if p is not None]
-            if not preguntas_ok:
-                logger.error("PASO 5 ERROR: No se pudo generar ninguna pregunta.")
-                yield f"data: {json.dumps({'error': 'No se pudo generar ninguna pregunta'})}\n\n"
-                return
+                for slot, pregunta in zip(slots_lote, preguntas_lote):
+                    enunciado = re.sub(r"\s+", " ", (pregunta.pregunta or "").strip().lower())
+                    if enunciado in enunciados_generados:
+                        logger.warning("Slot %d duplicado; se reintentará de forma aislada.", slot + 1)
+                        slots_fallidos.append(slot)
+                        continue
+                    enunciados_generados.add(enunciado)
+                    preguntas_por_slot[slot] = pregunta
+                    logger.info("PASO 5 PROGRESO: Pregunta %d/%d validada.", slot + 1, config.num_preguntas)
+                    yield f"data: {json.dumps({'pregunta': pregunta.model_dump(), 'total': config.num_preguntas})}\n\n"
 
-            preguntas_obj = [
-                Pregunta(**sanitizar_pregunta_backend(sanitizar_pregunta_alucinada(p)))
-                for p in preguntas_ok
-            ]
+            for slot in slots_fallidos:
+                config_slot = config.model_copy(update={"num_preguntas": 1})
+                prompt_slot = generar_prompt_teorico(config_slot, contexto, indice_inicial=slot)
+                ultimo_error: Optional[Exception] = None
+                for intento in range(EVAL_SLOT_MAX_RETRIES):
+                    try:
+                        pregunta = await _generar_pregunta_con_limite(
+                            slot,
+                            prompt_slot,
+                            api_key_gemini,
+                        )
+                        enunciado = re.sub(r"\s+", " ", (pregunta.pregunta or "").strip().lower())
+                        if enunciado in enunciados_generados:
+                            raise ValueError("La pregunta regenerada duplica un slot ya válido")
+                        enunciados_generados.add(enunciado)
+                        preguntas_por_slot[slot] = pregunta
+                        break
+                    except Exception as slot_error:
+                        ultimo_error = slot_error
+                        logger.warning("Slot %d reintento %d falló: %s", slot + 1, intento + 1, slot_error)
+                if slot not in preguntas_por_slot:
+                    yield f"data: {json.dumps({'evento': 'error', 'mensaje': 'No fue posible completar todas las preguntas solicitadas.', 'codigo': 'slots_incompletos'})}\n\n"
+                    return
+
+            preguntas_obj = [preguntas_por_slot[slot] for slot in slots]
+
             preguntas_obj = _asignar_origen(preguntas_obj, contexto)
             preguntas_obj = _deduplicar_preguntas(preguntas_obj)
             preguntas_obj = _limpiar_opciones(preguntas_obj)
+
+            if len(preguntas_obj) != config.num_preguntas:
+                logger.error("PASO 5 ERROR: se obtuvieron %d de %d preguntas válidas.", len(preguntas_obj), config.num_preguntas)
+                yield f"data: {json.dumps({'evento': 'error', 'mensaje': 'No fue posible completar exactamente la cantidad solicitada de preguntas.', 'codigo': 'cantidad_incompleta'})}\n\n"
+                return
+
             preguntas_ok = [p.model_dump() for p in preguntas_obj]
 
-            logger.info(f"PASO 5 COMPLETADO: {len(preguntas_ok)}/{config.num_preguntas} preguntas generadas "
-                        f"({total_errores} errores).")
+            logger.info("PASO 5 COMPLETADO: %d preguntas estructuradas generadas.", len(preguntas_ok))
+            metricas = _telemetria_log("PASO 5")
 
             resultado = {
                 "curso_id": config.curso_id,
@@ -1432,12 +1876,14 @@ async def generar_evaluacion_stream(config: ConfiguracionEvaluacion, user_data=D
                 "preguntas": preguntas_ok,
                 "tiempo_estimado": len(preguntas_ok) * 5,
             }
-            yield f"data: {json.dumps({'done': True, 'result': resultado})}\n\n"
+            yield f"data: {json.dumps({'done': True, 'result': resultado, 'metricas': metricas})}\n\n"
 
         except Exception as stream_err:
             stack_trace = traceback.format_exc()
             logger.error(f"❌ ERROR DENTRO DEL GENERADOR STREAM:\n{stack_trace}")
-            yield f"data: {json.dumps({'error': str(stream_err)})}\n\n"
+            # Evento de error ordenado: la conexión SSE se cierra limpiamente
+            # y el frontend recibe 'evento'/'mensaje' además del 'error' legacy.
+            yield f"data: {json.dumps({'evento': 'error', 'mensaje': 'No fue posible generar la evaluación con los proveedores de IA disponibles. Inténtalo más tarde.', 'error': str(stream_err), 'codigo': 'generacion_fallida'})}\n\n"
 
     logger.info("PASO 4 COMPLETADO: StreamingResponse iniciado.")
     logger.info("=" * 60)
@@ -1516,7 +1962,7 @@ async def generar_retroalimentacion(
     basada en los resultados del estudiante
     """
     
-    if not get_openai():
+    if not _hay_proveedor_gratuito():
         return "Retroalimentación no disponible"
 
     temas_dificultad = []
@@ -1544,29 +1990,53 @@ Para cualquier fórmula matemática, usa la sintaxis de LaTeX: $...$ para fórmu
 """
 
     try:
-        return generar_gpt(prompt=prompt, max_tokens=1500)
+        return await asyncio.to_thread(generar, prompt=prompt, max_tokens=1500)
     except Exception:
         return f"Retroalimentación automática: Has obtenido un {porcentaje:.1f}%. {'¡Excelente trabajo!' if porcentaje >= 70 else 'Sigue practicando para mejorar.'}"
 
 @router.get("/evaluaciones/test")
 async def test_generacion():
-    """Endpoint de prueba para verificar que la generación con GPT funciona."""
+    """Endpoint de prueba para verificar que la cascada de generación funciona.
 
-    if not get_openai():
-        return {"status": "error", "message": "API Key de OpenAI no configurada"}
+    Refleja la arquitectura real: primero la cascada gratuita (Gemini -> Groq)
+    y, solo si aquella falla, el último recurso pagado (OpenAI).
+    """
+    resultado: Dict[str, Any] = {
+        "gratuito": None,
+        "pagado_ultimo_recurso": None,
+    }
 
     try:
-        texto = generar_gpt(
+        texto = await asyncio.to_thread(
+            generar,
             prompt="Di 'Hola, UniVia está listo para generar evaluaciones!'",
             max_tokens=100,
         )
-        return {
-            "status": "success",
-            "message": f"GPT ({MODELO_GENERACION_GPT}) funcionando correctamente",
-            "response": texto,
-        }
+        resultado["gratuito"] = {"status": "success", "response": texto}
+        resultado["status"] = "success"
+        resultado["message"] = "Cascada gratuita (Gemini/Groq) funcionando correctamente"
+        return resultado
     except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e)
-        }
+        resultado["gratuito"] = {"status": "error", "message": str(e)}
+
+    if not get_openai():
+        resultado["pagado_ultimo_recurso"] = {"status": "error", "message": "API Key de OpenAI no configurada"}
+        resultado["status"] = "error"
+        resultado["message"] = "Ningún proveedor disponible (ni gratuito ni pagado)."
+        return resultado
+
+    try:
+        texto = await asyncio.to_thread(
+            generar_gpt,
+            prompt="Di 'Hola, UniVia está listo para generar evaluaciones!'",
+            max_tokens=100,
+        )
+        resultado["pagado_ultimo_recurso"] = {"status": "success", "response": texto}
+        resultado["status"] = "success"
+        resultado["message"] = f"GPT ({MODELO_GENERACION_GPT}) funcionando correctamente como último recurso"
+    except Exception as e:
+        resultado["pagado_ultimo_recurso"] = {"status": "error", "message": str(e)}
+        resultado["status"] = "error"
+        resultado["message"] = str(e)
+
+    return resultado

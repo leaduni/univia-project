@@ -1,7 +1,7 @@
 // Auth context provider with Supabase session management
 "use client"
 
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { apiService } from '@/lib/api-service';
 import { User, Session } from '@supabase/supabase-js';
@@ -176,7 +176,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
     }, []);
 
-    const signOut = async () => {
+    const signOut = useCallback(async () => {
         tokenPerfilCargado.current = null;
         setSession(null);
         setSupabaseUser(null);
@@ -193,16 +193,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (typeof window !== 'undefined' && window.location.pathname !== '/') {
             window.location.assign('/');
         }
-    };
+    }, []);
 
-    const refreshProfile = async () => {
+    const refreshProfile = useCallback(async () => {
         if (session) {
             await fetchProfile(session.access_token);
         }
-    };
+    }, [session]);
+
+    // El value se memoiza para que solo cambie cuando cambian sus datos reales,
+    // evitando re-render de todo el árbol de consumidores en cada render del
+    // provider (Header, Sidebar, Dashboard, ChatBubble, etc.).
+    const value = useMemo(
+        () => ({ user, supabaseUser, session, isLoading, signOut, refreshProfile }),
+        [user, supabaseUser, session, isLoading, signOut, refreshProfile],
+    );
 
     return (
-        <AuthContext.Provider value={{ user, supabaseUser, session, isLoading, signOut, refreshProfile }}>
+        <AuthContext.Provider value={value}>
             {children}
         </AuthContext.Provider>
     );

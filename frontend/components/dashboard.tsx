@@ -11,6 +11,7 @@ import { RecentResources } from "./dashboard/recent-resources"
 import { AIRecommendationBanner } from "./dashboard/ai-recommendation-banner"
 import { useAuth } from "./providers/auth-context"
 import { apiService, type ApiError } from "@/lib/api-service"
+import { picoCache } from "@/lib/api-cache"
 import { calcularRacha, mensajeRacha } from "@/lib/racha"
 import type { DashboardMetricas } from "./stats-cards"
 
@@ -26,14 +27,18 @@ interface Logro {
 export function Dashboard() {
   const { user, session } = useAuth()
   const router = useRouter()
-  const [stats, setStats] = useState<DashboardMetricas | null>(null)
-  const [logros, setLogros] = useState<Logro[]>([])
-  const [cursosActivos, setCursosActivos] = useState<CursoActivo[]>([])
+  // Seed desde caché SWR: si el prefetch (hover) ya pobló el resumen y los
+  // cursos activos, se pintan en el primer frame sin skeleton ni parpadeo.
+  const cacheSummary = picoCache<{ stats: DashboardMetricas; logros: Logro[] }>("summary")
+  const cacheCursosActivos = picoCache<{ cursos: CursoActivo[] }>("cursos-activos")
+  const [stats, setStats] = useState<DashboardMetricas | null>(() => cacheSummary?.stats ?? null)
+  const [logros, setLogros] = useState<Logro[]>(() => cacheSummary?.logros ?? [])
+  const [cursosActivos, setCursosActivos] = useState<CursoActivo[]>(() => cacheCursosActivos?.cursos ?? [])
   const [racha, setRacha] = useState(0)
   // Estados de carga estructurados por sección: reemplazo el isLoading global.
   // Cada sección (resumen, avance/timeline) muestra su skeleton independientemente
   // mientras sus datos se poblan. Esto evita que un solo fetch bloquee todo el dashboard.
-  const [isLoadingSummary, setIsLoadingSummary] = useState(true)
+  const [isLoadingSummary, setIsLoadingSummary] = useState(!cacheSummary)
   const [isLoadingAvance, setIsLoadingAvance] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)

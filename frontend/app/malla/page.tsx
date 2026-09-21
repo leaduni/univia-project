@@ -3,10 +3,11 @@
 
 import { useEffect, useState } from "react"
 import dynamic from "next/dynamic"
-import { AlertCircle, Loader2, RotateCcw } from "lucide-react"
+import { AlertCircle, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { apiService, mensajeAmigableError } from "@/lib/api-service"
+import { picoCache } from "@/lib/api-cache"
 import type { AvanceCarrera, CicloDetail } from "@/types/malla"
 
 // Los estilos de React Flow son globales: solo se cargan en esta ruta.
@@ -16,17 +17,15 @@ const MallaGraph = dynamic(
   () => import("@/components/malla-graph/MallaGraph").then((m) => m.MallaGraph),
   {
     ssr: false,
-    loading: () => (
-      <div className="flex h-[calc(100vh-200px)] min-h-[650px] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-accent" />
-      </div>
-    ),
+    loading: () => <MallaSkeleton />,
   },
 )
 
 export default function MallaPage() {
-  const [malla, setMalla] = useState<any[]>([])
-  const [avance, setAvance] = useState<any>(null)
+  // Seed desde caché SWR: si ya hay datos (prefetch por hover), se pintan en
+  // el primer frame sin skeleton ni parpadeo.
+  const [malla, setMalla] = useState<any[]>(() => picoCache<any[]>("malla") ?? [])
+  const [avance, setAvance] = useState<any>(() => picoCache<any>("avance") ?? null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   // Cambiarlo reejecuta el efecto de carga: reintentar sin recargar el navegador.
@@ -62,10 +61,31 @@ export default function MallaPage() {
     }
   }, [intento])
 
+  const handleMarkCompleted = (courseId: string) => {
+    setMalla(prev => {
+      const nuevo = JSON.parse(JSON.stringify(prev))
+      let found = false
+      for (const ciclo of nuevo) {
+        if (found) break
+        for (const curso of ciclo.courses) {
+          if (curso.id === courseId) {
+            curso.status = 'completed'
+            // Mock: Assign a passing grade and date
+            curso.nota = 15.0
+            curso.fecha_completado = new Date().toISOString()
+            found = true
+            break
+          }
+        }
+      }
+      return nuevo
+    })
+  }
+
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-6">
-        <div className="space-y-1 max-w-5xl">
+      <div className="p-4 md:p-6 flex flex-col h-[calc(100dvh-5rem-env(safe-area-inset-bottom))]">
+        <div className="space-y-1 mb-4 flex-none">
           <h1 className="font-heading text-2xl md:text-3xl font-bold tracking-tight text-foreground">
             Mi malla curricular
           </h1>
@@ -75,7 +95,7 @@ export default function MallaPage() {
         </div>
 
         {error ? (
-          <div className="flex flex-col items-center text-center gap-4 py-16">
+          <div className="flex flex-col items-center justify-center text-center gap-4 py-16 flex-1">
             <div className="p-4 rounded-full bg-destructive/10 border border-destructive/30">
               <AlertCircle className="w-7 h-7 text-destructive" />
             </div>
@@ -94,17 +114,40 @@ export default function MallaPage() {
               Reintentar
             </Button>
           </div>
-        ) : cargando ? (
-          <div className="flex flex-col items-center justify-center gap-4 py-16">
-            <Loader2 className="w-8 h-8 animate-spin text-accent" />
-            <p className="text-sm text-muted-foreground">Cargando tu malla...</p>
-          </div>
+        ) : cargando && malla.length === 0 ? (
+          <MallaSkeleton />
         ) : (
-          <div className="rounded-2xl bg-card border border-border overflow-hidden">
-            <MallaGraph malla={malla as CicloDetail[]} avance={avance as AvanceCarrera | null} />
+          <div className="flex-1 rounded-2xl bg-card border border-border overflow-hidden min-h-0">
+            <MallaGraph 
+              malla={malla as CicloDetail[]} 
+              avance={avance as AvanceCarrera | null}
+              onMarkCompleted={handleMarkCompleted}
+            />
           </div>
         )}
       </div>
     </DashboardLayout>
+  )
+}
+
+/** Shell de carga granular: tarjetas de ciclo esqueleto en vez de un spinner. */
+function MallaSkeleton() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {[0, 1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="rounded-2xl border border-border bg-card p-5 space-y-3"
+        >
+          <div className="h-4 w-28 rounded-md bg-muted animate-pulse" />
+          <div className="h-3 w-3/4 rounded-md bg-muted/70 animate-pulse" />
+          <div className="space-y-2 pt-2">
+            <div className="h-10 rounded-xl bg-muted/60 animate-pulse" />
+            <div className="h-10 rounded-xl bg-muted/60 animate-pulse" />
+            <div className="h-10 rounded-xl bg-muted/60 animate-pulse" />
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }

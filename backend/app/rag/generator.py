@@ -1,3 +1,4 @@
+import time
 from dotenv import load_dotenv
 
 from app.core.llm import MODELO_GENERACION, generar
@@ -5,6 +6,9 @@ from app.rag.retriever import SyllabusRetriever
 
 load_dotenv()
 
+
+_cache_respuestas = {}
+_CACHE_TTL = 3600
 
 class SyllabusGenerator:
     """Tutor RAG: recupera contexto con Gemini (embeddings) y responde con Claude."""
@@ -14,6 +18,15 @@ class SyllabusGenerator:
         self.retriever = SyllabusRetriever()
 
     def generar_respuesta(self, pregunta: str) -> str:
+        clave = (pregunta.strip(), self.model_name)
+        if clave in _cache_respuestas:
+            resp, ts = _cache_respuestas[clave]
+            if time.time() - ts < _CACHE_TTL:
+                print("Generando respuesta ... (desde caché)")
+                return resp
+            else:
+                del _cache_respuestas[clave]
+
         print(f"Pregunta del usuario: {pregunta}")
 
         fragmentos = self.retriever.buscar_contexto(pregunta, limit=4, umbral_similitud=0.4)
@@ -78,12 +91,19 @@ RESPUESTA:"""
 
         print("Generando respuesta ...")
         try:
-            return generar(
+            respuesta = generar(
                 prompt=mensaje,
                 system=SYSTEM_TUTOR,
                 max_tokens=8000,
                 modelo=self.model_name,
             )
+            # Limpiar caché si crece demasiado
+            if len(_cache_respuestas) > 500:
+                oldest = min(_cache_respuestas.keys(), key=lambda k: _cache_respuestas[k][1])
+                del _cache_respuestas[oldest]
+                
+            _cache_respuestas[clave] = (respuesta, time.time())
+            return respuesta
         except Exception as e:
             print(f"Error generando la respuesta: {e}")
             return "Hubo un error interno al intentar procesar la respuesta. "

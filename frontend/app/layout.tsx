@@ -1,6 +1,6 @@
 // Root layout with ThemeProvider, AuthProvider, Poppins + Open Sans fonts
 import type React from "react"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Anton, Poppins, Open_Sans } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "sonner"
@@ -40,9 +40,14 @@ export const metadata: Metadata = {
   },
 }
 
+export const viewport: Viewport = {
+  viewportFit: "cover",
+}
+
 import { AuthProvider } from "@/components/providers/auth-context"
+import { ByokProvider } from "@/components/providers/byok-context"
 import { ThemeProvider } from "@/components/theme-provider"
-import { ChatBubble } from "@/components/chatbot/chat-bubble"
+import { ChatBubble } from "@/components/chat/chat-bubble"
 
 export default function RootLayout({
   children,
@@ -54,13 +59,17 @@ export default function RootLayout({
       <body className={`${poppins.variable} ${openSans.variable} ${anton.variable} font-sans antialiased text-foreground bg-background min-h-screen`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <AuthProvider>
-            {children}
-            {/* Montado a nivel de layout raíz (no en DashboardLayout) para que
-                el hilo de la conversación sobreviva a la navegación entre
-                páginas: cada página instancia su propio DashboardLayout, que
-                se desmonta en cada cambio de ruta. ChatBubble decide sola
-                cuándo mostrarse (sesión + onboarding completo). */}
-            <ChatBubble />
+            {/* Estado global BYOK: permite abrir el modal de la clave de IA
+                desde cualquier página (dashboard, perfil, chat flotante). */}
+            <ByokProvider>
+              {children}
+              {/* Montado a nivel de layout raíz (no en DashboardLayout) para que
+                  el hilo de la conversación sobreviva a la navegación entre
+                  páginas: cada página instancia su propio DashboardLayout, que
+                  se desmonta en cada cambio de ruta. ChatBubble decide sola
+                  cuándo mostrarse (sesión + onboarding completo). */}
+              <ChatBubble />
+            </ByokProvider>
           </AuthProvider>
         </ThemeProvider>
         <Toaster

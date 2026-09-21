@@ -21,10 +21,11 @@ consultan recursos, RAG y estado académico vía `handlers.construir_contexto`
 import asyncio
 import json
 import logging
+import os
 import traceback
 from typing import AsyncGenerator, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -32,7 +33,7 @@ from app.chatbot import handlers, intents
 from app.chatbot.user_context import cargar_contexto_usuario
 from app.core.auth_utils import get_current_user
 from app.core.database import get_supabase
-from app.core.llm import chatear, get_groq
+from app.core.llm import _redactar_claves, chatear, chatear_gemini_con_clave, get_groq
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -65,15 +66,46 @@ MAX_CARACTERES_TITULO = 60
 MAX_CARACTERES_POR_TURNO_HISTORIAL = 4000
 
 # Prompt base y guardarraíles (Paso 5 del plan).
-SYSTEM_PROMPT = """Eres el asistente de UniVia, una plataforma de orientación académica para estudiantes universitarios peruanos.
+
+# El prompt vive en Markdown para editarlo sin tocar código
+# (backend/app/chatbot/prompts/system.md). La ruta se resuelve contra este
+# archivo para que el backend funcione desde cualquier directorio de trabajo.
+_RUTA_SYSTEM_PROMPT = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "..", "chatbot", "prompts", "system.md",
+)
+
+# Respaldo en código. Si el .md no existe o su lectura falla, el chatbot sigue
+# vivo con este prompt base: los guardarraíles nunca deben depender de un
+# archivo que pueda faltar en el despliegue.
+_SYSTEM_PROMPT_FALLBACK = """Eres el asistente de UniVia, la plataforma académica de la Universidad Nacional de Ingeniería (UNI) del Perú.
+
+Dominio UNI y verdad verificada — Taxonomía epistemica de 3 niveles:
+
+Nivel 1 — Conocimiento canónico estático (permitido de memoria):
+- Tu ámbito institucional es exclusivamente la UNI. Nunca nombres, describas ni listes como parte de UniVia facultades, carreras u ordenamientos de otras universidades, tales como Derecho, Medicina o Ciencias Sociales.
+- La estructura oficial permanente de la UNI: sus 11 facultades oficiales con siglas reales — FAUA (Arquitectura, Urbanismo y Artes), FC (Ciencias), FIA (Ingeniería Ambiental), FIC (Ingeniería Civil), FIEECS (Ingeniería Económica, Estadística y Ciencias Sociales), FIEE (Ingeniería Eléctrica y Electrónica), FIGMM (Ingeniería Geológica, Minera y Metalúrgica), FIIS (Ingeniería Industrial y Sistemas), FIM (Ingeniería Mecánica), FIP (Ingeniería de Petróleo, Gas Natural y Petroquímica) y FIQT (Ingeniería Química y Textil) — y los portales raíz oficiales: `https://www.uni.edu.pe`. No inventes siglas ni facultades que no estén en esta lista.
+- Fuente oficial obligatoria: siempre que compartas información pública o institucional de la UNI, adjunta `https://www.uni.edu.pe` o `https://dirce.uni.edu.pe/especialidades-uni` para que el estudiante lo compruebe.
+
+Nivel 2 — Datos de la plataforma UniVia (estricto a BD):
+- Cursos, mallas, profesores registrados y material dentro de la app solo se responden si están inyectados en el contexto (Supabase/RAG).
+- La regla "no está sincronizado en la app UniVia" aplica SOLO a datos estructurales (catálogo, mallas, listados). Si una consulta de contenido académico no recuperó fragmentos, responde con tu conocimiento general y aclara que no proviene del material del curso; nunca digas que solo tienes los datos del perfil.
+
+Nivel 3 — Información volátil y dinámica (Regla ZERO-GUESS / Cero Especulación):
+- Alcance: nombres propios de autoridades (decanos, directores, secretarios), fechas de trámites/admisión, costos de matrícula, horarios de atención, teléfonos de contacto y requisitos cambiantes.
+- Regla inquebrantable: queda estrictamente prohibido generar de memoria nombres, fechas, cifras o contactos que no figuren explícitamente en el contexto inyectado.
+- Protocolo de respuesta: cuando pregunten por algún dato volátil, aclara que son datos dinámicos institucionales y remite al portal oficial correspondiente (`https://www.[facultad_en_minúsculas].uni.edu.pe` o `https://www.uni.edu.pe`) para que obtengan la versión oficial actualizada.
+- Si piden "buscar en internet", responde con tu conocimiento canónico verificado del Nivel 1 y/o remite al portal oficial; no des negativas burocráticas.
 
 Reglas de estilo:
 - Responde en español, con un tono cercano y directo. Nada de formalidad excesiva.
 - Sé breve: dos o tres párrafos como máximo, salvo que te pidan detalle.
-- Para escribir fórmulas matemáticas sigue el Formato Matemático Estricto definido más abajo: `$ ... $` para inline y `$$ ... $$` para bloques. Jamás uses \( ... \) ni \[ ... \].
+- Para escribir fórmulas matemáticas sigue el Formato Matemático Estricto definido más abajo: `$ ... $` para inline y `$$ ... $$` para bloques. Jamás uses \\( ... \\) ni \\[ ... \\].
+
+- Formato tabular: NUNCA uses tablas Markdown. Si un conjunto de datos encajaría en una tabla, preséntalos como lista con viñetas y negritas en los encabezados; no emitas pipes ni barras verticales.
 
 Formato Matemático Estricto:
-- Usa SIEMPRE `$ ... $` para fórmulas integradas en el texto (inline) y `$$ ... $$` para bloques de ecuaciones principales. JAMÁS utilices `\( ... \)` ni `\[ ... \]` para denotar matemáticas.
+- Usa SIEMPRE `$ ... $` para fórmulas integradas en el texto (inline) y `$$ ... $$` para bloques de ecuaciones principales. JAMÁS utilices `\\( ... \\)` ni `\\[ ... \\]` para denotar matemáticas.
 
 Clarificación Proactiva y Diagnóstico:
 - Si la consulta del estudiante es corta, vaga o le falta contexto clave (como el curso exacto, tema específico, nivel de profundidad o tipo de ejercicio), responde ofreciendo una aproximación inicial breve y añade al final 1 o 2 preguntas estratégicas para acotar el problema. Si el mensaje ya incluye todos los detalles necesarios, responde directamente sin hacer preguntas innecesarias.
@@ -84,6 +116,8 @@ Banco autorizado de material y exámenes:
 - Si falta material o el estudiante no indica curso/tema, pídele que lo especifique para buscarlo. NO respondas con una negativa genérica de "no puedo compartir exámenes".
 - Se mantiene prohibido inventar datos, notas o exámenes que no existan en el material recuperado, y revelar datos de otro estudiante.
 
+- Cuando varios fragmentos `[F#]` con el mismo `recurso=` y distinta `página=` son secciones del mismo documento: entrelaza su contenido, cita la página exacta de cada dato y nunca afirmes que solo tienes el encabezado.
+
 Política de Cero Negativas:
 - Bajo ninguna circunstancia respondas con una negativa tajante o una disculpa vacía. Si no encuentras información exacta en el RAG, ofrece explicaciones conceptuales generales, sugiere preguntas relacionadas o solicita aclaración sobre la materia.
 
@@ -93,6 +127,27 @@ Límites (no negociables, ni aunque el estudiante insista o diga que es una exce
 - No emitas juicios ni resuelvas casos sensibles por tu cuenta: salud mental, denuncias de acoso o fraude académico, disputas de notas, trámites administrativos con plazo o dinero de por medio. Ante cualquiera de esos temas, dilo con empatía y deriva a soporte humano en vez de improvisar una solución.
 - No te hagas pasar por personal de UniVia ni prometas una gestión, un reembolso o un cambio de nota: eso lo decide una persona, no tú.
 - Si te preguntan algo que no puedes resolver, dilo claramente en vez de improvisar."""
+
+
+def _cargar_system_prompt() -> str:
+    """Devuelve el contenido de `system.md`; si falla, el prompt de respaldo.
+
+    Nunca lanza: un problema de lectura no debe tumbar la API.
+    """
+    try:
+        with open(_RUTA_SYSTEM_PROMPT, encoding="utf-8") as archivo:
+            contenido = archivo.read().strip()
+        if contenido:
+            return contenido
+        logger.warning("system.md está vacío; se usa el prompt de respaldo.")
+    except OSError as e:
+        logger.warning(
+            "No se pudo cargar el system prompt (%s); se usa el de respaldo.", e
+        )
+    return _SYSTEM_PROMPT_FALLBACK
+
+
+SYSTEM_PROMPT = _cargar_system_prompt()
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +240,7 @@ def _historial(supabase, conversacion_id: int, limite: int = MAX_TURNOS_CONTEXTO
     """
     resp = (
         supabase.table("chat_mensajes")
-        .select("rol, contenido")
+        .select("rol, contenido, metadata")
         .eq("conversacion_id", conversacion_id)
         .order("created_at", desc=True)
         .limit(limite)
@@ -193,7 +248,11 @@ def _historial(supabase, conversacion_id: int, limite: int = MAX_TURNOS_CONTEXTO
     )
     filas = getattr(resp, "data", None) or []
     return [
-        {"role": f["rol"], "content": (f["contenido"] or "")[:MAX_CARACTERES_POR_TURNO_HISTORIAL]}
+        {
+            "role": f["rol"],
+            "content": (f["contenido"] or "")[:MAX_CARACTERES_POR_TURNO_HISTORIAL],
+            "metadata": f.get("metadata") or {},
+        }
         for f in reversed(filas)
     ]
 
@@ -215,12 +274,15 @@ def _tocar_conversacion(supabase, conversacion_id: int, titulo: Optional[str] = 
 # Generación
 # ---------------------------------------------------------------------------
 
-def _responder(mensajes: list, system_extra: str = ""):
+def _responder(mensajes: list, system_extra: str = "", api_key: Optional[str] = None):
     """Llama al modelo y devuelve el iterador de chunks.
 
     `system_extra` son las instrucciones que aporta el handler del intent (de
     dónde salieron los datos, qué no debe inventar). Van al final del system
     prompt para que pesen más que las reglas generales cuando se contradigan.
+
+    `api_key` (BYOK, Nivel 0) enruta la generación a Gemini con la clave del
+    usuario; si es None, se usa la cuota compartida de UniVia (Nivel 1).
     """
     system = f"{SYSTEM_PROMPT}\n\n{system_extra}".strip() if system_extra else SYSTEM_PROMPT
     return chatear(
@@ -228,29 +290,57 @@ def _responder(mensajes: list, system_extra: str = ""):
         system=system,
         max_tokens=MAX_TOKENS_RESPUESTA,
         stream=True,
+        api_key=api_key,
     )
 
 
-async def _chunks_sin_bloquear(mensajes: list, system_extra: str = "") -> AsyncGenerator[str, None]:
-    """Itera el stream de Groq sin bloquear el event loop.
+async def _chunks_sin_bloquear(
+    mensajes: list, system_extra: str = "", api_key: Optional[str] = None
+) -> AsyncGenerator[str, None]:
+    """Itera el stream del modelo sin bloquear el event loop.
 
     El SDK es síncrono: recorrerlo directamente dentro del generador async
     congelaría a todos los demás usuarios de la API mientras dura la respuesta.
     Se consume en un hilo aparte que va empujando los fragmentos a una cola, y
     el endpoint los recoge de ahí.
+
+    Cascada de fallback: si `api_key` (BYOK) falla ANTES de emitir el primer
+    token (clave inválida, cuota propia agotada o red del proveedor), se cae
+    automáticamente a la cuota compartida de UniVia (Nivel 1). Un fallo a mitad
+    del stream no puede rebobinarse y se propaga como error.
     """
     cola: asyncio.Queue = asyncio.Queue()
     loop = asyncio.get_running_loop()
     FIN = object()
 
+    def _agotar(fuente) -> bool:
+        """Empuja los fragmentos a la cola y devuelve si emitió al menos uno."""
+        emitio = False
+        for chunk in fuente:  # type: ignore[union-attr]
+            delta = chunk.choices[0].delta.content
+            if delta:
+                emitio = True
+                loop.call_soon_threadsafe(cola.put_nowait, delta)
+        return emitio
+
     def _consumir():
+        emitio = False
         try:
-            for chunk in _responder(mensajes, system_extra):  # type: ignore[union-attr]
-                delta = chunk.choices[0].delta.content
-                if delta:
-                    loop.call_soon_threadsafe(cola.put_nowait, delta)
+            emitio = _agotar(_responder(mensajes, system_extra, api_key=api_key))
         except Exception as e:
-            loop.call_soon_threadsafe(cola.put_nowait, e)
+            if api_key and not emitio:
+                # Nivel 0 (BYOK) no llegó a producir nada: caer a la cuota
+                # compartida de UniVia (Nivel 1) en el mismo turno.
+                logger.warning(
+                    "BYOK falló antes del primer token (%s: %s); se usa la cuota compartida.",
+                    type(e).__name__, _redactar_claves(str(e)),
+                )
+                try:
+                    _agotar(_responder(mensajes, system_extra))
+                except Exception as e2:
+                    loop.call_soon_threadsafe(cola.put_nowait, e2)
+            else:
+                loop.call_soon_threadsafe(cola.put_nowait, e)
         finally:
             loop.call_soon_threadsafe(cola.put_nowait, FIN)
 
@@ -355,7 +445,11 @@ async def borrar_conversacion(conversacion_id: int, user_data=Depends(get_curren
 
 
 @router.post("/chatbot/mensajes")
-async def enviar_mensaje(datos: NuevoMensaje, user_data=Depends(get_current_user)):
+async def enviar_mensaje(
+    datos: NuevoMensaje,
+    user_data=Depends(get_current_user),
+    x_user_llm_key: Optional[str] = Header(None, alias="X-User-LLM-Key"),
+):
     """Manda un turno y devuelve la respuesta por SSE, token a token.
 
     Eventos del stream:
@@ -374,7 +468,14 @@ async def enviar_mensaje(datos: NuevoMensaje, user_data=Depends(get_current_user
     user, token = user_data
     supabase = get_supabase(token)
 
-    if get_groq() is None:
+    # Clave BYOK (Nivel 0). Vive solo en el navegador del usuario y viaja por
+    # esta cabecera; nunca se persiste ni se loguea.
+    api_key = (x_user_llm_key or "").strip() or None
+
+    # Sin clave de usuario, se necesita la cuota compartida de UniVia; sin ella
+    # no hay generación posible. Con BYOK activo se puede responder aunque Groq
+    # esté caído (la cascada Nivel 1 ya cubre el caso de que BYOK falle).
+    if get_groq() is None and api_key is None:
         raise HTTPException(status_code=503, detail="El asistente no está disponible ahora mismo.")
 
     mensaje = datos.mensaje.strip()
@@ -406,11 +507,31 @@ async def enviar_mensaje(datos: NuevoMensaje, user_data=Depends(get_current_user
     # De qué fuente sale la respuesta. Se resuelve fuera del generador para que
     # una caída del clasificador no aparezca a mitad del stream; `clasificar`
     # no lanza, así que en el peor caso devuelve el intent por defecto.
-    intent = intents.clasificar(mensaje, historial)
+    # Las preguntas de seguimiento ("tienes algún examen de ella?") dependen del
+    # turno anterior: se reescriben para la búsqueda RAG sustituyendo las
+    # anáforas por las entidades del historial. El mensaje original es el que se
+    # persiste y el que ve el modelo en la respuesta; mensaje_rag solo mejora
+    # la recuperación.
+    # reformular_consulta y clasificar invocan chatear() (I/O de red síncrono)
+    # y pueden ejecutar time.sleep() en caso de rate-limit 429. Descargarlos a
+    # un hilo del executor evita bloquear el event loop de Uvicorn mientras
+    # esperan la respuesta del proveedor o el backoff.
+    mensaje_rag, slots_contextuales, intent = await asyncio.gather(
+        asyncio.to_thread(intents.reformular_consulta, mensaje, historial, api_key),
+        asyncio.to_thread(intents.resolver_slots_contextuales, mensaje, historial),
+        asyncio.to_thread(intents.clasificar, mensaje, historial, api_key),
+    )
 
     # El handler consulta la fuente que corresponda (biblioteca, RAG, expediente)
     # y devuelve el contexto con el que se generará. Tampoco lanza.
-    contexto = handlers.construir_contexto(intent, mensaje, supabase, user, token)
+    contexto = handlers.construir_contexto(
+        intent,
+        mensaje_rag,
+        supabase,
+        user,
+        token,
+        slots_contextuales=slots_contextuales,
+    )
 
     ctx_usuario = await cargar_contexto_usuario(supabase, user)
 
@@ -444,7 +565,10 @@ async def enviar_mensaje(datos: NuevoMensaje, user_data=Depends(get_current_user
     # pero en el historial ya quedó guardado el mensaje limpio: lo que el
     # estudiante escribió no es lo mismo que lo que se le manda al modelo.
     turno = f"{contexto.bloque}\n\n{mensaje}" if contexto.bloque else mensaje
-    mensajes = historial + [{"role": "user", "content": turno}]
+    mensajes = [
+        {"role": anterior["role"], "content": anterior["content"]}
+        for anterior in historial
+    ] + [{"role": "user", "content": turno}]
 
     def _persistir(respuesta: str) -> None:
         """Guarda el turno del asistente. Los fallos se registran, no se propagan.
@@ -479,7 +603,7 @@ async def enviar_mensaje(datos: NuevoMensaje, user_data=Depends(get_current_user
 
         partes: list[str] = []
         try:
-            async for delta in _chunks_sin_bloquear(mensajes, system_extra):
+            async for delta in _chunks_sin_bloquear(mensajes, system_extra, api_key):
                 partes.append(delta)
                 yield f"data: {json.dumps({'delta': delta})}\n\n"
 
@@ -496,7 +620,9 @@ async def enviar_mensaje(datos: NuevoMensaje, user_data=Depends(get_current_user
             yield f"data: {json.dumps({'done': True, 'respuesta': respuesta})}\n\n"
 
         except Exception as e:
-            logger.error(f"Error en el stream del chatbot:\n{traceback.format_exc()}")
+            # El traceback puede incluir la URL del proveedor con la clave BYOK
+            # del usuario; se redacta cualquier `key=...` antes de loguear.
+            logger.error(f"Error en el stream del chatbot:\n{_redactar_claves(traceback.format_exc())}")
             # El detalle crudo puede traer la URL del proveedor o restos de la
             # petición; al usuario le va un mensaje accionable.
             mensaje_error = (
@@ -511,3 +637,39 @@ async def enviar_mensaje(datos: NuevoMensaje, user_data=Depends(get_current_user
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.post("/chatbot/validate-key")
+async def validar_clave(
+    user_data=Depends(get_current_user),
+    x_user_llm_key: Optional[str] = Header(None, alias="X-User-LLM-Key"),
+):
+    """Valida la clave BYOK de Gemini con una micro-llamada real.
+
+    La clave llega por el header `X-User-LLM-Key` (igual que en /mensajes),
+    nunca por el body: las cabeceras no quedan en los logs de acceso de la URL
+    ni forman parte del payload. Tampoco se persiste ni se loguea aquí.
+    Devuelve 200 con `valid` true/false; se prefiere 200 (y no 4xx) para
+    distinguir una clave mala o cuota agotada de un problema de autenticación
+    del endpoint.
+    """
+    clave = (x_user_llm_key or "").strip()
+    if not clave:
+        return {"valid": False, "error": "La clave está vacía."}
+
+    try:
+        # Llamada mínima: solo comprueba que la clave es aceptada por la API.
+        chatear_gemini_con_clave(
+            clave,
+            [{"role": "user", "content": "ping"}],
+            max_tokens=1,
+            temperature=0.0,
+        )
+        return {"valid": True}
+    except Exception as e:
+        texto = str(e)
+        if "429" in texto or "quota" in texto.lower() or "RESOURCE_EXHAUSTED" in texto:
+            return {"valid": False, "error": "La clave es válida pero su cuota está agotada."}
+        if "401" in texto or "PERMISSION_DENIED" in texto or "invalid" in texto.lower():
+            return {"valid": False, "error": "La clave no es válida. Revisa que la hayas copiado completa."}
+        return {"valid": False, "error": "No se pudo validar la clave. Intenta de nuevo."}

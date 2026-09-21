@@ -8,13 +8,24 @@ TIPOS_VALIDOS = ["Examen", "Practica", "Silabo", "PDF", "Compendio", "Libro", "A
 
 _ALIAS_A_CANONICO = {
     "examen": "Examen",
+    "examenes": "Examen",
     "parcial": "Examen",
     "final": "Examen",
+    "sustitutorio": "Examen",
+    # Siglas de evaluación usadas en los títulos de la UNI.
+    "ep": "Examen",
+    "es": "Examen",
+    "ef": "Examen",
     # Como se le dice coloquialmente en Perú a un examen pasado.
     "plancha": "Examen",
     "planchas": "Examen",
+    "pc": "Practica",
+    "pc1": "Practica", "pc2": "Practica", "pc3": "Practica", "pc4": "Practica",
+    "pc5": "Practica", "pc6": "Practica",
     "practica": "Practica",
+    "practicas": "Practica",
     "práctica": "Practica",
+    "laboratorio": "Practica",
     "silabo": "Silabo",
     "sílabo": "Silabo",
     "silabos": "Silabo",

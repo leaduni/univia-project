@@ -10,7 +10,7 @@ import logging
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from app.core.auth_utils import get_current_user
 from app.core.database import get_supabase
 from app.schemas.agenda import (
@@ -555,3 +555,222 @@ async def get_radar(user_data=Depends(get_current_user)):
     except Exception as e:
         logger.error(f"Error consultando radar: {e}")
         raise HTTPException(status_code=500, detail="Error al cargar el radar.")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# PARSE MATRÍCULA (PDF → Gemini → Carga Horaria → Eventos)
+# ═══════════════════════════════════════════════════════════════════════
+
+def _day_code_to_weekday(day: str) -> int:
+    """Convierte LU→1, MA→2, …, SA→6."""
+    return {"LU": 1, "MA": 2, "MI": 3, "JU": 4, "VI": 5, "SA": 6}.get(day.upper(), 1)
+
+
+def _first_date_for_day(semester_start: str, day_code: str) -> str:
+    """Retorna la primera fecha YYYY-MM-DD que cae en `day_code` a partir de semester_start."""
+    target = _day_code_to_weekday(day_code)
+    d = date.fromisoformat(semester_start)
+    current = d.isoweekday()  # 1=lunes … 7=domingo
+    diff = target - current
+    if diff < 0:
+        diff += 7
+    result = d + timedelta(days=diff)
+    return result.isoformat()
+
+
+def _time_to_decimal(t: str) -> float:
+    """Convierte 'HH:MM:SS' o 'HH:MM' a horas decimales."""
+    parts = t.split(":")
+    h = int(parts[0])
+    m = int(parts[1]) if len(parts) > 1 else 0
+    return h + m / 60
+
+
+TIPO_LABELS = {"T": "Teoría", "P": "Práctica", "LAB": "Laboratorio"}
+
+
+@router.get("/carga-horaria")
+async def get_carga_horaria(
+    ciclo: str = Query("2026-II", description="Ciclo académico, ej. 2026-II"),
+    auth=Depends(get_current_user)
+):
+    """Retorna toda la carga horaria oficial del ciclo especificado."""
+    user, token = auth
+    sb = get_supabase(token)
+    
+    try:
+        resp = await _run(lambda: (
+            sb.table("carga_horaria")
+            .select("*")
+            .eq("ciclo", ciclo)
+            .execute()
+        ))
+        data = getattr(resp, "data", [])
+        return data
+    except Exception as e:
+        logger.error(f"Error cargando carga_horaria: {e}")
+        raise HTTPException(status_code=500, detail="Error al cargar la carga horaria.")
+
+@router.post("/parse-matricula")
+async def parse_matricula(
+    file: UploadFile = File(...),
+    auth=Depends(get_current_user),
+):
+    """Recibe un PDF de matrícula, extrae cursos con Gemini, busca bloques
+    en carga_horaria y crea eventos semanales en la agenda del estudiante."""
+    import io
+    import json
+    import os
+
+    user, token = auth
+    sb = get_supabase(token)
+
+    # ── 1. Extraer texto del PDF ──────────────────────────────────────────
+    try:
+        import pdfplumber
+    except ImportError:
+        raise HTTPException(status_code=500, detail="pdfplumber no está instalado.")
+
+    texto = ""
+    try:
+        pdf_bytes = io.BytesIO(await file.read())
+        with pdfplumber.open(pdf_bytes) as pdf:
+            for page in pdf.pages:
+                texto += (page.extract_text() or "") + "\n"
+    except Exception as e:
+        logger.error(f"Error leyendo PDF: {e}")
+        raise HTTPException(status_code=400, detail="Error al leer el PDF.")
+
+    if not texto.strip():
+        raise HTTPException(status_code=400, detail="El PDF no contiene texto extraíble.")
+
+    # ── 2. Enviar a Gemini para extraer cursos matriculados ───────────────
+    try:
+        import google.generativeai as genai
+    except ImportError:
+        raise HTTPException(status_code=500, detail="google-generativeai no instalado.")
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY no configurada.")
+
+    genai.configure(api_key=api_key)
+    modelo_nombre = os.getenv("GEMINI_GEN_MODEL", "gemini-2.0-flash")
+    modelo = genai.GenerativeModel(model_name=modelo_nombre)
+
+    prompt = (
+        "Analiza el siguiente texto extraído de una ficha de matrícula universitaria.\n"
+        "Extrae SOLO los cursos matriculados con su código y sección.\n"
+        "Responde EXCLUSIVAMENTE en formato JSON como una lista de objetos "
+        'con las claves "course_code" y "section".\n'
+        "No incluyas explicaciones, solo el JSON.\n\n"
+        f"Texto:\n{texto[:8000]}"
+    )
+
+    try:
+        resp_gemini = await asyncio.to_thread(
+            lambda: modelo.generate_content(
+                prompt,
+                generation_config={
+                    "max_output_tokens": 2048,
+                    "temperature": 0.1,
+                    "response_mime_type": "application/json",
+                },
+            )
+        )
+        raw = resp_gemini.text or ""
+    except Exception as e:
+        logger.error(f"Error llamando a Gemini: {e}")
+        raise HTTPException(status_code=502, detail="Error al procesar con IA.")
+
+    try:
+        cursos_detectados = json.loads(raw)
+        if not isinstance(cursos_detectados, list):
+            raise ValueError("La respuesta no es una lista.")
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.error(f"Gemini devolvió JSON inválido: {raw[:500]}")
+        raise HTTPException(status_code=422, detail="IA devolvió formato inválido.")
+
+    if not cursos_detectados:
+        raise HTTPException(status_code=400, detail="No se detectaron cursos en el PDF.")
+
+    # ── 3. Buscar bloques en carga_horaria ────────────────────────────────
+    # Obtener config de semestre del usuario
+    resp_cfg = await _run(lambda: (
+        sb.table("agenda_configuracion")
+        .select("semester_start")
+        .eq("perfil_id", user.id)
+        .maybe_single()
+        .execute()
+    ))
+    cfg = getattr(resp_cfg, "data", None)
+    semester_start = str(cfg["semester_start"]) if cfg and cfg.get("semester_start") else date.today().isoformat()
+
+    # Obtener la etiqueta "Clases Univ." del usuario
+    await _asegurar_etiquetas_defecto(sb, user.id)
+    resp_etqs = await _run(lambda: (
+        sb.table("agenda_etiquetas")
+        .select("id, nombre")
+        .eq("perfil_id", user.id)
+        .execute()
+    ))
+    etqs = getattr(resp_etqs, "data", []) or []
+    etq_clases = next((e for e in etqs if "clases" in e["nombre"].lower()), etqs[0] if etqs else None)
+    etiqueta_id = etq_clases["id"] if etq_clases else None
+
+    eventos_creados = []
+    for item in cursos_detectados:
+        code = item.get("course_code", "").strip().upper()
+        section = item.get("section", "").strip().upper()
+        if not code or not section:
+            continue
+
+        resp_bloques = await _run(lambda: (
+            sb.table("carga_horaria")
+            .select("*")
+            .eq("codigo", code)
+            .eq("seccion", section)
+            .execute()
+        ))
+        bloques = getattr(resp_bloques, "data", []) or []
+
+        for bloque in bloques:
+            tipo = bloque.get("tipo_clase", "T")
+            label = TIPO_LABELS.get(tipo, tipo)
+            dia = bloque.get("dia", "LU")
+            hi = _time_to_decimal(str(bloque["hora_inicio"]))
+            hf = _time_to_decimal(str(bloque["hora_fin"]))
+            duracion = round(hf - hi, 2)
+            fecha = _first_date_for_day(semester_start, dia)
+
+            payload = {
+                "perfil_id": user.id,
+                "titulo": f"{code} - {label}",
+                "subtitulo": f"{bloque.get('nombre_curso', '')} | Sección {section} | Aula: {bloque.get('aula', '')} | {bloque.get('docente', '')}",
+                "tipo": "evento",
+                "etiqueta_id": etiqueta_id,
+                "fecha_iso": fecha,
+                "hora_inicio": hi,
+                "duracion": duracion,
+                "todo_el_dia": False,
+                "recurrencia": "weekly",
+                "ubicacion": bloque.get("aula", ""),
+            }
+
+            resp_ins = await _run(lambda: (
+                sb.table("agenda_eventos").insert(payload).execute()
+            ))
+            filas = getattr(resp_ins, "data", []) or []
+            if filas:
+                ev = filas[0]
+                ev["hora_inicio"] = float(ev.get("hora_inicio", 0))
+                ev["duracion"] = float(ev.get("duracion", 1))
+                if ev.get("fecha_iso"):
+                    ev["fecha_iso"] = str(ev["fecha_iso"])
+                eventos_creados.append(ev)
+
+    return {
+        "eventos_creados": eventos_creados,
+        "cursos_detectados": cursos_detectados,
+        "message": f"Se crearon {len(eventos_creados)} bloques horarios para {len(cursos_detectados)} cursos.",
+    }

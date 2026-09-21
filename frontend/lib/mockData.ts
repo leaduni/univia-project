@@ -620,3 +620,89 @@ export const ACHIEVEMENTS = [
     unlockedAt: null,
   },
 ]
+
+// ── Carga Horaria Universitaria ──────────────────────────────────────────
+
+export interface FacultyScheduleRow {
+  codigo: string           // "BEF01"
+  nombre_curso: string     // "FÍSICA I"
+  seccion: string          // "U"
+  docente: string          // "QUISPE RAMOS, JUAN"
+  tipo_clase: "T" | "P" | "LAB"
+  aula: string             // "A-301"
+  dia: string              // "LU" | "MA" | "MI" | "JU" | "VI" | "SA"
+  hora_inicio: string      // "07:00"
+  hora_fin: string         // "09:00"
+}
+
+/** Convierte código de día a número de la semana (lunes=1 … sábado=6). */
+export function dayCodeToWeekday(day: string): number {
+  const map: Record<string, number> = {
+    LU: 1, MA: 2, MI: 3, JU: 4, VI: 5, SA: 6,
+  }
+  return map[day.toUpperCase()] ?? 1
+}
+
+/** Convierte "HH:MM" a horas decimales (ej. "07:30" → 7.5). */
+export function timeToDecimal(time: string): number {
+  const [h, m] = time.split(":").map(Number)
+  return h + (m || 0) / 60
+}
+
+export interface CourseGroup {
+  codigo: string
+  nombre_curso: string
+  secciones: Record<string, {
+    docentes: string[]
+    bloques: FacultyScheduleRow[]
+  }>
+}
+
+/** Agrupa filas de carga horaria por curso y sección. */
+export function groupSchedulesByCourse(rows: FacultyScheduleRow[]): CourseGroup[] {
+  const map = new Map<string, CourseGroup>()
+
+  for (const row of rows) {
+    let group = map.get(row.codigo)
+    if (!group) {
+      group = { codigo: row.codigo, nombre_curso: row.nombre_curso, secciones: {} }
+      map.set(row.codigo, group)
+    }
+    if (!group.secciones[row.seccion]) {
+      group.secciones[row.seccion] = { docentes: [], bloques: [] }
+    }
+    const sec = group.secciones[row.seccion]
+    sec.bloques.push(row)
+    if (!sec.docentes.includes(row.docente)) {
+      sec.docentes.push(row.docente)
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => a.codigo.localeCompare(b.codigo))
+}
+
+export const mockFacultySchedules: FacultyScheduleRow[] = [
+  // ── BEF01 — FÍSICA I ──
+  { codigo: "BEF01", nombre_curso: "FÍSICA I", seccion: "U", docente: "QUISPE RAMOS, JUAN", tipo_clase: "T", aula: "A-301", dia: "LU", hora_inicio: "07:00", hora_fin: "09:00" },
+  { codigo: "BEF01", nombre_curso: "FÍSICA I", seccion: "U", docente: "QUISPE RAMOS, JUAN", tipo_clase: "P", aula: "LAB-F1", dia: "MI", hora_inicio: "09:00", hora_fin: "11:00" },
+  { codigo: "BEF01", nombre_curso: "FÍSICA I", seccion: "V", docente: "TORRES LUNA, MARÍA", tipo_clase: "T", aula: "A-302", dia: "MA", hora_inicio: "07:00", hora_fin: "09:00" },
+  { codigo: "BEF01", nombre_curso: "FÍSICA I", seccion: "V", docente: "TORRES LUNA, MARÍA", tipo_clase: "P", aula: "LAB-F2", dia: "JU", hora_inicio: "09:00", hora_fin: "11:00" },
+
+  // ── BMA02 — CÁLCULO II ──
+  { codigo: "BMA02", nombre_curso: "CÁLCULO II", seccion: "U", docente: "GARCÍA MEDINA, CARLOS", tipo_clase: "T", aula: "B-201", dia: "LU", hora_inicio: "09:00", hora_fin: "11:00" },
+  { codigo: "BMA02", nombre_curso: "CÁLCULO II", seccion: "U", docente: "GARCÍA MEDINA, CARLOS", tipo_clase: "P", aula: "B-202", dia: "MI", hora_inicio: "11:00", hora_fin: "13:00" },
+  { codigo: "BMA02", nombre_curso: "CÁLCULO II", seccion: "V", docente: "FERNÁNDEZ DÍAZ, ANA", tipo_clase: "T", aula: "B-203", dia: "MA", hora_inicio: "09:00", hora_fin: "11:00" },
+  { codigo: "BMA02", nombre_curso: "CÁLCULO II", seccion: "V", docente: "FERNÁNDEZ DÍAZ, ANA", tipo_clase: "P", aula: "B-204", dia: "JU", hora_inicio: "11:00", hora_fin: "13:00" },
+
+  // ── BQU01 — QUÍMICA GENERAL ──
+  { codigo: "BQU01", nombre_curso: "QUÍMICA GENERAL", seccion: "U", docente: "MENDOZA CRUZ, ROBERTO", tipo_clase: "T", aula: "C-101", dia: "MA", hora_inicio: "13:00", hora_fin: "15:00" },
+  { codigo: "BQU01", nombre_curso: "QUÍMICA GENERAL", seccion: "U", docente: "MENDOZA CRUZ, ROBERTO", tipo_clase: "LAB", aula: "LAB-Q1", dia: "JU", hora_inicio: "15:00", hora_fin: "17:00" },
+  { codigo: "BQU01", nombre_curso: "QUÍMICA GENERAL", seccion: "V", docente: "SALAZAR VEGA, PATRICIA", tipo_clase: "T", aula: "C-102", dia: "MI", hora_inicio: "13:00", hora_fin: "15:00" },
+  { codigo: "BQU01", nombre_curso: "QUÍMICA GENERAL", seccion: "V", docente: "SALAZAR VEGA, PATRICIA", tipo_clase: "LAB", aula: "LAB-Q2", dia: "VI", hora_inicio: "15:00", hora_fin: "17:00" },
+
+  // ── BCS03 — PROGRAMACIÓN ORIENTADA A OBJETOS ──
+  { codigo: "BCS03", nombre_curso: "PROGRAMACIÓN ORIENTADA A OBJETOS", seccion: "U", docente: "HERRERA VARGAS, LUIS", tipo_clase: "T", aula: "D-401", dia: "LU", hora_inicio: "11:00", hora_fin: "13:00" },
+  { codigo: "BCS03", nombre_curso: "PROGRAMACIÓN ORIENTADA A OBJETOS", seccion: "U", docente: "HERRERA VARGAS, LUIS", tipo_clase: "LAB", aula: "LAB-C1", dia: "MI", hora_inicio: "15:00", hora_fin: "17:00" },
+  { codigo: "BCS03", nombre_curso: "PROGRAMACIÓN ORIENTADA A OBJETOS", seccion: "V", docente: "ROJAS POMA, DANIELA", tipo_clase: "T", aula: "D-402", dia: "MA", hora_inicio: "11:00", hora_fin: "13:00" },
+  { codigo: "BCS03", nombre_curso: "PROGRAMACIÓN ORIENTADA A OBJETOS", seccion: "V", docente: "ROJAS POMA, DANIELA", tipo_clase: "LAB", aula: "LAB-C2", dia: "JU", hora_inicio: "15:00", hora_fin: "17:00" },
+]

@@ -6,6 +6,8 @@
  */
 
 import { fetchWithAuth } from './api-service';
+import type { CalendarioEvento } from "@/components/agenda/calendar-grid";
+import { mockFacultySchedules, type FacultyScheduleRow } from "@/lib/mockData";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API = BASE_URL.endsWith('/api') ? BASE_URL : `${BASE_URL}/api`;
@@ -225,4 +227,41 @@ export async function fetchProductividad(): Promise<Productividad> {
     throw new Error(extraerError(body));
   }
   return resp.json();
+}
+
+// ── Importar Matrícula (PDF → Gemini → Eventos) ─────────────────────────
+
+export interface ParseMatriculaResult {
+  eventos_creados: AgendaEvento[];
+  cursos_detectados: { course_code: string; section: string }[];
+  message: string;
+}
+
+export async function parseMatricula(file: File): Promise<ParseMatriculaResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const resp = await fetchWithAuth(`${API}/agenda/parse-matricula`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(extraerError(body));
+  }
+  return resp.json();
+}
+
+export async function fetchCargaHoraria(ciclo: string = "2026-II"): Promise<FacultyScheduleRow[]> {
+  try {
+    const resp = await fetchWithAuth(`${API}/agenda/carga-horaria?ciclo=${ciclo}`);
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data && data.length > 0) {
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn("No se pudo cargar carga horaria de Supabase, usando mock local:", err);
+  }
+  return mockFacultySchedules;
 }

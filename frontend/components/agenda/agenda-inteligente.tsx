@@ -7,7 +7,7 @@ import {
   ChevronRight, Plus, Loader2, X, CheckSquare, AlignLeft, RefreshCw, Zap,
   PanelRightClose, PanelRightOpen, CalendarDays, CalendarRange, List,
   Check, LayoutGrid, Layers, Tag, MapPin, Repeat, Video, Bell, Users, ChevronDown, Pencil, Trash2, Settings, UploadCloud, FileText,
-  Play, Pause, RotateCcw, CheckCircle2, Brain, Coffee, Send, Info, Maximize2, Minimize2
+  Play, Pause, RotateCcw, CheckCircle2, Brain, Coffee, Send, Info, Maximize2, Minimize2, GraduationCap
 } from "lucide-react"
 
 import {
@@ -22,6 +22,7 @@ import {
 import { useSemesterRecurrence } from "@/lib/hooks/use-semester"
 import { FocusMode } from "./focus-mode"
 import { BarraIA } from "./barra-ia"
+import { AddCourseSectionModal } from "./AddCourseSectionModal"
 import {
   fetchEventos, crearEvento, editarEvento, eliminarEvento,
   fetchEtiquetas, crearEtiqueta as crearEtiquetaAPI,
@@ -907,88 +908,6 @@ function ModalAjustesGeneral({
   )
 }
 
-function ModalImportarMatricula({ onClose }: { onClose: () => void }) {
-  const [isDragActive, setIsDragActive] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0])
-    }
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragActive(false)
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setSelectedFile(e.dataTransfer.files[0])
-    }
-  }
-  
-  const startUpload = () => {
-    setIsUploading(true)
-    setTimeout(() => {
-      setIsUploading(false)
-      onClose()
-      alert("¡Matrícula importada con éxito! (Simulación)")
-    }, 3000)
-  }
-
-  return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={!isUploading ? onClose : undefined} />
-      <div className="relative z-10 w-full max-w-md bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
-        <div className="px-5 py-4 border-b border-white/[0.08] flex justify-between items-center">
-          <h2 className="text-sm font-semibold text-white flex items-center gap-2"><UploadCloud className="w-4 h-4 text-indigo-400" /> Importar Matrícula (PDF)</h2>
-          {!isUploading && <button onClick={onClose} className="w-7 h-7 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"><X className="w-4 h-4 text-slate-400" /></button>}
-        </div>
-        <div className="p-8 flex flex-col items-center justify-center">
-          <input type="file" accept=".pdf" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
-          
-          {isUploading ? (
-            <div className="flex flex-col items-center gap-4 py-8">
-              <div className="relative w-16 h-16 flex items-center justify-center">
-                <FileText className="w-10 h-10 text-indigo-400 opacity-50" />
-                <div className="absolute inset-0 border-t-2 border-indigo-400 rounded-full animate-spin" />
-              </div>
-              <p className="text-sm text-slate-300 animate-pulse">Analizando cursos y horarios...</p>
-            </div>
-          ) : selectedFile ? (
-            <div className="w-full h-48 border-2 border-indigo-500/30 bg-indigo-500/10 rounded-xl flex flex-col items-center justify-center p-6 transition-all">
-              <FileText className="w-10 h-10 text-indigo-400 mb-3" />
-              <p className="text-sm font-semibold text-white truncate max-w-full mb-1">{selectedFile.name}</p>
-              <p className="text-xs text-slate-400 mb-5">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
-              
-              <button onClick={startUpload} className="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center justify-center transition-all shadow-md">
-                Analizar horario con IA
-              </button>
-              <button onClick={() => fileInputRef.current?.click()} className="mt-3 text-[11px] font-medium text-slate-400 hover:text-white transition-colors">
-                Cambiar archivo
-              </button>
-            </div>
-          ) : (
-            <div 
-              onDragOver={e => { e.preventDefault(); setIsDragActive(true) }} 
-              onDragLeave={() => setIsDragActive(false)} 
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`w-full h-48 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 cursor-pointer transition-all ${isDragActive ? "border-indigo-400 bg-indigo-500/10" : "border-white/20 bg-white/5 hover:border-indigo-400 hover:bg-white/10"}`}
-            >
-              <UploadCloud className={`w-8 h-8 ${isDragActive ? "text-indigo-400" : "text-slate-400"}`} />
-              <div className="text-center">
-                <p className="text-sm font-medium text-white mb-1">Arrastra tu PDF aquí</p>
-                <p className="text-xs text-slate-400">o haz clic para explorar</p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── Componente Principal ─────────────────────────────────────────────────────
 
 const VISTA_ICONS: Record<CalendarioVista, any> = {
@@ -1039,7 +958,7 @@ export function AgendaInteligente() {
     return { start: formatearISO(d), end: formatearISO(dEnd) }
   })
   const [isSleepModalOpen, setIsSleepModalOpen] = useState(false)
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+  const [isCourseSectionModalOpen, setIsCourseSectionModalOpen] = useState(false)
   const [isIntegrationsDropdownOpen, setIsIntegrationsDropdownOpen] = useState(false)
   
   // Estados de UI y Datos
@@ -1300,8 +1219,37 @@ export function AgendaInteligente() {
 
 
 
-      {isImportModalOpen && (
-        <ModalImportarMatricula onClose={() => setIsImportModalOpen(false)} />
+      {isCourseSectionModalOpen && (
+        <AddCourseSectionModal
+          onClose={() => setIsCourseSectionModalOpen(false)}
+          etiquetas={etiquetas}
+          semesterStart={semesterSettings.start}
+          onAddEvents={async (newEvents) => {
+            // Agregar localmente inmediato
+            setEventos(prev => [...prev, ...newEvents])
+            // Persistir cada evento en backend
+            for (const ev of newEvents) {
+              try {
+                const recMap: Record<string, string> = { 'No se repite': 'none', 'Cada día': 'daily', 'Cada semana': 'weekly', 'Días laborables (lun-vie)': 'weekdays' }
+                const saved = await crearEvento({
+                  titulo: ev.titulo,
+                  subtitulo: ev.subtitulo,
+                  tipo: 'evento',
+                  etiqueta_id: ev.etiquetaId ? parseInt(ev.etiquetaId) : null,
+                  fecha_iso: ev.fechaISO,
+                  hora_inicio: ev.horaInicio,
+                  duracion: ev.duracion,
+                  todo_el_dia: false,
+                  recurrencia: recMap[ev.recurrencia || ''] || 'weekly',
+                  ubicacion: ev.ubicacion,
+                })
+                setEventos(prev => prev.map(e => e.id === ev.id ? apiEventoToLocal(saved) : e))
+              } catch (err) {
+                console.warn('[Agenda] No se pudo guardar clase:', err)
+              }
+            }
+          }}
+        />
       )}
 
       <div className="flex flex-col gap-4" style={{ maxWidth: "1800px", margin: "0 auto", padding: "16px" }}>
@@ -1375,7 +1323,7 @@ export function AgendaInteligente() {
                         <div className="px-4 py-2 border-b border-white/5 mb-1">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Conexiones</p>
                         </div>
-                        <button onClick={() => { setIsIntegrationsDropdownOpen(false); setIsImportModalOpen(true) }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-slate-300 hover:bg-white/5 hover:text-white whitespace-nowrap">
+                        <button onClick={() => { setIsIntegrationsDropdownOpen(false); setIsCourseSectionModalOpen(true) }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-slate-300 hover:bg-white/5 hover:text-white whitespace-nowrap">
                           <div className="w-6 h-6 rounded-md bg-emerald-500/20 flex items-center justify-center shrink-0">
                             <UploadCloud className="w-3.5 h-3.5 text-emerald-400" />
                           </div>
@@ -1412,6 +1360,12 @@ export function AgendaInteligente() {
                             <CheckSquare className="w-3.5 h-3.5 text-rose-400" /> 
                           </div>
                           Nueva Tarea
+                        </button>
+                        <button onClick={() => { setIsCreateDropdownOpen(false); setIsCourseSectionModalOpen(true) }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-slate-200 hover:bg-white/5 border-t border-white/5">
+                          <div className="w-6 h-6 rounded-md bg-cyan-500/20 flex items-center justify-center shrink-0">
+                            <GraduationCap className="w-3.5 h-3.5 text-cyan-400" /> 
+                          </div>
+                          Inscribir Cursos 2026-II
                         </button>
                       </div>
                     </>

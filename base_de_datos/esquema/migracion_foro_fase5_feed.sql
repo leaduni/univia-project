@@ -278,7 +278,12 @@ END $$;
 -- -----------------------------------------------------------------------------
 REVOKE EXECUTE ON FUNCTION public.foro_sync_num_comentarios() FROM anon, authenticated, public;
 REVOKE EXECUTE ON FUNCTION public.foro_sync_num_votos() FROM anon, authenticated, public;
-REVOKE EXECUTE ON FUNCTION public.foro_tsv(TEXT, TEXT, TEXT[]) FROM anon, authenticated, public;
+-- foro_tsv NO se revoca: alimenta la columna generada search_vector y Postgres
+-- la evalúa con los permisos de quien inserta. Sin EXECUTE para authenticated,
+-- todo INSERT/UPDATE en foro_publicaciones falla con 42501. Es una función
+-- IMMUTABLE pura (texto -> tsvector), sin acceso a datos: exponerla es inocuo.
+REVOKE EXECUTE ON FUNCTION public.foro_tsv(TEXT, TEXT, TEXT[]) FROM anon, public;
+GRANT EXECUTE ON FUNCTION public.foro_tsv(TEXT, TEXT, TEXT[]) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.foro_registrar_vista(BIGINT) FROM anon;
 GRANT EXECUTE ON FUNCTION public.foro_registrar_vista(BIGINT) TO authenticated;
 

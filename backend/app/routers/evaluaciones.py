@@ -17,6 +17,7 @@ load_dotenv()
 from app.core.llm import (
     MODELO_GENERACION_GPT,
     generar,
+    generar_con_meta,
     generar_gpt,
     generar_gemini_con_clave,
     LLMSaldoAgotado,
@@ -1091,26 +1092,24 @@ async def generar_evaluacion(
         # Cascada: BYOK Gemini (Nivel 0) -> generar() gratuito (Gemini pool ->
         # Groq pool). OpenAI queda AISLADO de la generación (solo embeddings);
         # se usa solo si ALLOW_OPENAI_GENERATION=true en el .env.
+        # La telemetría se captura en el MISMO hilo de la llamada (thread-local).
         raw_content: Optional[str] = None
+        telemetria_gen: Optional[dict] = None
         if api_key_gemini:
             try:
-                raw_content = await asyncio.to_thread(
-                    generar_gemini_con_clave,
-                    api_key_gemini,
-                    prompt,
-                    system=SYSTEM_MSG_EVALUACION,
-                    max_tokens=6000,
-                    json_mode=True,
+                raw_content, telemetria_gen = await asyncio.to_thread(
+                    _llamada_byok_meta, api_key_gemini, prompt, SYSTEM_MSG_EVALUACION
                 )
             except Exception as e:
                 logger.warning("BYOK Gemini falló (%s); se intenta la cascada gratuita.", e)
         if raw_content is None:
-            raw_content = await asyncio.to_thread(
-                generar,
-                prompt=prompt,
-                system=SYSTEM_MSG_EVALUACION,
-                max_tokens=6000,
-                json_mode=True,
+            raw_content, telemetria_gen = await asyncio.to_thread(
+                lambda: generar_con_meta(
+                    prompt=prompt,
+                    system=SYSTEM_MSG_EVALUACION,
+                    max_tokens=6000,
+                    json_mode=True,
+                )
             )
 
         try:
@@ -1124,25 +1123,18 @@ async def generar_evaluacion(
                 "'preguntas' pero falló el parseo. Corrígela y devuélvela como "
                 "JSON puro, sin texto adicional:\n\n" + (raw_content or "")[:12000]
             )
-            raw_content = await asyncio.to_thread(
-                generar,
-                prompt=prompt_reparacion,
-                system=SYSTEM_MSG_EVALUACION,
-                max_tokens=6000,
-                json_mode=True,
+            raw_content, telemetria_rep = await asyncio.to_thread(
+                lambda: generar_con_meta(
+                    prompt=prompt_reparacion,
+                    system=SYSTEM_MSG_EVALUACION,
+                    max_tokens=6000,
+                    json_mode=True,
+                )
             )
+            telemetria_gen = _combinar_telemetria(telemetria_gen, telemetria_rep)
             data = parse_llm_json_response(raw_content)
 
-        telemetria = obtener_ultima_telemetria() or {}
-        logger.info(
-            "GENERACIÓN COMPLETADA | Proveedor: %s (%s) | Tokens: In=%s Out=%s Total=%s | Costo est: $%.4f",
-            telemetria.get("proveedor", "?"),
-            telemetria.get("modelo", "?"),
-            telemetria.get("tokens", {}).get("prompt", "?"),
-            telemetria.get("tokens", {}).get("completion", "?"),
-            telemetria.get("tokens", {}).get("total", "?"),
-            telemetria.get("costo_usd", 0.0),
-        )
+        _telemetria_log("GENERACIÓN", telemetria_gen)
         
         if "preguntas" not in data or not data["preguntas"]:
             raise ValueError("No se generaron preguntas válidas")
@@ -1481,16 +1473,35 @@ async def _generar_una_pregunta(idx: int, prompt: str, tipo_real: str, api_key_g
     raise ultimo_error or ValueError("No se pudo generar la pregunta")
 
 
-def _generar_json_con_reparacion(prompt: str, system: str, max_tokens: int = 6000) -> dict:
-    """Una llamada batch JSON a la cascada gratuita + UN reintento de reparación.
+def _combinar_telemetria(primera: Optional[dict], segunda: Optional[dict]) -> Optional[dict]:
+    """Suma el consumo de la llamada original + la de reparación (si hubo)."""
+    if not primera:
+        return segunda
+    if not segunda:
+        return primera
+    tok_a = primera.get("tokens", {})
+    tok_b = segunda.get("tokens", {})
+    return {
+        "proveedor": segunda.get("proveedor", primera.get("proveedor", "?")),
+        "modelo": segunda.get("modelo", primera.get("modelo", "?")),
+        "tokens": {
+            "prompt": tok_a.get("prompt", 0) + tok_b.get("prompt", 0),
+            "completion": tok_a.get("completion", 0) + tok_b.get("completion", 0),
+            "total": tok_a.get("total", 0) + tok_b.get("total", 0),
+        },
+        "costo_usd": round(primera.get("costo_usd", 0.0) + segunda.get("costo_usd", 0.0), 6),
+    }
 
-    Cero reintentos a ciegas: si el JSON no parsea, se pide al modelo corregir
-    su propia salida una sola vez. OpenAI no participa salvo
-    ALLOW_OPENAI_GENERATION=true (filtro interno de generar()).
+
+def _generar_json_con_reparacion_meta(prompt: str, system: str, max_tokens: int = 6000) -> tuple[dict, Optional[dict]]:
+    """Igual que _generar_json_con_reparacion, pero devuelve (data, telemetria).
+
+    La telemetría se lee EN EL MISMO HILO de la llamada LLM (la de llm.py es
+    thread-local); suma la llamada inicial y la de reparación si hubo.
     """
-    raw = generar(prompt=prompt, system=system, max_tokens=max_tokens, json_mode=True)
+    raw, telemetria = generar_con_meta(prompt=prompt, system=system, max_tokens=max_tokens, json_mode=True)
     try:
-        return parse_llm_json_response(raw)
+        return parse_llm_json_response(raw), telemetria
     except Exception as e_parse:
         logger.warning("JSON inválido (%s). Un único reintento de reparación.", e_parse)
         prompt_reparacion = (
@@ -1499,13 +1510,30 @@ def _generar_json_con_reparacion(prompt: str, system: str, max_tokens: int = 600
             "JSON puro, sin texto adicional ni bloques de código:\n\n"
             + (raw or "")[:12000]
         )
-        raw2 = generar(prompt=prompt_reparacion, system=system, max_tokens=max_tokens, json_mode=True)
-        return parse_llm_json_response(raw2)
+        raw2, telemetria2 = generar_con_meta(prompt=prompt_reparacion, system=system, max_tokens=max_tokens, json_mode=True)
+        return parse_llm_json_response(raw2), _combinar_telemetria(telemetria, telemetria2)
 
 
-def _telemetria_log(prefijo: str) -> dict:
+def _generar_json_con_reparacion(prompt: str, system: str, max_tokens: int = 6000) -> dict:
+    """Una llamada batch JSON a la cascada gratuita + UN reintento de reparación.
+
+    Cero reintentos a ciegas: si el JSON no parsea, se pide al modelo corregir
+    su propia salida una sola vez. OpenAI no participa salvo
+    ALLOW_OPENAI_GENERATION=true (filtro interno de generar()).
+    """
+    data, _ = _generar_json_con_reparacion_meta(prompt, system, max_tokens)
+    return data
+
+
+def _llamada_byok_meta(api_key: str, prompt: str, system: str, max_tokens: int = 6000) -> tuple[str, Optional[dict]]:
+    """BYOK Gemini leyendo la telemetría en el hilo de la llamada."""
+    raw = generar_gemini_con_clave(api_key, prompt, system=system, max_tokens=max_tokens, json_mode=True)
+    return raw, obtener_ultima_telemetria()
+
+
+def _telemetria_log(prefijo: str, telemetria: Optional[dict] = None) -> dict:
     """Log obligatorio de consumo por evaluación (punto 6) y dict métrico."""
-    t = obtener_ultima_telemetria() or {}
+    t = telemetria or obtener_ultima_telemetria() or {}
     tokens = t.get("tokens", {})
     logger.info(
         "%s GENERACIÓN COMPLETADA | Proveedor: %s (%s) | Tokens: In=%s Out=%s Total=%s | Costo est: $%.4f",
@@ -1604,8 +1632,8 @@ async def generar_evaluacion_stream(
                     "Eres un arquitecto de software senior. Responde ÚNICAMENTE "
                     "con JSON válido, sin texto adicional ni bloques de código."
                 )
-                data = await loop.run_in_executor(
-                    None, _generar_json_con_reparacion, prompt_prog, system_prog
+                data, telemetria_prog = await loop.run_in_executor(
+                    None, _generar_json_con_reparacion_meta, prompt_prog, system_prog
                 )
                 logger.info("PASO 5 COMPLETADO: respuesta JSON batch recibida.")
                 logger.info("PASO 6: Parseando preguntas del JSON...")
@@ -1623,7 +1651,7 @@ async def generar_evaluacion_stream(
                     preguntas_dicts = [p.model_dump() for p in preguntas]
                     data["preguntas"] = preguntas_dicts
 
-                metricas = _telemetria_log("PASO 5/6")
+                metricas = _telemetria_log("PASO 5/6", telemetria_prog)
                 yield f"data: {json.dumps({'done': True, 'result': data, 'metricas': metricas})}\n\n"
                 return
 
@@ -1638,23 +1666,20 @@ async def generar_evaluacion_stream(
 
             # BYOK Gemini del usuario tiene prioridad (Nivel 0), como en /generar.
             data = None
+            telemetria_batch: Optional[dict] = None
             if api_key_gemini:
                 try:
-                    raw_byok = await loop.run_in_executor(
-                        None,
-                        lambda: generar_gemini_con_clave(
-                            api_key_gemini, prompt_batch,
-                            system=SYSTEM_MSG_EVALUACION,
-                            max_tokens=6000, json_mode=True,
-                        ),
+                    raw_byok, telemetria_batch = await loop.run_in_executor(
+                        None, _llamada_byok_meta, api_key_gemini, prompt_batch, SYSTEM_MSG_EVALUACION
                     )
                     data = parse_llm_json_response(raw_byok)
                 except Exception as e:
                     logger.warning("BYOK Gemini falló en stream (%s); se intenta la cascada gratuita.", e)
                     data = None
+                    telemetria_batch = None
             if data is None:
-                data = await loop.run_in_executor(
-                    None, _generar_json_con_reparacion, prompt_batch, SYSTEM_MSG_EVALUACION
+                data, telemetria_batch = await loop.run_in_executor(
+                    None, _generar_json_con_reparacion_meta, prompt_batch, SYSTEM_MSG_EVALUACION
                 )
 
             preguntas_brutas = data.get("preguntas") or []
@@ -1685,7 +1710,7 @@ async def generar_evaluacion_stream(
             preguntas_ok = [p.model_dump() for p in preguntas_obj]
 
             logger.info(f"PASO 5 COMPLETADO: {len(preguntas_ok)} preguntas generadas en 1 llamada batch.")
-            metricas = _telemetria_log("PASO 5")
+            metricas = _telemetria_log("PASO 5", telemetria_batch)
 
             resultado = {
                 "curso_id": config.curso_id,

@@ -2,9 +2,7 @@
 
 import { supabase } from './supabase';
 import { leerOCache, invalidarClave, invalidarPrefijo, limpiarCache, TTL } from './api-cache';
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const API_URL = BASE_URL.endsWith('/api') ? BASE_URL : `${BASE_URL}/api`;
+import { API_URL } from './env';
 
 // Toda petición se corta a los 15s. Sin esto, una red que no responde deja al
 // usuario en un spinner indefinido: fetch no tiene timeout propio.

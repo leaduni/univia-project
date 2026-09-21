@@ -5,9 +5,7 @@
 
 import { fetchWithAuth } from "./api-service"
 import { leerOCache, TTL, invalidarClave, invalidarPrefijo } from "./api-cache"
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-const API_URL = BASE_URL.endsWith("/api") ? BASE_URL : `${BASE_URL}/api`
+import { API_URL } from "./env"
 
 export type CategoriaFeedback = "funcion" | "bug" | "respuesta_chatbot" | "ui_ux"
 export type EstadoFeedback = "recibido" | "en_revision" | "planeado" | "resuelto" | "descartado"

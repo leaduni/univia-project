@@ -101,26 +101,42 @@ class TestTelemetria:
 
 class TestReparacionJson:
     def test_json_valido_sin_reparacion(self):
-        with patch.object(ev, "generar", return_value='{"preguntas": []}') as g:
+        with patch.object(ev, "generar_con_meta", return_value=('{"preguntas": []}', None)) as g:
             data = ev._generar_json_con_reparacion("prompt", "system")
             assert data == {"preguntas": []}
             assert g.call_count == 1
 
     def test_json_invalido_repara_una_vez(self):
         llamadas = [
-            "esto no es json",
-            '{"preguntas": [{"id": 1, "pregunta": "p", "opciones": ["a","b","c","d"], "respuesta_correcta": 0}]}',
+            ("esto no es json", None),
+            ('{"preguntas": [{"id": 1, "pregunta": "p", "opciones": ["a","b","c","d"], "respuesta_correcta": 0}]}', None),
         ]
         def _gen(**kwargs):
             return llamadas.pop(0)
 
-        with patch.object(ev, "generar", side_effect=_gen) as g:
+        with patch.object(ev, "generar_con_meta", side_effect=_gen) as g:
             data = ev._generar_json_con_reparacion("prompt", "system")
             assert "preguntas" in data
             assert g.call_count == 2  # exactamente 1 reintento de reparación
 
     def test_json_invalido_dos_veces_propaga_error(self):
-        with patch.object(ev, "generar", return_value="basura") as g:
+        with patch.object(ev, "generar_con_meta", return_value=("basura", None)) as g:
             with pytest.raises(Exception):
                 ev._generar_json_con_reparacion("prompt", "system")
             assert g.call_count == 2
+
+    def test_telemetria_se_captura_en_meta(self):
+        tel = {"proveedor": "gemini", "modelo": "gemini-3.6-flash",
+               "tokens": {"prompt": 10, "completion": 5, "total": 15}, "costo_usd": 0.0}
+        with patch.object(ev, "generar_con_meta", return_value=('{"preguntas": []}', tel)):
+            data, meta = ev._generar_json_con_reparacion_meta("prompt", "system")
+            assert meta == tel
+
+    def test_telemetria_suma_reparacion(self):
+        t1 = {"proveedor": "gemini", "modelo": "gemini-3.6-flash",
+              "tokens": {"prompt": 100, "completion": 50, "total": 150}, "costo_usd": 0.0}
+        t2 = {"proveedor": "gemini", "modelo": "gemini-3.6-flash",
+              "tokens": {"prompt": 80, "completion": 40, "total": 120}, "costo_usd": 0.0}
+        combinada = ev._combinar_telemetria(t1, t2)
+        assert combinada["tokens"]["total"] == 270
+        assert combinada["proveedor"] == "gemini"

@@ -173,6 +173,31 @@ def obtener_ultima_telemetria() -> Optional[dict]:
     return getattr(_telemetria, "ultima", None)
 
 
+def generar_con_meta(
+    prompt: str,
+    system: Optional[str] = None,
+    max_tokens: int = 6000,
+    modelo: Optional[str] = None,
+    stream: bool = False,
+    json_mode: bool = False,
+) -> tuple[str, Optional[dict]]:
+    """generar() + telemetría leída EN EL MISMO HILO de la llamada.
+
+    Necesario porque los endpoints corren la generación con to_thread /
+    run_in_executor (otro hilo) y la telemetría es thread-local: leerla desde
+    el hilo del event loop siempre devuelve None.
+    """
+    texto = generar(
+        prompt=prompt,
+        system=system,
+        max_tokens=max_tokens,
+        modelo=modelo,
+        stream=stream,
+        json_mode=json_mode,
+    )
+    return texto, obtener_ultima_telemetria()
+
+
 # Modelo de generación de evaluaciones, en GPT. gpt-4.1 (no mini) por defecto:
 # escribir preguntas de examen correctas y bien explicadas es la parte que más
 # importa acertar, y la diferencia de precio ($2/$8 por 1M tokens vs $0.40/$1.60

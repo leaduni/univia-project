@@ -26,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/components/providers/auth-context"
 import { apiService } from "@/lib/api-service"
 import { leerClaveByok } from "@/lib/byok"
+import { API_URL } from "@/lib/env"
 import type { EvaluationResultData, QuestionDetail } from "@/types/evaluation"
 
 // Carga diferida (client-only) de los renderizadores pesados: react-markdown +
@@ -44,8 +45,6 @@ const EvaluationResultsView = dynamic(
     loading: () => null,
   },
 )
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
 interface Pregunta {
   id: number;
@@ -168,7 +167,7 @@ export function EvaluacionIA({
   useEffect(() => {
     apiService.getProfesoresCurso(courseId)
       .then(setProfesores)
-      .catch((err: unknown) => console.error("Error cargando profesores del curso:", err))
+      .catch(() => {})
   }, [courseId])
 
   // Determinar qué módulos están disponibles según progreso
@@ -246,11 +245,11 @@ export function EvaluacionIA({
       setStep("loading")
 
       const token = session?.access_token
-      if (!token) { console.error("No active authentication token found."); return }
+      if (!token) return
 
       const llmKey = leerClaveByok()
 
-      const response = await fetch(`${API_URL}/api/evaluaciones/generar-stream`, {
+      const response = await fetch(`${API_URL}/evaluaciones/generar-stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -344,9 +343,9 @@ export function EvaluacionIA({
       });
 
       const token = session?.access_token
-      if (!token) { console.error("No active authentication token found."); return }
+      if (!token) return
 
-      const response = await fetch(`${API_URL}/api/evaluaciones/evaluar`, {
+      const response = await fetch(`${API_URL}/evaluaciones/evaluar`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -666,7 +666,6 @@ function EventDetailPopover({ evento, etiqueta, onClose, onEdit, onDelete, onSta
         {evento.tipo === 'examen' && (
           <div className="mt-5 border-t border-white/5 pt-5">
             <button onClick={() => {
-              console.log(`[IA] Iniciando repaso para: ${evento.titulo}`)
               alert(`[Módulo de IA] Preparando sesión de repaso para ${evento.titulo}...`)
             }} className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-600/80 to-purple-600/80 hover:from-rose-500 hover:to-purple-500 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md border border-white/20 hover:scale-[1.02]">
               <Sparkles className="w-4 h-4" /> Repasar con IA
@@ -942,7 +941,6 @@ export function AgendaInteligente() {
           evento={focusEvent}
           onClose={() => { setIsFocusModeOpen(false); setFocusEvent(null) }}
           onComplete={(minutosEstudiados, isFinishedEarly) => {
-            console.log(`[Productividad] Sesión finalizada: ${minutosEstudiados} minutos registrados. Early: ${isFinishedEarly}`)
             if (!isFinishedEarly) {
               setEventos(prev => prev.map(ev => ev.id === focusEvent.id ? { ...ev, completed: true } : ev))
             }

@@ -50,7 +50,6 @@ export function LearningPath({ courseId }: LearningPathProps) {
       } else {
         setError(err.message || "Error al cargar la ruta de aprendizaje.")
       }
-      console.error(err)
     } finally {
       setIsLoading(false)
     }
@@ -160,7 +159,6 @@ export function LearningPath({ courseId }: LearningPathProps) {
       const result = await apiService.getLearningPath(cleanId)
       setData(result)
     } catch (err: any) {
-      console.error(err)
       setError(err.message || "Error al completar el curso")
     } finally {
       setCompleting(false)

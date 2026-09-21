@@ -10,9 +10,7 @@ import { supabase } from "./supabase"
 import { fetchWithAuth } from "./api-service"
 import { leerOCache, TTL, invalidarClave } from "./api-cache"
 import type { ConversacionDM, EnviarMensajeDM, IniciarDM, MensajeDM } from "@/types/dm"
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-const API_URL = BASE_URL.endsWith("/api") ? BASE_URL : `${BASE_URL}/api`
+import { API_URL } from "@/lib/env"
 
 function extraerMensaje(body: any): string {
   return (

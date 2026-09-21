@@ -9,9 +9,7 @@
 // /evaluaciones/generar-stream.
 
 import type { AdjuntosChat, IntentChat } from "@/types/chatbot"
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-const API_URL = BASE_URL.endsWith("/api") ? BASE_URL : `${BASE_URL}/api`
+import { API_URL } from "@/lib/env"
 
 // Tiempo para que lleguen las CABECERAS del stream (clasificar intent +
 // arrancar el handler), no para la respuesta completa: el LLM puede tardar

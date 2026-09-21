@@ -44,11 +44,25 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# ── Entorno ──────────────────────────────────────────────────────────
+# `APP_ENV` (o `ENV` como respaldo) distingue desarrollo de producción.
+# En producción se EXIGEN CORS_ORIGINS y TRUSTED_HOSTS explícitos (fail-fast):
+# no queremos arrancar sirviendo CORS de localhost ni TrustedHost="*".
+APP_ENV = os.getenv("APP_ENV", os.getenv("ENV", "development")).strip().lower()
+IS_PRODUCTION = APP_ENV in {"production", "prod"}
+
 # ── TrustedHostMiddleware ────────────────────────────────────────────
-# En desarrollo permite cualquier host. En producción, configuralo con
-# la variable TRUSTED_HOSTS (lista separada por comas).
+# En desarrollo permite cualquier host. En producción se exige TRUSTED_HOSTS.
 TRUSTED_HOSTS_DEFAULT = "*"
-trusted_hosts_raw = os.getenv("TRUSTED_HOSTS", TRUSTED_HOSTS_DEFAULT)
+trusted_hosts_raw = os.getenv("TRUSTED_HOSTS")
+if IS_PRODUCTION:
+    if not trusted_hosts_raw or trusted_hosts_raw.strip() in {"", "*"}:
+        raise RuntimeError(
+            "TRUSTED_HOSTS es obligatorio en producción y no puede ser '*'. "
+            "Ejemplo: TRUSTED_HOSTS=univia.pe,api.univia.pe"
+        )
+else:
+    trusted_hosts_raw = trusted_hosts_raw or TRUSTED_HOSTS_DEFAULT
 trusted_hosts = [
     host.strip()
     for host in trusted_hosts_raw.split(",")
@@ -65,9 +79,18 @@ DEFAULT_ORIGINS = (
     "http://localhost:3001,http://127.0.0.1:3001,"
     "http://localhost:5173,http://127.0.0.1:5173"
 )
+cors_origins_raw = os.getenv("CORS_ORIGINS")
+if IS_PRODUCTION:
+    if not cors_origins_raw or not cors_origins_raw.strip():
+        raise RuntimeError(
+            "CORS_ORIGINS es obligatorio en producción. "
+            "Ejemplo: CORS_ORIGINS=https://univia.pe,https://www.univia.pe"
+        )
+else:
+    cors_origins_raw = cors_origins_raw or DEFAULT_ORIGINS
 origins = [
     origin.strip()
-    for origin in os.getenv("CORS_ORIGINS", DEFAULT_ORIGINS).split(",")
+    for origin in cors_origins_raw.split(",")
     if origin.strip()
 ]
 

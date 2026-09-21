@@ -15,9 +15,7 @@ import type {
   ResumenGamificacion,
   ResumenNotas,
 } from "@/types/gamificacion"
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-const API_URL = BASE_URL.endsWith("/api") ? BASE_URL : `${BASE_URL}/api`
+import { API_URL } from "@/lib/env"
 
 function extraerMensaje(body: any): string {
   return (

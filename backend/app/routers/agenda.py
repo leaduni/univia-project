@@ -855,9 +855,45 @@ async def cargar_excel_horarios(
 
     df['tipo_clase'] = df['tipo_clase'].apply(clean_tipo_clase)
     df['dia'] = df['dia'].astype(str).str.strip().str.upper()
+    df['codigo'] = df['codigo'].astype(str).str.strip()
+    df['seccion'] = df['seccion'].astype(str).str.strip()
+    
+    # Rellenar profesores o aulas sin asignar para evitar violar restricciones NOT NULL
+    df['docente'] = df['docente'].fillna('POR ASIGNAR')
+    df['aula'] = df['aula'].fillna('POR ASIGNAR')
     
     df = df.dropna(subset=['codigo', 'seccion', 'hora_inicio', 'hora_fin', 'dia', 'tipo_clase'])
     
+    # ---------------------------------------------------------
+    # 1. Resolver Foreign Key constraint de 'cursos'
+    # Obtenemos los cursos únicos del Excel
+    unique_cursos = df[['codigo', 'nombre_curso']].drop_duplicates()
+    
+    # Obtenemos los códigos que ya existen en la base de datos
+    res_cursos = await _run(lambda: sb_admin.table("cursos").select("code").execute())
+    existing_codes = {item['code'] for item in getattr(res_cursos, 'data', [])}
+    
+    cursos_to_insert = []
+    for _, row in unique_cursos.iterrows():
+        c_code = str(row['codigo']).strip()
+        if c_code not in existing_codes:
+            cursos_to_insert.append({
+                "code": c_code,
+                "name": str(row['nombre_curso']).strip()
+            })
+            existing_codes.add(c_code)
+            
+    if cursos_to_insert:
+        # Insertar los cursos faltantes
+        for i in range(0, len(cursos_to_insert), 100):
+            batch_cursos = cursos_to_insert[i:i + 100]
+            try:
+                await _run(lambda b=batch_cursos: sb_admin.table("cursos").insert(b).execute())
+            except Exception as e:
+                logger.error(f"Error insertando cursos faltantes: {e}")
+                # Seguimos adelante, si falla la carga horaria saltará su propio error
+    # ---------------------------------------------------------
+
     records = df.to_dict('records')
     
     if not records:

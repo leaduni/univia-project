@@ -56,6 +56,11 @@ export function Header({ onMenuClick }: HeaderProps) {
 
   const nombre = user?.nombre_completo || "Estudiante"
 
+  const accesosFinales = [...ACCESOS]
+  if (user?.email === "alexandra.peralta.g@uni.pe") {
+    accesosFinales.push({ label: "Admin", href: "/admin-horarios" })
+  }
+
   useEffect(() => {
     const main = document.querySelector("main")
 
@@ -136,7 +141,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               pide arriba, y en pantallas donde el sidebar va colapsado son la
               única navegación con texto. */}
           <nav className="hidden md:flex items-center gap-1" aria-label="Accesos rápidos">
-            {ACCESOS.map((acceso) => {
+            {accesosFinales.map((acceso) => {
               const activo =
                 pathname === acceso.href ||
                 (acceso.href !== "/" && pathname?.startsWith(acceso.href))

@@ -10,9 +10,11 @@ import logging
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
+import pandas as pd
+import io
 from app.core.auth_utils import get_current_user
-from app.core.database import get_supabase
+from app.core.database import get_supabase, get_admin_client
 from app.schemas.agenda import (
     EventoCreate, EventoUpdate, EventoResponse,
     EtiquetaCreate, EtiquetaUpdate, EtiquetaResponse,
@@ -646,7 +648,7 @@ async def parse_matricula(
 
     # ── 2. Enviar a Gemini para extraer cursos matriculados ───────────────
     try:
-        import google.generativeai as genai
+        import google.generativeai as genai  # type: ignore
     except ImportError:
         raise HTTPException(status_code=500, detail="google-generativeai no instalado.")
 
@@ -773,4 +775,111 @@ async def parse_matricula(
         "eventos_creados": eventos_creados,
         "cursos_detectados": cursos_detectados,
         "message": f"Se crearon {len(eventos_creados)} bloques horarios para {len(cursos_detectados)} cursos.",
+    }
+
+@router.post("/cargar-excel")
+async def cargar_excel_horarios(
+    file: UploadFile = File(...), 
+    ciclo: str = Form("2026-II"),
+    auth=Depends(get_current_user)
+):
+    """Endpoint administrativo para subir el Excel de carga horaria."""
+    user, token = auth
+    sb_admin = get_admin_client()
+    
+    # En un MVP real, aquí verificaríamos que user.id sea admin. 
+    # Por ahora limitamos estáticamente al correo del admin principal.
+    if getattr(user, "email", None) != "alexandra.peralta.g@uni.pe":
+        raise HTTPException(status_code=403, detail="No tienes permisos de administrador para subir carga horaria.")
+    
+    if not file.filename or not file.filename.endswith((".xlsx", ".xls")):
+        raise HTTPException(status_code=400, detail="El archivo debe ser un Excel (.xlsx o .xls)")
+        
+    try:
+        contents = await file.read()
+        # El archivo oficial de la FIIS tiene encabezados en la fila 8 (índice 7)
+        # Solo leemos las columnas relevantes para la carga horaria
+        df = pd.read_excel(io.BytesIO(contents), skiprows=7, usecols="A:C,E:J")
+    except Exception as e:
+        logger.error(f"Error leyendo Excel: {e}")
+        raise HTTPException(status_code=400, detail="No se pudo leer el archivo Excel.")
+        
+    # Limpiamos los nombres de las columnas (evitamos el warning de str())
+    df.columns = [c.strip() if isinstance(c, str) else str(c).strip() for c in df.columns]
+    
+    col_map = {
+        "CÓDIGO": "codigo",
+        "NOMBRE DEL CURSO": "nombre_curso",
+        "SECCIÓN": "seccion",
+        "APELLIDOS Y NOMBRES DEL DOCENTE": "docente",
+        "TIPO CLASE": "tipo_clase",
+        "AULA": "aula",
+        "DÍA": "dia",
+        "HORA INICIO": "hora_inicio",
+        "HORA FINAL": "hora_fin"
+    }
+    
+    df = df.rename(columns=col_map)
+    df['ciclo'] = ciclo
+    
+    def parse_time(val):
+        if pd.isna(val):
+            return None
+        # Si pandas lo leyó como número (ej. 9.0 o 9)
+        if isinstance(val, (int, float)):
+            return f"{int(val):02d}:00:00"
+            
+        s = str(val).strip()
+        try:
+            # Por si acaso es un string como "9.0"
+            num = float(s)
+            return f"{int(num):02d}:00:00"
+        except ValueError:
+            pass
+            
+        # Si viene como datetime.time, str() lo convierte a "HH:MM:SS"
+        return s[:8]
+
+    df['hora_inicio'] = df['hora_inicio'].apply(parse_time)
+    df['hora_fin'] = df['hora_fin'].apply(parse_time)
+    
+    def clean_tipo_clase(val):
+        if pd.isna(val):
+            return "T"
+        s = str(val).strip().upper()
+        if "LAB" in s:
+            return "LAB"
+        if "P" in s:
+            return "P"
+        return "T"
+
+    df['tipo_clase'] = df['tipo_clase'].apply(clean_tipo_clase)
+    df['dia'] = df['dia'].astype(str).str.strip().str.upper()
+    
+    df = df.dropna(subset=['codigo', 'seccion', 'hora_inicio', 'hora_fin', 'dia', 'tipo_clase'])
+    
+    records = df.to_dict('records')
+    
+    if not records:
+        raise HTTPException(status_code=400, detail="El Excel está vacío o no tiene filas válidas.")
+        
+    batch_size = 100
+    inserted_count = 0
+    
+    for i in range(0, len(records), batch_size):
+        batch = records[i:i + batch_size]
+        # Cast explicit string keys and replace pd.NA/NaN with None for JSON compliance
+        clean_batch = [{str(k): (None if pd.isna(v) else v) for k, v in row.items()} for row in batch]
+        try:
+            # Usamos upsert para evitar errores de duplicidad si se sube 2 veces
+            # Y el cliente admin para saltar las políticas de RLS restrictivas para usuarios
+            await _run(lambda b=clean_batch: sb_admin.table("carga_horaria").upsert(b).execute())
+            inserted_count += len(batch)
+        except Exception as e:
+            logger.error(f"Error insertando lote {i}: {e}")
+            raise HTTPException(status_code=500, detail=f"Error al insertar lote {i}. Detalle: {e}")
+            
+    return {
+        "ok": True,
+        "message": f"Se importaron {inserted_count} horarios exitosamente para el ciclo {ciclo}."
     }

@@ -265,3 +265,18 @@ export async function fetchCargaHoraria(ciclo: string = "2026-II"): Promise<Facu
   }
   return mockFacultySchedules;
 }
+
+export async function uploadCargaHorariaExcel(file: File, ciclo: string = "2026-II"): Promise<{ ok: boolean; message: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('ciclo', ciclo);
+  const resp = await fetchWithAuth(`${API}/agenda/cargar-excel`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(extraerError(body));
+  }
+  return resp.json();
+}

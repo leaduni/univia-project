@@ -84,7 +84,7 @@ export default function MallaPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-4 md:p-6 flex flex-col h-[calc(100vh-80px)]">
+      <div className="p-4 md:p-6 flex flex-col h-[calc(100dvh-5rem-env(safe-area-inset-bottom))]">
         <div className="space-y-1 mb-4 flex-none">
           <h1 className="font-heading text-2xl md:text-3xl font-bold tracking-tight text-foreground">
             Mi malla curricular

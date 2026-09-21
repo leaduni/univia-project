@@ -51,8 +51,10 @@ cachea automáticamente los prefijos repetidos, sin `cache_control` explícito.
 import base64
 import logging
 import os
+import random
 import re
 import threading
+import time
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
@@ -117,7 +119,7 @@ def _permitido_en_generacion(nombre: str) -> bool:
 # piloto es acotado.
 MODELO_GENERACION = os.getenv("OPENAI_GEN_MODEL", "gpt-4o-mini")
 MODELO_GROQ = os.getenv("GROQ_GEN_MODEL", "openai/gpt-oss-120b")
-MODELO_GEMINI = os.getenv("GEMINI_GEN_MODEL", "gemini-3.6-flash")  # 2.0-flash: retirado por la API
+MODELO_GEMINI = os.getenv("GEMINI_GEN_MODEL", "gemini-2.5-flash")  # 2.0/1.5: retirados; 3.6: RPD muy bajo
 
 # ---------------------------------------------------------------------------
 # Telemetría de consumo (tokens + costo estimado en USD)
@@ -127,6 +129,7 @@ MODELO_GEMINI = os.getenv("GEMINI_GEN_MODEL", "gemini-3.6-flash")  # 2.0-flash: 
 # las tarifas quedan tabuladas igualmente por si algún día se sale del free
 # tier o se habilita OpenAI con ALLOW_OPENAI_GENERATION=true.
 TARIFAS_USD_POR_MILLON = {
+    "gemini-2.5-flash": (0.0, 0.0),
     "gemini-2.0-flash": (0.10, 0.40),
     "gemini-3.6-flash": (0.0, 0.0),
     "llama-3.3-70b-versatile": (0.0, 0.0),
@@ -230,6 +233,7 @@ class _EntradaPool:
         self._construir = construir
         self._cliente: Any = None
         self.cooldown_hasta: float = 0.0
+        self.penalizaciones: int = 0
 
     @property
     def cliente(self) -> Any:
@@ -267,6 +271,7 @@ class MultiKeyPool:
         ]
         self._indice = 0
         self.cooldown_segundos = cooldown_segundos
+        self._lock = threading.Lock()
         if self._entradas:
             logger.info("Pool %s listo con %d clave(s).", variable, len(self._entradas))
 
@@ -276,26 +281,36 @@ class MultiKeyPool:
 
     def siguiente(self) -> Optional[_EntradaPool]:
         """Devuelve la próxima entrada fuera de cooldown, o None si no hay."""
-        import time
-        ahora = time.monotonic()
-        n = len(self._entradas)
-        for salto in range(n):
-            entrada = self._entradas[(self._indice + salto) % n]
-            if entrada.cooldown_hasta <= ahora:
-                self._indice = (self._indice + salto + 1) % n
-                return entrada
+        with self._lock:
+            ahora = time.monotonic()
+            n = len(self._entradas)
+            for salto in range(n):
+                entrada = self._entradas[(self._indice + salto) % n]
+                if entrada.cooldown_hasta <= ahora:
+                    self._indice = (self._indice + salto + 1) % n
+                    return entrada
         return None
 
-    def castigar(self, entrada: _EntradaPool) -> None:
+    def castigar(self, entrada: _EntradaPool, retry_after: Optional[float] = None) -> None:
         """Saca de rotación la clave durante `cooldown_segundos` (429/5xx)."""
-        import time
-        entrada.cooldown_hasta = time.monotonic() + self.cooldown_segundos
+        with self._lock:
+            entrada.penalizaciones += 1
+            espera_base = retry_after if retry_after is not None else min(
+                self.cooldown_segundos, 2 ** entrada.penalizaciones
+            )
+            espera = espera_base + random.uniform(0, min(espera_base * 0.2, 10.0))
+            entrada.cooldown_hasta = max(entrada.cooldown_hasta, time.monotonic() + espera)
         logger.warning(
-            "Pool %s: clave #%d en cooldown %.0fs por rate limit.",
+            "Pool %s: clave #%d en cooldown %.1fs por rate limit.",
             self.variable,
             self._entradas.index(entrada) + 1,
-            self.cooldown_segundos,
+            espera,
         )
+
+    def recuperar(self, entrada: _EntradaPool) -> None:
+        """Restablece el backoff de una clave tras una llamada exitosa."""
+        with self._lock:
+            entrada.penalizaciones = 0
 
 
 def get_openai_generacion() -> Optional[OpenAI]:
@@ -438,6 +453,116 @@ def _llamar_gemini(cliente, *, modelo, mensajes, max_tokens, stream, json_mode) 
         return ""
 
 
+def _llamar_gemini_con_schema(
+    cliente: Any,
+    prompt: str,
+    response_schema: Any,
+    system: Optional[str],
+    max_tokens: int,
+    modelo: str,
+) -> dict:
+    """Llamada Gemini estructurada que preserva la causa de finalización."""
+    try:
+        from google.genai import types
+    except ImportError:
+        raise RuntimeError("Paquete 'google-genai' no instalado para salida estructurada.")
+    config = types.GenerateContentConfig(
+        max_output_tokens=max_tokens,
+        response_mime_type="application/json",
+        response_schema=response_schema,
+        system_instruction=system if system else None,
+    )
+    respuesta = cliente.models.generate_content(
+        model=modelo, contents=prompt, config=config
+    )
+    uso = getattr(respuesta, "usage_metadata", None)
+    if uso:
+        registrar_uso(
+            "gemini",
+            modelo,
+            getattr(uso, "prompt_token_count", 0) or 0,
+            getattr(uso, "candidates_token_count", 0) or 0,
+        )
+    try:
+        finish_reason = respuesta.candidates[0].finish_reason.name
+    except Exception:
+        finish_reason = "UNKNOWN"
+    try:
+        texto = respuesta.text or ""
+    except ValueError:
+        texto = ""
+    return {"text": texto, "finish_reason": finish_reason}
+
+
+def generar_gemini_con_schema(
+    prompt: str,
+    response_schema: Any,
+    system: Optional[str] = None,
+    max_tokens: int = 8000,
+    api_key: Optional[str] = None,
+    modelo: Optional[str] = None,
+) -> dict:
+    """Genera JSON estructurado con pool, cooldown y cascada de proveedores."""
+    try:
+        from google import genai
+    except ImportError:
+        raise RuntimeError("Paquete 'google-genai' no instalado para salida estructurada.")
+
+    modelo_efectivo = modelo or MODELO_GEMINI
+    error_anterior: Optional[Exception] = None
+    if api_key:
+        try:
+            cliente_byok = genai.Client(api_key=api_key)
+            return _llamar_gemini_con_schema(
+                cliente_byok, prompt, response_schema, system, max_tokens, modelo_efectivo
+            )
+        except Exception as error:
+            if not _es_error_reintentable(error):
+                raise
+            error_anterior = error
+            logger.warning("Gemini BYOK estructurado agotado; se activa la cascada configurada.")
+
+    nombres = [LLM_PROVIDER] + [p for p in LLM_FALLBACKS if p != LLM_PROVIDER.lower()]
+    cadena = [nombre for nombre in nombres if _permitido_en_generacion(nombre)]
+    mensajes = ([{"role": "system", "content": system}] if system else []) + [
+        {"role": "user", "content": prompt}
+    ]
+    for nombre in cadena:
+        if error_anterior and not _es_error_reintentable(error_anterior):
+            raise error_anterior
+        try:
+            if nombre.lower() == "gemini":
+                pool = _pool_gemini_()
+                if pool is None or not pool.tiene_claves:
+                    raise ProveedorPoolExhausted("Pool Gemini no disponible.")
+
+                def llamar_schema(cliente, **_: Any) -> dict:
+                    return _llamar_gemini_con_schema(
+                        cliente, prompt, response_schema, system, max_tokens, modelo_efectivo
+                    )
+
+                return _generar_con_pool(
+                    pool, llamar_schema, mensajes, max_tokens, modelo_efectivo, False, True
+                )
+
+            proveedor = _proveedor(nombre)
+            if proveedor is None:
+                continue
+            texto = _ejecutar_llamada(
+                proveedor, mensajes, max_tokens, None, False, True
+            )
+            return {"text": texto, "finish_reason": "STOP", "provider": nombre}
+        except Exception as error:
+            error_anterior = error
+            logger.warning(
+                "Salida estructurada de %s falló (%s); se prueba el siguiente proveedor.",
+                nombre,
+                type(error).__name__,
+            )
+
+    raise RuntimeError("Fallaron todos los proveedores de salida estructurada.") from error_anterior
+
+
 def _proveedor_openai() -> Optional[ProveedorLLM]:
     """Factory del proveedor OpenAI (por defecto). None si no hay clave."""
     cliente = get_openai_generacion()
@@ -514,7 +639,7 @@ def _generar_con_pool(
         if entrada is None:
             break
         try:
-            return llamar(
+            resultado = llamar(
                 entrada.cliente,
                 modelo=modelo,
                 mensajes=mensajes,
@@ -522,10 +647,12 @@ def _generar_con_pool(
                 stream=stream,
                 json_mode=json_mode,
             )
+            pool.recuperar(entrada)
+            return resultado
         except Exception as e:
             errores.append(e)
             if _es_error_reintentable(e):
-                pool.castigar(entrada)
+                pool.castigar(entrada, _extraer_retry_after(e))
                 continue
             raise
     raise ProveedorPoolExhausted(
@@ -617,10 +744,18 @@ def _es_error_reintentable(error: Exception) -> bool:
     Cuota/tasa agotada (429) o fallo de conexión del lado del servidor (5xx).
     Prefiere el código HTTP que expone el SDK; a falta de él, mira el nombre de
     la excepción (RateLimit, APIConnectionError, ResourceExhausted, ...).
+
+    Nota google.genai: ClientError/ServerError exponen el código HTTP en el
+    atributo `code` (no en `status_code`/`status`), así que se lee también
+    desde ahí; de lo contrario un 429 de Gemini pasaba desapercibido y la
+    cascada no saltaba al siguiente proveedor.
     """
     status = getattr(error, "status_code", None)
     if status is None:
         status = getattr(error, "status", None)
+    if status is None:
+        # SDK google.genai: APIError.code es el código HTTP numérico.
+        status = getattr(error, "code", None)
     if status is not None:
         try:
             status = int(status)
@@ -633,6 +768,21 @@ def _es_error_reintentable(error: Exception) -> bool:
         parte in nombre
         for parte in ("rate", "connection", "timeout", "exhausted", "server", "unavailable")
     )
+
+
+def _extraer_retry_after(error: Exception) -> Optional[float]:
+    """Obtiene Retry-After de SDKs HTTP cuando el proveedor lo informa."""
+    headers = getattr(error, "headers", None)
+    if headers is None:
+        response = getattr(error, "response", None)
+        headers = getattr(response, "headers", None)
+    valor = headers.get("retry-after") if headers else None
+    try:
+        if valor is not None:
+            return max(float(valor), 0.0)
+    except (TypeError, ValueError):
+        pass
+    return None
 
 
 def generar(

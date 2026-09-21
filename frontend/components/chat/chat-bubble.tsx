@@ -423,10 +423,10 @@ const manejarInputChange = useCallback((texto: string) => {
         {mostrandoChat && (
           <div
             ref={panelRef}
-            className={`pointer-events-auto fixed bottom-24 right-6 z-[9991] transition-[width,height] duration-300 ease-out ${
+            className={`pointer-events-auto fixed safe-chat-panel z-[9991] transition-[width,height] duration-300 ease-out ${
               isExpanded
-                ? "w-[min(900px,calc(100vw-32px))] h-[min(85vh,780px)]"
-                : "w-[min(420px,calc(100vw-24px))] h-[min(620px,calc(100vh-120px))]"
+                ? "w-[min(900px,calc(100vw-32px))] h-[min(85dvh,780px)]"
+                : "w-[min(420px,calc(100vw-24px))] h-[min(620px,calc(100dvh-8.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))]"
             }`}
           >
             <ChatPanel
@@ -455,7 +455,7 @@ const manejarInputChange = useCallback((texto: string) => {
           onClick={alternar}
           aria-label={abierto ? "Cerrar el asistente" : "Abrir el asistente"}
           aria-expanded={abierto}
-          className="pointer-events-auto fixed bottom-6 right-6 z-[9991] w-14 h-14 rounded-2xl bg-gradient-to-br from-[#d93340] via-[#a6249d] to-[#7957f1] shadow-[0_8px_24px_rgba(121,87,241,0.45)] text-white flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+          className="pointer-events-auto fixed safe-fab z-[9991] w-14 h-14 rounded-2xl bg-gradient-to-br from-[#d93340] via-[#a6249d] to-[#7957f1] shadow-[0_8px_24px_rgba(121,87,241,0.45)] text-white flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
         >
           {!yaInteractuo && !abierto && (
             <span

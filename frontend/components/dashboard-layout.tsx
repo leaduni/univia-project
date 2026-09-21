@@ -101,13 +101,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   return (
-    <div className="flex h-screen bg-[#0b0c16] text-[#e9e9ed] overflow-hidden">
+    <div className="flex h-dvh bg-[#0b0c16] text-[#e9e9ed] overflow-hidden">
       {/* Barra lateral colapsable */}
 
       {/* Contenido principal con transición suave */}
       <div className="relative flex-1 h-full min-w-0 overflow-hidden">
         <Header onMenuClick={handleToggle} />
-        <main className="w-full h-full overflow-y-auto custom-scrollbar pt-20 px-4 pb-6">{children}</main>
+        <main className="w-full h-full overflow-y-auto custom-scrollbar pt-20 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">{children}</main>
       </div>
 
       {/* Aviso de conexión perdida: sutil, no bloquea la vista ni la navegación. */}
@@ -115,10 +115,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 backdrop-blur-md shadow-lg"
+          className="fixed safe-bottom-4 left-1/2 -translate-x-1/2 z-50 flex max-w-[calc(100vw-2rem)] items-center gap-2.5 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 backdrop-blur-md shadow-lg"
         >
           <WifiOff className="w-4 h-4 text-amber-400 flex-shrink-0" />
-          <p className="text-xs font-medium text-amber-200">
+          <p className="min-w-0 text-xs font-medium text-amber-200">
             Sin conexión a internet. Tus cambios podrían no guardarse.
           </p>
         </div>

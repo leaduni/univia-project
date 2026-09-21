@@ -381,7 +381,7 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center safe-modal-padding">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" />
       <div ref={modalRef} className="relative z-10 w-full max-w-lg bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
         
@@ -558,7 +558,7 @@ function ModalCrearEtiqueta({ onClose, onCrear }: { onClose: () => void, onCrear
   }
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center safe-modal-padding">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose} />
       <div className="relative z-10 w-full max-w-sm bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
         <div className="px-5 py-4 border-b border-white/[0.08] flex justify-between items-center">
@@ -610,7 +610,7 @@ function EventDetailPopover({ evento, etiqueta, onClose, onEdit, onDelete, onSta
   }
   
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center safe-modal-padding">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200" onClick={onClose} />
       <div className="relative z-10 w-full max-w-sm bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200 p-6">
         <div className="flex justify-between items-start mb-4">
@@ -696,7 +696,7 @@ function ModalSleepSettings({ sleepSettings, onClose, onSave }: { sleepSettings:
   const [end, setEnd] = useState(sleepSettings.end)
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center safe-modal-padding">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose} />
       <div className="relative z-10 w-full max-w-xs bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
         <div className="px-5 py-4 border-b border-white/[0.08] flex justify-between items-center">

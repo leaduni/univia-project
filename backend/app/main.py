@@ -121,7 +121,7 @@ async def rate_limit_exception_handler(request, exc: RateLimitExceeded):
 
 
 app.add_middleware(SlowAPIMiddleware)
-
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc: RequestValidationError):

@@ -91,7 +91,7 @@ export function ChatDM({ conversacion, onVolver }: ChatDMProps) {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-11rem)] rounded-2xl border border-border bg-card overflow-hidden">
+    <div className="flex flex-col h-[calc(100dvh-10rem-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-11rem-env(safe-area-inset-bottom))] rounded-2xl border border-border bg-card overflow-hidden">
       {/* Cabecera */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border/60">
         <Button variant="ghost" size="icon" onClick={onVolver} aria-label="Volver a la bandeja">
@@ -142,7 +142,7 @@ export function ChatDM({ conversacion, onVolver }: ChatDMProps) {
             placeholder="Escribe un mensaje…"
             maxLength={5000}
             aria-label="Mensaje"
-            className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
           <Button type="submit" disabled={!texto.trim() || enviando} className="gap-1.5 shrink-0">
             {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

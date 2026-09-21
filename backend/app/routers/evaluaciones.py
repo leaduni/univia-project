@@ -9,8 +9,8 @@ import random
 
 from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional, Dict, Any, Union, AsyncGenerator
+from pydantic import BaseModel, Field, create_model, field_validator
+from typing import List, Optional, Dict, Any, Union, AsyncGenerator, Literal
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -20,6 +20,7 @@ from app.core.llm import (
     generar_con_meta,
     generar_gpt,
     generar_gemini_con_clave,
+    generar_gemini_con_schema,
     LLMSaldoAgotado,
     get_openai,
     obtener_ultima_telemetria,
@@ -37,6 +38,20 @@ logger = logging.getLogger("evaluaciones_tracer")
 # de los 8.000 TPM del free tier de Groq con margen para system + salida.
 # ---------------------------------------------------------------------------
 EVAL_RAG_MAX_CHARS = int(os.getenv("EVAL_RAG_MAX_CHARS", "9000"))
+EVAL_LLM_MAX_CONCURRENCY = max(1, int(os.getenv("EVAL_LLM_MAX_CONCURRENCY", "2")))
+EVAL_MICROBATCH_SIZE = max(1, int(os.getenv("EVAL_MICROBATCH_SIZE", "2")))
+EVAL_SLOT_MAX_RETRIES = max(1, int(os.getenv("EVAL_SLOT_MAX_RETRIES", "3")))
+_semaforo_evaluaciones_estructuradas = asyncio.Semaphore(EVAL_LLM_MAX_CONCURRENCY)
+
+# Regla anti-truncado del JSON de salida: explicaciones largas (debates,
+# recálculos) agotaban max_tokens y dejaban el JSON sin cerrar.
+REGLA_CONCISION_EXPLICACION = (
+    "REGLA DE CONCISIÓN (CRÍTICA, evita truncar el JSON): el campo 'explicacion' "
+    "debe ser directo, conciso y enfocado únicamente en el procedimiento correcto "
+    "(máximo 180 palabras, con los pasos y fórmulas imprescindibles). Queda ESTRICTAMENTE "
+    "PROHIBIDO incluir debates internos, recálculos alternativos, tablas extensas "
+    "ni textos explicativos innecesariamente largos que puedan truncar la respuesta. "
+)
 
 
 def _recortar_items_contexto(items: List[Dict[str, Any]], max_chars: int = EVAL_RAG_MAX_CHARS) -> List[Dict[str, Any]]:
@@ -175,6 +190,20 @@ class Pregunta(BaseModel):
     origen: str = "ia"
     fuente_detalle: Optional[str] = None
 
+
+class PreguntaGeneradaLLM(BaseModel):
+    """Contrato estructurado para una pregunta teórica devuelta por Gemini."""
+    pregunta: str
+    tipo: Literal["unica", "multiple", "verdadero_falso"]
+    opciones: List[str]
+    respuesta_correcta: Union[int, List[int]]
+    explicacion: str
+
+
+class RespuestaEvaluacionLLM(BaseModel):
+    """Contrato de una generación aislada; evita parsear JSON manualmente."""
+    preguntas: List[PreguntaGeneradaLLM]
+
 class Evaluacion(BaseModel):
     """Evaluación completa generada"""
     curso_id: int
@@ -298,7 +327,7 @@ def _enfoque_para_indice(idx: int) -> str:
     return ENFOQUES_PREGUNTA[idx % len(ENFOQUES_PREGUNTA)]
 
 
-def DIVERSIDAD_POR_INDICE_BLOQUE(num_preguntas: int) -> str:
+def DIVERSIDAD_POR_INDICE_BLOQUE(num_preguntas: int, indice_inicial: int = 0) -> str:
     """Bloque de prompt que asigna un enfoque obligatorio y distinto a cada
     pregunta por su número de orden, para el modo de una sola llamada JSON.
 
@@ -309,7 +338,7 @@ def DIVERSIDAD_POR_INDICE_BLOQUE(num_preguntas: int) -> str:
     construcción, no por sugerencia.
     """
     lineas = [
-        f"- Pregunta {i + 1}: enfoque obligatorio = {_enfoque_para_indice(i)}."
+        f"- Pregunta {indice_inicial + i + 1}: enfoque obligatorio = {_enfoque_para_indice(indice_inicial + i)}."
         for i in range(num_preguntas)
     ]
     return (
@@ -330,7 +359,11 @@ DIRECTIVA_VARIABILIDAD_PREGUNTAS = (
 )
 
 
-def generar_prompt_teorico(config: ConfiguracionEvaluacion, contexto_recuperado: List[str] = None) -> str:
+def generar_prompt_teorico(
+    config: ConfiguracionEvaluacion,
+    contexto_recuperado: List[str] = None,
+    indice_inicial: int = 0,
+) -> str:
     """Genera el prompt para un curso teórico."""
 
     tipos_pregunta = {
@@ -382,7 +415,7 @@ Cada pregunta DEBE cumplir TODOS estos requisitos:
 5. DISTRACTORES TRAMPA: las 4 opciones deben ser resultados numéricos donde los 3 incorrectos corresponden a errores de cálculo específicos (signo cambiado, componente equivocada, confusión de índice, error de sustitución).
 6. PROHIBIDO ABSOLUTAMENTE: "halla la pendiente de y=mx+b", "dados dos puntos halla la recta", definiciones, fórmulas directas. Si una pregunta se puede resolver en 1 paso, DESÉCHALA.
 7. Genera un conjunto de N preguntas estrictamente ÚNICAS y DISTINTAS entre sí. Está prohibido repetir el mismo ejercicio o generar variantes triviales del mismo problema dentro del mismo lote.
-{DIVERSIDAD_POR_INDICE_BLOQUE(config.num_preguntas)}
+{DIVERSIDAD_POR_INDICE_BLOQUE(config.num_preguntas, indice_inicial)}
 {DIRECTIVA_VARIABILIDAD_PREGUNTAS}
 
 FORMATO LaTeX — KaTeX COMPATIBLE ÚNICAMENTE:
@@ -406,7 +439,7 @@ RESPONDE ÚNICAMENTE con este JSON:
       "tipo": "unica|multiple|verdadero_falso",
       "opciones": ["opción A", "opción B", "opción C", "opción D"],
       "respuesta_correcta": 0,
-      "explicacion": "**Paso 1: Planteamiento e Identificación de Datos.**\nIdentifica las variables, coordenadas, fórmulas clave y condiciones del problema. Explica qué información se extrae del enunciado.\n\n**Paso 2: Desarrollo algebraico detallado.**\nMuestra cada operación y transformación paso a paso usando LaTeX. Incluye sustituciones numéricas, simplificaciones y cálculos intermedios.\n\n**Paso 3: Conclusión y Respuesta Final.**\nPresenta el resultado numérico o vectorial final e indica cuál opción es la correcta."
+      "explicacion": "Aplica la fórmula o procedimiento indicado con los datos relevantes. El resultado obtenido corresponde a la opción correcta."
     }}
   ]
 }}
@@ -451,6 +484,7 @@ El campo 'explicacion' DEBE seguir estrictamente esta estructura Markdown con do
 
 REGLA ESTRICTA: Queda PROHIBIDO mencionar 'opción 0', 'opción 1', 'opción A', etc. Menciona únicamente el valor o vector solución final.
 
+""" + REGLA_CONCISION_EXPLICACION + """
 REGLA CRÍTICA PARA LA SOLUCIÓN (explicacion):
 CADA variable, fórmula o comando LaTeX (\vec, \sqrt, \frac, \text, etc.) DEBE estar estrictamente envuelto entre signos de dólar ($ ... $). Separa siempre con un espacio en blanco los delimitadores de las palabras en español. Ejemplo CORRECTO: "La recta $L_1$ pasa por $A=(2,3)$". Ejemplo INCORRECTO: "La recta$L_1$pasa por$A$". NUNCA generes comandos LaTeX sueltos sin delimitador $.
 """
@@ -518,6 +552,7 @@ REGLAS ESTRICTAS PARA LA GENERACIÓN DEL JSON:
 - "respuesta_correcta" DEBE ser el string EXACTO que resulta de la ejecución del "input" del "caso_de_ejemplo".
 - Los retos deben requerir lógica de programación real y no ser triviales.
 - Usa '\\n' para los saltos de línea dentro de los strings. No uses saltos de línea literales.
+""" + REGLA_CONCISION_EXPLICACION + """
 """
     
     return prompt
@@ -1052,7 +1087,8 @@ SYSTEM_MSG_EVALUACION = (
     "CORRECTO: 'La recta $L_1$ pasa por $A=(2,3)$'. INCORRECTO: 'La recta$L_1$pasa por$A$'. "
     "NUNCA generes comandos LaTeX sueltos sin delimitador $. "
     "REGLA ESTRICTA: Queda PROHIBIDO mencionar 'opción 0', 'opción 1', 'opción A', etc. Menciona únicamente el valor o vector solución final. "
-    "Responde ÚNICAMENTE con JSON válido, sin texto adicional."
+    + REGLA_CONCISION_EXPLICACION +
+    " Responde ÚNICAMENTE con JSON válido, sin texto adicional."
 )
 
 @router.post("/evaluaciones/generar", response_model=Evaluacion)
@@ -1107,7 +1143,7 @@ async def generar_evaluacion(
                 lambda: generar_con_meta(
                     prompt=prompt,
                     system=SYSTEM_MSG_EVALUACION,
-                    max_tokens=6000,
+                    max_tokens=8000,
                     json_mode=True,
                 )
             )
@@ -1120,14 +1156,17 @@ async def generar_evaluacion(
             logger.warning("JSON inválido (%s). Reintentando con reparación única.", e_parse)
             prompt_reparacion = (
                 "La siguiente respuesta debería ser un JSON válido con la clave "
-                "'preguntas' pero falló el parseo. Corrígela y devuélvela como "
-                "JSON puro, sin texto adicional:\n\n" + (raw_content or "")[:12000]
+                "'preguntas' pero falló el parseo, probablemente por truncamiento. "
+                "Reconstruye un JSON COMPLETO y compacto; no continúes el texto "
+                "cortado. Cada 'explicacion' debe tener máximo 180 palabras. "
+                "Devuélvelo como JSON puro, sin texto adicional:\n\n"
+                + (raw_content or "")[:12000]
             )
             raw_content, telemetria_rep = await asyncio.to_thread(
                 lambda: generar_con_meta(
                     prompt=prompt_reparacion,
                     system=SYSTEM_MSG_EVALUACION,
-                    max_tokens=6000,
+                    max_tokens=8000,
                     json_mode=True,
                 )
             )
@@ -1248,6 +1287,7 @@ SYSTEM_MSG_TEORICO = (
     "CORRECTO: 'La recta $L_1$ pasa por $A=(2,3)$'. INCORRECTO: 'La recta$L_1$pasa por$A$'. "
     "NUNCA generes comandos LaTeX sueltos sin delimitador $. "
     "REGLA ESTRICTA: Queda PROHIBIDO mencionar 'opción 0', 'opción 1', 'opción A', etc. Menciona únicamente el valor o vector solución final. "
+    + REGLA_CONCISION_EXPLICACION +
     "Responde SIEMPRE en el formato de texto plano con marcadores @@...@@ que se te indica. NUNCA uses JSON."
 )
 
@@ -1409,11 +1449,11 @@ async def _generar_una_pregunta(idx: int, prompt: str, tipo_real: str, api_key_g
     loop = asyncio.get_running_loop()
 
     def _call_gratuito():
-        return generar(prompt=prompt, system=SYSTEM_MSG_TEORICO, max_tokens=4000)
+        return generar(prompt=prompt, system=SYSTEM_MSG_TEORICO, max_tokens=8000)
 
     def _call_gemini_byok():
         return generar_gemini_con_clave(
-            api_key_gemini, prompt, system=SYSTEM_MSG_TEORICO, max_tokens=4000
+            api_key_gemini, prompt, system=SYSTEM_MSG_TEORICO, max_tokens=8000
         )
 
     def _call():
@@ -1433,7 +1473,7 @@ async def _generar_una_pregunta(idx: int, prompt: str, tipo_real: str, api_key_g
                 "Pregunta %d: cascada gratuita agotada (%s). Último recurso: GPT pagado.",
                 idx + 1, gratis_error,
             )
-            return generar_gpt(prompt=prompt, system=SYSTEM_MSG_TEORICO, max_tokens=4000)
+            return generar_gpt(prompt=prompt, system=SYSTEM_MSG_TEORICO, max_tokens=8000)
 
     ultimo_error = None
     for intento in range(3):
@@ -1473,6 +1513,77 @@ async def _generar_una_pregunta(idx: int, prompt: str, tipo_real: str, api_key_g
     raise ultimo_error or ValueError("No se pudo generar la pregunta")
 
 
+def _crear_schema_lote(tamano_lote: int) -> type[BaseModel]:
+    """Crea un contrato Gemini que exige exactamente ``tamano_lote`` preguntas."""
+    return create_model(
+        f"RespuestaEvaluacionLote{tamano_lote}LLM",
+        preguntas=(List[PreguntaGeneradaLLM], Field(min_length=tamano_lote, max_length=tamano_lote)),
+    )
+
+
+async def _generar_lote_estructurado(
+    slots: List[int],
+    prompt: str,
+    api_key_gemini: Optional[str] = None,
+) -> List[Pregunta]:
+    """Genera un micro-lote completo; no expone resultados parciales inválidos."""
+    loop = asyncio.get_running_loop()
+    ultimo_error: Optional[Exception] = None
+    schema_lote = _crear_schema_lote(len(slots))
+
+    def _llamar_schema() -> dict:
+        return generar_gemini_con_schema(
+            prompt=prompt,
+            response_schema=schema_lote,
+            system=SYSTEM_MSG_EVALUACION,
+            max_tokens=8000,
+            api_key=api_key_gemini,
+        )
+
+    for intento in range(2):
+        try:
+            respuesta = await loop.run_in_executor(None, _llamar_schema)
+            if respuesta.get("finish_reason") == "MAX_TOKENS":
+                raise ValueError("Gemini truncó el lote por MAX_TOKENS")
+
+            salida = schema_lote.model_validate_json(respuesta.get("text") or "")
+            preguntas: List[Pregunta] = []
+            for slot, pregunta_llm in zip(slots, salida.preguntas):
+                pregunta = pregunta_llm.model_dump()
+                pregunta["id"] = slot + 1
+                preguntas.append(Pregunta(**_sanitize_latex_dict(pregunta)))
+            return preguntas
+        except Exception as error:
+            ultimo_error = error
+            logger.warning(
+                "Lote de slots %s, intento estructurado %d falló: %s.",
+                [slot + 1 for slot in slots],
+                intento + 1,
+                error,
+            )
+
+    raise ultimo_error or ValueError("No se pudo generar un lote estructurado")
+
+
+async def _generar_lote_con_limite(
+    slots: List[int],
+    prompt: str,
+    api_key_gemini: Optional[str] = None,
+) -> List[Pregunta]:
+    """Acota micro-lotes simultáneos para proteger las cuotas locales."""
+    async with _semaforo_evaluaciones_estructuradas:
+        return await _generar_lote_estructurado(slots, prompt, api_key_gemini)
+
+
+async def _generar_pregunta_con_limite(
+    idx: int,
+    prompt: str,
+    api_key_gemini: Optional[str] = None,
+) -> Pregunta:
+    """Compatibilidad para reintentar un único slot con el mismo contrato."""
+    return (await _generar_lote_con_limite([idx], prompt, api_key_gemini))[0]
+
+
 def _combinar_telemetria(primera: Optional[dict], segunda: Optional[dict]) -> Optional[dict]:
     """Suma el consumo de la llamada original + la de reparación (si hubo)."""
     if not primera:
@@ -1493,7 +1604,7 @@ def _combinar_telemetria(primera: Optional[dict], segunda: Optional[dict]) -> Op
     }
 
 
-def _generar_json_con_reparacion_meta(prompt: str, system: str, max_tokens: int = 6000) -> tuple[dict, Optional[dict]]:
+def _generar_json_con_reparacion_meta(prompt: str, system: str, max_tokens: int = 8000) -> tuple[dict, Optional[dict]]:
     """Igual que _generar_json_con_reparacion, pero devuelve (data, telemetria).
 
     La telemetría se lee EN EL MISMO HILO de la llamada LLM (la de llm.py es
@@ -1506,15 +1617,20 @@ def _generar_json_con_reparacion_meta(prompt: str, system: str, max_tokens: int 
         logger.warning("JSON inválido (%s). Un único reintento de reparación.", e_parse)
         prompt_reparacion = (
             "La siguiente respuesta debería ser un JSON válido con la clave "
-            "'preguntas' pero falló el parseo. Corrígela y devuélvela como "
-            "JSON puro, sin texto adicional ni bloques de código:\n\n"
+            "'preguntas' pero falló el parseo (probablemente quedó TRUNCADO por "
+            "exceso de longitud). Reconstruye el JSON válido COMPLETO, reduciendo "
+            "las 'explicacion' a máximo 180 palabras cada una. "
+            "No continúes el fragmento cortado: reconstruye un JSON completo "
+            "(prohibidos debates internos, recálculos alternativos o tablas "
+            "extensas), y devuélvelo como JSON puro, sin texto adicional ni "
+            "bloques de código:\n\n"
             + (raw or "")[:12000]
         )
         raw2, telemetria2 = generar_con_meta(prompt=prompt_reparacion, system=system, max_tokens=max_tokens, json_mode=True)
         return parse_llm_json_response(raw2), _combinar_telemetria(telemetria, telemetria2)
 
 
-def _generar_json_con_reparacion(prompt: str, system: str, max_tokens: int = 6000) -> dict:
+def _generar_json_con_reparacion(prompt: str, system: str, max_tokens: int = 8000) -> dict:
     """Una llamada batch JSON a la cascada gratuita + UN reintento de reparación.
 
     Cero reintentos a ciegas: si el JSON no parsea, se pide al modelo corregir
@@ -1525,10 +1641,19 @@ def _generar_json_con_reparacion(prompt: str, system: str, max_tokens: int = 600
     return data
 
 
-def _llamada_byok_meta(api_key: str, prompt: str, system: str, max_tokens: int = 6000) -> tuple[str, Optional[dict]]:
+def _llamada_byok_meta(api_key: str, prompt: str, system: str, max_tokens: int = 8000) -> tuple[str, Optional[dict]]:
     """BYOK Gemini leyendo la telemetría en el hilo de la llamada."""
     raw = generar_gemini_con_clave(api_key, prompt, system=system, max_tokens=max_tokens, json_mode=True)
     return raw, obtener_ultima_telemetria()
+
+
+def _tiene_campos_criticos_pregunta(pregunta: Any) -> bool:
+    """Evita que una pregunta truncada invalide toda la evaluación."""
+    return (
+        isinstance(pregunta, dict)
+        and "respuesta_correcta" in pregunta
+        and isinstance(pregunta.get("opciones"), list)
+    )
 
 
 def _telemetria_log(prefijo: str, telemetria: Optional[dict] = None) -> dict:
@@ -1609,6 +1734,7 @@ async def generar_evaluacion_stream(
     async def event_generator() -> AsyncGenerator[str, None]:
         logger.info("PASO 4: Iniciando streaming SSE event_generator...")
         try:
+            yield f"data: {json.dumps({'evento': 'inicio', 'mensaje': 'Generación de evaluación iniciada.'})}\n\n"
             if es_programacion:
                 logger.info("PASO 5: Invocando API de OpenAI (flujo programación)...")
                 cfg1 = ConfiguracionEvaluacion(
@@ -1630,7 +1756,8 @@ async def generar_evaluacion_stream(
                 # máximo rendimiento: se elimina el último recurso a OpenAI.
                 system_prog = (
                     "Eres un arquitecto de software senior. Responde ÚNICAMENTE "
-                    "con JSON válido, sin texto adicional ni bloques de código."
+                    "con JSON válido, sin texto adicional ni bloques de código. "
+                    + REGLA_CONCISION_EXPLICACION
                 )
                 data, telemetria_prog = await loop.run_in_executor(
                     None, _generar_json_con_reparacion_meta, prompt_prog, system_prog
@@ -1639,10 +1766,13 @@ async def generar_evaluacion_stream(
                 logger.info("PASO 6: Parseando preguntas del JSON...")
                 logger.info(f"PASO 6 COMPLETADO: {len(data.get('preguntas', []))} preguntas parseadas.")
 
-                preguntas = [
-                    Pregunta(**sanitizar_pregunta_backend(sanitizar_pregunta_alucinada(p)))
-                    for p in data.get("preguntas", [])
-                ]
+                preguntas = []
+                for p in data.get("preguntas", []):
+                    pregunta = sanitizar_pregunta_backend(sanitizar_pregunta_alucinada(p))
+                    if not _tiene_campos_criticos_pregunta(pregunta):
+                        logger.warning("Pregunta de programación descartada: faltan campos críticos.")
+                        continue
+                    preguntas.append(Pregunta(**pregunta))
                 preguntas = _asignar_origen(preguntas, contexto)
                 preguntas = _deduplicar_preguntas(preguntas)
                 preguntas = _limpiar_opciones(preguntas)
@@ -1655,62 +1785,89 @@ async def generar_evaluacion_stream(
                 yield f"data: {json.dumps({'done': True, 'result': data, 'metricas': metricas})}\n\n"
                 return
 
-            logger.info(f"PASO 5: Generando {config.num_preguntas} preguntas teóricas en UNA llamada batch JSON...")
-
-            # Reemplazo del bucle paralelo (tormenta de requests contra las 5
-            # RPM del free tier): una sola llamada JSON a la cascada gratuita.
-            # El progreso se emite por SSE de forma simulada, con el mismo
-            # contrato de eventos que consumía el frontend.
-            prompt_batch = generar_prompt_teorico(config, contexto)
-            loop = asyncio.get_running_loop()
-
-            # BYOK Gemini del usuario tiene prioridad (Nivel 0), como en /generar.
-            data = None
-            telemetria_batch: Optional[dict] = None
-            if api_key_gemini:
-                try:
-                    raw_byok, telemetria_batch = await loop.run_in_executor(
-                        None, _llamada_byok_meta, api_key_gemini, prompt_batch, SYSTEM_MSG_EVALUACION
-                    )
-                    data = parse_llm_json_response(raw_byok)
-                except Exception as e:
-                    logger.warning("BYOK Gemini falló en stream (%s); se intenta la cascada gratuita.", e)
-                    data = None
-                    telemetria_batch = None
-            if data is None:
-                data, telemetria_batch = await loop.run_in_executor(
-                    None, _generar_json_con_reparacion_meta, prompt_batch, SYSTEM_MSG_EVALUACION
+            logger.info("PASO 5: Generando %d preguntas en micro-lotes estructurados.", config.num_preguntas)
+            slots = list(range(config.num_preguntas))
+            tamano_lote = min(EVAL_MICROBATCH_SIZE, config.num_preguntas)
+            lotes = [slots[i:i + tamano_lote] for i in range(0, len(slots), tamano_lote)]
+            tareas_lote = []
+            for slots_lote in lotes:
+                config_lote = config.model_copy(update={"num_preguntas": len(slots_lote)})
+                prompt_lote = generar_prompt_teorico(
+                    config_lote,
+                    contexto,
+                    indice_inicial=slots_lote[0],
                 )
+                tareas_lote.append((
+                    slots_lote,
+                    asyncio.create_task(_generar_lote_con_limite(slots_lote, prompt_lote, api_key_gemini)),
+                ))
 
-            preguntas_brutas = data.get("preguntas") or []
-            if not preguntas_brutas:
-                logger.error("PASO 5 ERROR: la respuesta batch no trajo preguntas.")
-                yield f"data: {json.dumps({'error': 'No se pudo generar ninguna pregunta'})}\n\n"
-                return
+            preguntas_por_slot: Dict[int, Pregunta] = {}
+            slots_fallidos: List[int] = []
+            enunciados_generados: set[str] = set()
+            for slots_lote, tarea_lote in tareas_lote:
+                while not tarea_lote.done():
+                    terminadas, _ = await asyncio.wait({tarea_lote}, timeout=15)
+                    if not terminadas:
+                        yield f"data: {json.dumps({'evento': 'heartbeat', 'lote': [slot + 1 for slot in slots_lote]})}\n\n"
+                try:
+                    preguntas_lote = tarea_lote.result()
+                except Exception as lote_error:
+                    logger.warning("Lote %s falló: %s", [slot + 1 for slot in slots_lote], lote_error)
+                    slots_fallidos.extend(slots_lote)
+                    yield f"data: {json.dumps({'evento': 'advertencia', 'mensaje': 'Un lote se reintentará por pregunta.', 'codigo': 'reintento_slots'})}\n\n"
+                    continue
 
-            # Sanitización idéntica al flujo previo, una vez por pregunta.
-            preguntas_limpias: List[dict] = []
-            for i, p in enumerate(preguntas_brutas):
-                p.setdefault("id", i + 1)
-                pregunta = sanitizar_pregunta_backend(sanitizar_pregunta_alucinada(p))
-                preguntas_limpias.append(pregunta)
-                logger.info(f"PASO 5 PROGRESO: Pregunta {i + 1}/{len(preguntas_brutas)} emitida (batch).")
-                yield f"data: {json.dumps({'pregunta': pregunta, 'total': len(preguntas_brutas)})}\n\n"
+                for slot, pregunta in zip(slots_lote, preguntas_lote):
+                    enunciado = re.sub(r"\s+", " ", (pregunta.pregunta or "").strip().lower())
+                    if enunciado in enunciados_generados:
+                        logger.warning("Slot %d duplicado; se reintentará de forma aislada.", slot + 1)
+                        slots_fallidos.append(slot)
+                        continue
+                    enunciados_generados.add(enunciado)
+                    preguntas_por_slot[slot] = pregunta
+                    logger.info("PASO 5 PROGRESO: Pregunta %d/%d validada.", slot + 1, config.num_preguntas)
+                    yield f"data: {json.dumps({'pregunta': pregunta.model_dump(), 'total': config.num_preguntas})}\n\n"
 
-            preguntas_obj = [Pregunta(**p) for p in preguntas_limpias]
+            for slot in slots_fallidos:
+                config_slot = config.model_copy(update={"num_preguntas": 1})
+                prompt_slot = generar_prompt_teorico(config_slot, contexto, indice_inicial=slot)
+                ultimo_error: Optional[Exception] = None
+                for intento in range(EVAL_SLOT_MAX_RETRIES):
+                    try:
+                        pregunta = await _generar_pregunta_con_limite(
+                            slot,
+                            prompt_slot,
+                            api_key_gemini,
+                        )
+                        enunciado = re.sub(r"\s+", " ", (pregunta.pregunta or "").strip().lower())
+                        if enunciado in enunciados_generados:
+                            raise ValueError("La pregunta regenerada duplica un slot ya válido")
+                        enunciados_generados.add(enunciado)
+                        preguntas_por_slot[slot] = pregunta
+                        break
+                    except Exception as slot_error:
+                        ultimo_error = slot_error
+                        logger.warning("Slot %d reintento %d falló: %s", slot + 1, intento + 1, slot_error)
+                if slot not in preguntas_por_slot:
+                    yield f"data: {json.dumps({'evento': 'error', 'mensaje': 'No fue posible completar todas las preguntas solicitadas.', 'codigo': 'slots_incompletos'})}\n\n"
+                    return
+
+            preguntas_obj = [preguntas_por_slot[slot] for slot in slots]
+
             preguntas_obj = _asignar_origen(preguntas_obj, contexto)
             preguntas_obj = _deduplicar_preguntas(preguntas_obj)
             preguntas_obj = _limpiar_opciones(preguntas_obj)
 
-            if not preguntas_obj:
-                logger.error("PASO 5 ERROR: todas las preguntas fueron descartadas en la sanitización.")
-                yield f"data: {json.dumps({'error': 'No se pudo generar ninguna pregunta'})}\n\n"
+            if len(preguntas_obj) != config.num_preguntas:
+                logger.error("PASO 5 ERROR: se obtuvieron %d de %d preguntas válidas.", len(preguntas_obj), config.num_preguntas)
+                yield f"data: {json.dumps({'evento': 'error', 'mensaje': 'No fue posible completar exactamente la cantidad solicitada de preguntas.', 'codigo': 'cantidad_incompleta'})}\n\n"
                 return
 
             preguntas_ok = [p.model_dump() for p in preguntas_obj]
 
-            logger.info(f"PASO 5 COMPLETADO: {len(preguntas_ok)} preguntas generadas en 1 llamada batch.")
-            metricas = _telemetria_log("PASO 5", telemetria_batch)
+            logger.info("PASO 5 COMPLETADO: %d preguntas estructuradas generadas.", len(preguntas_ok))
+            metricas = _telemetria_log("PASO 5")
 
             resultado = {
                 "curso_id": config.curso_id,
@@ -1724,7 +1881,9 @@ async def generar_evaluacion_stream(
         except Exception as stream_err:
             stack_trace = traceback.format_exc()
             logger.error(f"❌ ERROR DENTRO DEL GENERADOR STREAM:\n{stack_trace}")
-            yield f"data: {json.dumps({'error': str(stream_err)})}\n\n"
+            # Evento de error ordenado: la conexión SSE se cierra limpiamente
+            # y el frontend recibe 'evento'/'mensaje' además del 'error' legacy.
+            yield f"data: {json.dumps({'evento': 'error', 'mensaje': 'No fue posible generar la evaluación con los proveedores de IA disponibles. Inténtalo más tarde.', 'error': str(stream_err), 'codigo': 'generacion_fallida'})}\n\n"
 
     logger.info("PASO 4 COMPLETADO: StreamingResponse iniciado.")
     logger.info("=" * 60)

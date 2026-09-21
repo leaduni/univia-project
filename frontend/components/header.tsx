@@ -101,7 +101,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   return (
     <header
       className={cn(
-        "absolute top-3 left-0 right-0 z-50 w-[calc(100%-2rem)] mx-auto transition-all duration-300 ease-out",
+        "absolute safe-top-3 left-0 right-0 z-50 w-[calc(100%-2rem)] mx-auto transition-all duration-300 ease-out",
         isHidden
           ? "-translate-y-28 opacity-0 pointer-events-none"
           : "translate-y-0 opacity-100",
@@ -110,7 +110,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           : "rounded-2xl backdrop-blur-xl bg-[rgba(11,12,22,0.75)] border border-white/[0.08] shadow-[0_4px_20px_rgba(0,0,0,0.4)]",
       )}
     >
-      <div className="flex items-center justify-between px-6 py-4 gap-4">
+      <div className="flex items-center justify-between gap-3 px-3 py-3 sm:px-6 sm:py-4 sm:gap-4">
         <div className="flex items-center gap-4 flex-1">
           <Button
             variant="ghost"

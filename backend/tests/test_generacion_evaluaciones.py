@@ -74,9 +74,50 @@ class TestRecorteContextoRAG:
 # Punto 6: telemetría de tokens y costo
 # --------------------------------------------------------------------------
 
+class TestFallback429:
+    """Integración: un 429/503 de Gemini debe saltar a Groq sin romper la app."""
+
+    def _cascada_simulada(self, monkeypatch, error_gemini):
+        def llamar_gemini_falla(cliente, **kwargs):
+            raise error_gemini
+
+        def llamar_groq_ok(cliente, **kwargs):
+            return "respuesta de groq"
+
+        proveedores = {
+            "gemini": llm.ProveedorLLM("gemini", "gemini-x", cliente=object(), llamar=llamar_gemini_falla),
+            "groq": llm.ProveedorLLM("groq", "gpt-oss", cliente=object(), llamar=llamar_groq_ok),
+        }
+        monkeypatch.setattr(llm, "_proveedor", lambda nombre: proveedores.get(nombre))
+        monkeypatch.setattr(llm, "LLM_PROVIDER", "gemini")
+        monkeypatch.setattr(llm, "LLM_FALLBACKS", ["groq"])
+
+    def test_429_clienterror_salta_a_groq(self, monkeypatch):
+        from google.genai.errors import ClientError
+        self._cascada_simulada(monkeypatch, ClientError(429, {"error": {"message": "RESOURCE_EXHAUSTED"}}))
+        assert llm.generar(prompt="hola") == "respuesta de groq"
+
+    def test_503_servererror_salta_a_groq(self, monkeypatch):
+        from google.genai.errors import ServerError
+        self._cascada_simulada(monkeypatch, ServerError(503, {"error": {"message": "OVERLOADED"}}))
+        assert llm.generar(prompt="hola") == "respuesta de groq"
+
+    def test_400_no_reintentable_no_salta(self, monkeypatch):
+        from google.genai.errors import ClientError
+        self._cascada_simulada(monkeypatch, ClientError(400, {"error": {"message": "bad request"}}))
+        with pytest.raises(ClientError):
+            llm.generar(prompt="hola")
+
+    def test_clasificador_reconoce_code_google_genai(self):
+        from google.genai.errors import ClientError, ServerError
+        assert llm._es_error_reintentable(ClientError(429, {"error": {}})) is True
+        assert llm._es_error_reintentable(ServerError(503, {"error": {}})) is True
+        assert llm._es_error_reintentable(ClientError(400, {"error": {}})) is False
+
+
 class TestTelemetria:
     def test_gemini_free_tier_costo_cero(self):
-        m = llm.registrar_uso("gemini", "gemini-2.0-flash", 5000, 2000)
+        m = llm.registrar_uso("gemini", "gemini-2.5-flash", 5000, 2000)
         assert m["costo_usd"] == 0.0
         assert m["tokens"] == {"prompt": 5000, "completion": 2000, "total": 7000}
 
@@ -93,6 +134,45 @@ class TestTelemetria:
         llm.registrar_uso("groq", "llama-3.3-70b-versatile", 10, 20)
         ultima = llm.obtener_ultima_telemetria()
         assert ultima["proveedor"] == "groq"
+
+
+# --------------------------------------------------------------------------
+# Anti-truncado de JSON por explicaciones extensas
+# --------------------------------------------------------------------------
+
+class TestReglaConcision:
+    def test_system_msg_evaluacion_tiene_regla(self):
+        assert "150 palabras" in ev.SYSTEM_MSG_EVALUACION
+        assert "debates internos" in ev.SYSTEM_MSG_EVALUACION
+
+    def test_prompt_teorico_tiene_regla(self):
+        cfg = ev.ConfiguracionEvaluacion(
+            curso_id=1, modulo="M", temas=["límites"], num_preguntas=3,
+            observaciones="", tipo_evaluacion="unica",
+        )
+        prompt = ev.generar_prompt_teorico(cfg, [])
+        assert "150 palabras" in prompt
+
+    def test_prompt_programacion_tiene_regla(self):
+        cfg = ev.ConfiguracionEvaluacion(
+            curso_id=1, modulo="M", temas=["arrays"], num_preguntas=3,
+            observaciones="", tipo_evaluacion="unica",
+        )
+        prompt = ev.generar_prompt_programacion(cfg, [])
+        assert "150 palabras" in prompt
+
+    def test_reparacion_pide_reducir_explicaciones(self):
+        capturas = []
+        def _gen(**kwargs):
+            capturas.append(kwargs["prompt"])
+            if len(capturas) == 1:
+                return "json truncado sin cerrar", None
+            return '{"preguntas": []}', None
+
+        with patch.object(ev, "generar_con_meta", side_effect=_gen):
+            data, _ = ev._generar_json_con_reparacion_meta("p", "s")
+        assert "TRUNCADO" in capturas[1].upper() or "truncado" in capturas[1].lower()
+        assert "150 palabras" in capturas[1]
 
 
 # --------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 // Root layout with ThemeProvider, AuthProvider, Poppins + Open Sans fonts
 import type React from "react"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Anton, Poppins, Open_Sans } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "sonner"
@@ -38,6 +38,10 @@ export const metadata: Metadata = {
     shortcut: "/Logo_LEAD_UNI.png",
     apple: "/Logo_LEAD_UNI.png",
   },
+}
+
+export const viewport: Viewport = {
+  viewportFit: "cover",
 }
 
 import { AuthProvider } from "@/components/providers/auth-context"

@@ -91,3 +91,17 @@
   .univia-team-grid { grid-template-columns: 1fr !important; }
   .univia-nav-links { display: none !important; }
 }
+
+@media (max-width: 390px) {
+  .univia-landing header {
+    gap: 12px !important;
+  }
+  .univia-landing header > div:last-child {
+    gap: 8px !important;
+  }
+  .univia-landing header a[href="/auth/login"],
+  .univia-landing header a[href="/auth/signup"] {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+}

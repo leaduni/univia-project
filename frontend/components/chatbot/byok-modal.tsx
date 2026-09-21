@@ -78,7 +78,7 @@ export function ByokModal({ abierto, token, claveGuardada, onCerrar, onCambio }:
 
   return (
     <div
-      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 safe-modal-padding"
       role="dialog"
       aria-modal="true"
       aria-label="Configurar tu propia clave de IA"

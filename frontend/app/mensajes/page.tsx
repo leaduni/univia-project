@@ -6,7 +6,7 @@ import { BandejaMensajes } from "@/components/mensajes/bandeja-mensajes"
 export default function MensajesPage() {
   return (
     <DashboardLayout>
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <header className="mb-6">
           <h1 className="font-poppins font-semibold text-2xl text-foreground">Mensajes</h1>
           <p className="text-sm text-muted-foreground mt-1">

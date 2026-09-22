@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useCallback, useRef } from "react"
 import {
   ChevronRight,
   ChevronLeft,
@@ -75,6 +75,14 @@ export function CurrentEnrollmentStep({
   const [busqueda, setBusqueda] = useState("")
   const [ciclosCerrados, setCiclosCerrados] = useState<Set<number>>(new Set())
 
+  // Valores iniciales del wizard: solo se leen para pre-cargar el historial,
+  // NO son dependencias reactivas del fetch (incluirlos re-dispararía la
+  // petición en cada clic del estudiante).
+  const datosInicialesRef = useRef({
+    cursosAprobados: data.cursosAprobados,
+    cursosInscritos: data.cursosInscritos,
+  })
+
   useEffect(() => {
     if (!carrera_id || carrera_id <= 0) return
     let activo = true
@@ -107,7 +115,7 @@ export function CurrentEnrollmentStep({
         // anterior ya quedó persistida). Sin esta guarda, en Ciclo I los mismos
         // cursos salían a la vez como aprobados e inscritos y el backend
         // rechazaba el guardado con un 400 que el estudiante no podía corregir.
-        const previosAprobados = data.cursosAprobados
+        const previosAprobados = datosInicialesRef.current.cursosAprobados
         setAprobados(
           previosAprobados !== undefined
             ? new Set(previosAprobados.filter((id) => {
@@ -119,7 +127,7 @@ export function CurrentEnrollmentStep({
               ),
         )
 
-        const previousIds = new Set(data.cursosInscritos || [])
+        const previousIds = new Set(datosInicialesRef.current.cursosInscritos || [])
         setSelected(new Set(items.filter((c) => previousIds.has(c.id)).map((c) => c.id)))
       } catch (err: any) {
         if (!activo) return
@@ -134,9 +142,6 @@ export function CurrentEnrollmentStep({
     return () => {
       activo = false
     }
-    // `data.cursosAprobados`/`cursosInscritos` solo se leen como valor inicial:
-    // incluirlos re-dispararía el fetch en cada clic.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [carrera_id, malla_id, data.malla_id, cicloActual])
 
   const cursosPorId = useMemo(() => {
@@ -169,10 +174,13 @@ export function CurrentEnrollmentStep({
   )
 
   /** Prerrequisitos directos que no figuran en el historial declarado. */
-  const faltantesPara = (course: CursoItem): CursoItem[] =>
-    course.prerrequisito_ids
-      .filter((pid) => cursosPorId.has(pid) && !aprobados.has(pid))
-      .map((pid) => cursosPorId.get(pid)!)
+  const faltantesPara = useCallback(
+    (course: CursoItem): CursoItem[] =>
+      course.prerrequisito_ids
+        .filter((pid) => cursosPorId.has(pid) && !aprobados.has(pid))
+        .map((pid) => cursosPorId.get(pid)!),
+    [cursosPorId, aprobados],
+  )
 
   // Desmarcar un curso del historial puede dejar sin prerrequisito a otro que
   // ya estaba elegido. Soltarlo aquí evita que quede una selección inválida
@@ -187,9 +195,7 @@ export function CurrentEnrollmentStep({
       }
       return next.size === prev.size ? prev : next
     })
-    // `faltantesPara` se recrea en cada render; sus entradas reales son estas.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aprobados, cursosPorId])
+  }, [faltantesPara, cursosPorId])
 
   const historialPorCiclo = useMemo(() => {
     const groups: Record<number, CicloGroup> = {}
@@ -333,8 +339,7 @@ export function CurrentEnrollmentStep({
       cursosOfertados
         .map((c) => ({ curso: c, faltantes: faltantesPara(c) }))
         .filter((x) => x.faltantes.length > 0),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [cursosOfertados, aprobados, cursosPorId],
+    [cursosOfertados, faltantesPara],
   )
 
   if (loading) {

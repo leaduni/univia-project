@@ -1390,7 +1390,7 @@ export function AgendaInteligente() {
 
         {/* ── ÁREA PRINCIPAL ─────────────────────────────────────────────── */}
         <div className="flex gap-4 relative">
-          <div className={`flex-1 min-w-0 bg-[#090b1c] border rounded-3xl flex flex-col overflow-hidden h-[calc(100vh-220px)] transition-all duration-500 ${examWeekMode ? 'border-purple-500/30 shadow-[inset_0_0_20px_rgba(168,85,247,0.05),0_12px_40px_rgba(0,0,0,0.4)]' : 'border-slate-800/60 shadow-[0_12px_40px_rgba(0,0,0,0.4)]'}`}>
+          <div className={`flex-1 min-w-0 bg-[#090b1c] border rounded-3xl flex flex-col overflow-hidden h-[calc(100dvh-220px)] transition-all duration-500 ${examWeekMode ? 'border-purple-500/30 shadow-[inset_0_0_20px_rgba(168,85,247,0.05),0_12px_40px_rgba(0,0,0,0.4)]' : 'border-slate-800/60 shadow-[0_12px_40px_rgba(0,0,0,0.4)]'}`}>
             <CalendarioGrid
               vista={currentView}
               eventos={eventosConRecurrencia}

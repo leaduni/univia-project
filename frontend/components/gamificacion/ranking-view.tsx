@@ -2,7 +2,7 @@
 // keyset y tarjeta destacada de la posición del usuario autenticado.
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Trophy, Loader2, ChevronDown, Flame, Zap, Users, Crown } from "lucide-react"
 import { gamificacionService } from "@/lib/gamificacion-service"
 import { formatearXp, podioDePuesto } from "@/lib/gamificacion-utils"
@@ -88,7 +88,7 @@ export function RankingView() {
   const [error, setError] = useState<string | null>(null)
   const [miPosicion, setMiPosicion] = useState<MiPosicionRanking | null>(null)
 
-  const cargarPrimeraPagina = (p: PeriodoRanking) => {
+  const cargarPrimeraPagina = useCallback((p: PeriodoRanking) => {
     setCargandoInicial(true)
     setError(null)
     setItems([])
@@ -105,12 +105,11 @@ export function RankingView() {
       })
       .catch((err: Error) => setError(err.message || "No se pudo cargar el ranking."))
       .finally(() => setCargandoInicial(false))
-  }
+  }, [])
 
   useEffect(() => {
     cargarPrimeraPagina(periodo)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodo])
+  }, [periodo, cargarPrimeraPagina])
 
   const cargarMas = async () => {
     if (!nextCursor || cargandoMas) return

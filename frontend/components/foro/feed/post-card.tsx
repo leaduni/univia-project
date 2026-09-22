@@ -5,6 +5,7 @@
 // hover con glow de acento. Acciones optimistas: voto y guardado.
 
 import Link from "next/link"
+import Image from "next/image"
 import { formatDistanceToNow } from "date-fns"
 import { es } from "date-fns/locale"
 import {
@@ -107,13 +108,13 @@ export function PostCard({ publicacion, indice = 0, onVotar, onAlternarGuardado 
 
           {/* Portada opcional */}
           {url_portada && (
-            <Link href={href} className="block mt-3 overflow-hidden rounded-xl border border-white/10">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+            <Link href={href} className="relative block mt-3 h-56 overflow-hidden rounded-xl border border-white/10">
+              <Image
                 src={url_portada}
                 alt=""
-                loading="lazy"
-                className="w-full max-h-56 object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                fill
+                sizes="(max-width: 768px) 100vw, 640px"
+                className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
               />
             </Link>
           )}

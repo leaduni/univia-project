@@ -25,7 +25,7 @@ import os
 import traceback
 from typing import AsyncGenerator, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -34,6 +34,8 @@ from app.chatbot.user_context import cargar_contexto_usuario
 from app.core.auth_utils import get_current_user
 from app.core.database import get_supabase
 from app.core.llm import _redactar_claves, chatear, chatear_gemini_con_clave, get_groq
+from app.core.rate_limit import limiter
+from app.core.executor_llm import correr_en_hilo_llm, executor_llm
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -344,7 +346,7 @@ async def _chunks_sin_bloquear(
         finally:
             loop.call_soon_threadsafe(cola.put_nowait, FIN)
 
-    tarea = loop.run_in_executor(None, _consumir)
+    tarea = loop.run_in_executor(executor_llm, _consumir)
     try:
         while True:
             item = await cola.get()
@@ -445,7 +447,9 @@ async def borrar_conversacion(conversacion_id: int, user_data=Depends(get_curren
 
 
 @router.post("/chatbot/mensajes")
+@limiter.limit("20/minute")
 async def enviar_mensaje(
+    request: Request,
     datos: NuevoMensaje,
     user_data=Depends(get_current_user),
     x_user_llm_key: Optional[str] = Header(None, alias="X-User-LLM-Key"),
@@ -517,9 +521,9 @@ async def enviar_mensaje(
     # un hilo del executor evita bloquear el event loop de Uvicorn mientras
     # esperan la respuesta del proveedor o el backoff.
     mensaje_rag, slots_contextuales, intent = await asyncio.gather(
-        asyncio.to_thread(intents.reformular_consulta, mensaje, historial, api_key),
+        correr_en_hilo_llm(intents.reformular_consulta, mensaje, historial, api_key),
         asyncio.to_thread(intents.resolver_slots_contextuales, mensaje, historial),
-        asyncio.to_thread(intents.clasificar, mensaje, historial, api_key),
+        correr_en_hilo_llm(intents.clasificar, mensaje, historial, api_key),
     )
 
     # El handler consulta la fuente que corresponda (biblioteca, RAG, expediente)
@@ -603,7 +607,28 @@ async def enviar_mensaje(
 
         partes: list[str] = []
         try:
-            async for delta in _chunks_sin_bloquear(mensajes, system_extra, api_key):
+            # Heartbeat (~20 s): los proxies (Nginx/Cloudflare) cortan streams
+            # sin tráfico durante el cold start o reintentos del proveedor. Se
+            # emite un comentario SSE cuando el siguiente token tarda demasiado.
+            stream = _chunks_sin_bloquear(mensajes, system_extra, api_key)
+            while True:
+                try:
+                    delta = await asyncio.wait_for(anext(stream), timeout=20)
+                except StopAsyncIteration:
+                    break
+                except asyncio.TimeoutError:
+                    if await request.is_disconnected():
+                        logger.info("Cliente desconectado (sin tokens en 20 s); se detiene el stream del chatbot.")
+                        await stream.aclose()
+                        return
+                    yield ": keepalive\n\n"
+                    continue
+
+                if await request.is_disconnected():
+                    logger.info("Cliente desconectado a mitad del stream; se detiene la generación del chatbot.")
+                    await stream.aclose()
+                    return
+
                 partes.append(delta)
                 yield f"data: {json.dumps({'delta': delta})}\n\n"
 

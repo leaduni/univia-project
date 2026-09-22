@@ -130,41 +130,29 @@ BEGIN
 END $$;
 
 -- -----------------------------------------------------------------------------
--- 7. resource_chunks — corpus vectorial del RAG (lectura pública, no escritura)
+-- 7. resource_chunks — corpus vectorial del RAG (solo usuarios autenticados)
 -- -----------------------------------------------------------------------------
 -- La escritura se hace exclusivamente por las RPC protegidas replace_resource_chunks
 -- y las inserciones directas del service_role; no se otorga INSERT/UPDATE/DELETE
 -- a los roles de cliente.
+-- La lectura se restringe a `authenticated`: el contenido completo de exámenes
+-- y sílabos no debe ser legible con la anon key sin sesión.
 ALTER TABLE public.resource_chunks ENABLE ROW LEVEL SECURITY;
 
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_policies
-        WHERE schemaname = 'public' AND tablename = 'resource_chunks'
-          AND policyname = 'resource_chunks_select_publico'
-    ) THEN
-        CREATE POLICY resource_chunks_select_publico ON public.resource_chunks
-            FOR SELECT USING (true);
-    END IF;
-END $$;
+DROP POLICY IF EXISTS resource_chunks_select_publico ON public.resource_chunks;
+CREATE POLICY resource_chunks_select_autenticado ON public.resource_chunks
+    FOR SELECT TO authenticated USING (true);
 
 -- -----------------------------------------------------------------------------
--- 8. profesores — catálogo de docentes (lectura pública)
+-- 8. profesores — catálogo de docentes (solo usuarios autenticados)
 -- -----------------------------------------------------------------------------
+-- Contiene nombres completos de docentes (dato personal): ya no es lectura
+-- pública anónima.
 ALTER TABLE public.profesores ENABLE ROW LEVEL SECURITY;
 
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_policies
-        WHERE schemaname = 'public' AND tablename = 'profesores'
-          AND policyname = 'profesores_select_publico'
-    ) THEN
-        CREATE POLICY profesores_select_publico ON public.profesores
-            FOR SELECT USING (true);
-    END IF;
-END $$;
+DROP POLICY IF EXISTS profesores_select_publico ON public.profesores;
+CREATE POLICY profesores_select_autenticado ON public.profesores
+    FOR SELECT TO authenticated USING (true);
 
 -- -----------------------------------------------------------------------------
 -- 9. curso_profesores — relación N:N cursos <-> profesores (lectura pública)

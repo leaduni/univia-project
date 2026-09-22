@@ -35,6 +35,12 @@ async def lifespan(app: FastAPI):
         await _http_devs.aclose()
     except Exception as e:
         logger.warning("No se pudieron cerrar los clientes HTTP: %s", e)
+    # Cerrar el pool de hilos de LLM para no dejar hilos colgados al apagar.
+    try:
+        from app.core.executor_llm import executor_llm
+        executor_llm.shutdown(wait=False, cancel_futures=True)
+    except Exception as e:
+        logger.warning("No se pudo cerrar el executor de LLM: %s", e)
 
 
 app = FastAPI(
@@ -121,7 +127,6 @@ async def rate_limit_exception_handler(request, exc: RateLimitExceeded):
 
 
 app.add_middleware(SlowAPIMiddleware)
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc: RequestValidationError):

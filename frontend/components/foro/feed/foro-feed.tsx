@@ -54,7 +54,7 @@ export function ForoFeed() {
       estado: undefined,
       orden: "recientes",
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Los métodos de useForoFeed son useCallback estables: deps completas.
   }, [feed.setBusqueda, feed.setFiltro])
 
   return (

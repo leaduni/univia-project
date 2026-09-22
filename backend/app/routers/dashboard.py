@@ -20,6 +20,7 @@ from app.core.auth_utils import get_current_user
 from app.core.diagnostico import generar_diagnostico
 from app.core.exceptions import raise_field_error
 from app.core.prereqs import resolve_prereq_chain
+from app.core import rpc_cache
 from typing import Dict, List, Any, Optional, Set
 from pydantic import BaseModel
 
@@ -48,13 +49,24 @@ async def _run(fn):
 
 
 async def _run_rpc(supabase, nombre: str, params: dict) -> dict:
-    """Ejecuta un RPC 1-RTT de Supabase en un hilo aparte (no bloquea el loop)."""
+    """Ejecuta un RPC 1-RTT de Supabase en un hilo aparte (no bloquea el loop).
+
+    Las RPC de solo lectura pesada (`get_resumen_dashboard`) se sirven desde
+    caché de TTL corto por usuario; las mutaciones de progreso la invalidan.
+    """
+    p_user = params.get("p_user")
+    if p_user is not None:
+        cacheado = rpc_cache.obtener(nombre, str(p_user))
+        if cacheado is not None:
+            return cacheado
     resp = await asyncio.to_thread(
         lambda: supabase.rpc(nombre, params).execute()
     )
     data = getattr(resp, "data", None)
     if data is None:
         raise HTTPException(status_code=500, detail="No se pudieron cargar los datos.")
+    if p_user is not None:
+        rpc_cache.guardar(nombre, str(p_user), data)
     return data
 
 

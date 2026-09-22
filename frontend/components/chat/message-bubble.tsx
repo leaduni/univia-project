@@ -7,9 +7,16 @@
 
 import { useRef } from "react"
 import { BookOpen, Sparkles } from "lucide-react"
+import dynamic from "next/dynamic"
 import { CHAT_TOKENS } from "./chat-tokens"
-import MarkdownRenderer from "./markdown-renderer"
 import { useAnimateMessageIn } from "./use-gsap-chat"
+
+// KaTeX + react-markdown solo se descargan cuando hay un mensaje que renderizar:
+// mientras tanto el texto plano del markdown queda legible sin estilos.
+const MarkdownRenderer = dynamic(() => import("./markdown-renderer"), {
+  ssr: false,
+  loading: () => null,
+})
 
 /** Recurso descargable asociado a una respuesta del asistente. */
 export interface Recurso {

@@ -6,16 +6,18 @@ import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "sonner"
 import "./globals.css"
 
+// Solo los pesos usados de verdad: cada peso extra son ~15-20 KB de WOFF2
+// que la landing pública también pagaba.
 const poppins = Poppins({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["400", "600", "700"],
   display: "swap",
   variable: "--font-heading",
 })
 
 const openSans = Open_Sans({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "600", "700"],
   display: "swap",
   variable: "--font-sans",
 })
@@ -47,7 +49,14 @@ export const viewport: Viewport = {
 import { AuthProvider } from "@/components/providers/auth-context"
 import { ByokProvider } from "@/components/providers/byok-context"
 import { ThemeProvider } from "@/components/theme-provider"
-import { ChatBubble } from "@/components/chat/chat-bubble"
+import dynamic from "next/dynamic"
+
+// ChatBubble arrastra react-markdown, KaTeX y GSAP: se carga de forma lazy y
+// solo en cliente para que la landing pública no pague ese bundle.
+const ChatBubble = dynamic(
+  () => import("@/components/chat/chat-bubble").then((m) => m.ChatBubble),
+  { ssr: false },
+)
 
 export default function RootLayout({
   children,

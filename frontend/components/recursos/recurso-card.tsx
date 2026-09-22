@@ -1,4 +1,5 @@
 import { useState } from "react"
+import Image from "next/image"
 import { Download, Eye, FileCheck, Star, FileText, BookOpen, GraduationCap, Video, Sparkles, FolderArchive, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -111,12 +112,13 @@ export function RecursoCard({ recurso, onDownload, descargando }: RecursoCardPro
       <div className="relative h-44 overflow-hidden" style={{ background: thumbBackground }}>
         {/* Previsualización real del archivo (miniatura de Drive) */}
         {previewSrc && (
-          <img
+          <Image
             src={previewSrc}
             alt=""
-            loading="lazy"
+            fill
+            sizes="(max-width: 768px) 100vw, 360px"
             onError={() => setPreviewError(true)}
-            className="absolute inset-0 w-full h-full object-cover"
+            className="object-cover"
           />
         )}
         {/* Overlay de gradiente inferior */}

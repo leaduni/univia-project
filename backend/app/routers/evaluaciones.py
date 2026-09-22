@@ -7,7 +7,7 @@ import traceback
 import sys
 import random
 
-from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi import APIRouter, HTTPException, Depends, Header, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, create_model, field_validator
 from typing import List, Optional, Dict, Any, Union, AsyncGenerator, Literal
@@ -28,6 +28,8 @@ from app.core.llm import (
 from app.rag.retriever import SyllabusRetriever
 from app.rag.embedder import EmbeddingQuotaExhausted
 from app.core.auth_utils import get_current_user
+from app.core.rate_limit import limiter
+from app.core.executor_llm import correr_en_hilo_llm, executor_llm
 
 logger = logging.getLogger("evaluaciones_tracer")
 
@@ -42,6 +44,32 @@ EVAL_LLM_MAX_CONCURRENCY = max(1, int(os.getenv("EVAL_LLM_MAX_CONCURRENCY", "2")
 EVAL_MICROBATCH_SIZE = max(1, int(os.getenv("EVAL_MICROBATCH_SIZE", "2")))
 EVAL_SLOT_MAX_RETRIES = max(1, int(os.getenv("EVAL_SLOT_MAX_RETRIES", "3")))
 _semaforo_evaluaciones_estructuradas = asyncio.Semaphore(EVAL_LLM_MAX_CONCURRENCY)
+
+# Tope por USUARIO de generaciones simultáneas: el semáforo global protege al
+# proveedor, pero sin este freno un solo usuario podría lanzar ráfagas de
+# evaluaciones y acaparar la cola (o quemar la cuota compartida de claves).
+EVAL_USER_MAX_CONCURRENT = max(1, int(os.getenv("EVAL_USER_MAX_CONCURRENT", "1")))
+_generaciones_en_curso: Dict[str, int] = {}
+_generaciones_lock = asyncio.Lock()
+
+
+async def _adquirir_cupo_usuario(user_id: str) -> bool:
+    """Reserva un cupo de generación para el usuario. False si ya está al tope."""
+    async with _generaciones_lock:
+        en_curso = _generaciones_en_curso.get(user_id, 0)
+        if en_curso >= EVAL_USER_MAX_CONCURRENT:
+            return False
+        _generaciones_en_curso[user_id] = en_curso + 1
+        return True
+
+
+async def _liberar_cupo_usuario(user_id: str) -> None:
+    async with _generaciones_lock:
+        restantes = _generaciones_en_curso.get(user_id, 0) - 1
+        if restantes > 0:
+            _generaciones_en_curso[user_id] = restantes
+        else:
+            _generaciones_en_curso.pop(user_id, None)
 
 # Regla anti-truncado del JSON de salida: explicaciones largas (debates,
 # recálculos) agotaban max_tokens y dejaban el JSON sin cerrar.
@@ -1092,7 +1120,9 @@ SYSTEM_MSG_EVALUACION = (
 )
 
 @router.post("/evaluaciones/generar", response_model=Evaluacion)
+@limiter.limit("10/minute")
 async def generar_evaluacion(
+    request: Request,
     config: ConfiguracionEvaluacion,
     user_data=Depends(get_current_user),
     x_user_llm_key: Optional[str] = Header(None, alias="X-User-LLM-Key"),
@@ -1107,6 +1137,12 @@ async def generar_evaluacion(
 
     if not get_openai() and not api_key_gemini and not _hay_proveedor_gratuito():
         raise HTTPException(status_code=500, detail="No hay ningún proveedor de IA configurado.")
+
+    if not await _adquirir_cupo_usuario(user.id):
+        raise HTTPException(
+            status_code=429,
+            detail="Ya tienes una generación de evaluación en curso. Espera a que termine antes de iniciar otra.",
+        )
 
     try:
         if len(config.temas) == 1:
@@ -1133,13 +1169,13 @@ async def generar_evaluacion(
         telemetria_gen: Optional[dict] = None
         if api_key_gemini:
             try:
-                raw_content, telemetria_gen = await asyncio.to_thread(
+                raw_content, telemetria_gen = await correr_en_hilo_llm(
                     _llamada_byok_meta, api_key_gemini, prompt, SYSTEM_MSG_EVALUACION
                 )
             except Exception as e:
                 logger.warning("BYOK Gemini falló (%s); se intenta la cascada gratuita.", e)
         if raw_content is None:
-            raw_content, telemetria_gen = await asyncio.to_thread(
+            raw_content, telemetria_gen = await correr_en_hilo_llm(
                 lambda: generar_con_meta(
                     prompt=prompt,
                     system=SYSTEM_MSG_EVALUACION,
@@ -1162,7 +1198,7 @@ async def generar_evaluacion(
                 "Devuélvelo como JSON puro, sin texto adicional:\n\n"
                 + (raw_content or "")[:12000]
             )
-            raw_content, telemetria_rep = await asyncio.to_thread(
+            raw_content, telemetria_rep = await correr_en_hilo_llm(
                 lambda: generar_con_meta(
                     prompt=prompt_reparacion,
                     system=SYSTEM_MSG_EVALUACION,
@@ -1216,9 +1252,12 @@ async def generar_evaluacion(
         return evaluacion
         
     except (json.JSONDecodeError, ValueError) as e:
+        # El detalle queda en logs; al cliente va un mensaje genérico (los
+        # errores del proveedor pueden arrastrar URLs o parámetros internos).
+        logger.error("Error al parsear la respuesta de IA: %s", e)
         raise HTTPException(
             status_code=500,
-            detail=f"Error al parsear respuesta de IA: {str(e)}"
+            detail="La IA devolvió una respuesta inválida. Inténtalo de nuevo."
         )
     except EmbeddingQuotaExhausted as e:
         # Modo estricto: el proveedor de embeddings no tiene saldo; sin él el
@@ -1230,10 +1269,13 @@ async def generar_evaluacion(
             detail="El servicio de búsqueda de contexto (embeddings) no está disponible temporalmente por saldo/cuota del proveedor. Inténtalo más tarde."
         )
     except Exception as e:
+        logger.error("Error generando evaluación: %s\n%s", e, traceback.format_exc())
         raise HTTPException(
             status_code=500,
-            detail=f"Error al generar evaluación: {str(e)}"
+            detail="No se pudo generar la evaluación. Inténtalo de nuevo en unos minutos."
         )
+    finally:
+        await _liberar_cupo_usuario(user.id)
 
 SYSTEM_MSG_TEORICO = (
     "Eres un profesor del Departamento de Ciencias Básicas de la UNI. "
@@ -1478,14 +1520,14 @@ async def _generar_una_pregunta(idx: int, prompt: str, tipo_real: str, api_key_g
     ultimo_error = None
     for intento in range(3):
         try:
-            raw = await loop.run_in_executor(None, _call)
+            raw = await loop.run_in_executor(executor_llm, _call)
         except LLMSaldoAgotado:
             if not api_key_gemini:
                 raise
             # La cuenta pagada de OpenAI está sin saldo y era el último
             # eslabón: reintenta directo con la clave BYOK del usuario.
             try:
-                raw = await loop.run_in_executor(None, _call_gemini_byok)
+                raw = await loop.run_in_executor(executor_llm, _call_gemini_byok)
             except Exception as e:
                 ultimo_error = e
                 logger.warning(
@@ -1542,7 +1584,7 @@ async def _generar_lote_estructurado(
 
     for intento in range(2):
         try:
-            respuesta = await loop.run_in_executor(None, _llamar_schema)
+            respuesta = await loop.run_in_executor(executor_llm, _llamar_schema)
             if respuesta.get("finish_reason") == "MAX_TOKENS":
                 raise ValueError("Gemini truncó el lote por MAX_TOKENS")
 
@@ -1674,7 +1716,9 @@ def _telemetria_log(prefijo: str, telemetria: Optional[dict] = None) -> dict:
 
 
 @router.post("/evaluaciones/generar-stream")
+@limiter.limit("10/minute")
 async def generar_evaluacion_stream(
+    request: Request,
     config: ConfiguracionEvaluacion,
     user_data=Depends(get_current_user),
     x_user_llm_key: Optional[str] = Header(None, alias="X-User-LLM-Key"),
@@ -1690,6 +1734,12 @@ async def generar_evaluacion_stream(
     if not _hay_proveedor_gratuito() and not api_key_gemini:
         logger.error("PASO 1 ERROR: ningún proveedor gratuito de IA configurado (Gemini/Groq).")
         raise HTTPException(status_code=500, detail="No hay ningún proveedor de IA configurado.")
+
+    if not await _adquirir_cupo_usuario(user.id):
+        raise HTTPException(
+            status_code=429,
+            detail="Ya tienes una generación de evaluación en curso. Espera a que termine antes de iniciar otra.",
+        )
 
     try:
         logger.info("PASO 2: Buscando contexto semántico / sílabo (RAG)...")
@@ -1721,14 +1771,18 @@ async def generar_evaluacion_stream(
     except HTTPException:
         # Errores intencionales (422 sin temas, 503 RAG sin saldo) se
         # propagan tal cual; solo errores inesperados se envuelven en 500.
+        # El stream nunca arrancó: se libera el cupo del usuario aquí.
+        await _liberar_cupo_usuario(user.id)
         raise
     except Exception as e:
         stack_trace = traceback.format_exc()
         logger.error(f"💥 ERROR CRÍTICO PRE-STREAMING (HTTP 500):\n{stack_trace}")
         logger.info("=" * 60)
+        await _liberar_cupo_usuario(user.id)
+        # El detalle queda en logs; al cliente va un mensaje genérico.
         raise HTTPException(
             status_code=500,
-            detail=f"Error interno al generar la evaluación con IA: {str(e)}"
+            detail="No se pudo preparar la generación de la evaluación. Inténtalo de nuevo en unos minutos."
         )
 
     async def event_generator() -> AsyncGenerator[str, None]:
@@ -1760,7 +1814,7 @@ async def generar_evaluacion_stream(
                     + REGLA_CONCISION_EXPLICACION
                 )
                 data, telemetria_prog = await loop.run_in_executor(
-                    None, _generar_json_con_reparacion_meta, prompt_prog, system_prog
+                    executor_llm, _generar_json_con_reparacion_meta, prompt_prog, system_prog
                 )
                 logger.info("PASO 5 COMPLETADO: respuesta JSON batch recibida.")
                 logger.info("PASO 6: Parseando preguntas del JSON...")
@@ -1807,6 +1861,14 @@ async def generar_evaluacion_stream(
             enunciados_generados: set[str] = set()
             for slots_lote, tarea_lote in tareas_lote:
                 while not tarea_lote.done():
+                    # Si el cliente cerró la conexión, seguir generando solo
+                    # quema cuota de LLM: se cancelan los lotes pendientes.
+                    if await request.is_disconnected():
+                        logger.info("Cliente desconectado; se cancelan los lotes de generación pendientes.")
+                        for _, t in tareas_lote:
+                            if not t.done():
+                                t.cancel()
+                        return
                     terminadas, _ = await asyncio.wait({tarea_lote}, timeout=15)
                     if not terminadas:
                         yield f"data: {json.dumps({'evento': 'heartbeat', 'lote': [slot + 1 for slot in slots_lote]})}\n\n"
@@ -1830,6 +1892,9 @@ async def generar_evaluacion_stream(
                     yield f"data: {json.dumps({'pregunta': pregunta.model_dump(), 'total': config.num_preguntas})}\n\n"
 
             for slot in slots_fallidos:
+                if await request.is_disconnected():
+                    logger.info("Cliente desconectado durante la recuperación por slots; se detiene la generación.")
+                    return
                 config_slot = config.model_copy(update={"num_preguntas": 1})
                 prompt_slot = generar_prompt_teorico(config_slot, contexto, indice_inicial=slot)
                 ultimo_error: Optional[Exception] = None
@@ -1881,9 +1946,12 @@ async def generar_evaluacion_stream(
         except Exception as stream_err:
             stack_trace = traceback.format_exc()
             logger.error(f"❌ ERROR DENTRO DEL GENERADOR STREAM:\n{stack_trace}")
-            # Evento de error ordenado: la conexión SSE se cierra limpiamente
-            # y el frontend recibe 'evento'/'mensaje' además del 'error' legacy.
-            yield f"data: {json.dumps({'evento': 'error', 'mensaje': 'No fue posible generar la evaluación con los proveedores de IA disponibles. Inténtalo más tarde.', 'error': str(stream_err), 'codigo': 'generacion_fallida'})}\n\n"
+            # Evento de error ordenado: la conexión SSE se cierra limpiamente.
+            # El detalle crudo (URLs del proveedor, parámetros internos) queda
+            # solo en los logs.
+            yield f"data: {json.dumps({'evento': 'error', 'mensaje': 'No fue posible generar la evaluación con los proveedores de IA disponibles. Inténtalo más tarde.', 'codigo': 'generacion_fallida'})}\n\n"
+        finally:
+            await _liberar_cupo_usuario(user.id)
 
     logger.info("PASO 4 COMPLETADO: StreamingResponse iniciado.")
     logger.info("=" * 60)
@@ -1990,16 +2058,20 @@ Para cualquier fórmula matemática, usa la sintaxis de LaTeX: $...$ para fórmu
 """
 
     try:
-        return await asyncio.to_thread(generar, prompt=prompt, max_tokens=1500)
+        return await correr_en_hilo_llm(generar, prompt=prompt, max_tokens=1500)
     except Exception:
         return f"Retroalimentación automática: Has obtenido un {porcentaje:.1f}%. {'¡Excelente trabajo!' if porcentaje >= 70 else 'Sigue practicando para mejorar.'}"
 
 @router.get("/evaluaciones/test")
-async def test_generacion():
+@limiter.limit("5/minute")
+async def test_generacion(request: Request, user_data=Depends(get_current_user)):
     """Endpoint de prueba para verificar que la cascada de generación funciona.
 
     Refleja la arquitectura real: primero la cascada gratuita (Gemini -> Groq)
     y, solo si aquella falla, el último recurso pagado (OpenAI).
+
+    Protegido: gasta cuota real de LLM (incl. OpenAI pagado), por lo que exige
+    autenticación y rate limit estricto por IP.
     """
     resultado: Dict[str, Any] = {
         "gratuito": None,
@@ -2007,7 +2079,7 @@ async def test_generacion():
     }
 
     try:
-        texto = await asyncio.to_thread(
+        texto = await correr_en_hilo_llm(
             generar,
             prompt="Di 'Hola, UniVia está listo para generar evaluaciones!'",
             max_tokens=100,
@@ -2017,7 +2089,8 @@ async def test_generacion():
         resultado["message"] = "Cascada gratuita (Gemini/Groq) funcionando correctamente"
         return resultado
     except Exception as e:
-        resultado["gratuito"] = {"status": "error", "message": str(e)}
+        logger.error("Cascada gratuita falló en /evaluaciones/test: %s", e)
+        resultado["gratuito"] = {"status": "error", "message": "La cascada gratuita falló. Detalle en logs."}
 
     if not get_openai():
         resultado["pagado_ultimo_recurso"] = {"status": "error", "message": "API Key de OpenAI no configurada"}
@@ -2026,7 +2099,7 @@ async def test_generacion():
         return resultado
 
     try:
-        texto = await asyncio.to_thread(
+        texto = await correr_en_hilo_llm(
             generar_gpt,
             prompt="Di 'Hola, UniVia está listo para generar evaluaciones!'",
             max_tokens=100,
@@ -2035,8 +2108,9 @@ async def test_generacion():
         resultado["status"] = "success"
         resultado["message"] = f"GPT ({MODELO_GENERACION_GPT}) funcionando correctamente como último recurso"
     except Exception as e:
-        resultado["pagado_ultimo_recurso"] = {"status": "error", "message": str(e)}
+        logger.error("Fallback pagado falló en /evaluaciones/test: %s", e)
+        resultado["pagado_ultimo_recurso"] = {"status": "error", "message": "El fallback pagado falló. Detalle en logs."}
         resultado["status"] = "error"
-        resultado["message"] = str(e)
+        resultado["message"] = "Ambos proveedores fallaron; revisar logs del servidor."
 
     return resultado

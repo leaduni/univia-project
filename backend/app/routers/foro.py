@@ -38,7 +38,7 @@ import threading
 import time
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
 
 from app.core.auth_utils import get_current_user
 from app.core.database import get_admin_client, get_supabase
@@ -591,6 +591,7 @@ async def crear_publicacion(
     datos: PublicacionCreate,
     background_tasks: BackgroundTasks,
     user_data=Depends(get_current_user),
+    x_idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
     """Crea un hilo en una sección visible para el usuario.
 
@@ -598,26 +599,39 @@ async def crear_publicacion(
     publicación es una duda académica y el RAG encuentra fuentes relevantes, el
     bot genera una sugerencia y la guarda en `sugerencia_ia` sin bloquear el
     POST original.
+
+    Idempotente: con el header `Idempotency-Key`, un doble envío (reintento de
+    red o doble clic) devuelve la publicación ya creada en lugar de duplicarla.
     """
     user, token = user_data
     supabase = get_supabase(token)
 
-    if not _seccion_o_404(supabase, datos.seccion_id, user):
-        raise HTTPException(status_code=404, detail="Sección no encontrada.")
+    from app.core.idempotencia import verificar_idempotencia, registrar_resultado, liberar_clave
+    previa = await verificar_idempotencia(str(user.id), x_idempotency_key)
+    if previa is not None:
+        return previa
 
-    resp = (
-        supabase.table("foro_publicaciones")
-        .insert({
-            "seccion_id": datos.seccion_id,
-            "autor_perfil_id": user.id,
-            "titulo": datos.titulo,
-            "cuerpo": datos.cuerpo,
-            "tags": datos.tags,
-        })
-        .execute()
-    )
+    try:
+        if not _seccion_o_404(supabase, datos.seccion_id, user):
+            raise HTTPException(status_code=404, detail="Sección no encontrada.")
+
+        resp = (
+            supabase.table("foro_publicaciones")
+            .insert({
+                "seccion_id": datos.seccion_id,
+                "autor_perfil_id": user.id,
+                "titulo": datos.titulo,
+                "cuerpo": datos.cuerpo,
+                "tags": datos.tags,
+            })
+            .execute()
+        )
+    except Exception:
+        await liberar_clave(str(user.id), x_idempotency_key)
+        raise
     fila = getattr(resp, "data", None) or []
     if not fila:
+        await liberar_clave(str(user.id), x_idempotency_key)
         raise HTTPException(status_code=500, detail="No se pudo crear la publicación.")
 
     nueva = fila[0]
@@ -626,7 +640,7 @@ async def crear_publicacion(
     background_tasks.add_task(
         _generar_sugerencia_ia, nueva["id"], token
     )
-    return PublicacionOut(
+    publicacion = PublicacionOut(
         id=nueva["id"],
         seccion_id=nueva["seccion_id"],
         autor_perfil_id=nueva["autor_perfil_id"],
@@ -640,6 +654,8 @@ async def crear_publicacion(
         mi_voto=0,
         sugerencia_ia=None,
     )
+    await registrar_resultado(str(user.id), x_idempotency_key, publicacion.model_dump(mode="json"))
+    return publicacion
 
 
 @router.delete("/foro/publicaciones/{publicacion_id}", status_code=200)

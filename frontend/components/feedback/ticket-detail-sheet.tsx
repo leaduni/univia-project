@@ -2,6 +2,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import Image from "next/image"
 import { AlertCircle, Crown, FileText, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -245,9 +246,11 @@ export function TicketDetailSheet({ abierto, onOpenChange, ticket, esDev }: Tick
                         rel="noreferrer"
                         className="block overflow-hidden rounded-xl border border-border"
                       >
-                        <img
+                        <Image
                           src={a.url_firmada}
                           alt={a.nombre_original}
+                          width={96}
+                          height={96}
                           className="h-24 w-24 object-cover"
                         />
                       </a>

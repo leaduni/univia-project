@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, field_validator
 
 from app.core.auth_utils import get_current_user
@@ -244,6 +244,7 @@ async def crear_ticket(
     request: Request,
     data: NuevoTicket,
     user_data=Depends(get_current_user),
+    x_idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
     """Crea un ticket de feedback y notifica a los devs en segundo plano.
 
@@ -251,9 +252,17 @@ async def crear_ticket(
     así que la política RLS `feedback_tickets_insert` asegura que solo pueda
     registrarse un ticket a nombre del usuario autenticado. El rate limiter
     (SlowAPI, in-memory) corta el spam desde una misma IP.
+
+    Idempotente: con el header `Idempotency-Key`, un reintento del cliente
+    devuelve el ticket creado la primera vez sin duplicarlo.
     """
     user, token = user_data
     supabase = get_supabase(token)
+
+    from app.core.idempotencia import verificar_idempotencia, registrar_resultado, liberar_clave
+    previa = await verificar_idempotencia(str(user.id), x_idempotency_key)
+    if previa is not None:
+        return previa
 
     fila = {
         "perfil_id": str(user.id),
@@ -270,11 +279,13 @@ async def crear_ticket(
             .execute()
         )
     except Exception as e:
+        await liberar_clave(str(user.id), x_idempotency_key)
         logger.error(f"[FEEDBACK] Error creando ticket de {user.id}: {e}")
         raise HTTPException(status_code=500, detail="No se pudo guardar tu reporte.")
 
     creado = getattr(resp, "data", None) or []
     if not creado:
+        await liberar_clave(str(user.id), x_idempotency_key)
         raise HTTPException(status_code=500, detail="No se pudo guardar tu reporte.")
     ticket = creado[0]
 
@@ -288,6 +299,7 @@ async def crear_ticket(
         descripcion=ticket.get("descripcion", data.descripcion),
     ))
 
+    await registrar_resultado(str(user.id), x_idempotency_key, ticket)
     return ticket
 
 

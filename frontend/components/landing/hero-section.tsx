@@ -19,7 +19,7 @@ export function HeroSection({ ctaLabel = "Empieza a aprender" }: { ctaLabel?: st
       id="inicio"
       style={{
         position: "relative",
-        minHeight: "calc(100vh - 76px)",
+        minHeight: "calc(100dvh - 76px)",
         display: "grid",
         placeItems: "center",
         overflow: "hidden",

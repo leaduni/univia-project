@@ -1,6 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 import httpx
 import os
+
+from app.core.auth_utils import get_current_user
+from app.core.rate_limit import limiter
 
 router = APIRouter()
 
@@ -15,7 +18,13 @@ _http = httpx.AsyncClient(
 )
 
 @router.post("/services/execute_code")
-async def execute_code(payload: dict):
+@limiter.limit("10/minute")
+async def execute_code(request: Request, payload: dict, user_data=Depends(get_current_user)):
+    """Proxy a Judge0 con la clave del servidor.
+
+    Protegido: sin auth ni rate limit, cualquiera podría gastar la cuota de
+    RapidAPI ejecutando código arbitrario a costa del servidor.
+    """
     if not RAPIDAPI_KEY:
         raise HTTPException(status_code=500, detail="La clave de RapidAPI no está configurada en el servidor.")
 

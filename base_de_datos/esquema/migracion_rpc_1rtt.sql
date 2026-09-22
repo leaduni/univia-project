@@ -187,7 +187,8 @@ begin
     'logros', coalesce((
         select jsonb_agg(jsonb_build_object(
                  'id', l.id, 'nombre', l.nombre, 'descripcion', l.descripcion, 'icon', l.icon))
-        from public.logros l), '[]'::jsonb),
+        -- Catálogo acotado: evita payloads crecientes en cada carga del dashboard.
+        from (select * from public.logros order by id limit 100) l), '[]'::jsonb),
     'logros_usuarios', coalesce((
         select jsonb_agg(jsonb_build_object('logro_id', lu.logro_id, 'unlocked_at', lu.unlocked_at))
         from public.logros_usuarios lu where lu.perfil_id = p_user), '[]'::jsonb)

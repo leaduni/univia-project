@@ -385,6 +385,10 @@ def _llamar_openai(cliente, *, modelo, mensajes, max_tokens, stream, json_mode) 
                       getattr(uso, "completion_tokens", 0) or 0)
     if respuesta.choices[0].finish_reason == "length":
         logger.warning("La respuesta se cortó por max_tokens (%s).", max_tokens)
+        if json_mode:
+            raise RespuestaTruncadaError(
+                f"Respuesta JSON truncada por max_tokens ({max_tokens})."
+            )
 
     return respuesta.choices[0].message.content or ""
 
@@ -415,6 +419,12 @@ def _llamar_groq(cliente, *, modelo, mensajes, max_tokens, stream, json_mode) ->
     if uso:
         registrar_uso("groq", modelo, getattr(uso, "prompt_tokens", 0) or 0,
                       getattr(uso, "completion_tokens", 0) or 0)
+    if respuesta.choices[0].finish_reason == "length":
+        logger.warning("La respuesta de Groq se cortó por max_tokens (%s).", max_tokens)
+        if json_mode:
+            raise RespuestaTruncadaError(
+                f"Respuesta JSON truncada por max_tokens ({max_tokens})."
+            )
     return respuesta.choices[0].message.content or ""
 
 
@@ -616,6 +626,15 @@ def _pool_gemini_() -> Optional[MultiKeyPool]:
 
 class ProveedorPoolExhausted(RuntimeError):
     """Todas las claves del pool están agotadas/inutilizables ahora mismo."""
+
+
+class RespuestaTruncadaError(RuntimeError):
+    """La respuesta llegó a max_tokens (finish_reason == 'length') en modo JSON.
+
+    Parsear un JSON cortado nunca funciona: es mejor fallar rápido y dejar
+    que la capa superior reintente con más tokens u otro camino, en lugar de
+    entregar texto truncado en silencio.
+    """
 
 
 def _generar_con_pool(

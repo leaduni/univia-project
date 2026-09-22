@@ -59,11 +59,11 @@ export function useForoFeed() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Si cambia la URL desde fuera (p.ej. navegación de la barra lateral),
-  // resincroniza el estado local.
+  // resincroniza el estado local. Los setters de useState son estables, así
+  // que la lista de dependencias ya está completa.
   useEffect(() => {
     setFiltros(filtrosUrl)
     setBusquedaLocal(filtrosUrl.q ?? "")
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtrosUrl])
 
   const [publicaciones, setPublicaciones] = useState<Publicacion[]>([])
@@ -182,25 +182,32 @@ export function useForoFeed() {
         // Revertir el optimismo: recargar la página 1 silenciosamente.
         cargar(filtros)
       })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cargar, filtros])
+
+  // Ref espejo de la lista para leer el estado actual dentro de callbacks
+  // estables sin arrastrar `publicaciones` como dependencia en cada render.
+  const publicacionesRef = useRef<Publicacion[]>([])
+  useEffect(() => {
+    publicacionesRef.current = publicaciones
+  }, [publicaciones])
 
   /** Guardar / quitar guardado optimista. */
   const alternarGuardado = useCallback((publicacionId: number) => {
+    const guardadoPrevio =
+      publicacionesRef.current.find((p) => p.id === publicacionId)?.guardado ?? false
     setPublicaciones((prev) =>
-      prev.map((p) => (p.id === publicacionId ? { ...p, guardado: !p.guardado } : p)),
+      prev.map((p) => (p.id === publicacionId ? { ...p, guardado: !guardadoPrevio } : p)),
     )
-    const actual = publicaciones.find((p) => p.id === publicacionId)
-    const accion = actual?.guardado
+    const accion = guardadoPrevio
       ? foroService.quitarGuardado(publicacionId)
       : foroService.guardarPublicacion(publicacionId)
     accion.catch(() => {
+      // Revertir al estado previo capturado, no al opuesto de ahora.
       setPublicaciones((prev) =>
-        prev.map((p) => (p.id === publicacionId ? { ...p, guardado: !p.guardado } : p)),
+        prev.map((p) => (p.id === publicacionId ? { ...p, guardado: guardadoPrevio } : p)),
       )
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publicaciones])
+  }, [])
 
   /** Agrega una publicación recién creada al tope del feed. */
   const agregarAlInicio = useCallback((publicacion: Publicacion) => {

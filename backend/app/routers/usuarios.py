@@ -1,11 +1,12 @@
 import logging
 import os
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from app.core.actividad import TIPO_LOGIN, registrar_evento
 from app.core.database import get_supabase, get_admin_client
 from app.core.auth_utils import get_current_user
 from app.core.exceptions import raise_field_error
+from app.core.rate_limit import limiter
 from app.schemas.usuarios import (
     CambiarMalla,
     CambioPassword,
@@ -204,7 +205,8 @@ def _cargar_carrera_y_plan(token: str, carrera_id: int | None, malla_id: int | N
 
 
 @router.post("/auth/login")
-async def login(data: LoginRequest):
+@limiter.limit("10/minute")
+async def login(request: Request, data: LoginRequest):
     """Inicia sesión con correo institucional o código universitario (RF-01)."""
     email = _resolver_email(data.identificador, data.es_email)
     logger.error(f"[LOGIN DEBUG] Identificador recibido: {data.identificador} | es_email: {getattr(data, 'es_email', None)}")
@@ -661,7 +663,9 @@ async def cambiar_password(
 
 
 @router.post("/auth/register", status_code=201)
+@limiter.limit("10/minute")
 async def register(
+    request: Request,
     data: RegistroEstudiante,
     user_data=Depends(get_current_user),
 ):

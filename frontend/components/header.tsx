@@ -43,6 +43,7 @@ const ACCESOS = [
   { label: "Foro", href: "/foro" },
   { label: "Mensajes", href: "/mensajes" },
   { label: "Sugerencias", href: "/dashboard/feedback" },
+  { label: "Donaciones", href: "/donaciones" },
 ]
 
 export function Header({ onMenuClick }: HeaderProps) {

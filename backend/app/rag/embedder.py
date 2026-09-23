@@ -24,6 +24,7 @@ import time
 
 from openai import OpenAI
 from dotenv import load_dotenv
+from typing import Optional
 
 from app.rag.cost_tracker import cost_tracker
 from app.rag import health as rag_health
@@ -34,6 +35,10 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 GEMINI_EMBED_MODEL = os.getenv("GEMINI_EMBED_MODEL", "gemini-embedding-001")
+
+# Timeout estricto para la consulta de embeddings (lado de búsqueda): evita
+# que una red degradada congele el turno del usuario esperando el contexto RAG.
+EMBED_QUERY_TIMEOUT_S = float(os.getenv("EMBEDDINGS_QUERY_TIMEOUT_S", "4.0"))
 
 
 class EmbeddingQuotaExhausted(RuntimeError):
@@ -115,7 +120,7 @@ class SyllabusEmbedder:
         self.cache = cache
         logger.info(f"Embedder listo | proveedor={self.proveedor} modelo={self.model_name}")
 
-    def _llamar_api(self, textos: list, task_type: str = "RETRIEVAL_DOCUMENT") -> list:
+    def _llamar_api(self, textos: list, task_type: str = "RETRIEVAL_DOCUMENT", timeout_s: Optional[float] = None) -> list:
         """Llama a la API de embeddings y devuelve los vectores.
 
         Args:
@@ -125,6 +130,8 @@ class SyllabusEmbedder:
                 como RETRIEVAL_QUERY. La asimetría es intencional del modelo:
                 ambos caen en el mismo espacio vectorial, pero cada lado se
                 optimiza para su papel. OpenAI no distingue y lo ignora.
+            timeout_s: timeout por petición en segundos (solo consultas). La
+                ingesta del corpus no lo usa: procesa lotes grandes offline.
         """
         if self.proveedor == "gemini":
             from google.genai import types
@@ -138,9 +145,11 @@ class SyllabusEmbedder:
             )
             return [list(e.values) for e in resultado.embeddings]
 
+        extra = {"timeout": timeout_s} if timeout_s is not None else {}
         resultado = self.client.embeddings.create(
             model=self.model_name,
             input=textos,
+            **extra,
         )
         cost_tracker.registrar_embeddings(resultado.usage.prompt_tokens)
         # La API devuelve los vectores en el mismo orden que la entrada, pero
@@ -166,7 +175,13 @@ class SyllabusEmbedder:
             El vector, o [] si la API falla en modo no estricto.
         """
         try:
-            vectores = self._llamar_api([pregunta], task_type="RETRIEVAL_QUERY")
+            # Consulta: timeout estricto — una red lenta no debe congelar el
+            # turno del usuario (en modo estricto se devuelve 503 al instante).
+            vectores = self._llamar_api(
+                [pregunta],
+                task_type="RETRIEVAL_QUERY",
+                timeout_s=EMBED_QUERY_TIMEOUT_S,
+            )
         except Exception as e:
             logger.error(f"Error vectorizando la consulta: {e}")
             rag_health.reportar_fallo("embeddings_query", e)

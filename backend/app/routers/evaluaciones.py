@@ -1167,6 +1167,9 @@ async def generar_evaluacion(
         # La telemetría se captura en el MISMO hilo de la llamada (thread-local).
         raw_content: Optional[str] = None
         telemetria_gen: Optional[dict] = None
+        # Circuit breaker por petición: el primer fallo de un proveedor lo
+        # deja fuera para el resto de ESTA generación (sin reintentos a ciegas).
+        estado_proveedores: set = set()
         if api_key_gemini:
             try:
                 raw_content, telemetria_gen = await correr_en_hilo_llm(
@@ -1181,6 +1184,7 @@ async def generar_evaluacion(
                     system=SYSTEM_MSG_EVALUACION,
                     max_tokens=8000,
                     json_mode=True,
+                    estado_peticion=estado_proveedores,
                 )
             )
 
@@ -1204,6 +1208,7 @@ async def generar_evaluacion(
                     system=SYSTEM_MSG_EVALUACION,
                     max_tokens=8000,
                     json_mode=True,
+                    estado_peticion=estado_proveedores,
                 )
             )
             telemetria_gen = _combinar_telemetria(telemetria_gen, telemetria_rep)
@@ -1567,6 +1572,7 @@ async def _generar_lote_estructurado(
     slots: List[int],
     prompt: str,
     api_key_gemini: Optional[str] = None,
+    estado_peticion: Optional[set] = None,
 ) -> List[Pregunta]:
     """Genera un micro-lote completo; no expone resultados parciales inválidos."""
     loop = asyncio.get_running_loop()
@@ -1578,8 +1584,9 @@ async def _generar_lote_estructurado(
             prompt=prompt,
             response_schema=schema_lote,
             system=SYSTEM_MSG_EVALUACION,
-            max_tokens=8000,
+            max_tokens=8192,
             api_key=api_key_gemini,
+            estado_peticion=estado_peticion,
         )
 
     for intento in range(2):
@@ -1611,19 +1618,21 @@ async def _generar_lote_con_limite(
     slots: List[int],
     prompt: str,
     api_key_gemini: Optional[str] = None,
+    estado_peticion: Optional[set] = None,
 ) -> List[Pregunta]:
     """Acota micro-lotes simultáneos para proteger las cuotas locales."""
     async with _semaforo_evaluaciones_estructuradas:
-        return await _generar_lote_estructurado(slots, prompt, api_key_gemini)
+        return await _generar_lote_estructurado(slots, prompt, api_key_gemini, estado_peticion)
 
 
 async def _generar_pregunta_con_limite(
     idx: int,
     prompt: str,
     api_key_gemini: Optional[str] = None,
+    estado_peticion: Optional[set] = None,
 ) -> Pregunta:
     """Compatibilidad para reintentar un único slot con el mismo contrato."""
-    return (await _generar_lote_con_limite([idx], prompt, api_key_gemini))[0]
+    return (await _generar_lote_con_limite([idx], prompt, api_key_gemini, estado_peticion))[0]
 
 
 def _combinar_telemetria(primera: Optional[dict], segunda: Optional[dict]) -> Optional[dict]:
@@ -1646,13 +1655,13 @@ def _combinar_telemetria(primera: Optional[dict], segunda: Optional[dict]) -> Op
     }
 
 
-def _generar_json_con_reparacion_meta(prompt: str, system: str, max_tokens: int = 8000) -> tuple[dict, Optional[dict]]:
+def _generar_json_con_reparacion_meta(prompt: str, system: str, max_tokens: int = 8000, estado_peticion: Optional[set] = None) -> tuple[dict, Optional[dict]]:
     """Igual que _generar_json_con_reparacion, pero devuelve (data, telemetria).
 
     La telemetría se lee EN EL MISMO HILO de la llamada LLM (la de llm.py es
     thread-local); suma la llamada inicial y la de reparación si hubo.
     """
-    raw, telemetria = generar_con_meta(prompt=prompt, system=system, max_tokens=max_tokens, json_mode=True)
+    raw, telemetria = generar_con_meta(prompt=prompt, system=system, max_tokens=max_tokens, json_mode=True, estado_peticion=estado_peticion)
     try:
         return parse_llm_json_response(raw), telemetria
     except Exception as e_parse:
@@ -1668,7 +1677,7 @@ def _generar_json_con_reparacion_meta(prompt: str, system: str, max_tokens: int 
             "bloques de código:\n\n"
             + (raw or "")[:12000]
         )
-        raw2, telemetria2 = generar_con_meta(prompt=prompt_reparacion, system=system, max_tokens=max_tokens, json_mode=True)
+        raw2, telemetria2 = generar_con_meta(prompt=prompt_reparacion, system=system, max_tokens=max_tokens, json_mode=True, estado_peticion=estado_peticion)
         return parse_llm_json_response(raw2), _combinar_telemetria(telemetria, telemetria2)
 
 
@@ -1785,6 +1794,11 @@ async def generar_evaluacion_stream(
             detail="No se pudo preparar la generación de la evaluación. Inténtalo de nuevo en unos minutos."
         )
 
+    # Circuit breaker por petición: set de proveedores inhabilitados durante
+    # ESTA generación. Si Gemini trunca (MAX_TOKENS) o cae (429/5xx) una sola
+    # vez, ningún lote posterior la vuelve a tocar: salta a Groq en 0 ms.
+    estado_proveedores: set = set()
+
     async def event_generator() -> AsyncGenerator[str, None]:
         logger.info("PASO 4: Iniciando streaming SSE event_generator...")
         try:
@@ -1814,7 +1828,8 @@ async def generar_evaluacion_stream(
                     + REGLA_CONCISION_EXPLICACION
                 )
                 data, telemetria_prog = await loop.run_in_executor(
-                    executor_llm, _generar_json_con_reparacion_meta, prompt_prog, system_prog
+                    executor_llm, _generar_json_con_reparacion_meta, prompt_prog, system_prog,
+                    8000, estado_proveedores,
                 )
                 logger.info("PASO 5 COMPLETADO: respuesta JSON batch recibida.")
                 logger.info("PASO 6: Parseando preguntas del JSON...")
@@ -1853,7 +1868,7 @@ async def generar_evaluacion_stream(
                 )
                 tareas_lote.append((
                     slots_lote,
-                    asyncio.create_task(_generar_lote_con_limite(slots_lote, prompt_lote, api_key_gemini)),
+                    asyncio.create_task(_generar_lote_con_limite(slots_lote, prompt_lote, api_key_gemini, estado_proveedores)),
                 ))
 
             preguntas_por_slot: Dict[int, Pregunta] = {}
@@ -1904,6 +1919,7 @@ async def generar_evaluacion_stream(
                             slot,
                             prompt_slot,
                             api_key_gemini,
+                            estado_proveedores,
                         )
                         enunciado = re.sub(r"\s+", " ", (pregunta.pregunta or "").strip().lower())
                         if enunciado in enunciados_generados:

@@ -118,7 +118,7 @@ def _permitido_en_generacion(nombre: str) -> bool:
 # por millón de tokens cambia bastante entre familias y el presupuesto del
 # piloto es acotado.
 MODELO_GENERACION = os.getenv("OPENAI_GEN_MODEL", "gpt-4o-mini")
-MODELO_GROQ = os.getenv("GROQ_GEN_MODEL", "openai/gpt-oss-120b")
+MODELO_GROQ = os.getenv("GROQ_GEN_MODEL", "openai/gpt-oss-120b")  # la línea llama-3.x fue retirada del catálogo de Groq
 MODELO_GEMINI = os.getenv("GEMINI_GEN_MODEL", "gemini-2.5-flash")  # 2.0/1.5: retirados; 3.6: RPD muy bajo
 
 # ---------------------------------------------------------------------------
@@ -183,6 +183,7 @@ def generar_con_meta(
     modelo: Optional[str] = None,
     stream: bool = False,
     json_mode: bool = False,
+    estado_peticion: Optional[set] = None,
 ) -> tuple[str, Optional[dict]]:
     """generar() + telemetría leída EN EL MISMO HILO de la llamada.
 
@@ -197,6 +198,7 @@ def generar_con_meta(
         modelo=modelo,
         stream=stream,
         json_mode=json_mode,
+        estado_peticion=estado_peticion,
     )
     return texto, obtener_ultima_telemetria()
 
@@ -504,23 +506,59 @@ def _llamar_gemini_con_schema(
     return {"text": texto, "finish_reason": finish_reason}
 
 
+def _reset_circuit_breaker_si_todo_caido(estado_peticion: Optional[set], cadena: list) -> None:
+    """Last resort: si TODOS los proveedores de la cascada están inhabilitados,
+    resetea el set en lugar de abortar la petición.
+
+    Es preferible esperar un par de segundos a fallar la generación del
+    usuario: un 429/cooldown transitorio suele resolverse con este respiro.
+    """
+    if estado_peticion is None or not cadena:
+        return
+    if all(nombre in estado_peticion for nombre in cadena):
+        logger.warning(
+            "Circuit breaker saturado (todos los proveedores fallaron en esta "
+            "petición): reset de emergencia tras pausa de 2 s y reintento final."
+        )
+        estado_peticion.clear()
+        time.sleep(2.0)
+
+
 def generar_gemini_con_schema(
     prompt: str,
     response_schema: Any,
     system: Optional[str] = None,
-    max_tokens: int = 8000,
+    max_tokens: int = 8192,
     api_key: Optional[str] = None,
     modelo: Optional[str] = None,
+    estado_peticion: Optional[set] = None,
 ) -> dict:
-    """Genera JSON estructurado con pool, cooldown y cascada de proveedores."""
+    """Genera JSON estructurado con pool, cooldown y cascada de proveedores.
+
+    `estado_peticion` es un set compartido por todas las llamadas de UNA misma
+    petición HTTP: si Gemini falla una vez (truncado MAX_TOKENS, 429 o 5xx),
+    queda marcado y los siguientes lotes de esa petición saltan directo al
+    proveedor de respaldo sin volver a tocar Gemini.
+    """
     try:
         from google import genai
     except ImportError:
         raise RuntimeError("Paquete 'google-genai' no instalado para salida estructurada.")
 
+    def _inhabilitada(nombre: str) -> bool:
+        return estado_peticion is not None and nombre in estado_peticion
+
+    def _marcar_inhabilitada(nombre: str, motivo: Exception) -> None:
+        if estado_peticion is not None and _es_error_reintentable(motivo):
+            estado_peticion.add(nombre)
+            logger.warning(
+                "Proveedor '%s' inhabilitado para el resto de esta petición (%s: %s).",
+                nombre, type(motivo).__name__, motivo,
+            )
+
     modelo_efectivo = modelo or MODELO_GEMINI
     error_anterior: Optional[Exception] = None
-    if api_key:
+    if api_key and not _inhabilitada("gemini"):
         try:
             cliente_byok = genai.Client(api_key=api_key)
             return _llamar_gemini_con_schema(
@@ -530,14 +568,19 @@ def generar_gemini_con_schema(
             if not _es_error_reintentable(error):
                 raise
             error_anterior = error
+            _marcar_inhabilitada("gemini", error)
             logger.warning("Gemini BYOK estructurado agotado; se activa la cascada configurada.")
 
     nombres = [LLM_PROVIDER] + [p for p in LLM_FALLBACKS if p != LLM_PROVIDER.lower()]
     cadena = [nombre for nombre in nombres if _permitido_en_generacion(nombre)]
+    _reset_circuit_breaker_si_todo_caido(estado_peticion, cadena)
     mensajes = ([{"role": "system", "content": system}] if system else []) + [
         {"role": "user", "content": prompt}
     ]
     for nombre in cadena:
+        if _inhabilitada(nombre):
+            logger.info("Se omite '%s': ya falló antes en esta misma petición.", nombre)
+            continue
         if error_anterior and not _es_error_reintentable(error_anterior):
             raise error_anterior
         try:
@@ -551,19 +594,27 @@ def generar_gemini_con_schema(
                         cliente, prompt, response_schema, system, max_tokens, modelo_efectivo
                     )
 
-                return _generar_con_pool(
+                respuesta = _generar_con_pool(
                     pool, llamar_schema, mensajes, max_tokens, modelo_efectivo, False, True
                 )
+                if respuesta.get("finish_reason") == "MAX_TOKENS":
+                    # JSON truncado: reintentarlo en Gemini solo volvería a
+                    # truncar y gastar ~35s. La cascada pasa a Groq al instante.
+                    raise RespuestaTruncadaError("Gemini truncó el lote por MAX_TOKENS.")
+                return respuesta
 
             proveedor = _proveedor(nombre)
             if proveedor is None:
                 continue
+            # Groq no admite los topes de Gemini; se recorta el presupuesto a
+            # 4096 para que la respuesta quepa sin truncarse.
             texto = _ejecutar_llamada(
-                proveedor, mensajes, max_tokens, None, False, True
+                proveedor, mensajes, min(max_tokens, 4096), None, False, True
             )
             return {"text": texto, "finish_reason": "STOP", "provider": nombre}
         except Exception as error:
             error_anterior = error
+            _marcar_inhabilitada(nombre, error)
             logger.warning(
                 "Salida estructurada de %s falló (%s); se prueba el siguiente proveedor.",
                 nombre,
@@ -598,7 +649,10 @@ def _pool_groq_() -> Optional[MultiKeyPool]:
     global _pool_groq
     if _pool_groq is None:
         def _construir(clave: str):
-            return OpenAI(api_key=clave, base_url=GROQ_BASE_URL, timeout=90.0, max_retries=1)
+            # max_retries=0: el 429/5xx debe propagarse al pool al instante
+            # para rotar de clave en ~0 ms; un reintento interno del SDK solo
+            # duplica la espera antes de la conmutación.
+            return OpenAI(api_key=clave, base_url=GROQ_BASE_URL, timeout=90.0, max_retries=0)
 
         _pool_groq = MultiKeyPool("GROQ_API_KEY", _construir)
         if not _pool_groq.tiene_claves:
@@ -646,11 +700,14 @@ def _generar_con_pool(
     stream: bool,
     json_mode: bool,
 ) -> str:
-    """Ejecuta la llamada rotando claves dentro del pool ante 429/5xx.
+    """Ejecuta la llamada rotando claves dentro del pool ante 429.
 
-    Prueba cada clave disponible una vez; las que responden con error
-    reintentable quedan en cooldown. Si ninguna responde, lanza
-    ProveedorPoolExhausted para que la cascada salte al siguiente proveedor.
+    Prueba cada clave disponible una vez; las que responden con 429 quedan en
+    cooldown. Un 5xx explícito (503/500) es un fallo GLOBAL del proveedor, no
+    de la clave: rotar el resto de claves solo acumularía cooldowns y minutos
+    de espera, así que se interrumpe el pool de inmediato y se dispara el
+    failover al siguiente proveedor (ProveedorPoolExhausted). El manejo de 429
+    (rotación + Retry-After) queda intacto.
     """
     errores: list = []
     for _ in range(len(pool._entradas)):
@@ -670,6 +727,16 @@ def _generar_con_pool(
             return resultado
         except Exception as e:
             errores.append(e)
+            if _es_error_servidor_global(e) or _es_modelo_retirado(e):
+                logger.warning(
+                    "Pool %s: fallo global del proveedor (HTTP %s); "
+                    "failover inmediato sin probar el resto de claves.",
+                    pool.variable,
+                    _status_http(e),
+                )
+                raise ProveedorPoolExhausted(
+                    f"Pool {pool.variable} fuera de servicio (HTTP {_status_http(e)})."
+                ) from e
             if _es_error_reintentable(e):
                 pool.castigar(entrada, _extraer_retry_after(e))
                 continue
@@ -757,10 +824,54 @@ def _ejecutar_llamada(
     )
 
 
+def _status_http(error: Exception) -> Optional[int]:
+    """Código HTTP que expone el SDK, si lo hay (429/500/503...)."""
+    status = getattr(error, "status_code", None)
+    if status is None:
+        status = getattr(error, "status", None)
+    if status is None:
+        # SDK google.genai: APIError.code es el código HTTP numérico.
+        status = getattr(error, "code", None)
+    try:
+        return int(status) if status is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _es_modelo_retirado(error: Exception) -> bool:
+    """True si el proveedor devuelve 404 por modelo inexistente/retirado.
+
+    Un modelo retirado del catálogo (404 model_not_found) no depende de la
+    clave: rotar el pool es inútil. Se corta el proveedor de inmediato igual
+    que un 5xx global.
+    """
+    if _status_http(error) != 404:
+        return False
+    texto = str(error).lower()
+    return "model" in texto and ("not_found" in texto or "does not exist" in texto)
+
+
+def _es_error_servidor_global(error: Exception) -> bool:
+    """True si es un 5xx explícito (500/502/503/504) del proveedor.
+
+    Un 5xx no depende de la clave: si los servidores de Google devuelven 503,
+    la cuarta clave también recibirá 503. Rotar el pool en este caso solo
+    acumula cooldowns y minutos de espera ante el usuario. Se distingue de un
+    429 (cuota POR CLAVE, sí amerita rotación) porque el código HTTP está
+    disponible de forma explícita.
+    """
+    status = _status_http(error)
+    return status is not None and 500 <= status < 600
+
+
 def _es_error_reintentable(error: Exception) -> bool:
     """True si el error amerita reintentar con el proveedor de respaldo.
 
-    Cuota/tasa agotada (429) o fallo de conexión del lado del servidor (5xx).
+    Cuota/tasa agotada (429), fallo de conexión del lado del servidor (5xx),
+    JSON truncado (RespuestaTruncadaError/ProveedorPoolExhausted) o modelo
+    retirado del catálogo (404 model_not_found: Groq/retiran modelos con
+    frecuencia; en ese caso el proveedor queda inutilizable para la petición y
+    la cascada debe saltar al siguiente).
     Prefiere el código HTTP que expone el SDK; a falta de él, mira el nombre de
     la excepción (RateLimit, APIConnectionError, ResourceExhausted, ...).
 
@@ -769,19 +880,16 @@ def _es_error_reintentable(error: Exception) -> bool:
     desde ahí; de lo contrario un 429 de Gemini pasaba desapercibido y la
     cascada no saltaba al siguiente proveedor.
     """
-    status = getattr(error, "status_code", None)
-    if status is None:
-        status = getattr(error, "status", None)
-    if status is None:
-        # SDK google.genai: APIError.code es el código HTTP numérico.
-        status = getattr(error, "code", None)
+    if isinstance(error, (RespuestaTruncadaError, ProveedorPoolExhausted)):
+        return True
+    status = _status_http(error)
+    if status == 404:
+        # Solo es "saltable" si el 404 es por modelo inexistente/retirado
+        # (un 404 de ruta/endpoint indica un bug, no un fallo del proveedor).
+        texto = str(error).lower()
+        return "model" in texto and ("not_found" in texto or "does not exist" in texto)
     if status is not None:
-        try:
-            status = int(status)
-        except (TypeError, ValueError):
-            status = None
-        if status is not None:
-            return status == 429 or 500 <= status < 600
+        return status == 429 or 500 <= status < 600
     nombre = type(error).__name__.lower()
     return any(
         parte in nombre
@@ -811,12 +919,14 @@ def generar(
     modelo: Optional[str] = None,
     stream: bool = False,
     json_mode: bool = False,
+    estado_peticion: Optional[set] = None,
 ) -> str:
     """Una llamada de generación al proveedor principal; devuelve el texto.
 
-    Si el proveedor principal falla por cuota/tasa (429) o error de conexión
-    del servidor (5xx), la llamada se reintenta automáticamente con cada
-    proveedor de LLM_FALLBACKS, en orden, sin intervención del llamador.
+    Si el proveedor principal falla por cuota/tasa (429), error de conexión
+    del servidor (5xx) o truncado de salida, la llamada se reintenta
+    automáticamente con cada proveedor de LLM_FALLBACKS, en orden, sin
+    intervención del llamador.
 
     Args:
         prompt: mensaje del usuario.
@@ -830,6 +940,9 @@ def generar(
             sin streaming la petición puede pasarse del timeout HTTP.
         json_mode: fuerza estructura JSON en la respuesta (response_format en
             OpenAI/Groq, response_mime_type en Gemini).
+        estado_peticion: set compartido por todas las llamadas de UNA petición
+            HTTP: un proveedor que falla queda inhabilitado para el resto de
+            esa petición y las siguientes llamadas lo omiten en 0 ms.
 
     Raises:
         RuntimeError: si ningún proveedor está disponible o ambos fallan.
@@ -839,6 +952,14 @@ def generar(
     # ALLOW_OPENAI_GENERATION=true (aislamiento de costo: solo embeddings).
     nombres = [LLM_PROVIDER] + [p for p in LLM_FALLBACKS if p != LLM_PROVIDER.lower()]
     cadena = [n for n in nombres if _permitido_en_generacion(n)]
+    # Omite de entrada los proveedores ya inhabilitados en esta petición
+    # (circuit breaker por petición); si TODOS lo están, reset de emergencia
+    # (pausa 2 s + cadena completa) en lugar de abortar la generación.
+    if estado_peticion:
+        if all(n in estado_peticion for n in cadena):
+            _reset_circuit_breaker_si_todo_caido(estado_peticion, cadena)
+        else:
+            cadena = [n for n in cadena if n not in estado_peticion]
     if not cadena:
         raise RuntimeError(
             "Ningún proveedor de generación habilitado (OpenAI requiere ALLOW_OPENAI_GENERATION=true)."
@@ -887,6 +1008,12 @@ def generar(
             )
         except Exception as e:
             error_principal = e
+            if estado_peticion is not None and _es_error_reintentable(e):
+                estado_peticion.add(nombre)
+                logger.warning(
+                    "Proveedor '%s' inhabilitado para el resto de esta petición (%s).",
+                    nombre, type(e).__name__,
+                )
 
     raise RuntimeError(
         f"Fallaron todos los proveedores de la cascada {cadena}. "

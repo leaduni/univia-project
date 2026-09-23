@@ -49,14 +49,9 @@ export const viewport: Viewport = {
 import { AuthProvider } from "@/components/providers/auth-context"
 import { ByokProvider } from "@/components/providers/byok-context"
 import { ThemeProvider } from "@/components/theme-provider"
-import dynamic from "next/dynamic"
-
-// ChatBubble arrastra react-markdown, KaTeX y GSAP: se carga de forma lazy y
-// solo en cliente para que la landing pública no pague ese bundle.
-const ChatBubble = dynamic(
-  () => import("@/components/chat/chat-bubble").then((m) => m.ChatBubble),
-  { ssr: false },
-)
+// Wrapper cliente: `ssr:false` no es válido en un Server Component (layout),
+// así que la carga lazy de react-markdown/KaTeX/GSAP se hace dentro del wrapper.
+import { ChatBubbleWrapper } from "@/components/chat/chat-bubble-wrapper"
 
 export default function RootLayout({
   children,
@@ -77,7 +72,7 @@ export default function RootLayout({
                   páginas: cada página instancia su propio DashboardLayout, que
                   se desmonta en cada cambio de ruta. ChatBubble decide sola
                   cuándo mostrarse (sesión + onboarding completo). */}
-              <ChatBubble />
+              <ChatBubbleWrapper />
             </ByokProvider>
           </AuthProvider>
         </ThemeProvider>

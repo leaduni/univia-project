@@ -27,7 +27,7 @@ export function LandingNav() {
         justifyContent: "space-between",
         gap: 32,
         height: 76,
-        padding: "0 clamp(20px, 4vw, 64px)",
+        padding: "0 max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left))",
         background: "rgba(3, 12, 64, 0.88)",
         backdropFilter: "blur(14px)",
         borderBottom: "1px solid rgba(215, 206, 247, 0.13)",

@@ -500,7 +500,7 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center safe-modal-padding">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" />
       <div ref={modalRef} className="relative z-10 w-full max-w-lg bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
         
@@ -677,7 +677,7 @@ function ModalCrearEtiqueta({ onClose, onCrear }: { onClose: () => void, onCrear
   }
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center safe-modal-padding">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose} />
       <div className="relative z-10 w-full max-w-sm bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
         <div className="px-5 py-4 border-b border-white/[0.08] flex justify-between items-center">
@@ -729,7 +729,7 @@ function EventDetailPopover({ evento, etiqueta, onClose, onEdit, onDelete, onSta
   }
   
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center safe-modal-padding">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200" onClick={onClose} />
       <div className="relative z-10 w-full max-w-sm bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200 p-6">
         <div className="flex justify-between items-start mb-4">
@@ -859,7 +859,7 @@ function ModalAjustesGeneral({
   }, [])
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center safe-modal-padding">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose} />
       <div className="relative z-10 w-full max-w-sm bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
         <div className="px-5 py-4 border-b border-white/[0.08] flex justify-between items-center">
@@ -1217,7 +1217,19 @@ export function AgendaInteligente() {
         />
       )}
 
-
+      {isFocusModeOpen && focusEvent && (
+        <FocusMode
+          evento={focusEvent}
+          onClose={() => { setIsFocusModeOpen(false); setFocusEvent(null) }}
+          onComplete={(minutosEstudiados, isFinishedEarly) => {
+            if (!isFinishedEarly) {
+              setEventos(prev => prev.map(ev => ev.id === focusEvent.id ? { ...ev, completed: true } : ev))
+            }
+            setIsFocusModeOpen(false)
+            setFocusEvent(null)
+          }}
+        />
+      )}
 
       {isCourseSectionModalOpen && (
         <AddCourseSectionModal
@@ -1378,7 +1390,7 @@ export function AgendaInteligente() {
 
         {/* ── ÁREA PRINCIPAL ─────────────────────────────────────────────── */}
         <div className="flex gap-4 relative">
-          <div className={`flex-1 min-w-0 bg-[#090b1c] border rounded-3xl flex flex-col overflow-hidden h-[calc(100vh-220px)] transition-all duration-500 ${examWeekMode ? 'border-purple-500/30 shadow-[inset_0_0_20px_rgba(168,85,247,0.05),0_12px_40px_rgba(0,0,0,0.4)]' : 'border-slate-800/60 shadow-[0_12px_40px_rgba(0,0,0,0.4)]'}`}>
+          <div className={`flex-1 min-w-0 bg-[#090b1c] border rounded-3xl flex flex-col overflow-hidden h-[calc(100dvh-220px)] transition-all duration-500 ${examWeekMode ? 'border-purple-500/30 shadow-[inset_0_0_20px_rgba(168,85,247,0.05),0_12px_40px_rgba(0,0,0,0.4)]' : 'border-slate-800/60 shadow-[0_12px_40px_rgba(0,0,0,0.4)]'}`}>
             <CalendarioGrid
               vista={currentView}
               eventos={eventosConRecurrencia}

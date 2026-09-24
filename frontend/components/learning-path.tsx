@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation"
 import { LearningTimeline } from "./learning-path/timeline"
 import { ExamBank } from "./learning-path/exam-bank"
 import { EvaluacionIA } from "./learning-path/evaluacion-ia"
+import { GradesHistoryCard } from "./gamificacion/grades-history-card"
 import { Sparkles, GraduationCap, Calendar, FileText, Target, Lock, CheckCircle2 } from "lucide-react"
 import { apiService } from "@/lib/api-service"
+import { EmptyStateRutaAprendizaje } from "./learning-path/empty-state-ruta-aprendizaje"
 
 const TABS = [
   { key: "path", label: "Ruta de aprendizaje" },
@@ -34,27 +36,27 @@ export function LearningPath({ courseId }: LearningPathProps) {
   const [completeSuccess, setCompleteSuccess] = useState(false)
   const [examCount, setExamCount] = useState(0)
 
-  useEffect(() => {
-    const fetchLearningPath = async () => {
-      try {
-        setIsLoading(true)
-        const cleanId = courseId.toString().startsWith("c")
-          ? courseId.toString().substring(1)
-          : courseId
-        const result = await apiService.getLearningPath(cleanId)
-        setData(result)
-      } catch (err: any) {
-        if (err.status === 403) {
-          setAccessDenied(true)
-        } else {
-          setError(err.message || "Error al cargar la ruta de aprendizaje.")
-        }
-        console.error(err)
-      } finally {
-        setIsLoading(false)
+  const cargarRuta = async () => {
+    try {
+      setIsLoading(true)
+      const cleanId = courseId.toString().startsWith("c")
+        ? courseId.toString().substring(1)
+        : courseId
+      const result = await apiService.getLearningPath(cleanId)
+      setData(result)
+    } catch (err: any) {
+      if (err.status === 403) {
+        setAccessDenied(true)
+      } else {
+        setError(err.message || "Error al cargar la ruta de aprendizaje.")
       }
+    } finally {
+      setIsLoading(false)
     }
-    fetchLearningPath()
+  }
+
+  useEffect(() => {
+    cargarRuta()
   }, [courseId])
 
   if (isLoading) {
@@ -113,7 +115,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
     )
   }
 
-  const { curso, timeline, ai_insights } = data
+  const { curso, timeline = [], ai_insights = [] } = data
 
   const parseTopics = (topics: any): string[] => {
     if (Array.isArray(topics)) return topics
@@ -131,8 +133,8 @@ export function LearningPath({ courseId }: LearningPathProps) {
     completado: item.completado,
   }))
 
-  const weeksCompleted = timeline.filter((s: any) => s.status === "completed").length
-  const totalWeeks = timeline.length
+  const weeksCompleted = (timeline ?? []).filter((s: any) => s.status === "completed").length
+  const totalWeeks = (timeline ?? []).length
   const progress = curso.progress ?? 0
   const aiText = ai_insights?.[0]?.description
     || "Basado en tu desempeño actual, recomendamos reforzar los temas de la semana en curso."
@@ -157,7 +159,6 @@ export function LearningPath({ courseId }: LearningPathProps) {
       const result = await apiService.getLearningPath(cleanId)
       setData(result)
     } catch (err: any) {
-      console.error(err)
       setError(err.message || "Error al completar el curso")
     } finally {
       setCompleting(false)
@@ -186,6 +187,11 @@ export function LearningPath({ courseId }: LearningPathProps) {
           <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#1a233d] text-sky-300 border border-[#283b66]">
             {curso.ciclo_roman || `Ciclo ${curso.ciclo || "III"}`}
           </span>
+          {data?.ruta_origen && data.ruta_origen !== "oficial" && (
+            <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/40">
+              {data.ruta_origen === "ia_provisional" ? "Ruta provisional (IA)" : "Ruta personal"}
+            </span>
+          )}
           {(progress ?? 0) < 100 && (
             <button
               onClick={() => setShowCompleteModal(true)}
@@ -213,7 +219,9 @@ export function LearningPath({ courseId }: LearningPathProps) {
         <div className="flex flex-wrap items-center gap-3 mt-6">
           <button
             onClick={() => setActiveTab("evaluacion")}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-[#ec4899] to-[#8b5cf6] hover:opacity-90 transition-all shadow-lg shadow-pink-500/20"
+            disabled={totalWeeks === 0}
+            title={totalWeeks === 0 ? "El curso no tiene temario configurado." : undefined}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-[#ec4899] to-[#8b5cf6] hover:opacity-90 transition-all shadow-lg shadow-pink-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Sparkles className="w-4 h-4" />
             Generar evaluación con IA
@@ -284,11 +292,22 @@ export function LearningPath({ courseId }: LearningPathProps) {
 
           {/* Tab Panels */}
           {activeTab === "path" && (
-            <LearningTimeline
-              courseId={courseId}
-              timeline={timeline}
-              onStartEvaluation={handleStartEvaluation}
-            />
+            timeline.length === 0 ? (
+              <EmptyStateRutaAprendizaje
+                courseId={courseId.toString().startsWith("c")
+                  ? courseId.toString().substring(1)
+                  : courseId}
+                nombreCurso={curso?.name || "este curso"}
+                solicitudSilabo={data?.solicitud_silabo}
+                onRutaCreada={cargarRuta}
+              />
+            ) : (
+              <LearningTimeline
+                courseId={courseId}
+                timeline={timeline}
+                onStartEvaluation={handleStartEvaluation}
+              />
+            )
           )}
           {activeTab === "exams" && (
             <ExamBank courseId={courseId} onCountChange={setExamCount} />
@@ -322,7 +341,8 @@ export function LearningPath({ courseId }: LearningPathProps) {
             </p>
             <button
               onClick={() => setActiveTab("evaluacion")}
-              className="w-full py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-[#ec4899] to-[#8b5cf6] hover:opacity-90 transition-all shadow-md shadow-pink-500/20"
+              disabled={totalWeeks === 0}
+              className="w-full py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-[#ec4899] to-[#8b5cf6] hover:opacity-90 transition-all shadow-md shadow-pink-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Generar práctica dirigida
             </button>
@@ -356,6 +376,13 @@ export function LearningPath({ courseId }: LearningPathProps) {
               </li>
             </ul>
           </div>
+
+          {/* Notas inmutables del curso (promedio oficial + historial). */}
+          <GradesHistoryCard
+            cursoId={courseId.toString().startsWith("c")
+              ? courseId.toString().substring(1)
+              : courseId}
+          />
 
           {/* Professor Widget */}
           <div className="p-5 rounded-2xl bg-[#121124]/80 border border-[#232045] space-y-3">

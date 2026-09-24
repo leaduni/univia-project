@@ -1,16 +1,53 @@
 version: '3.8'
+
+# Backend de producción. Las credenciales llegan por variables de entorno del
+# host (o un .env junto a este archivo, ignorado por git). Compose falla al
+# levantar si falta alguna de las marcadas con :?
 services:
   backend:
     build: .
     ports:
       - "8000:8000"
+    restart: unless-stopped
     environment:
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-    volumes:
-      - ./app:/app/app
+      - SUPABASE_URL=${SUPABASE_URL:? SUPABASE_URL es obligatoria}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:? SUPABASE_ANON_KEY es obligatoria}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:? SUPABASE_SERVICE_ROLE_KEY es obligatoria}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET:-}
+      - APP_ENV=${APP_ENV:-production}
+      - CORS_ORIGINS=${CORS_ORIGINS:? CORS_ORIGINS es obligatoria en producción}
+      - TRUSTED_HOSTS=${TRUSTED_HOSTS:? TRUSTED_HOSTS es obligatorio en producción}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_API_KEY_1=${GEMINI_API_KEY_1:-}
+      - GEMINI_API_KEY_2=${GEMINI_API_KEY_2:-}
+      - GEMINI_API_KEY_3=${GEMINI_API_KEY_3:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_API_KEY_1=${GROQ_API_KEY_1:-}
+      - GROQ_API_KEY_2=${GROQ_API_KEY_2:-}
+      - GROQ_API_KEY_3=${GROQ_API_KEY_3:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - RAPIDAPI_KEY=${RAPIDAPI_KEY:-}
+      - JUDGE0_URL=${JUDGE0_URL:-}
+      - JUDGE0_AUTHN_TOKEN=${JUDGE0_AUTHN_TOKEN:-}
+    # Sin bind-mount del código: la imagen lleva la versión construida. Para
+    # desarrollo en caliente, usar un docker-compose.override.yml local.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/', timeout=5).status == 200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+        reservations:
+          memory: 256M
     networks:
       - univia_net
+
 networks:
   univia_net:
     driver: bridge

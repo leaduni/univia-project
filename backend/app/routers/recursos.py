@@ -12,6 +12,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.core.auth_utils import get_current_user
 from app.core.database import get_supabase, ejecutar_con_reintento
 from app.core.tipos_recursos import normalizar_tipo
+from app.core.texto_busqueda import (
+    normalizar_texto,
+    palabras_normalizadas,
+    tokens_de_busqueda,
+    puntuar,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -189,6 +195,28 @@ async def get_recursos(
         # Los mapas de cursos/carreras/facultades ya vienen del RPC 1-RTT
         # (get_recursos_alcance); no se re-consultan aquí.
 
+        # Nombres de profesor para el haystack de búsqueda. La mayoría de
+        # filas no tiene profesor_id (el apellido real vive en el título o en
+        # drive_path), así que solo se consulta cuando hay algo que resolver.
+        profesor_ids = {r.get("profesor_id") for r in recursos_data if r.get("profesor_id")}
+        profesores_map: dict = {}
+        if profesor_ids:
+            try:
+                prof_resp = await asyncio.to_thread(
+                    ejecutar_con_reintento,
+                    token,
+                    lambda sb: sb.table("profesores")
+                    .select("id, nombre_completo")
+                    .in_("id", list(profesor_ids))
+                    .execute(),
+                )
+                profesores_map = {
+                    p["id"]: p.get("nombre_completo")
+                    for p in (getattr(prof_resp, "data", None) or [])
+                }
+            except Exception as e:
+                logger.warning(f"No se pudieron cargar profesores para búsqueda: {e}")
+
         # El mismo documento de Drive (drive_file_id) se ingiere una vez por
         # curso (ingestar_recursos_drive.py, on_conflict drive_file_id+curso_id),
         # así que un PDF compartido por varias carreras existe como N filas.
@@ -228,6 +256,9 @@ async def get_recursos(
                 "facultad_nombre": facultad_nombre,
                 "created_at": r.get("created_at"),
                 "drive_file_id": r.get("drive_file_id"),
+                # Señales de búsqueda; no forman parte de la respuesta pública.
+                "_drive_path": r.get("drive_path"),
+                "_profesor": profesores_map.get(r.get("profesor_id")),
             }
             especialidad = {
                 "curso_id": item["curso_id"],
@@ -280,6 +311,10 @@ async def get_recursos(
 
                 if target_key and target_key != k:
                     principal = grupos[target_key]
+                    # El título del solucionario absorbido se conserva como
+                    # señal de búsqueda: la tarjeta visible solo muestra el
+                    # título del documento principal.
+                    principal.setdefault("_haystack_extra", []).append(g.get("titulo") or "")
                     principal["has_solucionario"] = True
                     principal["url_solucionario"] = principal.get("url_solucionario") or g.get("url_drive")
                     principal["drive_id_solucionario"] = principal.get("drive_id_solucionario") or g.get("drive_file_id")
@@ -311,29 +346,75 @@ async def get_recursos(
             }
 
         if search:
-            needle = search.lower()
-            grupos = {
-                k: g for k, g in grupos.items()
-                if needle in str(g["titulo"] or "").lower()
-                or any(
-                    needle in str(e["codigo_curso"] or "").lower()
-                    or needle in str(e["nombre_curso"] or "").lower()
-                    for e in g["especialidades"]
+            # Búsqueda por tokens con AND estricto y ranking: "examenes
+            # aplicada" exige que cada token aparezca en algún campo de la
+            # tarjeta; rapidfuzz tolera typos ("calculo numrico"); "2023-1"
+            # se expande a sus formatos de semestre y "ciclo 3" se compara
+            # contra el campo ciclo, no contra el texto.
+            tokens = tokens_de_busqueda(search)
+            grupos_filtrados = {}
+            for k, g in grupos.items():
+                texto = " ".join(
+                    [str(g.get("titulo") or ""), str(g.get("tipo") or "")]
+                    + list(g.get("_haystack_extra") or [])
+                    + [str(g.get("_drive_path") or ""), str(g.get("_profesor") or "")]
+                    + ([str(g.get("year"))] if g.get("year") is not None else [])
+                    + (
+                        [f"ciclo {g.get('ciclo')}"]
+                        if g.get("ciclo") is not None
+                        else []
+                    )
+                    + [
+                        f"{e.get('codigo_curso') or ''} {e.get('nombre_curso') or ''}"
+                        for e in g["especialidades"]
+                    ]
                 )
-            }
+                palabras = palabras_normalizadas(texto)
+                haystack = normalizar_texto(texto)
+                # Boost para coincidencia exacta de código de curso (ej. "bma01").
+                codigos = {
+                    normalizar_texto(e.get("codigo_curso") or "")
+                    for e in g["especialidades"]
+                } - {""}
+                score = puntuar(
+                    tokens,
+                    haystack,
+                    palabras=palabras,
+                    ciclo_recurso=g.get("ciclo"),
+                    codigo_exacto_norm=next(iter(codigos), ""),
+                )
+                if score is not None:
+                    g["_score"] = score
+                    grupos_filtrados[k] = g
+            grupos = grupos_filtrados
+
+        # Las señales auxiliares no son parte del contrato del endpoint.
+        for g in grupos.values():
+            g.pop("_haystack_extra", None)
+            g.pop("_drive_path", None)
+            g.pop("_profesor", None)
 
         resultado = list(grupos.values())
 
         # El orden se aplica sobre el documento agrupado y antes de cortar la
         # página: ordenar solo la página visible daría un listado incoherente
-        # al avanzar.
+        # al avanzar. Con búsqueda activa manda la relevancia; el criterio
+        # elegido (`orden`) queda como desempate.
         if orden == "downloaded":
             clave_orden = lambda r: (r.get("downloads") or 0, str(r.get("created_at") or ""))
         elif orden == "rated":
             clave_orden = lambda r: (r.get("rating") or 0.0, str(r.get("created_at") or ""))
         else:
             clave_orden = lambda r: str(r.get("created_at") or "")
-        resultado.sort(key=clave_orden, reverse=True)
+        if search:
+            resultado.sort(
+                key=lambda r: (r.get("_score") or 0.0, clave_orden(r)), reverse=True
+            )
+        else:
+            resultado.sort(key=clave_orden, reverse=True)
+
+        for g in resultado:
+            g.pop("_score", None)
 
         total = len(resultado)
         return {

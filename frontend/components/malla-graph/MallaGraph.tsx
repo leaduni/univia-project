@@ -136,7 +136,7 @@ export function MallaGraph({ malla, avance, virtualize = true, onMarkCompleted }
   }, [selectedId, postMap, index])
 
   return (
-    <div className="flex h-[calc(100vh-200px)] min-h-[650px] flex-col">
+    <div className="flex h-[calc(100dvh-12.5rem-env(safe-area-inset-bottom))] min-h-[28rem] sm:min-h-[650px] flex-col">
       <h2 className="sr-only">
         Grafo interactivo de la malla curricular: ciclos en columnas y cursos conectados por
         prerrequisitos. Hover para resaltar la cadena, clic para ver detalles.

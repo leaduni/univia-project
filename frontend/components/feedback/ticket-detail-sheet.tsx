@@ -2,6 +2,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import Image from "next/image"
 import { AlertCircle, Crown, FileText, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -32,14 +33,7 @@ import {
   type TicketFeedbackDetalle,
 } from "@/lib/feedbackTicketsAdapter"
 import { FeedbackMensajeForm } from "./feedback-mensaje-form"
-
-const LABEL_ESTADO: Record<EstadoFeedback, string> = {
-  recibido: "Recibido",
-  en_revision: "En revisión",
-  planeado: "Planeado",
-  resuelto: "Resuelto",
-  descartado: "Descartado",
-}
+import { LABEL_ESTADO, varianteEstado } from "@/lib/feedback-ui"
 
 const ESTADOS_ORDEN: EstadoFeedback[] = [
   "recibido",
@@ -148,21 +142,21 @@ export function TicketDetailSheet({ abierto, onOpenChange, ticket, esDev }: Tick
         </SheetHeader>
 
         {!ticket ? null : cargando && !detalle ? (
-          <div className="space-y-3">
+          <div className="space-y-3 px-5 pb-6">
             {[0, 1, 2].map((i) => (
               <div key={i} className="h-16 w-full rounded-xl bg-muted animate-pulse" />
             ))}
           </div>
         ) : error && !detalle ? (
-          <p role="alert" className="flex items-center gap-2 text-xs text-destructive">
+          <p role="alert" className="flex items-center gap-2 px-5 text-xs text-destructive">
             <AlertCircle className="h-4 w-4 shrink-0" />
             {error}
           </p>
         ) : detalle ? (
-          <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-5 px-5 pb-6">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline">#{detalle.id}</Badge>
-              <Badge variant="in-progress">{LABEL_ESTADO[detalle.estado]}</Badge>
+              <Badge variant={varianteEstado(detalle.estado)}>{LABEL_ESTADO[detalle.estado]}</Badge>
               <span className="ml-auto text-xs text-muted-foreground">
                 {formatearFecha(detalle.creado_en)}
               </span>
@@ -175,6 +169,10 @@ export function TicketDetailSheet({ abierto, onOpenChange, ticket, esDev }: Tick
               </p>
             </div>
 
+            {/* Regla de roles: el estudiante solo VE el badge de estado (arriba,
+                read-only). El selector solo se renderiza si esDev; el backend
+                vuelve a verificar feedback_devs y devuelve 403 si no lo es
+                (feedback.py -> PATCH /tickets/{id}/estado). */}
             {esDev && (
               <div className="flex items-center gap-3 rounded-xl border border-border bg-background/60 px-3 py-2">
                 <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -248,9 +246,11 @@ export function TicketDetailSheet({ abierto, onOpenChange, ticket, esDev }: Tick
                         rel="noreferrer"
                         className="block overflow-hidden rounded-xl border border-border"
                       >
-                        <img
+                        <Image
                           src={a.url_firmada}
                           alt={a.nombre_original}
+                          width={96}
+                          height={96}
                           className="h-24 w-24 object-cover"
                         />
                       </a>

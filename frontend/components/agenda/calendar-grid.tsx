@@ -161,7 +161,6 @@ function BloqueEvento({ evento, etiquetas, filtros, onClick, totalHorasPx, onAut
 
   const handleRepasar = (e: React.MouseEvent) => {
     e.stopPropagation()
-    console.log(`[IA] Iniciando repaso para: ${evento.titulo}`)
     alert(`[Módulo de IA] Preparando sesión de repaso para ${evento.titulo}...`)
   }
 

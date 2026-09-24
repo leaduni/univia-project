@@ -5,14 +5,37 @@ x-logging:
     options:
       max-size: 10M
 
+# Credenciales obligatorias vía variables de entorno (archivo .env del host,
+# NO commiteado):
+#   JUDGE0_POSTGRES_PASSWORD  - password de la base de datos interna
+#   JUDGE0_REDIS_PASSWORD     - password de Redis
+#   JUDGE0_AUTHN_TOKEN        - token que exige la API (header X-Auth-Token)
+# Compose falla al levantar si falta alguna (sintaxis :?).
+
 services:
   server:
     image: mrkushalsm/judge0:cgv2
     volumes:
       - ./judge0.conf:/judge0.conf:ro
     ports:
-      - "0.0.0.0:2358:2358"
+      # Solo accesible desde el host (loopback). No exponer a Internet.
+      - "127.0.0.1:2358:2358"
     privileged: true
+    environment:
+      - POSTGRES_PASSWORD=${JUDGE0_POSTGRES_PASSWORD:?JUDGE0_POSTGRES_PASSWORD es obligatoria}
+      - REDIS_PASSWORD=${JUDGE0_REDIS_PASSWORD:?JUDGE0_REDIS_PASSWORD es obligatoria}
+      - AUTHN_TOKEN=${JUDGE0_AUTHN_TOKEN:?JUDGE0_AUTHN_TOKEN es obligatorio}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-H", "X-Auth-Token: ${JUDGE0_AUTHN_TOKEN}", "http://localhost:2358/about"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     <<: *default-logging
     restart: always
     deploy:
@@ -28,6 +51,14 @@ services:
     privileged: true
     environment:
       - JUDGE0_WORKERS=1
+      - POSTGRES_PASSWORD=${JUDGE0_POSTGRES_PASSWORD:?JUDGE0_POSTGRES_PASSWORD es obligatoria}
+      - REDIS_PASSWORD=${JUDGE0_REDIS_PASSWORD:?JUDGE0_REDIS_PASSWORD es obligatoria}
+      - AUTHN_TOKEN=${JUDGE0_AUTHN_TOKEN:?JUDGE0_AUTHN_TOKEN es obligatorio}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     <<: *default-logging
     restart: always
     deploy:
@@ -38,8 +69,21 @@ services:
   db:
     image: postgres:16.2
     env_file: judge0.conf # Usamos el mismo archivo que el server para que hablen el mismo idioma
+    environment:
+      # Postgres solo lee POSTGRES_* del entorno al inicializar el volumen;
+      # la contraseña real llega por aquí (judge0.conf la interpola para Judge0).
+      POSTGRES_HOST: db
+      POSTGRES_DB: judge0
+      POSTGRES_USER: judge0
+      POSTGRES_PASSWORD: ${JUDGE0_POSTGRES_PASSWORD:?JUDGE0_POSTGRES_PASSWORD es obligatoria}
     volumes:
       - data:/var/lib/postgresql/data/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U judge0 -d judge0"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     restart: always
     deploy:
       resources:
@@ -49,8 +93,16 @@ services:
   redis:
     image: redis:7.2.4 # Quitamos Alpine porque necesitamos 'bash' para el entrypoint
     command: [
-      "redis-server", "--appendonly", "no" # Simplificamos el arranque
+      "redis-server",
+      "--appendonly", "no", # Simplificamos el arranque
+      "--requirepass", "${JUDGE0_REDIS_PASSWORD:?JUDGE0_REDIS_PASSWORD es obligatoria}"
     ]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"${JUDGE0_REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
     <<: *default-logging
     restart: always
     deploy:

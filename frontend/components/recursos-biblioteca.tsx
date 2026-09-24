@@ -19,9 +19,9 @@ const RECURSOS_POR_PAGINA = 20
 
 export function RecursosBiblioteca() {
   const { session } = useAuth()
-  // Permite llegar filtrado desde otra pantalla (ej. 'Banco de exámenes' del
-  // menú Explorar abre /recursos?tipo=Examen). Sin esto, ese enlace abriría la
-  // biblioteca completa y el estudiante tendría que filtrar a mano.
+  // Permite llegar filtrado desde otra pantalla (ej. /recursos?tipo=Examen).
+  // Sin esto, ese enlace abriría la biblioteca completa y el estudiante
+  // tendría que filtrar a mano.
   const searchParams = useSearchParams()
   const tipoInicial = searchParams.get("tipo")
 
@@ -195,7 +195,7 @@ export function RecursosBiblioteca() {
           {/* Barra de búsqueda y selectores de filtro superior */}
           <div className="flex gap-3 mb-2 flex-wrap xl:flex-nowrap items-center">
             {/* Input de búsqueda */}
-            <div className="relative flex-1 min-w-[240px]">
+            <div className="relative min-w-0 w-full flex-1 xl:min-w-[240px]">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4 pointer-events-none" />
               <Input
                 placeholder="Buscar por curso, código o tema..."

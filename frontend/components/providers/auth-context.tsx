@@ -4,6 +4,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { apiService } from '@/lib/api-service';
+import { establecerNamespaceUsuario, limpiarCache } from '@/lib/api-cache';
 import { User, Session } from '@supabase/supabase-js';
 
 // Single-flight del perfil: una petición en vuelo se reutiliza en vez de
@@ -150,6 +151,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Listen for changes on auth state
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             guardarSesion(session);
+            // La caché de la API se agrupa por usuario: sin esto, al cambiar de
+            // cuenta en el mismo navegador se verían datos de la cuenta previa.
+            establecerNamespaceUsuario(session?.user.id ?? null);
 
             if (session) {
                 // TOKEN_REFRESHED solo renueva el token (al volver a la
@@ -186,6 +190,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             borrarLocal('user');
             borrarLocal('token');
         }
+
+        // La caché persistida (malla, avance, dashboards) pertenece a esta
+        // cuenta: no debe sobrevivir al cierre de sesión.
+        limpiarCache();
+        establecerNamespaceUsuario(null);
 
         await supabase.auth.signOut();
 

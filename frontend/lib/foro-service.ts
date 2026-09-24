@@ -9,17 +9,18 @@ import { leerOCache, TTL, invalidarClave, invalidarPrefijo } from "./api-cache"
 import type {
   Comentario,
   ComentarioNuevo,
+  FeedParams,
+  FeedRespuesta,
   Publicacion,
   PublicacionNueva,
   ResolverRequest,
   Seccion,
   SeccionNueva,
+  TendenciasRespuesta,
   VotoNuevo,
   VotoResultado,
 } from "@/types/foro"
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-const API_URL = BASE_URL.endsWith("/api") ? BASE_URL : `${BASE_URL}/api`
+import { API_URL } from "@/lib/env"
 
 function extraerMensaje(body: any): string {
   return (
@@ -194,6 +195,69 @@ export const foroService = {
       "POST",
       datos,
       "No se pudo marcar la solución.",
+    )
+  },
+
+  // -------------------------------------------------------------------------
+  // Feed global, tendencias, guardados y vistas (Fase 5)
+  // -------------------------------------------------------------------------
+
+  /** Feed global paginado por cursor. Sin caché: el orden y el cursor son vivos. */
+  getFeed(params: FeedParams = {}): Promise<FeedRespuesta> {
+    const qs = new URLSearchParams()
+    if (params.q) qs.append("q", params.q)
+    if (params.seccion_id != null) qs.append("seccion_id", String(params.seccion_id))
+    if (params.facultad_id != null) qs.append("facultad_id", String(params.facultad_id))
+    if (params.tag) qs.append("tag", params.tag)
+    if (params.estado) qs.append("estado", params.estado)
+    if (params.orden) qs.append("orden", params.orden)
+    if (params.filtro) qs.append("filtro", params.filtro)
+    if (params.limit != null) qs.append("limit", String(params.limit))
+    if (params.cursor) qs.append("cursor", params.cursor)
+    const sufijo = qs.toString() ? `?${qs.toString()}` : ""
+    return leer<FeedRespuesta>(
+      `${API_URL}/foro/feed${sufijo}`,
+      "No se pudo cargar el feed.",
+    )
+  },
+
+  /** Top 5 hilos con mayor interacción reciente (24h, fallback 7d). */
+  getTendencias(): Promise<TendenciasRespuesta> {
+    return leerCache<TendenciasRespuesta>(
+      "foro:tendencias",
+      `${API_URL}/foro/tendencias`,
+      "No se pudieron cargar las tendencias.",
+      TTL.CINCO_MINUTOS,
+    )
+  },
+
+  /** Guarda (bookmark) un hilo. Optimista: la UI actualiza antes del await. */
+  guardarPublicacion(publicacionId: number): Promise<{ ok: boolean; guardado: boolean }> {
+    return enviar<{ ok: boolean; guardado: boolean }>(
+      `${API_URL}/foro/publicaciones/${publicacionId}/guardar`,
+      "POST",
+      {},
+      "No se pudo guardar el hilo.",
+    )
+  },
+
+  /** Quita un hilo de los guardados. */
+  quitarGuardado(publicacionId: number): Promise<{ ok: boolean; guardado: boolean }> {
+    return enviar<{ ok: boolean; guardado: boolean }>(
+      `${API_URL}/foro/publicaciones/${publicacionId}/guardar`,
+      "DELETE",
+      {},
+      "No se pudo quitar el hilo guardado.",
+    )
+  },
+
+  /** Registra una vista única del hilo (una por usuario). Fire-and-forget OK. */
+  registrarVista(publicacionId: number): Promise<{ ok: boolean; num_vistas: number }> {
+    return enviar<{ ok: boolean; num_vistas: number }>(
+      `${API_URL}/foro/publicaciones/${publicacionId}/vista`,
+      "POST",
+      {},
+      "No se pudo registrar la vista.",
     )
   },
 }

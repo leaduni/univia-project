@@ -1,7 +1,7 @@
 // Signup page with dark theme, unified hero layout
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { CheckCircle2, ArrowRight, ChevronRight, Eye, EyeOff, Loader2, Info } from "lucide-react"
 import { toast } from "sonner"
@@ -16,6 +16,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { apiService } from "@/lib/api-service"
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
+import { guardarCodigoReferido } from "@/lib/gamificacion-utils"
 import {
   CODIGO_PATTERN,
   EMAIL_PATTERN,
@@ -63,6 +64,7 @@ export default function SignupPage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
   const [enviandoInvitado, setEnviandoInvitado] = useState(false)
+  const [invitadoError, setInvitadoError] = useState("")
   const [invitado, setInvitado] = useState({
     nombreCompleto: "",
     emailContacto: "",
@@ -81,6 +83,15 @@ export default function SignupPage() {
       acceptTerms: false,
     },
   })
+
+  // Captura el parámetro `?ref=` del enlace de invitación y lo guarda para
+  // acreditarlo al completar el onboarding (sobrevive a login/Google SSO).
+  useEffect(() => {
+    try {
+      const ref = new URLSearchParams(window.location.search).get("ref")
+      guardarCodigoReferido(ref)
+    } catch { /* sin acceso a location: se ignora el referido */ }
+  }, [])
 
   const onSubmit = async (data: SignupFormValues) => {
     setIsLoading(true)
@@ -155,6 +166,13 @@ export default function SignupPage() {
     event.preventDefault()
     setEnviandoInvitado(true)
     setError("")
+    setInvitadoError("")
+    const parse = invitadoSchema.safeParse({ motivoSolicitud: invitado.motivoSolicitud })
+    if (!parse.success) {
+      setInvitadoError(parse.error.errors[0]?.message ?? "Revisa el motivo de tu solicitud.")
+      setEnviandoInvitado(false)
+      return
+    }
     try {
       const res = await apiService.solicitarInvitado({
         nombreCompleto: invitado.nombreCompleto,
@@ -312,9 +330,9 @@ export default function SignupPage() {
                       value={invitado.motivoSolicitud}
                       onChange={(e) => setInvitado({ ...invitado, motivoSolicitud: e.target.value })}
                     />
-                    {form.formState.errors.motivoSolicitud?.message && (
+                    {invitadoError && (
                       <p className="text-xs font-medium text-red-500 mt-1">
-                        {String(form.formState.errors.motivoSolicitud.message)}
+                        {invitadoError}
                       </p>
                     )}
                   </div>

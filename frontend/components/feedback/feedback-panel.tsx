@@ -24,6 +24,7 @@ import {
   type TicketFeedback,
 } from "@/lib/feedbackTicketsAdapter"
 import { TicketDetailSheet } from "./ticket-detail-sheet"
+import { LABEL_ESTADO, varianteEstado } from "@/lib/feedback-ui"
 
 const CATEGORIAS: Record<CategoriaFeedback, string> = {
   funcion: "Sugerencia de función",
@@ -40,31 +41,6 @@ const ESTADOS_FILTRO: (EstadoFeedback | "todos")[] = [
   "resuelto",
   "descartado",
 ]
-
-const LABEL_ESTADO: Record<EstadoFeedback, string> = {
-  recibido: "Recibido",
-  en_revision: "En revisión",
-  planeado: "Planeado",
-  resuelto: "Resuelto",
-  descartado: "Descartado",
-}
-
-function varianteEstado(
-  estado: EstadoFeedback,
-): "default" | "in-progress" | "available" | "completed" | "locked" {
-  switch (estado) {
-    case "en_revision":
-      return "in-progress"
-    case "planeado":
-      return "available"
-    case "resuelto":
-      return "completed"
-    case "descartado":
-      return "locked"
-    default:
-      return "default"
-  }
-}
 
 function variantePrioridad(
   prioridad: PrioridadFeedback,
@@ -172,7 +148,7 @@ export function FeedbackPanel() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6">
+    <div className="mx-auto w-full max-w-4xl space-y-6 pt-4 md:pt-6">
       <div>
         <h1 className="font-heading text-2xl font-bold tracking-tight text-foreground">
           Sugerencias y reportes
@@ -318,14 +294,13 @@ export function FeedbackPanel() {
                   <Badge variant="outline">#{t.id}</Badge>
                   <Badge variant={varianteEstado(t.estado)}>{LABEL_ESTADO[t.estado]}</Badge>
                   <Badge variant={variantePrioridad(t.prioridad)}>{t.prioridad}</Badge>
+                  <Badge variant="secondary">{CATEGORIAS[t.categoria]}</Badge>
                   <span className="ml-auto text-xs text-muted-foreground">
                     {formatearFecha(t.creado_en)}
                   </span>
                   <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                 </div>
-                <p className="mt-2 text-sm font-medium text-foreground">
-                  {CATEGORIAS[t.categoria]}: {t.titulo}
-                </p>
+                <p className="mt-2 text-sm font-medium text-foreground">{t.titulo}</p>
                 <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{t.descripcion}</p>
               </li>
             ))}

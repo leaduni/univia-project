@@ -2,9 +2,7 @@
 
 import { supabase } from './supabase';
 import { leerOCache, invalidarClave, invalidarPrefijo, limpiarCache, TTL } from './api-cache';
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const API_URL = BASE_URL.endsWith('/api') ? BASE_URL : `${BASE_URL}/api`;
+import { API_URL } from './env';
 
 // Toda petición se corta a los 15s. Sin esto, una red que no responde deja al
 // usuario en un spinner indefinido: fetch no tiene timeout propio.
@@ -130,14 +128,14 @@ function manejarNoAutorizado() {
     window.location.assign('/auth/login');
 }
 
-async function fetchWithAuth(url: string, options: RequestInit = {}, customToken?: string) {
+async function fetchWithAuth(url: string, options: RequestInit = {}, customToken?: string, timeoutMs?: number) {
     const token = customToken || await getAuthToken();
     const headers = {
         ...options.headers,
         'Authorization': token ? `Bearer ${token}` : '',
     };
 
-    const response = await fetchConReintentos(url, { ...options, headers });
+    const response = await fetchConReintentos(url, { ...options, headers }, timeoutMs);
     if (response.status === 401) {
         manejarNoAutorizado();
     }
@@ -198,6 +196,14 @@ export interface ApiError extends Error {
     requiereOnboarding?: boolean;
     /** HTTP 401: la sesión expiró o dejó de ser válida. */
     sesionInvalida?: boolean;
+}
+
+/** Entrada de una unidad creada a mano por el alumno (fase 11). */
+export interface UnidadUsuarioEntrada {
+    titulo: string;
+    descripcion?: string;
+    duracion?: string;
+    topics: string[];
 }
 
 /** Filtros aceptados por GET /recursos. Espejo de `recursos.py`. */
@@ -595,6 +601,102 @@ export const apiService = {
             console.error('API Error (completeStep):', error);
             throw error;
         }
+    },
+
+    // --- Fase 11: Ruta de aprendizaje vacía (sílabos, unidades propias, IA) ---
+
+    /**
+     * Sube el sílabo del curso (PDF/imagen) al endpoint multipart del backend.
+     *
+     * Se usa XMLHttpRequest y no fetchWithAuth a propósito: solo XHR expone
+     * `upload.onprogress`, necesario para la barra de progreso real del modal.
+     * El token se obtiene igual que fetchWithAuth (getAuthToken).
+     */
+    async subirSilabo(
+        courseId: string | number,
+        archivo: File,
+        onProgreso?: (porcentaje: number) => void,
+    ) {
+        const MAX_BYTES = 10 * 1024 * 1024;
+        const MIMES_ADMITIDOS = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+        if (!MIMES_ADMITIDOS.includes(archivo.type)) {
+            throw new Error("Tipo de archivo no admitido. Usa PDF o imágenes (PNG, JPG, WEBP).");
+        }
+        if (archivo.size > MAX_BYTES) {
+            throw new Error("El archivo supera los 10 MB.");
+        }
+
+        const token = await getAuthToken();
+        const resultado = await new Promise<any>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', `${API_URL}/cursos/${courseId}/silabo-upload`);
+            if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.upload.onprogress = (evento) => {
+                if (evento.lengthComputable && onProgreso) {
+                    onProgreso(Math.round((evento.loaded / evento.total) * 100));
+                }
+            };
+            xhr.onload = () => {
+                let cuerpo: any = null;
+                try { cuerpo = JSON.parse(xhr.responseText || "null"); } catch { /* sin cuerpo */ }
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(cuerpo);
+                } else {
+                    const error: any = new Error(
+                        extraerMensajeError(cuerpo) || `Error ${xhr.status} al subir el sílabo.`
+                    );
+                    error.status = xhr.status;
+                    reject(error);
+                }
+            };
+            xhr.onerror = () => {
+                const error: any = new Error("No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.");
+                error.esFalloDeRed = true;
+                reject(error);
+            };
+            const formData = new FormData();
+            formData.append('archivo', archivo);
+            xhr.send(formData);
+        });
+        // La solicitud aparece en get_learning_path_datos (solicitud_silabo).
+        invalidarPrefijo(`learning-path:${courseId}`);
+        return resultado;
+    },
+
+    /** Crea unidades/temas propios del alumno (origen='usuario'). */
+    async crearUnidadesUsuario(courseId: string | number, unidades: UnidadUsuarioEntrada[]) {
+        const response = await fetchWithAuth(`${API_URL}/cursos/${courseId}/unidades-usuario`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ unidades }),
+        });
+        if (!response.ok) {
+            const cuerpo = await response.json().catch(() => null);
+            const error: any = new Error(extraerMensajeError(cuerpo) || `Error ${response.status} al crear las unidades.`);
+            error.status = response.status;
+            throw error;
+        }
+        invalidarPrefijo(`learning-path:${courseId}`);
+        return await response.json();
+    },
+
+    /** Genera y persiste una ruta provisional con IA (origen='ia_provisional'). */
+    async generarRutaProvisional(courseId: string | number) {
+        // La cascada LLM puede tardar: timeout elevado solo para esta llamada
+        // (60s); el global del resto de la app se mantiene en 15s.
+        const response = await fetchWithAuth(`${API_URL}/cursos/${courseId}/generar-ruta-provisional`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+        }, undefined, 60_000);
+        if (!response.ok) {
+            const cuerpo = await response.json().catch(() => null);
+            const error: any = new Error(extraerMensajeError(cuerpo) || `Error ${response.status} al generar la ruta provisional.`);
+            error.status = response.status;
+            throw error;
+        }
+        invalidarPrefijo(`learning-path:${courseId}`);
+        return await response.json();
     },
 
     async downloadPlancha(courseId: string | number, filename: string) {

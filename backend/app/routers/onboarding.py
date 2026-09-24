@@ -552,6 +552,10 @@ async def actualizar_cursos_del_ciclo(
         f"cerrados={len(a_cerrar)}, activos={len(nuevos)}"
     )
 
+    # El progreso cambió: se descarta la caché de malla/dashboard del usuario.
+    from app.core import rpc_cache
+    rpc_cache.invalidar_usuario(str(user.id))
+
     return {
         "status": "success",
         "message": "Tus cursos se actualizaron para el ciclo nuevo.",
@@ -868,6 +872,10 @@ async def complete_onboarding(
             f"completados={[nombre_curso(c) for c in completados_final]}, "
             f"en_progreso={inscritos_final}"
         )
+
+        # Carrera, malla y progreso acaban de cambiar: se descarta la caché.
+        from app.core import rpc_cache
+        rpc_cache.invalidar_usuario(str(user.id))
 
         return {
             "status": "success",

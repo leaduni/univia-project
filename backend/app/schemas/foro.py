@@ -97,13 +97,41 @@ class PublicacionOut(BaseModel):
     tags: List[str] = Field(default_factory=list)
     estado: str
     created_at: datetime
-    # Conteos para la lista de hilos.
+    # Conteos para la lista de hilos (desnormalizados vía triggers, Fase 5).
     num_comentarios: int = 0
-    # Puntuación del hilo (Fase 2).
+    # Puntuación del hilo (Fase 2; desde Fase 5 se lee de columna).
     num_votos: int = 0
     mi_voto: int = 0
+    # Métricas del feed (Fase 5).
+    num_vistas: int = 0
+    portada_url: Optional[str] = None
+    tipo_contenido: str = "text"
+    # True si el usuario actual guardó el hilo (Fase 5).
+    guardado: bool = False
+    # Contexto de sección para tarjetas del feed global (Fase 5).
+    seccion_tipo: Optional[str] = None
+    seccion_titulo: Optional[str] = None
+    facultad_nombre: Optional[str] = None
     # Sugerencia IA del bot (Fase 4). None si aún no hay.
     sugerencia_ia: Optional[dict] = None
+
+
+class FeedOut(BaseModel):
+    """Página del feed global (Fase 5) con paginación por cursor."""
+
+    publicaciones: List[PublicacionOut] = Field(default_factory=list)
+    # Cursor opaco para pedir la siguiente página; None = no hay más.
+    siguiente_cursor: Optional[str] = None
+    # Total aproximado de hilos que cumplen el filtro (para UI).
+    total: int = 0
+
+
+class TendenciasOut(BaseModel):
+    """Top de hilos con mayor interacción reciente (Fase 5)."""
+
+    publicaciones: List[PublicacionOut] = Field(default_factory=list)
+    # Ventana real utilizada: '24h' o '7d' (fallback cuando 24h viene vacía).
+    ventana: str = "24h"
 
 
 class ComentarioCreate(BaseModel):

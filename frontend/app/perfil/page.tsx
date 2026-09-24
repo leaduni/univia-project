@@ -3,9 +3,10 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, Layers, Loader2, LogOut, Pencil, X } from "lucide-react"
+import { Check, KeyRound, Layers, Loader2, LogOut, Pencil, ShieldCheck, X } from "lucide-react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { useAuth } from "@/components/providers/auth-context"
+import { useByok } from "@/components/providers/byok-context"
 import { CambiarPasswordForm } from "@/components/perfil/cambiar-password-form"
 import { EstablecerPasswordForm } from "@/components/perfil/establecer-password-form"
 import { PreferenciasCard } from "@/components/perfil/preferencias-card"
@@ -51,6 +52,8 @@ function Dato({ etiqueta, valor }: { etiqueta: string; valor: React.ReactNode })
 export default function PerfilPage() {
   const { signOut } = useAuth()
   const router = useRouter()
+  // BYOK: gestión de la clave privada de IA desde la pestaña Seguridad.
+  const { abrirModalByok, modoByok } = useByok()
 
   const [perfil, setPerfil] = useState<Perfil | null>(null)
   const [carrera, setCarrera] = useState<Carrera | null>(null)
@@ -425,7 +428,7 @@ export default function PerfilPage() {
             </Sheet>
           </TabsContent>
 
-          <TabsContent value="seguridad">
+          <TabsContent value="seguridad" className="space-y-4">
             {perfil?.has_password === true ? (
               <div className="bg-card border border-border p-6 rounded-2xl">
                 <CambiarPasswordForm />
@@ -439,6 +442,39 @@ export default function PerfilPage() {
                 />
               </div>
             )}
+
+            {/* BYOK: la clave de IA del estudiante vive solo en su navegador;
+                aquí solo se abre el modal global de gestión. */}
+            <div className="bg-card border border-border p-6 rounded-2xl">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-accent/15 flex items-center justify-center shrink-0">
+                  <KeyRound className="w-4 h-4 text-accent" aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-heading text-sm font-bold text-foreground">
+                    Tu clave de IA privada (BYOK)
+                  </h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+                    Usa tu propia clave gratuita de Google AI Studio para que el asistente
+                    responda sin esperar la cuota compartida. Se guarda{" "}
+                    <b>solo en tu navegador</b>: nunca toca nuestra base de datos, viaja
+                    encriptada y el servidor la descarta al instante.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-3 mt-3">
+                    <Button variant="brand" size="sm" onClick={abrirModalByok}>
+                      <ShieldCheck className="w-4 h-4 mr-2" />
+                      Gestionar mi clave de IA privada
+                    </Button>
+                    {modoByok && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-400/15 text-emerald-500">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
+                        Clave personal activa
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="preferencias">

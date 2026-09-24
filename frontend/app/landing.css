@@ -52,7 +52,7 @@
 .ph.ph-youtube-logo::before { content: "\e4fc"; }
 
 /* --- Landing shell --- */
-.univia-landing { background: #0b0c16; color: #f8fafc; min-height: 100vh; font-family: var(--font-heading); }
+.univia-landing { background: #0b0c16; color: #f8fafc; min-height: 100dvh; font-family: var(--font-heading); }
 .univia-landing a { color: #d7cef7; text-decoration: none; }
 .univia-landing a:hover { color: #ffffff; }
 .univia-landing section[id] { scroll-margin-top: 76px; }
@@ -90,4 +90,18 @@
   .univia-split h2 { margin-left: 0 !important; text-align: left !important; }
   .univia-team-grid { grid-template-columns: 1fr !important; }
   .univia-nav-links { display: none !important; }
+}
+
+@media (max-width: 390px) {
+  .univia-landing header {
+    gap: 12px !important;
+  }
+  .univia-landing header > div:last-child {
+    gap: 8px !important;
+  }
+  .univia-landing header a[href="/auth/login"],
+  .univia-landing header a[href="/auth/signup"] {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
 }

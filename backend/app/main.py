@@ -58,47 +58,32 @@ APP_ENV = os.getenv("APP_ENV", os.getenv("ENV", "development")).strip().lower()
 IS_PRODUCTION = APP_ENV in {"production", "prod"}
 
 # ── TrustedHostMiddleware ────────────────────────────────────────────
-# En desarrollo permite cualquier host. En producción se exige TRUSTED_HOSTS.
-TRUSTED_HOSTS_DEFAULT = "*"
-trusted_hosts_raw = os.getenv("TRUSTED_HOSTS")
 if IS_PRODUCTION:
+    trusted_hosts_raw = os.getenv("TRUSTED_HOSTS")
     if not trusted_hosts_raw or trusted_hosts_raw.strip() in {"", "*"}:
         raise RuntimeError(
             "TRUSTED_HOSTS es obligatorio en producción y no puede ser '*'. "
             "Ejemplo: TRUSTED_HOSTS=univia.pe,api.univia.pe"
         )
+    trusted_hosts = [host.strip() for host in trusted_hosts_raw.split(",") if host.strip()]
 else:
-    trusted_hosts_raw = trusted_hosts_raw or TRUSTED_HOSTS_DEFAULT
-trusted_hosts = [
-    host.strip()
-    for host in trusted_hosts_raw.split(",")
-    if host.strip()
-] if trusted_hosts_raw != "*" else ["*"]
+    # En desarrollo permitimos cualquier host para aceptar *.trycloudflare.com
+    trusted_hosts = ["*"]
 
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
 
 # ── CORS ─────────────────────────────────────────────────────────────
-# Orígenes permitidos: configurables por entorno (lista separada por comas).
-# Para desarrollo local Next.js (3000, 3001) y Vite (5173).
-DEFAULT_ORIGINS = (
-    "http://localhost:3000,http://127.0.0.1:3000,"
-    "http://localhost:3001,http://127.0.0.1:3001,"
-    "http://localhost:5173,http://127.0.0.1:5173"
-)
-cors_origins_raw = os.getenv("CORS_ORIGINS")
 if IS_PRODUCTION:
+    cors_origins_raw = os.getenv("CORS_ORIGINS")
     if not cors_origins_raw or not cors_origins_raw.strip():
         raise RuntimeError(
             "CORS_ORIGINS es obligatorio en producción. "
             "Ejemplo: CORS_ORIGINS=https://univia.pe,https://www.univia.pe"
         )
+    origins = [origin.strip() for origin in cors_origins_raw.split(",") if origin.strip()]
 else:
-    cors_origins_raw = cors_origins_raw or DEFAULT_ORIGINS
-origins = [
-    origin.strip()
-    for origin in cors_origins_raw.split(",")
-    if origin.strip()
-]
+    # En desarrollo permitimos todos los orígenes para soportar el túnel del frontend
+    origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,

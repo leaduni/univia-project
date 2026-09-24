@@ -19,9 +19,9 @@ const RECURSOS_POR_PAGINA = 20
 
 export function RecursosBiblioteca() {
   const { session } = useAuth()
-  // Permite llegar filtrado desde otra pantalla (ej. 'Banco de exámenes' del
-  // menú Explorar abre /recursos?tipo=Examen). Sin esto, ese enlace abriría la
-  // biblioteca completa y el estudiante tendría que filtrar a mano.
+  // Permite llegar filtrado desde otra pantalla (ej. /recursos?tipo=Examen).
+  // Sin esto, ese enlace abriría la biblioteca completa y el estudiante
+  // tendría que filtrar a mano.
   const searchParams = useSearchParams()
   const tipoInicial = searchParams.get("tipo")
 

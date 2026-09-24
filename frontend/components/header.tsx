@@ -6,7 +6,6 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Menu, Bell, User, LogOut } from "lucide-react"
 import { HeaderSearch } from "./header-search"
-import { ExplorarMenu } from "./explorar-menu"
 import { Logo } from "./logo"
 import { cn } from "@/lib/utils"
 import { prefetchRuta } from "@/lib/prefetch"
@@ -44,6 +43,7 @@ const ACCESOS = [
   { label: "Foro", href: "/foro" },
   { label: "Mensajes", href: "/mensajes" },
   { label: "Sugerencias", href: "/dashboard/feedback" },
+  { label: "Donaciones", href: "/donaciones" },
 ]
 
 export function Header({ onMenuClick }: HeaderProps) {
@@ -158,7 +158,6 @@ export function Header({ onMenuClick }: HeaderProps) {
                 </Link>
               )
             })}
-            <ExplorarMenu />
           </nav>
 
           {/* Racha y XP del estudiante, con acceso directo al ranking. */}

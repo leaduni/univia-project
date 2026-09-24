@@ -158,7 +158,7 @@ async def root():
     return {"message": "UniVia API v2.0 - Online", "status": "healthy"}
 
 # Importar Routers
-from app.routers import malla, usuarios, onboarding, dashboard, cursos, evaluaciones, services, recursos, chatbot, feedback, foro, dm, evaluaciones_calificables, notas, gamificacion, silabos_ruta, agenda, horarios
+from app.routers import malla, usuarios, onboarding, dashboard, cursos, evaluaciones, services, recursos, chatbot, feedback, foro, dm, evaluaciones_calificables, notas, gamificacion, silabos_ruta, agenda, horarios, donaciones
 
 app.include_router(malla.router, prefix="/api", tags=["malla"])
 app.include_router(usuarios.router, prefix="/api", tags=["usuarios"])
@@ -178,3 +178,4 @@ app.include_router(gamificacion.router, prefix="/api", tags=["gamificacion"])
 app.include_router(silabos_ruta.router, prefix="/api", tags=["silabos-ruta"])
 app.include_router(agenda.router, prefix="/api", tags=["agenda"])
 app.include_router(horarios.router, prefix="/api", tags=["horarios"])
+app.include_router(donaciones.router, prefix="/api", tags=["donaciones"])

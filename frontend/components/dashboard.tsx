@@ -8,7 +8,7 @@ import { StatsCards } from "./stats-cards"
 import { ContinueLearning, type CursoActivo } from "./dashboard/continue-learning"
 import { SidebarWidgets } from "./dashboard/sidebar-widgets"
 import { RecentResources } from "./dashboard/recent-resources"
-import { AIRecommendationBanner } from "./dashboard/ai-recommendation-banner"
+import { DonacionBanner } from "./dashboard/donacion-banner"
 import { useAuth } from "./providers/auth-context"
 import { apiService, type ApiError } from "@/lib/api-service"
 import { picoCache } from "@/lib/api-cache"
@@ -253,7 +253,7 @@ const skeletonAvance = isLoadingAvance && !hasLoadedOnce.current
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-8 space-y-6">
-            <AIRecommendationBanner />
+            <DonacionBanner />
             <section>
               <ContinueLearning cursos={cursosActivos} isLoading={skeletonSummary} />
             </section>

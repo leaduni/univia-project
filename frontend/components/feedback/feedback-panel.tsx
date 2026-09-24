@@ -148,7 +148,7 @@ export function FeedbackPanel() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6">
+    <div className="mx-auto w-full max-w-4xl space-y-6 pt-4 md:pt-6">
       <div>
         <h1 className="font-heading text-2xl font-bold tracking-tight text-foreground">
           Sugerencias y reportes

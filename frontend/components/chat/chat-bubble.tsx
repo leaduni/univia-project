@@ -437,8 +437,8 @@ export function ChatBubble() {
             ref={panelRef}
             className={`pointer-events-auto fixed safe-chat-panel z-[9991] transition-[width,height] duration-300 ease-out ${
               isExpanded
-                ? "w-[min(900px,calc(100vw-32px))] h-[min(85dvh,780px)]"
-                : "w-[min(420px,calc(100vw-24px))] h-[min(620px,calc(100dvh-8.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))]"
+                ? "w-[min(900px,calc(100vw-32px))] h-[min(85dvh,780px)] max-h-[calc(100dvh-6.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))]"
+                : "w-[min(420px,calc(100vw-24px))] h-[min(620px,calc(100dvh-8.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] max-h-[calc(100dvh-6.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))]"
             }`}
           >
             <ChatPanel

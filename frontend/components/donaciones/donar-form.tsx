@@ -4,6 +4,13 @@
 import { useEffect, useMemo, useState } from "react"
 import { AlertCircle, ArrowRight, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { useAuth } from "@/components/providers/auth-context"
 import { crearIntencion, reportarEnvio, type IntencionDonacion } from "@/lib/donaciones-service"
 import { FACULTADES, MONTO_MINIMO, PRESETS, RANGO_TEXTO, formatearSoles, type TipoDonante } from "./constantes"
@@ -191,18 +198,22 @@ export function DonarForm({ onDonacionRegistrada }: DonarFormProps) {
         </Campo>
 
         <Campo etiqueta="Facultad">
-          <select
-            value={facultad}
-            onChange={(e) => setFacultad(e.target.value)}
-            className={CLASE_CAMPO}
+          <Select
+            value={facultad || "ninguna"}
+            onValueChange={(valor) => setFacultad(valor === "ninguna" ? "" : valor)}
           >
-            <option value="">Sin facultad</option>
-            {FACULTADES.map((f) => (
-              <option key={f.sigla} value={f.sigla}>
-                {f.sigla} · {f.nombre}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full rounded-xl border-white/[0.08] bg-white/[0.02] text-sm focus:border-[#7957f1]/60">
+              <SelectValue placeholder="Sin facultad" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ninguna">Sin facultad</SelectItem>
+              {FACULTADES.map((f) => (
+                <SelectItem key={f.sigla} value={f.sigla}>
+                  {f.sigla} · {f.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Campo>
 
         <div className="sm:col-span-2">

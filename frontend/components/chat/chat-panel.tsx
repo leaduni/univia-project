@@ -298,7 +298,7 @@ export function ChatPanel({
         role="log"
         aria-live="polite"
         aria-label="Conversación con el asistente"
-        className="flex-1 overflow-y-auto custom-scrollbar px-3 py-4 space-y-3"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar px-3 py-4 space-y-3"
       >
         {isLoading && messages.length === 0 ? (
           <ChatSkeleton count={4} />

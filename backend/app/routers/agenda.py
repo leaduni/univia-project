@@ -718,23 +718,50 @@ async def parse_matricula(
     etq_clases = next((e for e in etqs if "clases" in e["nombre"].lower()), etqs[0] if etqs else None)
     etiqueta_id = etq_clases["id"] if etq_clases else None
 
-    eventos_creados = []
+    # Normalizar los pares (código, sección) que detectó Gemini.
+    pares_cursos = []
     for item in cursos_detectados:
-        code = item.get("course_code", "").strip().upper()
-        section = item.get("section", "").strip().upper()
+        code = item.get("course_code", "")
+        section = item.get("section", "")
         if not code or not section:
             continue
+        code = code.strip().upper()
+        section = section.strip().upper()
+        if not code or not section:
+            continue
+        pares_cursos.append((code, section))
 
-        resp_bloques = await _run(lambda: (
-            sb.table("carga_horaria")
-            .select("*")
-            .eq("codigo", code)
-            .eq("seccion", section)
-            .execute()
-        ))
-        bloques = getattr(resp_bloques, "data", []) or []
+    if not pares_cursos:
+        return {
+            "eventos_creados": [],
+            "cursos_detectados": cursos_detectados,
+            "message": f"Se crearon 0 bloques horarios para {len(cursos_detectados)} cursos.",
+        }
 
-        for bloque in bloques:
+    # Una sola consulta de carga_horaria para todos los pares detectados
+    # (evita el N+1 por curso que existía antes).
+    resp_bloques = await _run(lambda: (
+        sb.table("carga_horaria")
+        .select("*")
+        .in_("codigo", sorted({p[0] for p in pares_cursos}))
+        .in_("seccion", sorted({p[1] for p in pares_cursos}))
+        .execute()
+    ))
+    bloques = getattr(resp_bloques, "data", []) or []
+
+    # El doble `.in_` es un producto de combinaciones: conservar en memoria
+    # solo los pares (código, sección) exactos solicitados.
+    pares_set = set(pares_cursos)
+    bloques_por_par = {}
+    for bloque in bloques:
+        bcode = (bloque.get("codigo") or "").strip().upper()
+        bsec = (bloque.get("seccion") or "").strip().upper()
+        if (bcode, bsec) in pares_set:
+            bloques_por_par.setdefault((bcode, bsec), []).append(bloque)
+
+    payloads_eventos = []
+    for code, section in pares_cursos:
+        for bloque in bloques_por_par.get((code, section), []):
             tipo = bloque.get("tipo_clase", "T")
             label = TIPO_LABELS.get(tipo, tipo)
             dia = bloque.get("dia", "LU")
@@ -743,7 +770,7 @@ async def parse_matricula(
             duracion = round(hf - hi, 2)
             fecha = _first_date_for_day(semester_start, dia)
 
-            payload = {
+            payloads_eventos.append({
                 "perfil_id": user.id,
                 "titulo": f"{code} - {label}",
                 "subtitulo": f"{bloque.get('nombre_curso', '')} | Sección {section} | Aula: {bloque.get('aula', '')} | {bloque.get('docente', '')}",
@@ -755,19 +782,33 @@ async def parse_matricula(
                 "todo_el_dia": False,
                 "recurrencia": "weekly",
                 "ubicacion": bloque.get("aula", ""),
-            }
+            })
 
-            resp_ins = await _run(lambda: (
-                sb.table("agenda_eventos").insert(payload).execute()
-            ))
-            filas = getattr(resp_ins, "data", []) or []
-            if filas:
-                ev = filas[0]
-                ev["hora_inicio"] = float(ev.get("hora_inicio", 0))
-                ev["duracion"] = float(ev.get("duracion", 1))
-                if ev.get("fecha_iso"):
-                    ev["fecha_iso"] = str(ev["fecha_iso"])
-                eventos_creados.append(ev)
+    if not payloads_eventos:
+        return {
+            "eventos_creados": [],
+            "cursos_detectados": cursos_detectados,
+            "message": f"Se crearon 0 bloques horarios para {len(cursos_detectados)} cursos.",
+        }
+
+    # Inserción en lote: una sola petición HTTP en lugar de una por evento.
+    try:
+        resp_ins = await _run(lambda: (
+            sb.table("agenda_eventos")
+            .insert(payloads_eventos)
+            .execute()
+        ))
+    except Exception as e:
+        logger.error("Error creando eventos de la matrícula: %s", e)
+        raise HTTPException(status_code=500, detail="No se pudieron crear los eventos de la matrícula.")
+
+    eventos_creados = []
+    for ev in getattr(resp_ins, "data", None) or []:
+        ev["hora_inicio"] = float(ev.get("hora_inicio", 0))
+        ev["duracion"] = float(ev.get("duracion", 1))
+        if ev.get("fecha_iso"):
+            ev["fecha_iso"] = str(ev["fecha_iso"])
+        eventos_creados.append(ev)
 
     return {
         "eventos_creados": eventos_creados,

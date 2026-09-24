@@ -231,6 +231,10 @@ export async function fetchProductividad(): Promise<Productividad> {
 
 // ── Importar Matrícula (PDF → Gemini → Eventos) ─────────────────────────
 
+// Este endpoint extrae el PDF y llama a Gemini: el timeout global de 15s
+// no es suficiente. El override se aplica solo a esta petición.
+const TIMEOUT_PARSE_MATRICULA_MS = 60_000;
+
 export interface ParseMatriculaResult {
   eventos_creados: AgendaEvento[];
   cursos_detectados: { course_code: string; section: string }[];
@@ -240,10 +244,15 @@ export interface ParseMatriculaResult {
 export async function parseMatricula(file: File): Promise<ParseMatriculaResult> {
   const formData = new FormData();
   formData.append('file', file);
-  const resp = await fetchWithAuth(`${API}/agenda/parse-matricula`, {
-    method: 'POST',
-    body: formData,
-  });
+  const resp = await fetchWithAuth(
+    `${API}/agenda/parse-matricula`,
+    {
+      method: 'POST',
+      body: formData,
+    },
+    undefined,
+    TIMEOUT_PARSE_MATRICULA_MS,
+  );
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}));
     throw new Error(extraerError(body));

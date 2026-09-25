@@ -31,7 +31,17 @@ export interface MensajeDM {
 /** Espejo de `IniciarDMRequest`. */
 export interface IniciarDM {
   usuario_id: string
-  primer_mensaje: string
+  primer_mensaje?: string
+}
+
+/** Espejo de `UsuarioDMBuscable` (GET /dm/usuarios). */
+export interface UsuarioDMBuscable {
+  id: string
+  nombre: string | null
+  alias: string | null
+  avatar_url: string | null
+  codigo_estudiante: string | null
+  email_enmascarado: string | null
 }
 
 /** Espejo de `EnviarMensajeDMRequest`. */

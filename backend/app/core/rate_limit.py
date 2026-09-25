@@ -10,9 +10,9 @@ usa como clave de conteo—. Sin token (login, register) se cae a la IP. Así un
 usuario no puede esquivar su límite cambiando de red, y varias personas tras la
 misma NAT no comparten cuota de los endpoints autenticados.
 
-Adapter in-memory: suficiente para el despliegue actual de un solo worker
-uvicorn (ver backend/Dockerfile). Si se escala a varios workers/procesos,
-migrar al adaptador de Redis sin cambiar el decorador.
+Adapter in-memory: alineado con `--workers 1` en backend/Dockerfile
+(soft-launch). Si se escala a varios workers/procesos, migrar al
+adaptador de Redis sin cambiar el decorador.
 """
 
 import base64

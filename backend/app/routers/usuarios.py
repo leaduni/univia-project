@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 
@@ -21,6 +22,11 @@ from app.schemas.usuarios import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+async def _run(fn):
+    """Offload de PostgREST/GoTrue síncrono para no bloquear el event loop."""
+    return await asyncio.to_thread(fn)
 
 # Destino del enlace de recuperación: debe apuntar al frontend, no a la API.
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
@@ -59,11 +65,19 @@ def _resolver_email(identificador: str, es_email: bool) -> str | None:
             .execute()
         )
     except Exception as e:
-        logger.error(f"[LOGIN] Error resolviendo código {valor}: {e}")
+        logger.error(f"[LOGIN] Error resolviendo código {valor[:2]}***: {e}")
         return None
 
     data = getattr(resp, "data", None) if resp else None
     return data.get("email") if data else None
+
+
+def _enmascarar_email(correo: str | None) -> str:
+    """Enmascara un correo para logs: `j***@up.edu.pe` (PII nunca en claro)."""
+    if not correo or "@" not in correo:
+        return "***"
+    local, dominio = correo.split("@", 1)
+    return f"{local[:1]}***@{dominio}"
 
 
 def _buscar_cuenta_por_email(correo: str):
@@ -72,20 +86,29 @@ def _buscar_cuenta_por_email(correo: str):
     Distingue un email no registrado de una cuenta nacida en Google SSO (sin
     contraseña), cuyo sign_in manual lanza la misma excepción genérica que una
     contraseña incorrecta.
+
+    Sin descargar la lista de usuarios: primero se resuelve el UUID en
+    `perfiles` (tabla propia, consulta indexada por email) y luego se pide
+    ESE usuario puntual a GoTrue vía `get_user_by_id`.
     """
     try:
         adm = get_admin_client()
-        pagina = 1
-        while True:
-            usuarios = adm.auth.list_users(page=pagina, per_page=200) or []
-            for u in usuarios:
-                if (u.email or "").lower() == correo.lower():
-                    return u
-            if len(usuarios) < 200:
-                break
-            pagina += 1
+        perfil_resp = (
+            adm.table("perfiles")
+            .select("id")
+            .eq("email", correo.lower())
+            .maybe_single()
+            .execute()
+        )
+        perfil = getattr(perfil_resp, "data", None) if perfil_resp else None
+        if not perfil:
+            return None
+        user_resp = adm.auth.admin.get_user_by_id(perfil["id"])
+        return getattr(user_resp, "user", None)
     except Exception as e:
-        logger.warning(f"[LOGIN] Error consultando cuenta para {correo}: {e}")
+        logger.warning(
+            "[LOGIN] Error consultando cuenta %s: %s", _enmascarar_email(correo), e
+        )
     return None
 
 
@@ -208,22 +231,31 @@ def _cargar_carrera_y_plan(token: str, carrera_id: int | None, malla_id: int | N
 @limiter.limit("10/minute")
 async def login(request: Request, data: LoginRequest):
     """Inicia sesión con correo institucional o código universitario (RF-01)."""
-    email = _resolver_email(data.identificador, data.es_email)
-    logger.error(f"[LOGIN DEBUG] Identificador recibido: {data.identificador} | es_email: {getattr(data, 'es_email', None)}")
-    logger.error(f"[LOGIN DEBUG] Email resuelto: {email}")
+    email = await _run(lambda: _resolver_email(data.identificador, data.es_email))
+    # Nivel debug y con correo enmascarado: un intento fallido de login es
+    # ruido normal de producción, no un error; y el identificador es PII.
+    logger.debug(
+        "[LOGIN] Intento con identificador %s (es_email=%s)",
+        _enmascarar_email(data.identificador),
+        getattr(data, "es_email", None),
+    )
     if not email:
         raise_field_error("identificador", CREDENCIALES_INVALIDAS, status_code=401)
 
     try:
-        auth_resp = get_supabase().auth.sign_in_with_password(
+        auth_resp = await _run(lambda: get_supabase().auth.sign_in_with_password(
             {"email": email, "password": data.password}
-        )
+        ))
     except Exception as e:
-        logger.error(f"[LOGIN DEBUG] Error Supabase Auth para {email}: {str(e)}")
+        # Credenciales inválidas caen aquí: es flujo esperado, va a debug y
+        # con el correo enmascarado (PII). El detalle de GoTrue es genérico.
+        logger.debug(
+            "[LOGIN] Auth rechazada para %s: %s", _enmascarar_email(email), e
+        )
         # Una cuenta creada solo por Google aún no tiene clave manual: el login
         # con contraseña entra aquí. Se distingue mirando el provider en
         # app_metadata del usuario de Supabase Auth.
-        cuenta = _buscar_cuenta_por_email(email)
+        cuenta = await _run(lambda: _buscar_cuenta_por_email(email))
         if cuenta and "google" in str(cuenta.app_metadata.get("provider", "")).lower():
             raise HTTPException(status_code=400, detail=MSJ_GOOGLE_SIN_CLAVE)
         raise_field_error("identificador", CREDENCIALES_INVALIDAS, status_code=401)
@@ -236,8 +268,8 @@ async def login(request: Request, data: LoginRequest):
     token = session.access_token
 
     try:
-        perfil_resp = (
-            get_supabase(token)
+        perfil_resp = await _run(
+            lambda: get_supabase(token)
             .table("perfiles")
             .select("*")
             .eq("id", user.id)
@@ -257,11 +289,13 @@ async def login(request: Request, data: LoginRequest):
             "onboarding_completado": False,
         }
 
-    carrera, plan_estudios = _cargar_carrera_y_plan(token, perfil.get("carrera_id"), perfil.get("malla_id"))
+    carrera, plan_estudios = await _run(
+        lambda: _cargar_carrera_y_plan(token, perfil.get("carrera_id"), perfil.get("malla_id"))
+    )
 
     # Deja rastro del inicio de sesión para las estadísticas de actividad
     # (RF-21). Es best-effort: si falla, el login continúa igual.
-    registrar_evento(get_supabase(token), user.id, TIPO_LOGIN, token=token)
+    await _run(lambda: registrar_evento(get_supabase(token), user.id, TIPO_LOGIN, token=token))
 
     return {
         "status": "success",
@@ -326,7 +360,7 @@ def _notificar_solicitud_invitado(data: RegistroInvitado) -> bool:
 @router.post("/auth/solicitar-invitado")
 async def solicitar_invitado(data: RegistroInvitado):
     """Notifica a los desarrolladores una solicitud de acceso invitado (sin BD)."""
-    if not _notificar_solicitud_invitado(data):
+    if not await _run(lambda: _notificar_solicitud_invitado(data)):
         raise HTTPException(
             status_code=500, detail="No se pudo enviar la notificación. Inténtalo luego."
         )
@@ -346,13 +380,13 @@ async def establecer_password(
     metadata = dict(getattr(user, "user_metadata", {}) or {})
     metadata["has_password"] = True
     try:
-        get_admin_client().auth.admin.update_user_by_id(
+        await _run(lambda: get_admin_client().auth.admin.update_user_by_id(
             user.id,
             {
                 "password": data.password_nueva,
                 "user_metadata": metadata,
             },
-        )
+        ))
     except Exception as e:
         logger.error(f"[SET-PASSWORD] Error asignando clave a {user.id}: {e}")
         raise HTTPException(status_code=400, detail="No se pudo asignar la contraseña.")
@@ -369,14 +403,14 @@ async def solicitar_recuperacion(data: SolicitudRecuperacion):
     almacena ni gestiona ese token.
     """
     try:
-        get_supabase().auth.reset_password_for_email(
+        await _run(lambda: get_supabase().auth.reset_password_for_email(
             data.email,
             options={"redirect_to": f"{FRONTEND_URL}/auth/restablecer-password"},
-        )
+        ))
     except Exception as e:
         # No se propaga el fallo: revelar que el envío falló delataría si el
         # correo existe. Queda en el log para poder diagnosticarlo.
-        logger.error(f"[RECUPERACION] Error enviando correo a {data.email}: {e}")
+        logger.error(f"[RECUPERACION] Error enviando correo a {_enmascarar_email(data.email)}: {e}")
 
     # Respuesta idéntica exista o no la cuenta, para no permitir enumeración.
     return {
@@ -402,9 +436,9 @@ async def restablecer_password(
     user, _token = user_data
 
     try:
-        get_admin_client().auth.admin.update_user_by_id(
+        await _run(lambda: get_admin_client().auth.admin.update_user_by_id(
             user.id, {"password": data.password_nueva}
-        )
+        ))
     except Exception as e:
         logger.error(f"[RECUPERACION] Error actualizando contraseña de {user.id}: {e}")
         raise HTTPException(
@@ -425,8 +459,8 @@ async def get_profile(user_data = Depends(get_current_user)):
     supabase = get_supabase(token)
 
     try:
-        profile_response = (
-            supabase.table("perfiles")
+        profile_response = await _run(
+            lambda: supabase.table("perfiles")
             .select("*")
             .eq("id", user.id)
             .maybe_single()
@@ -444,7 +478,7 @@ async def get_profile(user_data = Depends(get_current_user)):
     metadata = getattr(user, "user_metadata", {}) or {}
     has_password = bool(metadata.get("has_password") is True)
     if not has_password:
-        has_password = _usuario_tiene_password(user.id)
+        has_password = await _run(lambda: _usuario_tiene_password(user.id))
 
     user_avatar = (metadata.get("avatar_url") or metadata.get("picture")) if isinstance(metadata, dict) else None
 
@@ -483,8 +517,8 @@ async def actualizar_datos_personales(
     supabase = get_supabase(token)
 
     try:
-        resp = (
-            supabase.table("perfiles")
+        resp = await _run(
+            lambda: supabase.table("perfiles")
             .update({"nombre_completo": data.nombre_completo, "updated_at": "now()"})
             .eq("id", user.id)
             .execute()
@@ -524,8 +558,8 @@ async def cambiar_malla(
     supabase = get_supabase(token)
 
     try:
-        perfil_resp = (
-            supabase.table("perfiles")
+        perfil_resp = await _run(
+            lambda: supabase.table("perfiles")
             .select("carrera_id")
             .eq("id", user.id)
             .maybe_single()
@@ -545,8 +579,8 @@ async def cambiar_malla(
 
     # La malla objetivo debe existir y pertenecer a la carrera del estudiante.
     try:
-        m_resp = (
-            supabase.table("mallas")
+        m_resp = await _run(
+            lambda: supabase.table("mallas")
             .select("id")
             .eq("id", data.malla_id)
             .eq("carrera_id", perfil["carrera_id"])
@@ -565,8 +599,8 @@ async def cambiar_malla(
         )
 
     try:
-        resp = (
-            supabase.table("perfiles")
+        resp = await _run(
+            lambda: supabase.table("perfiles")
             .update({"malla_id": data.malla_id, "updated_at": "now()"})
             .eq("id", user.id)
             .execute()
@@ -620,10 +654,10 @@ async def cambiar_password(
     # la sesión activa la reemplazaría.
     try:
         verificador = get_supabase()
-        verificacion = verificador.auth.sign_in_with_password({
+        verificacion = await _run(lambda: verificador.auth.sign_in_with_password({
             "email": user.email,
             "password": data.password_actual,
-        })
+        }))
         credenciales_ok = bool(getattr(verificacion, "session", None))
     except Exception:
         credenciales_ok = False
@@ -637,17 +671,17 @@ async def cambiar_password(
     metadata["has_password"] = True
 
     try:
-        get_admin_client().auth.admin.update_user_by_id(
+        await _run(lambda: get_admin_client().auth.admin.update_user_by_id(
             user.id,
             {
                 "password": data.password_nueva,
                 "user_metadata": metadata,
             },
-        )
-        nueva_sesion = get_supabase().auth.sign_in_with_password({
+        ))
+        nueva_sesion = await _run(lambda: get_supabase().auth.sign_in_with_password({
             "email": user.email,
             "password": data.password_nueva,
-        })
+        }))
     except Exception as e:
         logger.error(f"[PERFIL] Error cambiando contraseña de {user.id}: {e}")
         raise HTTPException(
@@ -674,7 +708,7 @@ async def register(
 
     # Verificar duplicado de email (excluyendo al propio usuario)
     try:
-        email_check = supabase.table("perfiles").select("id").eq("email", data.email).neq("id", user.id).maybe_single().execute()
+        email_check = await _run(lambda: supabase.table("perfiles").select("id").eq("email", data.email).neq("id", user.id).maybe_single().execute())
     except Exception:
         email_check = None
 
@@ -683,7 +717,7 @@ async def register(
 
     # Verificar duplicado de codigo_estudiante (excluyendo al propio usuario)
     try:
-        codigo_check = supabase.table("perfiles").select("id").eq("codigo_estudiante", data.codigo_estudiante).neq("id", user.id).maybe_single().execute()
+        codigo_check = await _run(lambda: supabase.table("perfiles").select("id").eq("codigo_estudiante", data.codigo_estudiante).neq("id", user.id).maybe_single().execute())
     except Exception:
         codigo_check = None
 
@@ -706,10 +740,10 @@ async def register(
     logger.debug("[REGISTER] Upsert payload: %s", payload)
 
     try:
-        response = supabase.table("perfiles").upsert(
+        response = await _run(lambda: supabase.table("perfiles").upsert(
             payload,
             on_conflict="id",
-        ).execute()
+        ).execute())
         logger.debug("[REGISTER] Upsert response: %s", response.data)
 
         if not response.data:
@@ -730,7 +764,11 @@ async def register(
     # Verificar que codigo_estudiante se haya guardado correctamente
     saved = response.data[0] if isinstance(response.data, list) else response.data
     if saved.get("codigo_estudiante") != data.codigo_estudiante:
-        logger.warning("[REGISTER] codigo_estudiante mismatch. Saved: %s, Expected: %s", saved.get('codigo_estudiante'), data.codigo_estudiante)
+        logger.warning(
+            "[REGISTER] codigo_estudiante mismatch. Saved: %s, Expected: %s",
+            (saved.get('codigo_estudiante') or "")[:2] + "***",
+            data.codigo_estudiante[:2] + "***",
+        )
 
     return {"status": "success", "message": "Registro completado exitosamente"}
 
@@ -745,7 +783,7 @@ async def register_user(data: RegistroCompleto):
 
     # Verificar duplicado de email
     try:
-        email_check = admin.table("perfiles").select("id").eq("email", data.email).maybe_single().execute()
+        email_check = await _run(lambda: admin.table("perfiles").select("id").eq("email", data.email).maybe_single().execute())
     except Exception:
         email_check = None
     if email_check and getattr(email_check, 'data', None):
@@ -753,7 +791,7 @@ async def register_user(data: RegistroCompleto):
 
     # Verificar duplicado de codigo_estudiante
     try:
-        codigo_check = admin.table("perfiles").select("id").eq("codigo_estudiante", data.codigo_estudiante).maybe_single().execute()
+        codigo_check = await _run(lambda: admin.table("perfiles").select("id").eq("codigo_estudiante", data.codigo_estudiante).maybe_single().execute())
     except Exception:
         codigo_check = None
     if codigo_check and getattr(codigo_check, 'data', None):
@@ -761,7 +799,7 @@ async def register_user(data: RegistroCompleto):
 
     # Crear usuario en Supabase Auth (admin)
     try:
-        user_resp = admin.auth.admin.create_user({
+        user_resp = await _run(lambda: admin.auth.admin.create_user({
             "email": data.email,
             "password": data.password,
             "email_confirm": True,
@@ -769,7 +807,7 @@ async def register_user(data: RegistroCompleto):
                 "nombre_completo": data.nombre_completo,
                 "codigo_estudiante": data.codigo_estudiante,
             }
-        })
+        }))
     except Exception as e:
         logger.error("[REGISTER-USER] Error creating auth user: %s", e)
         # El chequeo de duplicados de arriba solo mira `perfiles`, así que un
@@ -784,7 +822,7 @@ async def register_user(data: RegistroCompleto):
 
     # Crear perfil en perfiles
     try:
-        admin.table("perfiles").upsert({
+        await _run(lambda: admin.table("perfiles").upsert({
             "id": user_id,
             "email": data.email,
             "codigo_estudiante": data.codigo_estudiante,
@@ -792,7 +830,7 @@ async def register_user(data: RegistroCompleto):
             "onboarding_completado": False,
             "malla_id": None,  # NULL: se asigna en /onboarding/complete.
             "updated_at": "now()",
-        }, on_conflict="id").execute()
+        }, on_conflict="id").execute())
         logger.info("[REGISTER-USER] Profile created for user: %s", user_id)
     except Exception as e:
         logger.error("[REGISTER-USER] Error creating profile: %s", e)
@@ -801,7 +839,7 @@ async def register_user(data: RegistroCompleto):
         # duplicados. Se deshace la creación para que el estudiante pueda
         # volver a registrarse con los mismos datos.
         try:
-            admin.auth.admin.delete_user(user_id)
+            await _run(lambda: admin.auth.admin.delete_user(user_id))
             logger.info("[REGISTER-USER] Rolled back auth user: %s", user_id)
         except Exception as rollback_error:
             logger.warning("[REGISTER-USER] Rollback failed for %s: %s", user_id, rollback_error)

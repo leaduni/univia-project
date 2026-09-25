@@ -14,11 +14,9 @@ Estados de una donación:
     expirada   → nunca se reportó.
 
 IMPORTANTE — sobre qué se considera recaudado:
-    `ESTADOS_QUE_SUMAN` decide qué entra en el total público y en el ranking.
-    Hoy incluye 'reportada', es decir, montos AUTODECLARADOS que nadie verificó.
-    Cuando exista el flujo de confirmación, basta con dejar solo 'confirmada'
-    para que el total pase a reflejar dinero verificado. Es el único punto que
-    hay que tocar.
+    Solo 'confirmada'. Un admin revisa el historial de Yape contra las donaciones
+    'reportada' en el panel /dashboard/admin/donaciones y las confirma o rechaza
+    (router admin_donaciones.py). El total público refleja dinero verificado.
 """
 
 import asyncio
@@ -33,12 +31,16 @@ from pydantic import BaseModel, field_validator
 
 from app.core.auth_utils import get_current_user
 from app.core.database import get_admin_client, get_supabase
+from app.core.notificaciones_dev import despachar_notificacion_dev
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/donaciones", tags=["donaciones"])
 
 # Qué estados cuentan como dinero recaudado. Ver nota del docstring.
-ESTADOS_QUE_SUMAN = ("reportada", "confirmada")
+# SOLO 'confirmada': un aporte autodeclarado ('reportada') no es dinero
+# recibido. Lo confirma un admin contra el historial real de Yape desde
+# /admin/donaciones/{id}/confirmar (ver app/routers/admin_donaciones.py).
+ESTADOS_QUE_SUMAN = ("confirmada",)
 
 MINUTOS_RESERVA = 30
 MONTO_MINIMO = Decimal("0.10")
@@ -104,7 +106,7 @@ class NuevaIntencion(BaseModel):
     def validar_nombre(cls, v: Optional[str]) -> Optional[str]:
         if not v:
             return None
-        texto = " ".join(v.split())
+        texto = _sanear_texto(v)
         return texto[:MAX_CARACTERES_NOMBRE] or None
 
     @field_validator("mensaje_muro")
@@ -112,13 +114,25 @@ class NuevaIntencion(BaseModel):
     def validar_mensaje(cls, v: Optional[str]) -> Optional[str]:
         if not v:
             return None
-        texto = " ".join(v.split())
+        texto = _sanear_texto(v)
         return texto[:MAX_CARACTERES_MENSAJE] or None
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _sanear_texto(valor: str) -> str:
+    """Texto plano seguro para persistir y re-renderizar.
+
+    React escapa el HTML al pintar, así que el XSS ya está mitigado en el
+    front; esto es defensa en profundidad: colapsa espacios y elimina
+    caracteres de control (incluidos invisibles como U+200B) que ensucian
+    el muro o rompen la búsqueda.
+    """
+    sin_control = "".join(c for c in valor if c.isprintable() or c == " ")
+    return " ".join(sin_control.split())
+
 
 def _run(fn):
     """Ejecuta una llamada bloqueante de Supabase en un hilo aparte.
@@ -165,10 +179,24 @@ async def _expirar_reservas_vencidas(admin) -> None:
         logger.warning("[DONACIONES] No se pudieron expirar reservas vencidas: %s", e)
 
 
+def _es_violacion_unica(error: Exception) -> bool:
+    """True si el insert chocó con el índice único parcial del centavo.
+
+    supabase-py envuelve el error de Postgres (código 23505) en el mensaje,
+    así que se detecta por el texto del código o del detalle de la restricción.
+    """
+    mensaje = str(error)
+    return "23505" in mensaje or "idx_donaciones_monto_activo" in mensaje or "duplicate key" in mensaje.lower()
+
+
 async def _centavos_ocupados(admin, monto_base: Decimal) -> set:
-    """Centavos ya reservados para este monto base por donaciones activas."""
-    inferior = float(monto_base)
-    superior = float(monto_base + Decimal("1"))
+    """Centavos ya reservados para este monto base por donaciones activas.
+
+    Los filtros van como string decimal exacto: convertir a float aquí
+    podría correr el límite del rango por error de representación binaria.
+    """
+    inferior = str(monto_base)
+    superior = str(monto_base + Decimal("1"))
     resp = await _run(
         lambda: admin.table("donaciones")
         .select("centavo")
@@ -201,42 +229,67 @@ async def crear_intencion(
 
     await _expirar_reservas_vencidas(admin)
 
-    ocupados = await _centavos_ocupados(admin, data.monto)
-    libres = [c for c in range(1, 100) if c not in ocupados]
-    if not libres:
-        raise HTTPException(
-            status_code=409,
-            detail="Hay demasiadas donaciones de este monto en curso. Prueba con otro monto o espera unos minutos.",
-        )
-
-    # Al azar y no el primero libre: con montos populares (S/10) el .01 se
-    # reasignaría una y otra vez, y dos personas que yapean casi a la vez
-    # tendrían más chance de confundirse al leer el historial.
-    centavo = random.choice(libres)
-    monto_exacto = (data.monto + Decimal(centavo) / Decimal(100)).quantize(Decimal("0.01"))
+    # Reserva con reintentos: leer los centavos ocupados y luego insertar es un
+    # read-then-write, así que dos requests simultáneas pueden apuntar al mismo
+    # centavo. El índice único parcial (estado='iniciada') rechaza el choque;
+    # en vez de responder 500, se reintenta con otro centavo libre.
+    MAX_INTENTOS = 3
+    creada = None
+    centavo = None
+    monto_exacto = None
     expira_en = datetime.now(timezone.utc) + timedelta(minutes=MINUTOS_RESERVA)
 
-    fila = {
-        "perfil_id": str(user.id),
-        "monto_base": float(data.monto),
-        "centavo": centavo,
-        "monto_exacto": float(monto_exacto),
-        "tipo_donante": data.tipo_donante,
-        "facultad": data.facultad,
-        "nombre_mostrar": None if data.es_anonimo else data.nombre_mostrar,
-        "es_anonimo": data.es_anonimo,
-        "mensaje_muro": data.mensaje_muro,
-        "estado": "iniciada",
-        "expira_en": expira_en.isoformat(),
-    }
+    for intento in range(MAX_INTENTOS):
+        ocupados = await _centavos_ocupados(admin, data.monto)
+        libres = [c for c in range(1, 100) if c not in ocupados]
+        if not libres:
+            raise HTTPException(
+                status_code=409,
+                detail="Hay demasiadas donaciones de este monto en curso. Prueba con otro monto o espera unos minutos.",
+            )
 
-    try:
-        resp = await _run(lambda: admin.table("donaciones").insert(fila).execute())
-    except Exception as e:  # noqa: BLE001
-        logger.error("[DONACIONES] Error creando intención de %s: %s", user.id, e)
-        raise HTTPException(status_code=500, detail="No se pudo iniciar tu donación.")
+        # Al azar y no el primero libre: con montos populares (S/10) el .01 se
+        # reasignaría una y otra vez, y dos personas que yapean casi a la vez
+        # tendrían más chance de confundirse al leer el historial.
+        centavo = random.choice(libres)
+        monto_exacto = (data.monto + Decimal(centavo) / Decimal(100)).quantize(Decimal("0.01"))
 
-    creada = (getattr(resp, "data", None) or [None])[0]
+        fila = {
+            "perfil_id": str(user.id),
+            # String decimal, no float: el float binario no representa de forma
+            # exacta montos como 10.10, y PostgREST guardaría la desviación.
+            "monto_base": str(data.monto),
+            "centavo": centavo,
+            "monto_exacto": str(monto_exacto),
+            "tipo_donante": data.tipo_donante,
+            "facultad": data.facultad,
+            "nombre_mostrar": None if data.es_anonimo else data.nombre_mostrar,
+            "es_anonimo": data.es_anonimo,
+            "mensaje_muro": data.mensaje_muro,
+            "estado": "iniciada",
+            "expira_en": expira_en.isoformat(),
+        }
+
+        try:
+            resp = await _run(lambda: admin.table("donaciones").insert(fila).execute())
+            creada = (getattr(resp, "data", None) or [None])[0]
+            # El insert no lanzó error: nunca se reintenta (reintentar aquí
+            # duplicaría la donación si la fila sí se creó sin representación).
+            break
+        except Exception as e:  # noqa: BLE001
+            if _es_violacion_unica(e) and intento < MAX_INTENTOS - 1:
+                # Otro request ganó este centavo en la carrera: reintentar.
+                continue
+            logger.error("[DONACIONES] Error creando intención de %s: %s", user.id, e)
+            raise HTTPException(
+                status_code=409 if _es_violacion_unica(e) else 500,
+                detail=(
+                    "Hay demasiadas donaciones de este monto en curso. Prueba con otro monto o espera unos minutos."
+                    if _es_violacion_unica(e)
+                    else "No se pudo iniciar tu donación."
+                ),
+            )
+
     if not creada:
         raise HTTPException(status_code=500, detail="No se pudo iniciar tu donación.")
 
@@ -288,7 +341,26 @@ async def reportar_envio(
             detail="Esa donación ya no está activa. Vuelve a generar el monto.",
         )
 
-    return actualizada[0]
+    fila = actualizada[0]
+
+    # Alerta al equipo: hay un abono autodeclarado esperando verificación
+    # manual contra el Yape. Fire-and-forget: si el correo falla, la donación
+    # igual quedó reportada (el panel admin la lista igualmente).
+    asyncio.create_task(
+        despachar_notificacion_dev(
+            "Nueva donación reportada",
+            "Nueva donación reportada por "
+            f"{_nombre_publico(fila)}. Monto: S/{fila.get('monto_exacto')}. "
+            "Verifica tu Yape y apruébala en el panel: /dashboard/admin/donaciones",
+            campos=[
+                {"name": "Donante", "value": _nombre_publico(fila), "inline": True},
+                {"name": "Monto exacto", "value": f"S/{fila.get('monto_exacto')}", "inline": True},
+                {"name": "ID", "value": str(fila.get("id")), "inline": True},
+            ],
+        )
+    )
+
+    return fila
 
 
 @router.get("/resumen")

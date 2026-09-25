@@ -13,12 +13,14 @@ import {
 } from "@/components/ui/select"
 import { useAuth } from "@/components/providers/auth-context"
 import { crearIntencion, reportarEnvio, type IntencionDonacion } from "@/lib/donaciones-service"
-import { FACULTADES, MONTO_MINIMO, PRESETS, RANGO_TEXTO, formatearSoles, type TipoDonante } from "./constantes"
+import { FACULTADES, MONTO_MAXIMO, MONTO_MINIMO, PRESETS, RANGO_TEXTO, formatearSoles, type TipoDonante } from "./constantes"
 import { YapeModal } from "./yape-modal"
 
 interface DonarFormProps {
   onDonacionRegistrada: () => void
 }
+
+const REGEX_MONTO = /^\d{1,4}([.,]\d{1,2})?$/
 
 const CLASE_CAMPO =
   "w-full rounded-xl border border-white/[0.08] bg-white/[0.02] px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors focus:border-[#7957f1]/60 focus:outline-none"
@@ -46,15 +48,27 @@ export function DonarForm({ onDonacionRegistrada }: DonarFormProps) {
     if (user?.nombre_completo && !nombre) setNombre(user.nombre_completo)
   }, [user?.nombre_completo])
 
+  // Solo dígitos con hasta 2 decimales: rechaza "e", "-", "+", "20abc", "5.5.5"
+  // que parseFloat toleraría silenciosamente y desincronizaría lo que el usuario
+  // ve de lo que se envía al backend.
+
   const monto = useMemo(() => {
-    if (otroMonto.trim()) {
-      const valor = Number.parseFloat(otroMonto.replace(",", "."))
+    const texto = otroMonto.trim()
+    if (texto) {
+      if (!REGEX_MONTO.test(texto)) return null
+      const valor = Number(texto.replace(",", "."))
       return Number.isFinite(valor) ? valor : null
     }
     return preset
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [otroMonto, preset])
 
-  const montoValido = monto !== null && monto >= MONTO_MINIMO
+  const montoValido = monto !== null && monto >= MONTO_MINIMO && monto <= MONTO_MAXIMO
+
+  /** Rechaza de raíz los caracteres aceptaría un <input type="number">: e, E, +, -. */
+  const bloquearTeclaInvalida = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (["e", "E", "+", "-"].includes(e.key)) e.preventDefault()
+  }
 
   const continuar = async () => {
     if (!montoValido || monto === null) return
@@ -173,9 +187,16 @@ export function DonarForm({ onDonacionRegistrada }: DonarFormProps) {
             type="number"
             inputMode="decimal"
             min={MONTO_MINIMO}
+            max={MONTO_MAXIMO}
             step="0.10"
             value={otroMonto}
-            onChange={(e) => setOtroMonto(e.target.value)}
+            onKeyDown={bloquearTeclaInvalida}
+            onChange={(e) => {
+              const texto = e.target.value
+              // Ignora entrada con más de 2 decimales o números absurdamente largos.
+              if (texto === "" || /^\d{0,4}([.,]\d{0,2})?$/.test(texto)) setOtroMonto(texto)
+            }}
+            aria-invalid={!!otroMonto.trim() && monto === null}
             placeholder="Otro"
             aria-label="Otro monto"
             className="w-24 rounded-2xl border border-dashed border-white/20 bg-transparent px-4 py-3 text-center font-heading text-lg font-bold tabular-nums text-foreground placeholder:font-sans placeholder:text-sm placeholder:font-normal placeholder:text-muted-foreground/60 focus:border-[#7957f1]/60 focus:outline-none"

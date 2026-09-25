@@ -40,11 +40,15 @@ export function PerfilXpCard() {
   if (error) return null
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-card/80 backdrop-blur-md">
-      {/* Franja superior con glow */}
-      <div className="h-14 bg-gradient-to-r from-[#7957f1]/40 via-[#a6249d]/30 to-transparent" />
-      <div className="-mt-7 px-4 pb-4">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-slate-950 text-xl font-bold text-[#a78bfa] shadow-lg">
+    <div className="group relative overflow-hidden rounded-[20px]">
+      {/* gradient header */}
+      <div className="relative h-20 overflow-hidden bg-gradient-to-br from-violet-600/30 via-fuchsia-600/20 to-transparent">
+        <div className="absolute -right-10 -top-20 h-40 w-40 rounded-full bg-fuchsia-400/20 blur-[60px]" />
+        <div className="absolute left-8 top-4 h-20 w-20 rounded-full bg-violet-400/15 blur-[40px]" />
+      </div>
+
+      <div className="relative px-4 pb-4">
+        <div className="-mt-7 mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border-4 border-[#0c0c16] bg-violet-500/[0.14] text-xl font-semibold text-violet-300 shadow-xl">
           {resumen ? (
             (resumen.alias_publico || "U").slice(0, 1).toUpperCase()
           ) : (
@@ -53,29 +57,29 @@ export function PerfilXpCard() {
         </div>
 
         {resumen ? (
-          <div className="mt-2.5 anim-up">
-            <p className="truncate font-poppins font-semibold text-foreground">
+          <div className="anim-up">
+            <p className="truncate text-sm font-semibold text-white/90">
               {resumen.alias_publico || "Estudiante"}
             </p>
-            <p className="flex items-center gap-1 text-xs text-[#a78bfa]">
+            <p className="mt-0.5 flex items-center gap-1 text-[11px] text-violet-300/70">
               <Star className="h-3 w-3" />
               {rangoAcademico(resumen.nivel)} · Nivel {resumen.nivel}
             </p>
 
             {/* XP + barra de progreso */}
-            <div className="mt-3">
-              <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
-                <span className="flex items-center gap-1 tabular-nums">
-                  <Sparkles className="h-3 w-3 text-amber-300" />
+            <div className="mt-5">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1 text-[10px] tabular-nums text-amber-300/70">
+                  <Sparkles className="h-3 w-3" />
                   {resumen.xp_total} XP
                 </span>
-                <span className="tabular-nums">
+                <span className="text-[10px] tabular-nums text-white/25">
                   {resumen.progreso_siguiente.xp_actual_nivel}/
                   {resumen.progreso_siguiente.xp_requerido}
                 </span>
               </div>
               <div
-                className="h-1.5 overflow-hidden rounded-full bg-white/10"
+                className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.07]"
                 role="progressbar"
                 aria-valuemin={0}
                 aria-valuemax={100}
@@ -83,7 +87,7 @@ export function PerfilXpCard() {
                 aria-label="Progreso al siguiente nivel"
               >
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#7957f1] to-[#a6249d] transition-all duration-700"
+                  className="h-full rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-400 transition-all duration-700"
                   style={{
                     width: `${Math.min(100, Math.max(0, resumen.progreso_siguiente.porcentaje))}%`,
                   }}
@@ -91,16 +95,16 @@ export function PerfilXpCard() {
               </div>
             </div>
 
-            <p className="mt-2.5 flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Flame className="h-3 w-3 text-orange-400" />
+            <p className="mt-4 flex items-center gap-2 border-t border-white/[0.06] pt-3 text-[10px] text-white/40">
+              <Flame className="h-3.5 w-3.5 text-amber-400" />
               Racha actual:{" "}
-              <span className="font-medium text-foreground/90 tabular-nums">
+              <span className="font-medium tabular-nums text-white/75">
                 {resumen.racha_actual} {resumen.racha_actual === 1 ? "día" : "días"}
               </span>
             </p>
           </div>
         ) : (
-          <div className="mt-2.5 space-y-2">
+          <div className="mt-2.5 space-y-2 pb-1">
             <div className="h-4 w-24 animate-pulse rounded bg-white/10" />
             <div className="h-3 w-32 animate-pulse rounded bg-white/5" />
             <div className="mt-3 h-1.5 animate-pulse rounded-full bg-white/10" />

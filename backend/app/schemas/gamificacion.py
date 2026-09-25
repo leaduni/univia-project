@@ -174,6 +174,10 @@ class ResultadoReferido(BaseModel):
 # ---------------------------------------------------------------------------
 
 class EntradaRanking(BaseModel):
+    # UUID estable para iniciar chats/ver perfil desde el ranking. La RPC
+    # fase10_ranking ya lo devuelve; aquí se expone al cliente de forma segura
+    # (el mismo UUID que viaja en `autor_perfil_id` del foro).
+    perfil_id: str
     alias_publico: str
     avatar_url: Optional[str] = None
     xp_total: int = 0

@@ -359,6 +359,7 @@ async def get_ranking(
 
     items = [
         EntradaRanking(
+            perfil_id=str(fila["perfil_id"]),
             alias_publico=fila["alias_publico"],
             avatar_url=fila.get("avatar_url"),
             xp_total=int(fila.get("xp_total") or 0),

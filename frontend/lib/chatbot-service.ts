@@ -165,15 +165,26 @@ export interface ResultadoValidacionClave {
  * nunca en el body ni en la URL, y nunca se persiste.
  */
 export async function validateKey(token: string, key: string): Promise<ResultadoValidacionClave> {
-  const response = await fetch(`${API_URL}/chatbot/validate-key`, {
-    method: "POST",
-    headers: {
-      Authorization: token ? `Bearer ${token}` : "",
-      "X-User-LLM-Key": key,
-    },
-  })
+  let response: Response
+  try {
+    response = await fetch(`${API_URL}/chatbot/validate-key`, {
+      method: "POST",
+      headers: {
+        Authorization: token ? `Bearer ${token}` : "",
+        "X-User-LLM-Key": key,
+      },
+    })
+  } catch {
+    return { valid: false, error: "No se pudo conectar con el servidor. Revisa tu conexión." }
+  }
   if (!response.ok) {
-    return { valid: false, error: "No se pudo validar la clave. Intenta de nuevo." }
+    // El backend responde 200 con {valid: false} para claves inválidas; un
+    // status no-OK (401, 429 del rate limit, 5xx) es un fallo del endpoint
+    // que conviene detallar con su mensaje en lugar de ocultarlo.
+    const body = await response.json().catch(() => null)
+    const msj = body?.errors?.[0]?.message || body?.detail
+    const mensaje = typeof msj === "string" ? msj : "No se pudo validar la clave en este momento. Intenta de nuevo."
+    return { valid: false, error: mensaje }
   }
   return (await response.json()) as ResultadoValidacionClave
 }

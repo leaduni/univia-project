@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react"
 import { ArrowBigDown, ArrowBigUp, Bookmark, CalendarDays, CheckCircle2, Eye, Loader2, MessageSquare, Send } from "lucide-react"
 import { foroService } from "@/lib/foro-service"
 import type { Comentario, Publicacion } from "@/types/foro"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import MarkdownRenderer from "@/components/ui/markdown-renderer"
 import { cn } from "@/lib/utils"
@@ -22,8 +21,8 @@ interface HiloPublicacionProps {
 }
 
 export function HiloPublicacion({ publicacionId, publicacionInicial }: HiloPublicacionProps) {
-  const { user } = useAuth()
-  const usuarioActual = user?.id || user?.estudiante?.id || (user as any)?.perfil_id
+  const { user, supabaseUser } = useAuth()
+  const usuarioActual = supabaseUser?.id
   const [publicacion, setPublicacion] = useState<Publicacion | null>(publicacionInicial ?? null)
   const [comentarios, setComentarios] = useState<Comentario[]>([])
   const [cargando, setCargando] = useState(!publicacionInicial)
@@ -245,55 +244,91 @@ export function HiloPublicacion({ publicacionId, publicacionInicial }: HiloPubli
   }
 
   return (
-    <div className="space-y-6">
+    <main className="relative min-h-screen overflow-hidden bg-[#090a12] text-white">
+      {/* Atmósfera / orbes de luz */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -left-40 top-32 h-[420px] w-[420px] rounded-full bg-fuchsia-500/[0.045] blur-[120px]" />
+        <div className="absolute -right-40 top-[38%] h-[500px] w-[500px] rounded-full bg-violet-500/[0.04] blur-[120px]" />
+        <div className="absolute left-1/2 top-[-180px] h-[350px] w-[350px] -translate-x-1/2 rounded-full bg-cyan-500/[0.025] blur-[120px]" />
+      </div>
+
+      {/* Grid ambiental muy sutil */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-[0.025]"
+        style={{
+          backgroundImage: `
+            linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)
+          `,
+          backgroundSize: "64px 64px",
+        }}
+      />
+
+      <div className="relative z-10 mx-auto w-full max-w-5xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
       {/* Cuerpo de la publicación */}
-      <article className="rounded-2xl border border-white/10 bg-card/80 backdrop-blur-md p-6">
+      <article className="group relative overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.025] shadow-2xl shadow-black/30 backdrop-blur-xl transition-all duration-300 hover:border-white/[0.12]">
+        {/* Glow interno superior */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-fuchsia-400/40 to-transparent opacity-60"
+        />
+        <div className="p-6 sm:p-8">
         <div className="flex items-start justify-between gap-3">
-          <h1 className="font-poppins font-semibold text-xl text-foreground">{publicacion.titulo}</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.025em] text-white sm:text-3xl">{publicacion.titulo}</h1>
           {publicacion.estado === "resuelta" && (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-400">
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
               <CheckCircle2 className="h-3.5 w-3.5" />
               Resuelta
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 mt-2 text-[11px] text-muted-foreground">
-          <span>{publicacion.autor_nombre || "Estudiante"}</span>
+        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2 text-xs text-slate-400">
+          <span className="font-medium text-slate-300">{publicacion.autor_nombre || "Estudiante"}</span>
           <BadgeModerador perfilId={publicacion.autor_perfil_id} />
-          <span className="flex items-center gap-1">
-            <CalendarDays className="w-3 h-3" />
+          <span className="text-white/20">•</span>
+          <span className="inline-flex items-center gap-1.5">
+            <CalendarDays className="h-3.5 w-3.5 text-slate-500" />
             {formatearFecha(publicacion.created_at)}
           </span>
-          <BotonDM autorPerfilId={publicacion.autor_perfil_id} />
+          <BotonDM
+              autorPerfilId={publicacion.autor_perfil_id}
+              autorNombre={publicacion.autor_nombre}
+            />
         </div>
 
         {publicacion.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-3">
+          <div className="mt-4 flex flex-wrap gap-1.5">
             {publicacion.tags.map((tag) => (
-              <Badge key={tag} variant="outline" className="text-[10px] font-normal bg-secondary/60 text-muted-foreground border-border/60">
+              <span
+                key={tag}
+                className="inline-flex items-center rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-2.5 py-1 text-[11px] font-medium text-fuchsia-300"
+              >
                 #{tag}
-              </Badge>
+              </span>
             ))}
           </div>
         )}
 
         {/* Cuerpo con Markdown (bloques de código con sintaxis incluidos) */}
-        <div className="mt-4 text-sm leading-relaxed">
+        <div className="mt-4 max-w-3xl pt-2 text-[15px] leading-7 text-slate-200/90">
           <MarkdownRenderer content={publicacion.cuerpo} />
         </div>
 
         {/* Votos, vistas y guardado de la publicación */}
-        <div className="flex items-center gap-1 mt-4 pt-4 border-t border-white/10">
-          <VotoBotones
-            numVotos={publicacion.num_votos}
-            miVoto={publicacion.mi_voto}
-            deshabilitado={votandoPub}
-            onVotar={votarPublicacion}
-          />
-          <span className="ml-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Eye className="h-4 w-4" />
-            <span className="tabular-nums">{publicacion.num_vistas}</span>
-          </span>
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-white/[0.07] pt-4">
+          <div className="flex items-center gap-1">
+            <VotoBotones
+              numVotos={publicacion.num_votos}
+              miVoto={publicacion.mi_voto}
+              deshabilitado={votandoPub}
+              onVotar={votarPublicacion}
+            />
+            <span className="ml-1 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-500">
+              <Eye className="h-4 w-4" />
+              <span className="tabular-nums">{publicacion.num_vistas}</span>
+            </span>
+          </div>
           <button
             type="button"
             aria-label={publicacion.guardado ? "Quitar de guardados" : "Guardar hilo"}
@@ -309,11 +344,16 @@ export function HiloPublicacion({ publicacionId, publicacionInicial }: HiloPubli
               )
             }}
             className={cn(
-              "ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors hover:bg-white/5",
-              publicacion.guardado ? "text-[#7957f1]" : "text-muted-foreground",
+              "group/save inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition-all duration-200 hover:bg-white/[0.05]",
+              publicacion.guardado ? "text-violet-300" : "text-slate-400 hover:text-white",
             )}
           >
-            <Bookmark className={cn("h-4 w-4", publicacion.guardado && "fill-[#7957f1]")} />
+            <Bookmark
+              className={cn(
+                "h-4 w-4 transition-transform duration-200 group-hover/save:-translate-y-0.5",
+                publicacion.guardado && "fill-violet-400",
+              )}
+            />
             {publicacion.guardado ? "Guardado" : "Guardar"}
           </button>
         </div>
@@ -333,41 +373,65 @@ export function HiloPublicacion({ publicacionId, publicacionInicial }: HiloPubli
             />
           </div>
         )}
+        </div>
       </article>
 
-      {/* Formulario de comentario */}
-      <form onSubmit={enviarComentario} className="rounded-2xl border border-white/10 bg-card/80 backdrop-blur-md p-4">
+      {/* Caja de respuesta */}
+      <form
+        onSubmit={enviarComentario}
+        className="relative mt-6 overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.018] p-4 shadow-xl shadow-black/20 backdrop-blur-xl sm:p-5"
+      >
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-24 -top-24 h-48 w-48 rounded-full bg-violet-500/[0.06] blur-[80px]"
+        />
+        <div className="relative">
         {envError && (
-          <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2 mb-2">
+          <p className="mb-2 rounded-lg border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs text-red-300">
             {envError}
           </p>
         )}
         <textarea
           value={nuevoComentario}
           onChange={(e) => setNuevoComentario(e.target.value)}
-          placeholder="Aporta tu respuesta a la comunidad…"
+          placeholder="Aporta tu respuesta a la comunidad..."
           rows={3}
           maxLength={20000}
           aria-label="Nuevo comentario"
-          className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y"
+          className="w-full resize-none rounded-2xl border border-white/[0.08] bg-black/20 px-4 py-3.5 text-sm leading-6 text-white outline-none transition-all duration-200 placeholder:text-slate-500 hover:border-white/[0.12] focus:border-violet-500/50 focus:bg-black/25 focus:ring-4 focus:ring-violet-500/10"
         />
-        <div className="flex justify-end mt-2">
-          <Button type="submit" disabled={!nuevoComentario.trim() || enviando} className="gap-1.5">
-            {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+        <div className="mt-3 flex justify-end">
+          <button
+            type="submit"
+            disabled={!nuevoComentario.trim() || enviando}
+            className="group inline-flex items-center gap-2 rounded-xl border border-white/[0.12] bg-gradient-to-r from-violet-600 via-fuchsia-600 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-900/30 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-fuchsia-900/30 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {enviando ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4 transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+            )}
             Comentar
-          </Button>
+          </button>
+        </div>
         </div>
       </form>
 
       {/* Lista de comentarios (árbol anidado, máx. 3 niveles) */}
-      <section>
-        <h2 className="font-poppins font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-3">
-          Comentarios ({comentarios.length})
-        </h2>
+      <section className="mt-9">
+        <div className="mb-4 flex items-center gap-3">
+          <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+            Comentarios
+          </span>
+          <span className="inline-flex min-w-6 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 text-[11px] font-medium text-slate-300">
+            {comentarios.length}
+          </span>
+          <div className="h-px flex-1 bg-gradient-to-r from-white/[0.08] to-transparent" />
+        </div>
         {cargandoComentarios ? (
-          <div className="h-24 rounded-2xl bg-muted animate-pulse" />
+          <div className="h-24 animate-pulse rounded-2xl bg-white/[0.03]" />
         ) : raices.length === 0 ? (
-          <p className="text-sm text-muted-foreground bg-card border border-border rounded-2xl p-6 text-center">
+          <p className="rounded-2xl border border-white/[0.065] bg-white/[0.015] p-6 text-center text-sm text-white/35">
             Sin comentarios todavía. ¡Sé el primero en responder!
           </p>
         ) : (
@@ -393,7 +457,8 @@ export function HiloPublicacion({ publicacionId, publicacionInicial }: HiloPubli
           </div>
         )}
       </section>
-    </div>
+      </div>
+    </main>
   )
 }
 
@@ -432,17 +497,26 @@ function ComentarioNodo({
 
   return (
     <div className={cn(profundidad > 0 && "ml-6")}>
-      <div className="rounded-2xl border border-white/10 bg-card/80 backdrop-blur-md p-4">
-        <div className="flex items-center gap-2 text-[11px] text-muted-foreground mb-1">
-          <span className="font-medium text-foreground">{comentario.autor_nombre || "Estudiante"}</span>
-          <BadgeModerador perfilId={comentario.autor_perfil_id} />
-          <span>•</span>
-          <span>{formatearFecha(comentario.created_at)}</span>
-          <BotonDM autorPerfilId={comentario.autor_perfil_id} />
-        </div>
-        <p className="text-sm text-foreground whitespace-pre-wrap">{comentario.cuerpo}</p>
+      <div className="group/comment relative overflow-hidden rounded-2xl border border-white/[0.065] bg-white/[0.015] p-5 backdrop-blur-xl transition-all duration-300 hover:border-white/[0.10] hover:bg-white/[0.02]">
+        {/* Línea luminosa al hover */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/30 to-transparent opacity-0 transition-opacity duration-300 group-hover/comment:opacity-100"
+        />
 
-        <div className="flex items-center gap-3 mt-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-xs">
+          <span className="font-semibold text-slate-200">{comentario.autor_nombre || "Estudiante"}</span>
+          <BadgeModerador perfilId={comentario.autor_perfil_id} />
+          <span className="text-white/20">•</span>
+          <span className="text-slate-500">{formatearFecha(comentario.created_at)}</span>
+          <BotonDM
+            autorPerfilId={comentario.autor_perfil_id}
+            autorNombre={comentario.autor_nombre}
+          />
+        </div>
+        <p className="mt-3 text-sm leading-6 text-slate-200/90 whitespace-pre-wrap">{comentario.cuerpo}</p>
+
+        <div className="mt-4 flex items-center gap-1">
           <VotoBotones
             numVotos={comentario.num_votos}
             miVoto={comentario.mi_voto}
@@ -450,25 +524,27 @@ function ComentarioNodo({
           />
           {puedeAnidar && (
             <button
+              type="button"
               onClick={() => onResponder(comentario.id)}
-              className="text-[11px] font-medium text-primary hover:underline inline-flex items-center gap-1"
+              className="ml-1 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-slate-500 transition-all hover:bg-fuchsia-500/10 hover:text-fuchsia-300"
             >
-              <MessageSquare className="w-3 h-3" />
+              <MessageSquare className="h-3.5 w-3.5" />
               Responder
             </button>
           )}
           {comentario.es_solucion && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-300 bg-emerald-950/60 border border-emerald-800/40 px-2 py-0.5 rounded-lg">
-              <CheckCircle2 className="w-3 h-3" />
+            <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+              <CheckCircle2 className="h-3 w-3" />
               Solución
             </span>
           )}
           {esAutor && !comentario.es_solucion && (
             <button
+              type="button"
               onClick={() => onResolver(comentario.id)}
-              className="text-[11px] font-medium text-emerald-400 hover:underline inline-flex items-center gap-1 ml-auto"
+              className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400/90 transition-colors hover:text-emerald-300"
             >
-              <CheckCircle2 className="w-3 h-3" />
+              <CheckCircle2 className="h-3 w-3" />
               Esta respuesta resuelve mi duda
             </button>
           )}
@@ -526,33 +602,49 @@ function VotoBotones({
   return (
     <div className="flex items-center gap-1">
       <button
+        type="button"
         onClick={() => onVotar(1)}
         disabled={deshabilitado}
         aria-label="Votar a favor"
         aria-pressed={miVoto === 1}
         className={cn(
-          "p-1 rounded-md transition-colors",
+          "group/action inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs transition-all duration-200",
           miVoto === 1
-            ? "text-emerald-400 bg-emerald-950/60"
-            : "text-muted-foreground hover:text-emerald-400 hover:bg-secondary",
+            ? "text-emerald-400"
+            : "text-slate-500 hover:bg-emerald-500/10 hover:text-emerald-400",
         )}
       >
-        <ArrowBigUp className={cn("w-4 h-4", miVoto === 1 && "fill-emerald-400")} />
+        <ArrowBigUp
+          className={cn(
+            "h-3.5 w-3.5 transition-transform duration-200 group-hover/action:-translate-y-0.5",
+            miVoto === 1 && "fill-emerald-400",
+          )}
+        />
       </button>
-      <span className="text-xs font-semibold tabular-nums min-w-[1.5rem] text-center">{numVotos}</span>
+      <span
+        className={cn(
+          "min-w-[1.5rem] text-center text-xs font-semibold tabular-nums",
+          miVoto === 1 && "text-emerald-400",
+          miVoto === -1 && "text-rose-400",
+          miVoto === 0 && "text-slate-400",
+        )}
+      >
+        {numVotos}
+      </span>
       <button
+        type="button"
         onClick={() => onVotar(-1)}
         disabled={deshabilitado}
         aria-label="Votar en contra"
         aria-pressed={miVoto === -1}
         className={cn(
-          "p-1 rounded-md transition-colors",
+          "rounded-xl p-1.5 transition-all duration-200",
           miVoto === -1
-            ? "text-rose-400 bg-rose-950/60"
-            : "text-muted-foreground hover:text-rose-400 hover:bg-secondary",
+            ? "text-rose-400"
+            : "text-slate-500 hover:bg-white/[0.05] hover:text-slate-300",
         )}
       >
-        <ArrowBigDown className={cn("w-4 h-4", miVoto === -1 && "fill-rose-400")} />
+        <ArrowBigDown className={cn("h-3.5 w-3.5", miVoto === -1 && "fill-rose-400")} />
       </button>
     </div>
   )
@@ -580,14 +672,14 @@ function RespuestaForm({
         maxLength={20000}
         aria-label="Respuesta"
         className={cn(
-          "flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm",
-          "focus:outline-none focus:ring-2 focus:ring-primary/40",
+          "flex-1 rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2 text-sm text-white",
+          "placeholder:text-slate-500 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/10",
         )}
       />
       <Button size="sm" onClick={onEnviar} disabled={!respuesta.trim() || enviando}>
         {enviando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Enviar"}
       </Button>
-      <Button size="sm" variant="ghost" onClick={onCancelar}>
+      <Button size="sm" variant="ghost" onClick={onCancelar} type="button">
         Cancelar
       </Button>
     </div>

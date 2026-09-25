@@ -1,27 +1,33 @@
 /** @type {import('next').NextConfig} */
 
 // Cabeceras de seguridad base para todas las respuestas.
-// La CSP arranca en Report-Only para no romper funcionalidad al aplicarla;
-// una vez validada en producción, cambiar a Content-Security-Policy.
+// CSP activa (no Report-Only): permite el propio origen, Supabase (API,
+// realtime wss y storage vía https), Google Fonts, Gemini y los scripts de
+// Vercel Analytics. Los inline de Next requieren 'unsafe-inline'/'unsafe-eval'
+// en dev; endurecer con nonces queda como paso posterior.
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
+    key: "Strict-Transport-Security",
+    value: "max-age=63072000; includeSubDomains; preload",
+  },
+  {
     key: "Permissions-Policy",
     value: "camera=(), microphone=(), geolocation=()",
   },
   {
-    key: "Content-Security-Policy-Report-Only",
+    key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
       // Next.js inline scripts/styles requieren 'unsafe-inline'; el nonce
       // estricto puede adoptarse después con middleware de CSP.
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob: https:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com http://localhost:* http://127.0.0.1:*",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com https://va.vercel-scripts.com https://vitals.vercel-insights.com http://localhost:* http://127.0.0.1:*",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -31,6 +37,10 @@ const securityHeaders = [
 
 const nextConfig = {
   poweredByHeader: false,
+  // Salida standalone para el Dockerfile multi-stage: next build genera
+  // .next/standalone con un server.js autocontenido (sin node_modules
+  // completo), lo que reduce la imagen final y acelera el arranque.
+  output: "standalone",
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**.supabase.co" },

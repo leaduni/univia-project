@@ -10,12 +10,91 @@ Nota de seguridad: nunca se registran tokens ni credenciales en los logs.
 
 import asyncio
 import logging
+import os
 from typing import Optional
 
+import jwt  # PyJWT
 from fastapi import Header, HTTPException
 from app.core.database import get_supabase, _es_error_conexion
 
 logger = logging.getLogger(__name__)
+
+# --- Verificación LOCAL del JWT de sesión (M1) -------------------------
+# Antes, cada petición protegida hacía un RTT a GoTrue (auth.get_user) solo
+# para validar la firma. El token de Supabase es un JWT HS256 autofirmado:
+# con SUPABASE_JWT_SECRET validamos firma + expiración + audiencia EN
+# PROCESO (sin red) y reconstruimos el usuario desde el payload (`sub`,
+# `email`, `user_metadata`). Si la variable falta, se cae al camino de red
+# anterior (compatibilidad dev), con un aviso una sola vez.
+SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "").strip()
+_JWT_ALGORITMOS = ["HS256"]
+# Audiencia que Supabase Auth emite para las sesiones de usuario final.
+_JWT_AUDIENCIA = "authenticated"
+_aviso_jwt_local_emitido = False
+
+
+class UsuarioToken:
+    """Réplica mínima del `User` de GoTrue construida desde el payload JWT.
+
+    Los routers solo consumen `.id`, `.email`, `.user_metadata` y
+    `.app_metadata`; se reproducen tal cual para no tocar ningún call site.
+    """
+
+    def __init__(self, payload: dict):
+        self.id = payload.get("sub", "")
+        self.email = payload.get("email", "")
+        self.role = payload.get("role", "")
+        self.user_metadata = payload.get("user_metadata") or {}
+        self.app_metadata = payload.get("app_metadata") or {}
+
+
+def _usuario_desde_jwt(token: str) -> UsuarioToken:
+    """Intenta validar el JWT localmente; devuelve el usuario o None.
+
+    NUNCA levanta 401: la validación local es solo un camino rápido para
+    CONCEDER acceso. Cualquier fallo (firma desconocida, algoritmo no
+    soportado —p. ej. proyectos con Signing Keys asimétricas ES256—, claim
+    ausente, etc.) devuelve None y el llamador cae a la verificación remota
+    contra Supabase Auth, que es quien decide el 401. Así un proyecto con
+    algoritmo distinto no sufre regresión alguna.
+    """
+    global _aviso_jwt_local_emitido
+    if not SUPABASE_JWT_SECRET:
+        if not _aviso_jwt_local_emitido:
+            _aviso_jwt_local_emitido = True
+            logger.warning(
+                "SUPABASE_JWT_SECRET no configurado: verificando tokens por red "
+                "(más latencia). Configúralo para validación local."
+            )
+        return None
+    try:
+        payload = jwt.decode(
+            token,
+            SUPABASE_JWT_SECRET,
+            algorithms=_JWT_ALGORITMOS,
+            audience=_JWT_AUDIENCIA,
+            options={"require": ["sub", "exp"]},
+        )
+    except jwt.InvalidTokenError as e:
+        # Sin 401 directo: se degrada a la verificación por red. Se avisa una
+        # sola vez por proceso para no ensuciar los logs a cada petición (p.
+        # ej. proyectos con Signing Keys ES256 degradan siempre; tokens
+        # expirados ocurren a diario y la red decide su 401).
+        if not _aviso_jwt_local_emitido:
+            _aviso_jwt_local_emitido = True
+            logger.warning(
+                "Validación local de JWT no aplicable (%s); se verifica por red.",
+                type(e).__name__,
+            )
+        else:
+            logger.debug(
+                "Validación local de JWT no aplicable (%s); se verifica por red.",
+                type(e).__name__,
+            )
+        return None
+    if not payload.get("sub"):
+        return None
+    return UsuarioToken(payload)
 
 ESQUEMA_BEARER = "bearer"
 
@@ -61,6 +140,15 @@ async def get_current_user(authorization: Optional[str] = Header(None)):
         con la sesión del estudiante y respetar las políticas RLS.
     """
     token = extraer_token(authorization)
+
+    # Camino rápido: firma + exp + aud en proceso (~µs, sin RTT a GoTrue).
+    # Si el token no es HS256 (proyectos con Signing Keys asimétricas), la
+    # validación local devuelve None y se sigue con la verificación remota
+    # de siempre: la decisión de rechazar (401) SOLO la toma Supabase Auth.
+    user = _usuario_desde_jwt(token)
+    if user is not None:
+        logger.debug(f"Usuario autenticado (JWT local): {user.id}")
+        return user, token
 
     user_response = None
     for intento in range(MAX_REINTENTOS_AUTH + 1):

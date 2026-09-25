@@ -9,7 +9,7 @@
 import { supabase } from "./supabase"
 import { fetchWithAuth } from "./api-service"
 import { leerOCache, TTL, invalidarClave } from "./api-cache"
-import type { ConversacionDM, EnviarMensajeDM, IniciarDM, MensajeDM } from "@/types/dm"
+import type { ConversacionDM, EnviarMensajeDM, IniciarDM, MensajeDM, UsuarioDMBuscable } from "@/types/dm"
 import { API_URL } from "@/lib/env"
 
 function extraerMensaje(body: any): string {
@@ -56,7 +56,7 @@ export const dmService = {
     )
   },
 
-  /** Inicia (o reutiliza) una conversación 1 a 1 y envía el primer mensaje. */
+  /** Inicia (o reutiliza) una conversación 1 a 1. Sin mensaje automático. */
   iniciarConversacion(datos: IniciarDM): Promise<ConversacionDM> {
     invalidarClave("dm:conversaciones")
     return enviar<ConversacionDM>(
@@ -64,6 +64,26 @@ export const dmService = {
       "POST",
       datos,
       "No se pudo iniciar la conversación.",
+    )
+  },
+
+  /**
+   * Directorio autenticado de estudiantes por nombre, usuario (alias),
+   * código o email. El backend devuelve email enmascarado y excluye al propio
+   * usuario; aquí no se cachea el autocompletado (el texto cambia con cada
+   * pulsación y el resultado debe verse fresco).
+   */
+  buscarUsuarios(
+    texto: string,
+    limite: number = 8,
+  ): Promise<UsuarioDMBuscable[]> {
+    const qs = new URLSearchParams({
+      q: texto.trim(),
+      limite: String(limite),
+    })
+    return leer<UsuarioDMBuscable[]>(
+      `${API_URL}/dm/usuarios?${qs.toString()}`,
+      "No se pudieron buscar destinatarios.",
     )
   },
 

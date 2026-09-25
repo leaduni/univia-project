@@ -13,7 +13,7 @@ import {
   groupSchedulesByCourse
 } from "@/lib/mockData"
 import type { CalendarioEvento, Etiqueta } from "./calendar-grid"
-import { fetchCargaHoraria, parseMatricula } from "@/lib/agenda-service"
+import { fetchCargaHoraria, fetchMisCursos, parseMatricula } from "@/lib/agenda-service"
 
 interface AddCourseSectionModalProps {
   onClose: () => void
@@ -70,10 +70,20 @@ export function AddCourseSectionModal({
   const modalRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    fetchCargaHoraria("2026-II").then(rows => {
-      setCourses(groupSchedulesByCourse(rows))
-      setLoadingCourses(false)
-    })
+    let alive = true
+    ;(async () => {
+      // Prioridad: cursos que el alumno ya registró en su Onboarding.
+      // Si no tiene ninguno (o falla), catálogo completo del ciclo.
+      let rows = await fetchMisCursos("2026-II")
+      if (!rows || rows.length === 0) {
+        rows = await fetchCargaHoraria("2026-II")
+      }
+      if (alive) {
+        setCourses(groupSchedulesByCourse(rows))
+        setLoadingCourses(false)
+      }
+    })()
+    return () => { alive = false }
   }, [])
 
   const filtered = useMemo(() => {
@@ -99,6 +109,9 @@ export function AddCourseSectionModal({
   const clasesTag = etiquetas.find(e => e.nombre.toLowerCase().includes("clases"))
   const etiquetaId = clasesTag?.id || etiquetas[0]?.id || ""
 
+  // Guard: fecha de inicio de semestre válida (evita "NaN-NaN-NaN" → 422)
+  const semesterOk = /^\d{4}-\d{2}-\d{2}$/.test(semesterStart) && !Number.isNaN(Date.parse(semesterStart + "T00:00:00"))
+
   const handleSelectCourse = (course: CourseGroup) => { setSelectedCourse(course); setStep("sections") }
   const handleSelectSection = (section: string) => { setSelectedSection(section); setStep("detail") }
   const handleBack = () => {
@@ -107,10 +120,22 @@ export function AddCourseSectionModal({
   }
 
   const handleConfirmManual = () => {
-    if (!selectedCourse || !selectedSection) return
+    if (!selectedCourse || !selectedSection || !semesterOk) return
     setAdding(true)
     const bloques = selectedCourse.secciones[selectedSection]?.bloques || []
-    const events: CalendarioEvento[] = bloques.map((b, i) => {
+    // Guard: descartar bloques con horario inválido (evita NaN → 422)
+    const bloquesValidos = bloques.filter((b) => {
+      if (!b.hora_inicio || !b.hora_fin) return false
+      const hi = timeToDecimal(b.hora_inicio)
+      const hf = timeToDecimal(b.hora_fin)
+      return Number.isFinite(hi) && Number.isFinite(hf) && hf > hi
+    })
+    if (bloquesValidos.length === 0) {
+      alert("Esta sección no tiene bloques con horario válido.")
+      setAdding(false)
+      return
+    }
+    const events: CalendarioEvento[] = bloquesValidos.map((b, i) => {
       const horaInicio = timeToDecimal(b.hora_inicio)
       const horaFin = timeToDecimal(b.hora_fin)
       return {
@@ -126,7 +151,7 @@ export function AddCourseSectionModal({
         ubicacion: b.aula,
       }
     })
-    
+
     onAddEvents(events)
     setAdding(false)
     onClose()
@@ -144,7 +169,9 @@ export function AddCourseSectionModal({
     setIsUploading(true)
     try {
       const res = await parseMatricula(selectedFile)
-      
+
+      // Los eventos YA fueron persistidos por el backend → marcarlos para
+      // que el padre no los vuelva a insertar (bug de duplicados).
       const newEvents: CalendarioEvento[] = res.eventos_creados.map(ev => ({
         id: ev.id?.toString() || `ev_${Date.now()}_${Math.random()}`,
         titulo: ev.titulo,
@@ -155,9 +182,10 @@ export function AddCourseSectionModal({
         duracion: Number(ev.duracion),
         todoElDia: ev.todo_el_dia,
         recurrencia: ev.recurrencia === 'weekly' ? 'Cada semana' : 'No se repite',
-        ubicacion: ev.ubicacion || undefined
-      }))
-      
+        ubicacion: ev.ubicacion || undefined,
+        __persistido: true,
+      })) as CalendarioEvento[]
+     
       onAddEvents(newEvents)
       setPdfResult(`Éxito: ${res.message}`)
       setTimeout(() => onClose(), 2500)
@@ -277,7 +305,7 @@ export function AddCourseSectionModal({
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 bg-[#11121d] border-t border-white/5">
               <button onClick={handleBack} className="px-5 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-all">Volver</button>
-              <button onClick={handleConfirmManual} disabled={adding} className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 flex items-center gap-2">
+              <button onClick={handleConfirmManual} disabled={adding || !semesterOk} title={!semesterOk ? "Configura primero el inicio de semestre en Ajustes de Agenda" : undefined} className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
                 {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Agregar
               </button>
             </div>
@@ -287,6 +315,12 @@ export function AddCourseSectionModal({
         {/* CONTENIDO PDF */}
         {tab === "pdf" && (
           <div className="p-8 flex flex-col items-center justify-center">
+            <div className="w-full mb-4 bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-3">
+              <p className="text-[11px] text-indigo-300/80 leading-relaxed">
+                Para una importación exacta, descarga tu <strong>Boleta de Matrícula oficial</strong> en PDF desde el portal de la universidad:{" "}
+                <a href="https://matricula-alumno.uni.edu.pe/" target="_blank" rel="noopener noreferrer" className="text-indigo-400 font-semibold hover:underline">matricula-alumno.uni.edu.pe</a>
+              </p>
+            </div>
             <input type="file" accept=".pdf" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
             {isUploading ? (
               <div className="flex flex-col items-center gap-4 py-8">
@@ -294,7 +328,7 @@ export function AddCourseSectionModal({
                   <FileText className="w-10 h-10 text-indigo-400 opacity-50" />
                   <div className="absolute inset-0 border-t-2 border-indigo-400 rounded-full animate-spin" />
                 </div>
-                <p className="text-sm text-slate-300 animate-pulse">Analizando cursos y horarios con Gemini...</p>
+                <p className="text-sm text-slate-300 animate-pulse">Analizando cursos y horarios...</p>
               </div>
             ) : pdfResult ? (
               <div className="flex flex-col items-center gap-4 py-8 text-center">

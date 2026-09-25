@@ -7,12 +7,24 @@ import { AccesosRapidos } from "./accesos-rapidos"
 import { PerfilXpCard } from "./perfil-xp-card"
 import { TopContribuidores } from "./top-contribuidores"
 
+const CARD =
+  "relative overflow-hidden rounded-[20px] border border-white/[0.08] bg-white/[0.02] shadow-2xl shadow-black/25 backdrop-blur-xl"
+
 export function ForoSidebarRight() {
   return (
-    <div className="space-y-5">
-      <PerfilXpCard />
-      <TopContribuidores />
-      <section className="rounded-2xl border border-white/10 bg-card/80 backdrop-blur-md p-3">
+    <div className="space-y-4">
+      {/* Perfil XP */}
+      <section className={`${CARD} p-0`}>
+        <PerfilXpCard />
+      </section>
+
+      {/* Top contribuidores */}
+      <section className={`${CARD} p-4`}>
+        <TopContribuidores />
+      </section>
+
+      {/* Accesos rápidos */}
+      <section className={`${CARD} p-2.5`}>
         <AccesosRapidos />
       </section>
     </div>

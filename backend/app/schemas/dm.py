@@ -6,6 +6,7 @@ Contratos Pydantic para el router `app/routers/dm.py`. Siguen el estilo de
 
 from datetime import datetime
 from typing import List, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -13,14 +14,23 @@ MAX_CUERPO_DM = 5000
 
 
 class IniciarDMRequest(BaseModel):
-    """Inicia (o reutiliza) una conversación 1 a 1 y envía el primer mensaje."""
+    """Inicia (o reutiliza) una conversación 1 a 1.
 
-    usuario_id: str = Field(min_length=36)
-    primer_mensaje: str = Field(min_length=1, max_length=MAX_CUERPO_DM)
+    `primer_mensaje` es opcional: los botones de "Mensaje" abren el chat sin
+    enviar un saludo automático (evita mensajes duplicados al reutilizar un
+    hilo existente). Si se envía, se inserta como primer mensaje.
+    """
+
+    # UUID de `perfiles.id` (auth.users). Pydantic rechaza 00000000-... o
+    # IDs sintéticos como `uni_XXXXXX` con 422 antes de tocar la base.
+    usuario_id: UUID
+    primer_mensaje: Optional[str] = Field(default=None, max_length=MAX_CUERPO_DM)
 
     @field_validator("primer_mensaje")
     @classmethod
-    def validar_mensaje(cls, v: str) -> str:
+    def validar_mensaje(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
         t = v.strip()
         if not t:
             raise ValueError("El mensaje no puede estar vacío.")
@@ -67,3 +77,18 @@ class MensajeDMOut(BaseModel):
     created_at: datetime
     # Conveniencia para la UI: true si el mensaje es del usuario actual.
     propio: bool = False
+
+
+class UsuarioDMBuscable(BaseModel):
+    """Modelo público del directorio de contactos (sin email completo).
+
+    `email_enmascarado` permite confirmar coincidencias de correo/código sin
+    exponer el email íntegro de otro estudiante.
+    """
+
+    id: str
+    nombre: Optional[str] = None
+    alias: Optional[str] = None
+    avatar_url: Optional[str] = None
+    codigo_estudiante: Optional[str] = None
+    email_enmascarado: Optional[str] = None

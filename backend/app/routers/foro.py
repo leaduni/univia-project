@@ -32,11 +32,14 @@ Convenciones (mismo patrón que routers/recursos.py y chatbot.py):
     - el triaje IA corre en BackgroundTasks (fire-and-forget): no bloquea el POST.
 """
 
+import asyncio
 import logging
 import os
 import threading
 import time
+from datetime import datetime
 from typing import Optional
+from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
 
@@ -59,6 +62,40 @@ from app.schemas.foro import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+async def _run(fn):
+    """Offload de PostgREST síncrono para no bloquear el event loop."""
+    return await asyncio.to_thread(fn)
+
+
+def _uuid_estricto(valor) -> str:
+    """Valida/normaliza un UUID antes de interpolarlo en un filtro `.or_()`.
+
+    PostgREST interpreta sintaxis dentro de `or_()`; con un UUID verificado el
+    valor interpolado solo puede ser hex y guiones (anti-inyección).
+    """
+    try:
+        return str(UUID(str(valor)))
+    except (ValueError, AttributeError, TypeError):
+        raise HTTPException(status_code=422, detail="Identificador inválido.")
+
+
+def _cursor_recientes_validado(cursor: str) -> tuple:
+    """Valida el cursor keyset "fecha|id" del feed antes del filtro `.or_()`.
+
+    La fecha debe ser ISO-8601 real y el id un entero; cualquier otra cosa se
+    rechaza con 422 en vez de llegar cruda a la sintaxis de PostgREST.
+    """
+    try:
+        ts_cursor, id_cursor = cursor.rsplit("|", 1)
+        # Normaliza el sufijo Z para fromisoformat; el valor original (ya
+        # validado como ISO) es el que se interpola en el filtro.
+        datetime.fromisoformat(ts_cursor.replace("Z", "+00:00"))
+        id_validado = int(id_cursor)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=422, detail="Cursor inválido.")
+    return ts_cursor, id_validado
 
 
 # ---------------------------------------------------------------------------
@@ -123,41 +160,76 @@ def _es_moderador(supabase, user) -> bool:
         return False
 
 
-def _nombre_autor(supabase, perfil_id: str) -> Optional[str]:
+def _nombre_autor(_supabase, perfil_id: str) -> Optional[str]:
+    """Nombre visible de un autor usando el cliente administrativo.
+
+    La RLS de `perfiles` solo deja leer el propio perfil: un cliente con el
+    token del usuario devolvería None para CUALQUIER otro autor, mostrando
+    "Estudiante" en el feed. `get_admin_client()` se usa aquí porque el
+    backend ya validó que el llamador tiene sesión (nunca llega al cliente).
+    """
     try:
+        admin = get_admin_client()
         resp = (
-            supabase.table("perfiles")
-            .select("nombre_completo")
+            admin.table("perfiles")
+            .select("id, nombre_completo")
             .eq("id", perfil_id)
             .maybe_single()
             .execute()
         )
         perfil = getattr(resp, "data", None) if resp else None
-        return (perfil or {}).get("nombre_completo")
-    except Exception:
+        nombre = (perfil or {}).get("nombre_completo") or ""
+        return nombre.strip() or None
+    except Exception as e:
+        logger.warning("No se pudo resolver el autor %s: %s", perfil_id, e)
         return None
 
 
-def _nombres_autores(supabase, perfil_ids: list) -> dict:
-    """{perfil_id: nombre_completo} en una sola consulta batch (evita N+1)."""
+def _nombres_autores(_supabase, perfil_ids: list) -> dict:
+    """{perfil_id: nombre_completo} con el cliente admin en una sola consulta.
+
+    Cae al alias público de gamificación si un perfil aún no completó su
+    nombre completo (mismo criterio que el router de DM).
+    """
     ids = [pid for pid in perfil_ids if pid is not None]
     if not ids:
         return {}
+    nombres: dict = {}
     try:
+        admin = get_admin_client()
         resp = (
-            supabase.table("perfiles")
+            admin.table("perfiles")
             .select("id, nombre_completo")
             .in_("id", ids)
             .execute()
         )
-        return {
-            p["id"]: p.get("nombre_completo")
-            for p in (getattr(resp, "data", None) or [])
-            if p.get("id") is not None
-        }
+        for p in (getattr(resp, "data", None) or []):
+            pid = p.get("id")
+            nombre = (p.get("nombre_completo") or "").strip()
+            if pid and nombre:
+                nombres[pid] = nombre
     except Exception as e:
-        logger.warning(f"No se pudo resolver autores en batch: {e}")
+        logger.warning(f"No se pudieron resolver autores en batch: {e}")
         return {}
+
+    faltantes = [pid for pid in ids if pid not in nombres]
+    if faltantes:
+        try:
+            resp = (
+                get_admin_client()
+                .table("gamificacion_usuarios")
+                .select("perfil_id, alias_publico")
+                .in_("perfil_id", faltantes)
+                .execute()
+            )
+            for g in (getattr(resp, "data", None) or []):
+                pid = g.get("perfil_id")
+                alias = (g.get("alias_publico") or "").strip()
+                if pid and alias:
+                    nombres[pid] = alias
+        except Exception as e:
+            logger.warning("No se pudo resolver alias de autores: %s", e)
+    return nombres
 
 
 # ---------------------------------------------------------------------------
@@ -424,18 +496,18 @@ async def listar_secciones(user_data=Depends(get_current_user)):
     user, token = user_data
     supabase = get_supabase(token)
 
-    facultad_id = _facultad_del_usuario(supabase, user)
+    facultad_id = await _run(lambda: _facultad_del_usuario(supabase, user))
 
     # Las secciones activas cambian con baja frecuencia: se cachean en proceso.
     filas = _cat_get("secciones_activas")
     if filas is None:
-        resp = (
+        resp = await _run(lambda: (
             supabase.table("foro_secciones")
             .select("id, tipo, titulo, descripcion, facultad_id, activa, created_at")
             .eq("activa", True)
             .order("tipo")
             .execute()
-        )
+        ))
         filas = getattr(resp, "data", None) or []
         _cat_set("secciones_activas", filas)
 
@@ -445,12 +517,12 @@ async def listar_secciones(user_data=Depends(get_current_user)):
     counts: dict = {}
     if seccion_ids:
         try:
-            agg = (
+            agg = await _run(lambda: (
                 supabase.table("foro_publicaciones")
                 .select("seccion_id")
                 .in_("seccion_id", seccion_ids)
                 .execute()
-            )
+            ))
             for p in (getattr(agg, "data", None) or []):
                 sid = p.get("seccion_id")
                 counts[sid] = counts.get(sid, 0) + 1
@@ -458,7 +530,7 @@ async def listar_secciones(user_data=Depends(get_current_user)):
             logger.warning(f"No se pudo contar publicaciones: {e}")
 
     # Nombre de facultad para los canales por facultad (cacheado).
-    nombres_facultad = _nombres_facultad(supabase)
+    nombres_facultad = await _run(lambda: _nombres_facultad(supabase))
 
     visibles = []
     for fila in filas:
@@ -486,7 +558,7 @@ async def crear_seccion(datos: SeccionCreate, user_data=Depends(get_current_user
     user, token = user_data
     supabase = get_supabase(token)
 
-    if not _es_moderador(supabase, user):
+    if not await _run(lambda: _es_moderador(supabase, user)):
         raise HTTPException(status_code=403, detail="Solo los moderadores pueden crear secciones.")
 
     if datos.tipo == "facultad" and not datos.facultad_id:
@@ -494,7 +566,7 @@ async def crear_seccion(datos: SeccionCreate, user_data=Depends(get_current_user
             status_code=422, detail="Una sección de facultad requiere facultad_id."
         )
 
-    resp = (
+    resp = await _run(lambda: (
         supabase.table("foro_secciones")
         .insert({
             "tipo": datos.tipo,
@@ -503,7 +575,7 @@ async def crear_seccion(datos: SeccionCreate, user_data=Depends(get_current_user
             "facultad_id": datos.facultad_id if datos.tipo == "facultad" else None,
         })
         .execute()
-    )
+    ))
     fila = getattr(resp, "data", None) or []
     if not fila:
         raise HTTPException(status_code=500, detail="No se pudo crear la sección.")
@@ -531,23 +603,23 @@ async def listar_publicaciones(seccion_id: int, user_data=Depends(get_current_us
     user, token = user_data
     supabase = get_supabase(token)
 
-    seccion = _seccion_o_404(supabase, seccion_id, user)
+    seccion = await _run(lambda: _seccion_o_404(supabase, seccion_id, user))
     if seccion is None:
         raise HTTPException(status_code=404, detail="Sección no encontrada.")
 
-    resp = (
+    resp = await _run(lambda: (
         supabase.table("foro_publicaciones")
         .select(_COLUMNAS_PUBLICACION)
         .eq("seccion_id", seccion_id)
         .order("created_at", desc=True)
         .execute()
-    )
+    ))
     filas = getattr(resp, "data", None) or []
     ids = [f["id"] for f in filas]
 
-    autores = _nombres_autores(supabase, [f["autor_perfil_id"] for f in filas])
-    mis_votos = _mis_votos(supabase, user, publicacion_ids=ids)
-    guardados = _ids_guardados(supabase, user, ids)
+    autores = await _run(lambda: _nombres_autores(supabase, [f["autor_perfil_id"] for f in filas]))
+    mis_votos = await _run(lambda: _mis_votos(supabase, user, publicacion_ids=ids))
+    guardados = await _run(lambda: _ids_guardados(supabase, user, ids))
 
     return [
         _publicacion_out(fila, autores, mis_votos, guardados)
@@ -561,28 +633,34 @@ async def obtener_publicacion(publicacion_id: int, user_data=Depends(get_current
     user, token = user_data
     supabase = get_supabase(token)
 
-    resp = (
+    resp = await _run(lambda: (
         supabase.table("foro_publicaciones")
         .select(_COLUMNAS_PUBLICACION)
         .eq("id", publicacion_id)
         .maybe_single()
         .execute()
-    )
+    ))
     fila = getattr(resp, "data", None) if resp else None
     if not fila:
         raise HTTPException(status_code=404, detail="Publicación no encontrada.")
 
     # Verificar que el usuario puede ver la sección del hilo.
-    if not _seccion_o_404(supabase, fila["seccion_id"], user):
+    if not await _run(lambda: _seccion_o_404(supabase, fila["seccion_id"], user)):
         raise HTTPException(status_code=404, detail="Publicación no encontrada.")
+
+    autor_nombre = await _run(lambda: _nombre_autor(supabase, fila["autor_perfil_id"]))
+    mi_voto = await _run(lambda: _mi_voto(supabase, user, publicacion_id=fila["id"]))
+    guardados = await _run(lambda: _ids_guardados(supabase, user, [fila["id"]]))
+    secciones = await _run(lambda: _secciones_por_id(supabase))
+    nombres_facultad = await _run(lambda: _nombres_facultad(supabase))
 
     return _publicacion_out(
         fila,
-        autores={fila["autor_perfil_id"]: _nombre_autor(supabase, fila["autor_perfil_id"])},
-        mis_votos={fila["id"]: _mi_voto(supabase, user, publicacion_id=fila["id"])},
-        guardados=_ids_guardados(supabase, user, [fila["id"]]),
-        secciones=_secciones_por_id(supabase),
-        nombres_facultad=_nombres_facultad(supabase),
+        autores={fila["autor_perfil_id"]: autor_nombre},
+        mis_votos={fila["id"]: mi_voto},
+        guardados=guardados,
+        secciones=secciones,
+        nombres_facultad=nombres_facultad,
     )
 
 
@@ -612,10 +690,10 @@ async def crear_publicacion(
         return previa
 
     try:
-        if not _seccion_o_404(supabase, datos.seccion_id, user):
+        if not await _run(lambda: _seccion_o_404(supabase, datos.seccion_id, user)):
             raise HTTPException(status_code=404, detail="Sección no encontrada.")
 
-        resp = (
+        resp = await _run(lambda: (
             supabase.table("foro_publicaciones")
             .insert({
                 "seccion_id": datos.seccion_id,
@@ -625,7 +703,7 @@ async def crear_publicacion(
                 "tags": datos.tags,
             })
             .execute()
-        )
+        ))
     except Exception:
         await liberar_clave(str(user.id), x_idempotency_key)
         raise
@@ -644,7 +722,7 @@ async def crear_publicacion(
         id=nueva["id"],
         seccion_id=nueva["seccion_id"],
         autor_perfil_id=nueva["autor_perfil_id"],
-        autor_nombre=_nombre_autor(supabase, nueva["autor_perfil_id"]),
+        autor_nombre=await _run(lambda: _nombre_autor(supabase, nueva["autor_perfil_id"])),
         titulo=nueva["titulo"],
         cuerpo=nueva["cuerpo"],
         tags=nueva.get("tags") or [],
@@ -664,11 +742,11 @@ async def borrar_publicacion(publicacion_id: int, user_data=Depends(get_current_
     user, token = user_data
     supabase = get_supabase(token)
 
-    es_mod = _es_moderador(supabase, user)
+    es_mod = await _run(lambda: _es_moderador(supabase, user))
     query = supabase.table("foro_publicaciones").delete().eq("id", publicacion_id)
     if not es_mod:
         query = query.eq("autor_perfil_id", user.id)
-    resp = query.execute()
+    resp = await _run(lambda: query.execute())
     # RLS filtra filas: si no era suya ni moderador, no hay nada borrado.
     if not (getattr(resp, "data", None) or []):
         raise HTTPException(
@@ -688,29 +766,29 @@ async def listar_comentarios(publicacion_id: int, user_data=Depends(get_current_
     supabase = get_supabase(token)
 
     # El hilo debe ser visible.
-    pub = (
+    pub = await _run(lambda: (
         supabase.table("foro_publicaciones")
         .select("id, seccion_id")
         .eq("id", publicacion_id)
         .maybe_single()
         .execute()
-    )
+    ))
     if not (getattr(pub, "data", None) if pub else None):
         raise HTTPException(status_code=404, detail="Publicación no encontrada.")
-    if not _seccion_o_404(supabase, pub.data["seccion_id"], user):
+    if not await _run(lambda: _seccion_o_404(supabase, pub.data["seccion_id"], user)):
         raise HTTPException(status_code=404, detail="Publicación no encontrada.")
 
-    resp = (
+    resp = await _run(lambda: (
         supabase.table("foro_comentarios")
         .select(_COLUMNAS_COMENTARIO)
         .eq("publicacion_id", publicacion_id)
         .order("created_at")
         .execute()
-    )
+    ))
     filas = getattr(resp, "data", None) or []
     ids = [f["id"] for f in filas]
-    autores = _nombres_autores(supabase, [f["autor_perfil_id"] for f in filas])
-    mis_votos = _mis_votos(supabase, user, comentario_ids=ids)
+    autores = await _run(lambda: _nombres_autores(supabase, [f["autor_perfil_id"] for f in filas]))
+    mis_votos = await _run(lambda: _mis_votos(supabase, user, comentario_ids=ids))
     return [
         ComentarioOut(
             id=f["id"],
@@ -739,34 +817,34 @@ async def crear_comentario(publicacion_id: int, datos: ComentarioCreate, user_da
             status_code=422, detail="El id de la publicación no coincide con la ruta."
         )
 
-    pub = (
+    pub = await _run(lambda: (
         supabase.table("foro_publicaciones")
         .select("id, seccion_id")
         .eq("id", publicacion_id)
         .maybe_single()
         .execute()
-    )
+    ))
     if not (getattr(pub, "data", None) if pub else None):
         raise HTTPException(status_code=404, detail="Publicación no encontrada.")
-    if not _seccion_o_404(supabase, pub.data["seccion_id"], user):
+    if not await _run(lambda: _seccion_o_404(supabase, pub.data["seccion_id"], user)):
         raise HTTPException(status_code=404, detail="Publicación no encontrada.")
 
     # Validar parent_id (si viene) dentro del mismo hilo.
     if datos.parent_id is not None:
-        padre = (
+        padre = await _run(lambda: (
             supabase.table("foro_comentarios")
             .select("id, publicacion_id")
             .eq("id", datos.parent_id)
             .maybe_single()
             .execute()
-        )
+        ))
         padre_fila = getattr(padre, "data", None) if padre else None
         if not padre_fila or padre_fila["publicacion_id"] != publicacion_id:
             raise HTTPException(
                 status_code=422, detail="El comentario padre no pertenece a esta publicación."
             )
 
-    resp = (
+    resp = await _run(lambda: (
         supabase.table("foro_comentarios")
         .insert({
             "publicacion_id": publicacion_id,
@@ -775,7 +853,7 @@ async def crear_comentario(publicacion_id: int, datos: ComentarioCreate, user_da
             "cuerpo": datos.cuerpo,
         })
         .execute()
-    )
+    ))
     fila = getattr(resp, "data", None) or []
     if not fila:
         raise HTTPException(status_code=500, detail="No se pudo crear el comentario.")
@@ -785,7 +863,7 @@ async def crear_comentario(publicacion_id: int, datos: ComentarioCreate, user_da
         id=nueva["id"],
         publicacion_id=nueva["publicacion_id"],
         autor_perfil_id=nueva["autor_perfil_id"],
-        autor_nombre=_nombre_autor(supabase, nueva["autor_perfil_id"]),
+        autor_nombre=await _run(lambda: _nombre_autor(supabase, nueva["autor_perfil_id"])),
         parent_id=nueva.get("parent_id"),
         cuerpo=nueva["cuerpo"],
         created_at=nueva["created_at"],
@@ -801,11 +879,11 @@ async def borrar_comentario(comentario_id: int, user_data=Depends(get_current_us
     user, token = user_data
     supabase = get_supabase(token)
 
-    es_mod = _es_moderador(supabase, user)
+    es_mod = await _run(lambda: _es_moderador(supabase, user))
     query = supabase.table("foro_comentarios").delete().eq("id", comentario_id)
     if not es_mod:
         query = query.eq("autor_perfil_id", user.id)
-    resp = query.execute()
+    resp = await _run(lambda: query.execute())
     if not (getattr(resp, "data", None) or []):
         raise HTTPException(
             status_code=404, detail="Comentario no encontrado o sin permiso para borrarlo."
@@ -837,39 +915,39 @@ async def votar(datos: VotoCreate, user_data=Depends(get_current_user)):
 
     # Validar que el objetivo existe y su sección es visible para el usuario.
     if datos.publicacion_id is not None:
-        pub = (
+        pub = await _run(lambda: (
             supabase.table("foro_publicaciones")
             .select("id, seccion_id")
             .eq("id", datos.publicacion_id)
             .maybe_single()
             .execute()
-        )
+        ))
         pub_fila = getattr(pub, "data", None) if pub else None
         if not pub_fila:
             raise HTTPException(status_code=404, detail="Publicación no encontrada.")
-        if not _seccion_o_404(supabase, pub_fila["seccion_id"], user):
+        if not await _run(lambda: _seccion_o_404(supabase, pub_fila["seccion_id"], user)):
             raise HTTPException(status_code=404, detail="Publicación no encontrada.")
         objetivo = {"publicacion_id": datos.publicacion_id}
     else:
-        com = (
+        com = await _run(lambda: (
             supabase.table("foro_comentarios")
             .select("id, publicacion_id")
             .eq("id", datos.comentario_id)
             .maybe_single()
             .execute()
-        )
+        ))
         com_fila = getattr(com, "data", None) if com else None
         if not com_fila:
             raise HTTPException(status_code=404, detail="Comentario no encontrado.")
-        pub = (
+        pub = await _run(lambda: (
             supabase.table("foro_publicaciones")
             .select("seccion_id")
             .eq("id", com_fila["publicacion_id"])
             .maybe_single()
             .execute()
-        )
+        ))
         pub_fila = getattr(pub, "data", None) if pub else None
-        if not pub_fila or not _seccion_o_404(supabase, pub_fila["seccion_id"], user):
+        if not pub_fila or not await _run(lambda: _seccion_o_404(supabase, pub_fila["seccion_id"], user)):
             raise HTTPException(status_code=404, detail="Comentario no encontrado.")
         objetivo = {"comentario_id": datos.comentario_id}
 
@@ -879,7 +957,7 @@ async def votar(datos: VotoCreate, user_data=Depends(get_current_user)):
         for clave, val in objetivo.items():
             query = query.eq(clave, val)
         query = query.eq("autor_perfil_id", user.id)
-        existente = query.maybe_single().execute()
+        existente = await _run(lambda: query.maybe_single().execute())
     except Exception as e:
         logger.error(f"Error consultando voto existente: {e}")
         raise HTTPException(status_code=500, detail="No se pudo procesar el voto.")
@@ -889,19 +967,19 @@ async def votar(datos: VotoCreate, user_data=Depends(get_current_user)):
     try:
         if fila and fila.get("valor") == datos.valor:
             # Toggle: mismo valor -> anular.
-            supabase.table("foro_votos").delete().eq("id", fila["id"]).execute()
+            await _run(lambda: supabase.table("foro_votos").delete().eq("id", fila["id"]).execute())
             mi_voto = 0
         elif fila:
             # Cambio de opción: actualizar valor.
-            supabase.table("foro_votos").update({"valor": datos.valor}).eq("id", fila["id"]).execute()
+            await _run(lambda: supabase.table("foro_votos").update({"valor": datos.valor}).eq("id", fila["id"]).execute())
             mi_voto = datos.valor
         else:
             # Nuevo voto.
-            supabase.table("foro_votos").insert({
+            await _run(lambda: supabase.table("foro_votos").insert({
                 **objetivo,
                 "autor_perfil_id": user.id,
                 "valor": datos.valor,
-            }).execute()
+            }).execute())
             mi_voto = datos.valor
     except Exception as e:
         logger.error(f"Error aplicando voto: {e}")
@@ -909,9 +987,9 @@ async def votar(datos: VotoCreate, user_data=Depends(get_current_user)):
 
     # Nuevo acumulado del objetivo (columna desnormalizada, tras el trigger).
     if datos.publicacion_id is not None:
-        num_votos = _num_votos_publicacion(supabase, datos.publicacion_id)
+        num_votos = await _run(lambda: _num_votos_publicacion(supabase, datos.publicacion_id))
     else:
-        num_votos = _num_votos_comentario(supabase, datos.comentario_id)
+        num_votos = await _run(lambda: _num_votos_comentario(supabase, datos.comentario_id))
 
     return VotoOut(
         id=(fila or {}).get("id") or 0,
@@ -938,17 +1016,17 @@ async def asignar_moderador(datos: ModeradorCreate, user_data=Depends(get_curren
     user, token = user_data
     supabase = get_supabase(token)
 
-    if not _es_moderador(supabase, user):
+    if not await _run(lambda: _es_moderador(supabase, user)):
         raise HTTPException(status_code=403, detail="Solo los moderadores pueden asignar moderadores.")
 
     # El RLS de foro_moderadores no expone INSERT al cliente; se usa service_role.
     admin = get_admin_client()  # cliente con service role
     try:
-        resp = (
+        resp = await _run(lambda: (
             admin.table("foro_moderadores")
             .insert({"perfil_id": datos.perfil_id})
             .execute()
-        )
+        ))
     except Exception as e:
         logger.error(f"Error asignando moderador: {e}")
         raise HTTPException(status_code=500, detail="No se pudo asignar el moderador.")
@@ -969,7 +1047,7 @@ async def listar_moderadores(user_data=Depends(get_current_user)):
     _user, token = user_data
     supabase = get_supabase(token)
     try:
-        resp = supabase.table("foro_moderadores").select("perfil_id").execute()
+        resp = await _run(lambda: supabase.table("foro_moderadores").select("perfil_id").execute())
     except Exception as e:
         logger.error(f"Error listando moderadores: {e}")
         raise HTTPException(status_code=500, detail="No se pudieron cargar los moderadores.")
@@ -1139,13 +1217,13 @@ async def resolver_hilo(
             detail="Debes indicar un comentario_id o aceptar_sugerencia_ia (no ambos).",
         )
 
-    publicacion = (
+    publicacion = await _run(lambda: (
         supabase.table("foro_publicaciones")
         .select("id, autor_perfil_id, estado")
         .eq("id", publicacion_id)
         .maybe_single()
         .execute()
-    )
+    ))
     fila = getattr(publicacion, "data", None) if publicacion else None
     if not fila:
         raise HTTPException(status_code=404, detail="Publicación no encontrada.")
@@ -1155,48 +1233,48 @@ async def resolver_hilo(
         raise HTTPException(status_code=403, detail="Solo el autor puede resolver el hilo.")
 
     if datos.comentario_id is not None:
-        comentario = (
+        comentario = await _run(lambda: (
             supabase.table("foro_comentarios")
             .select("id, publicacion_id")
             .eq("id", datos.comentario_id)
             .maybe_single()
             .execute()
-        )
+        ))
         com_fila = getattr(comentario, "data", None) if comentario else None
         if not com_fila or com_fila["publicacion_id"] != publicacion_id:
             raise HTTPException(
                 status_code=422, detail="El comentario no pertenece a esta publicación."
             )
         # Marcar solución en el comentario y quitar marca de otros comentarios del hilo.
-        supabase.table("foro_comentarios").update({"es_solucion": False}).eq(
+        await _run(lambda: supabase.table("foro_comentarios").update({"es_solucion": False}).eq(
             "publicacion_id", publicacion_id
-        ).execute()
-        supabase.table("foro_comentarios").update({"es_solucion": True}).eq(
+        ).execute())
+        await _run(lambda: supabase.table("foro_comentarios").update({"es_solucion": True}).eq(
             "id", datos.comentario_id
-        ).execute()
+        ).execute())
         # Al resolver por comentario, si había sugerencia IA, queda como no aceptada.
-        supabase.table("foro_publicaciones").update({
+        await _run(lambda: supabase.table("foro_publicaciones").update({
             "estado": "resuelta",
             "sugerencia_ia": None,
-        }).eq("id", publicacion_id).execute()
+        }).eq("id", publicacion_id).execute())
     elif datos.aceptar_sugerencia_ia:
         # Aceptar la sugerencia del bot.
-        pub = (
+        pub = await _run(lambda: (
             supabase.table("foro_publicaciones")
             .select("sugerencia_ia")
             .eq("id", publicacion_id)
             .maybe_single()
             .execute()
-        )
+        ))
         sugerencia = getattr(pub, "data", None) if pub else None
         sugerencia_ia = (sugerencia or {}).get("sugerencia_ia")
         if not sugerencia_ia:
             raise HTTPException(status_code=404, detail="Este hilo no tiene sugerencia de la IA.")
         sugerencia_ia["aceptada"] = True
-        supabase.table("foro_publicaciones").update({
+        await _run(lambda: supabase.table("foro_publicaciones").update({
             "estado": "resuelta",
             "sugerencia_ia": sugerencia_ia,
-        }).eq("id", publicacion_id).execute()
+        }).eq("id", publicacion_id).execute())
 
     return {"ok": True, "estado": "resuelta"}
 
@@ -1292,9 +1370,13 @@ def _query_feed(supabase, user, q, seccion_id, facultad_id, tag, estado, filtro)
                 .execute()
             )
             ids = {f["publicacion_id"] for f in (getattr(resp, "data", None) or [])}
+            # UUID del usuario validado + ids forzados a int: solo hex/guiones
+            # y dígitos pueden llegar interpolados al filtro .or_().
+            uid = _uuid_estricto(user.id)
+            ids_int = [int(i) for i in ids if i is not None]
             query = query.or_(
-                f"autor_perfil_id.eq.{user.id},id.in.({','.join(str(i) for i in ids)})"
-                if ids else f"autor_perfil_id.eq.{user.id}"
+                f"autor_perfil_id.eq.{uid},id.in.({','.join(str(i) for i in ids_int)})"
+                if ids_int else f"autor_perfil_id.eq.{uid}"
             )
 
     return query
@@ -1329,22 +1411,21 @@ async def feed_global(
         raise HTTPException(status_code=422, detail=f"filtro debe ser uno de {_FILTROS_FEED}.")
     limit = max(1, min(limit, _FEED_LIMIT_MAX))
 
-    query = _query_feed(supabase, user, q, seccion_id, facultad_id, tag, estado, filtro)
+    query = await _run(lambda: _query_feed(supabase, user, q, seccion_id, facultad_id, tag, estado, filtro))
     if query is None:
         return FeedOut(publicaciones=[], siguiente_cursor=None, total=0)
 
     if orden == "recientes":
         query = query.order("created_at", desc=True).order("id", desc=True)
         if cursor:
-            try:
-                ts_cursor, id_cursor = cursor.rsplit("|", 1)
-                query = query.or_(
-                    f"created_at.lt.{ts_cursor},"
-                    f"and(created_at.eq.{ts_cursor},id.lt.{id_cursor})"
-                )
-            except ValueError:
-                raise HTTPException(status_code=422, detail="Cursor inválido.")
-        resp = query.limit(limit + 1).execute()
+            # El cursor viene del cliente: fecha ISO + id entero, validados
+            # antes de interpolarse en la sintaxis de .or_() de PostgREST.
+            ts_cursor, id_cursor = _cursor_recientes_validado(cursor)
+            query = query.or_(
+                f"created_at.lt.{ts_cursor},"
+                f"and(created_at.eq.{ts_cursor},id.lt.{id_cursor})"
+            )
+        resp = await _run(lambda: query.limit(limit + 1).execute())
         filas = getattr(resp, "data", None) or []
         siguiente = None
         if len(filas) > limit:
@@ -1365,17 +1446,17 @@ async def feed_global(
                 query.order("num_comentarios", desc=True)
                 .order("created_at", desc=True)
             )
-            resp = query.range(offset, offset + limit).execute()
+            resp = await _run(lambda: query.range(offset, offset + limit).execute())
             filas = getattr(resp, "data", None) or []
             siguiente = str(offset + limit) if len(filas) > limit else None
             filas = filas[:limit]
             total = offset + len(filas) + (1 if siguiente else 0)
         else:  # tendencia: se ordena en memoria sobre una ventana.
-            resp = (
+            resp = await _run(lambda: (
                 query.order("created_at", desc=True)
                 .limit(_FEED_VENTANA_TENDENCIA)
                 .execute()
-            )
+            ))
             candidatas = getattr(resp, "data", None) or []
             candidatas.sort(key=lambda f: (_score_tendencia(f), f["created_at"]),
                             reverse=True)
@@ -1386,11 +1467,11 @@ async def feed_global(
             total = offset + len(filas) + (1 if siguiente else 0)
 
     ids = [f["id"] for f in filas]
-    autores = _nombres_autores(supabase, [f["autor_perfil_id"] for f in filas])
-    mis_votos = _mis_votos(supabase, user, publicacion_ids=ids)
-    guardados = _ids_guardados(supabase, user, ids)
-    secciones = _secciones_por_id(supabase)
-    nombres_facultad = _nombres_facultad(supabase)
+    autores = await _run(lambda: _nombres_autores(supabase, [f["autor_perfil_id"] for f in filas]))
+    mis_votos = await _run(lambda: _mis_votos(supabase, user, publicacion_ids=ids))
+    guardados = await _run(lambda: _ids_guardados(supabase, user, ids))
+    secciones = await _run(lambda: _secciones_por_id(supabase))
+    nombres_facultad = await _run(lambda: _nombres_facultad(supabase))
 
     return FeedOut(
         publicaciones=[
@@ -1412,7 +1493,7 @@ async def tendencias(user_data=Depends(get_current_user)):
     user, token = user_data
     supabase = get_supabase(token)
 
-    visibles = _secciones_visibles_ids(supabase, user)
+    visibles = await _run(lambda: _secciones_visibles_ids(supabase, user))
     if not visibles:
         return TendenciasOut(publicaciones=[], ventana="24h")
 
@@ -1420,13 +1501,13 @@ async def tendencias(user_data=Depends(get_current_user)):
     from datetime import datetime, timedelta, timezone
     for horas, etiqueta in ((24, "24h"), (168, "7d")):
         desde = (datetime.now(timezone.utc) - timedelta(hours=horas)).isoformat()
-        resp = (
+        resp = await _run(lambda desde=desde: (
             supabase.table("foro_publicaciones")
             .select(_COLUMNAS_PUBLICACION)
             .in_("seccion_id", visibles)
             .gte("created_at", desde)
             .execute()
-        )
+        ))
         filas = getattr(resp, "data", None) or []
         if filas:
             ventana = etiqueta
@@ -1435,16 +1516,14 @@ async def tendencias(user_data=Depends(get_current_user)):
     filas.sort(key=lambda f: (_score_tendencia(f), f["created_at"]), reverse=True)
     top = filas[:5]
     ids = [f["id"] for f in top]
+    autores = await _run(lambda: _nombres_autores(supabase, [x["autor_perfil_id"] for x in top]))
+    mis_votos = await _run(lambda: _mis_votos(supabase, user, publicacion_ids=ids))
+    guardados = await _run(lambda: _ids_guardados(supabase, user, ids))
+    secciones = await _run(lambda: _secciones_por_id(supabase))
+    nombres_facultad = await _run(lambda: _nombres_facultad(supabase))
     return TendenciasOut(
         publicaciones=[
-            _publicacion_out(
-                f,
-                _nombres_autores(supabase, [x["autor_perfil_id"] for x in top]),
-                _mis_votos(supabase, user, publicacion_ids=ids),
-                _ids_guardados(supabase, user, ids),
-                _secciones_por_id(supabase),
-                _nombres_facultad(supabase),
-            )
+            _publicacion_out(f, autores, mis_votos, guardados, secciones, nombres_facultad)
             for f in top
         ],
         ventana=ventana,
@@ -1457,22 +1536,22 @@ async def guardar_publicacion(publicacion_id: int, user_data=Depends(get_current
     user, token = user_data
     supabase = get_supabase(token)
 
-    pub = (
+    pub = await _run(lambda: (
         supabase.table("foro_publicaciones")
         .select("id, seccion_id")
         .eq("id", publicacion_id)
         .maybe_single()
         .execute()
-    )
+    ))
     fila = getattr(pub, "data", None) if pub else None
-    if not fila or not _seccion_o_404(supabase, fila["seccion_id"], user):
+    if not fila or not await _run(lambda: _seccion_o_404(supabase, fila["seccion_id"], user)):
         raise HTTPException(status_code=404, detail="Publicación no encontrada.")
 
     try:
-        supabase.table("foro_guardados").upsert(
+        await _run(lambda: supabase.table("foro_guardados").upsert(
             {"perfil_id": user.id, "publicacion_id": publicacion_id},
             on_conflict="perfil_id,publicacion_id",
-        ).execute()
+        ).execute())
     except Exception as e:
         logger.error(f"Error guardando publicación {publicacion_id}: {e}")
         raise HTTPException(status_code=500, detail="No se pudo guardar el hilo.")
@@ -1486,9 +1565,9 @@ async def quitar_guardado(publicacion_id: int, user_data=Depends(get_current_use
     supabase = get_supabase(token)
 
     try:
-        supabase.table("foro_guardados").delete().eq(
+        await _run(lambda: supabase.table("foro_guardados").delete().eq(
             "perfil_id", user.id
-        ).eq("publicacion_id", publicacion_id).execute()
+        ).eq("publicacion_id", publicacion_id).execute())
     except Exception as e:
         logger.error(f"Error quitando guardado de {publicacion_id}: {e}")
         raise HTTPException(status_code=500, detail="No se pudo quitar el guardado.")
@@ -1505,19 +1584,19 @@ async def registrar_vista(publicacion_id: int, user_data=Depends(get_current_use
     supabase = get_supabase(token)
 
     try:
-        supabase.rpc("foro_registrar_vista", {"p_publicacion_id": publicacion_id}).execute()
+        await _run(lambda: supabase.rpc("foro_registrar_vista", {"p_publicacion_id": publicacion_id}).execute())
     except Exception as e:
         logger.error(f"Error registrando vista de {publicacion_id}: {e}")
         raise HTTPException(status_code=500, detail="No se pudo registrar la vista.")
 
     try:
-        resp = (
+        resp = await _run(lambda: (
             supabase.table("foro_publicaciones")
             .select("num_vistas")
             .eq("id", publicacion_id)
             .maybe_single()
             .execute()
-        )
+        ))
         fila = getattr(resp, "data", None) if resp else None
         if fila is None:
             raise HTTPException(status_code=404, detail="Publicación no encontrada.")

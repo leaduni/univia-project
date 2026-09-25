@@ -1,14 +1,17 @@
 // Gestión BYOK (Bring Your Own Key): la clave de Gemini del usuario vive
 // ÚNICAMENTE en su navegador (localStorage) y nunca viaja a la base de datos ni
 // a logs. Solo se envía al backend por la cabecera X-User-LLM-Key en las
-// peticiones del chatbot.
+// peticiones de IA (chatbot, evaluaciones y matrícula).
 
 const CLAVE_BYOK = "univia_byok_gemini"
 
-// El patrón de claves de Google AI Studio/Gemini empieza por "AIza".
-// Es solo un chequeo de formato rápido; la validación real es server-side.
-export function formatoGeminiValido(clave: string): boolean {
-    return /^AIza[0-9A-Za-z_\-]{20,}$/.test(clave.trim())
+// No se valida el formato en el cliente: las claves de AI Studio empiezan por
+// "AIza…", pero las de Google Cloud/Vertex pueden tener otro prefijo, y una
+// validación rígida bloquearía claves legítimas. Lo único que se exige es que
+// el usuario haya pegado algo: la validación real la hace el backend con una
+// llamada a Google (endpoint /chatbot/validate-key).
+export function esClaveByokUsable(clave: string): boolean {
+    return clave.trim().length > 0
 }
 
 export function leerClaveByok(): string | null {

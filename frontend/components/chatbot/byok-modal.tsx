@@ -19,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { validateKey } from "@/lib/chatbot-service"
-import { borrarClaveByok, formatoGeminiValido, guardarClaveByok } from "@/lib/byok"
+import { borrarClaveByok, esClaveByokUsable, guardarClaveByok } from "@/lib/byok"
 
 interface ByokModalProps {
   abierto: boolean
@@ -42,12 +42,8 @@ export function ByokModal({ abierto, token, claveGuardada, onCerrar, onCambio }:
 
   const probar = async () => {
     const limpia = clave.trim()
-    if (!limpia) {
+    if (!esClaveByokUsable(limpia)) {
       setMensaje({ ok: false, texto: "Escribí una clave para probarla." })
-      return
-    }
-    if (!formatoGeminiValido(limpia)) {
-      setMensaje({ ok: false, texto: "Esa clave no tiene el formato de Google (debe empezar por AIza…)." })
       return
     }
 

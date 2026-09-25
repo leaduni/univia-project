@@ -31,10 +31,13 @@ export function prefetchRuta(href: string): void {
     return
   }
 
-  if (href.startsWith("/recursos")) {
-    correr(apiService.getRecursos({}))
-    return
-  }
+  // PAUSADO POR ALIANZA SACU: /recursos ahora muestra la landing UniVia x
+  // SACU (repositorio externo), así que calentar la caché del banco local
+  // sería una llamada innecesaria. Restaurar junto con RecursosBiblioteca.
+  // if (href.startsWith("/recursos")) {
+  //   correr(apiService.getRecursos({}))
+  //   return
+  // }
 
   if (href.startsWith("/mensajes")) {
     correr(dmService.getConversaciones())

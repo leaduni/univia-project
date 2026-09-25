@@ -1239,15 +1239,23 @@ export function AgendaInteligente() {
           onAddEvents={async (newEvents) => {
             // Agregar localmente inmediato
             setEventos(prev => [...prev, ...newEvents])
-            // Persistir cada evento en backend
+            // Persistir cada evento en backend (excepto los que ya vienen persistidos, p. ej. PDF)
             for (const ev of newEvents) {
+              if (ev.__persistido) continue
               try {
                 const recMap: Record<string, string> = { 'No se repite': 'none', 'Cada día': 'daily', 'Cada semana': 'weekly', 'Días laborables (lun-vie)': 'weekdays' }
+                // Guard: etiquetaId debe ser numérico; ids placeholder como "c1" darían NaN → 422
+                const etiquetaIdNum = ev.etiquetaId && /^\d+$/.test(ev.etiquetaId) ? parseInt(ev.etiquetaId) : null
+                // Guard: validar fecha/hora antes de enviar
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(ev.fechaISO) || !Number.isFinite(ev.horaInicio) || !Number.isFinite(ev.duracion) || ev.duracion <= 0) {
+                  console.warn('[Agenda] Evento con datos inválidos omitido:', ev)
+                  continue
+                }
                 const saved = await crearEvento({
                   titulo: ev.titulo,
                   subtitulo: ev.subtitulo,
                   tipo: 'evento',
-                  etiqueta_id: ev.etiquetaId ? parseInt(ev.etiquetaId) : null,
+                  etiqueta_id: etiquetaIdNum,
                   fecha_iso: ev.fechaISO,
                   hora_inicio: ev.horaInicio,
                   duracion: ev.duracion,

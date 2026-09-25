@@ -3,7 +3,8 @@
 // Navegación rápida del foro (columna izquierda, Fase 5): filtros de acceso
 // directo que escriben ?filtro= en la URL (fuente de verdad del feed).
 
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import {
   Activity,
   Bookmark,
@@ -35,7 +36,7 @@ export function QuickNav() {
   }
 
   return (
-    <nav aria-label="Accesos rápidos del foro" className="space-y-0.5">
+    <nav aria-label="Accesos rápidos del foro" className="space-y-1">
       {OPCIONES.map(({ valor, etiqueta, icono: Icono }) => {
         const activoOpcion = (valor ?? null) === activo
         return (
@@ -45,13 +46,19 @@ export function QuickNav() {
             onClick={() => seleccionar(valor)}
             aria-current={activoOpcion ? "true" : undefined}
             className={cn(
-              "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm transition-colors",
+              "group relative flex w-full items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left text-sm transition-all duration-200",
               activoOpcion
-                ? "bg-[#7957f1]/15 text-[#a78bfa] font-medium"
-                : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
+                ? "border-violet-400/10 bg-violet-500/[0.12] font-medium text-violet-200 hover:bg-violet-500/[0.16]"
+                : "border-transparent text-white/45 hover:border-white/[0.06] hover:bg-white/[0.04] hover:text-white/80",
             )}
           >
-            <Icono className="h-4 w-4 shrink-0" />
+            {activoOpcion ? (
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-400/[0.10] text-violet-300">
+                <Icono className="h-4 w-4" />
+              </span>
+            ) : (
+              <Icono className="h-4 w-4 shrink-0 text-white/35 transition-colors group-hover:text-white/65" />
+            )}
             {etiqueta}
           </button>
         )

@@ -33,7 +33,7 @@ from app.chatbot import handlers, intents
 from app.chatbot.user_context import cargar_contexto_usuario
 from app.core.auth_utils import get_current_user
 from app.core.database import get_supabase
-from app.core.llm import _redactar_claves, chatear, chatear_gemini_con_clave, get_groq
+from app.core.llm import _redactar_claves, _status_http, chatear, chatear_gemini_con_clave, get_groq
 from app.core.rate_limit import limiter
 from app.core.executor_llm import correr_en_hilo_llm, executor_llm
 
@@ -664,6 +664,41 @@ async def enviar_mensaje(
     )
 
 
+def _traducir_error_validacion(codigo: Optional[int], error: Exception) -> str:
+    """Mensaje accionable para el usuario según el código HTTP de Google.
+
+    NUNCA se incluye `str(error)` en la respuesta: la excepción del SDK puede
+    arrastrar la URL de la petición con `?key=<clave>` del estudiante.
+    """
+    texto = str(error)
+    if codigo is None:
+        # Fallback por texto para SDKs que no expongan el código HTTP.
+        if "429" in texto or "quota" in texto.lower() or "RESOURCE_EXHAUSTED" in texto:
+            codigo = 429
+        elif "404" in texto or "NOT_FOUND" in texto or "model" in texto.lower():
+            codigo = 404
+        elif "403" in texto or "PERMISSION_DENIED" in texto or "invalid" in texto.lower():
+            codigo = 403
+        elif "401" in texto or "UNAUTHENTICATED" in texto:
+            codigo = 401
+        elif "400" in texto or "INVALID_ARGUMENT" in texto:
+            codigo = 400
+
+    if codigo == 429:
+        return "La clave es válida pero su cuota está agotada (429). Espera un momento y vuelve a intentar."
+    if codigo == 403:
+        return "Google rechazó la clave: API key inválida (403). Revisa que la copiaste completa o genera una nueva en AI Studio."
+    if codigo == 401:
+        return "Google no reconoce la clave: no autorizada (401). Verifica que la hayas copiado completa y sin espacios."
+    if codigo == 404:
+        return "El modelo de prueba no está disponible en tu cuenta (404). Genera una clave nueva en AI Studio."
+    if codigo == 400:
+        return "Google rechazó la solicitud con esa clave (400). Revisa que la hayas copiado completa."
+    if codigo is not None and codigo >= 500:
+        return "El servicio de Google está saturado (5xx). Intenta de nuevo en unos minutos."
+    return "No se pudo validar la clave contra Google. Revisa tu conexión y vuelve a intentarlo."
+
+
 @router.post("/chatbot/validate-key")
 async def validar_clave(
     user_data=Depends(get_current_user),
@@ -692,9 +727,12 @@ async def validar_clave(
         )
         return {"valid": True}
     except Exception as e:
-        texto = str(e)
-        if "429" in texto or "quota" in texto.lower() or "RESOURCE_EXHAUSTED" in texto:
-            return {"valid": False, "error": "La clave es válida pero su cuota está agotada."}
-        if "401" in texto or "PERMISSION_DENIED" in texto or "invalid" in texto.lower():
-            return {"valid": False, "error": "La clave no es válida. Revisa que la hayas copiado completa."}
-        return {"valid": False, "error": "No se pudo validar la clave. Intenta de nuevo."}
+        codigo = _status_http(e)
+        # Para debugging se conserva el código HTTP y un detalle redactado,
+        # jamás la clave.
+        logger.warning(
+            "Validación BYOK falló (%s). Código HTTP: %s.",
+            _redactar_claves(str(e))[:500],
+            codigo,
+        )
+        return {"valid": False, "error": _traducir_error_validacion(codigo, e)}

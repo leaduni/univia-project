@@ -31,6 +31,7 @@ export interface ResultadoCheckIn {
 }
 
 export interface EntradaRanking {
+  perfil_id: string
   alias_publico: string
   avatar_url: string | null
   xp_total: number

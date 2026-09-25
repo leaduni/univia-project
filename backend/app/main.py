@@ -157,8 +157,34 @@ async def unhandled_exception_handler(request, exc: Exception):
 async def root():
     return {"message": "UniVia API v2.0 - Online", "status": "healthy"}
 
+
+@app.get("/api/health")
+async def health():
+    """Readiness real: confirma además que Supabase/PostgREST responde.
+
+    Hace un ping ultra ligero (1 fila de un catálogo público) con la clave
+    anónima y un try/except amplio: si la BD está caída o inalcanzable se
+    devuelve 503 para que el orquestador (Docker, LB, uptime monitor) saque
+    la instancia de rotación en vez de mandarle tráfico roto.
+    """
+    import asyncio
+
+    from app.core.database import get_supabase
+
+    try:
+        await asyncio.to_thread(
+            lambda: get_supabase().table("facultades").select("id").limit(1).execute()
+        )
+    except Exception as e:
+        logger.error("[HEALTH] Supabase no responde: %s", e)
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unavailable", "detalle": "Base de datos no disponible."},
+        )
+    return {"status": "ok", "supabase": "ok"}
+
 # Importar Routers
-from app.routers import malla, usuarios, onboarding, dashboard, cursos, evaluaciones, services, recursos, chatbot, feedback, foro, dm, evaluaciones_calificables, notas, gamificacion, silabos_ruta, agenda, horarios, donaciones
+from app.routers import malla, usuarios, onboarding, dashboard, cursos, evaluaciones, services, recursos, chatbot, feedback, foro, dm, evaluaciones_calificables, notas, gamificacion, silabos_ruta, agenda, horarios, donaciones, admin_donaciones
 
 app.include_router(malla.router, prefix="/api", tags=["malla"])
 app.include_router(usuarios.router, prefix="/api", tags=["usuarios"])
@@ -179,3 +205,4 @@ app.include_router(silabos_ruta.router, prefix="/api", tags=["silabos-ruta"])
 app.include_router(agenda.router, prefix="/api", tags=["agenda"])
 app.include_router(horarios.router, prefix="/api", tags=["horarios"])
 app.include_router(donaciones.router, prefix="/api", tags=["donaciones"])
+app.include_router(admin_donaciones.router, prefix="/api", tags=["admin-donaciones"])

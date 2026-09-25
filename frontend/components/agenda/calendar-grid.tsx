@@ -36,6 +36,8 @@ export interface CalendarioEvento {
   horaInicio: number // horas desde HORA_INI
   duracion: number   // en horas
   completed?: boolean
+  /** Marca interna: el evento ya fue persistido en backend (p. ej. tras importar matrícula PDF). */
+  __persistido?: boolean
 }
 
 export interface OpenModalParams {

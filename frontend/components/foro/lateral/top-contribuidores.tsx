@@ -30,43 +30,65 @@ export function TopContribuidores() {
   }, [])
 
   return (
-    <section
-      aria-label="Top contribuidores de la semana"
-      className="rounded-2xl border border-white/10 bg-card/80 backdrop-blur-md p-4"
-    >
-      <h3 className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
-        Top esta semana
-      </h3>
+    <section aria-label="Top contribuidores de la semana">
+      <div className="mb-4 flex items-center gap-2">
+        <TrendingUp className="h-4 w-4 text-emerald-400" />
+        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">
+          Top esta semana
+        </span>
+      </div>
 
       {items === null ? (
         <div className="space-y-2">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-7 animate-pulse rounded-lg bg-white/5" />
+            <div key={i} className="h-8 animate-pulse rounded-lg bg-white/[0.04]" />
           ))}
         </div>
       ) : items.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Aún no hay actividad semanal.</p>
+        <p className="text-xs text-white/30">Aún no hay actividad semanal.</p>
       ) : (
         <ol className="space-y-1">
           {items.map((entrada, i) => (
             <li
               key={`${entrada.alias_publico}-${i}`}
               className={cn(
-                "flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm",
-                i === 0 && "bg-[#7957f1]/10",
+                "flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition",
+                i === 0
+                  ? "border border-amber-400/[0.10] bg-amber-400/[0.045] hover:bg-amber-400/[0.08]"
+                  : "hover:bg-white/[0.04]",
               )}
             >
-              <span className="w-5 text-center text-xs">
-                {MEDALLAS[i] ?? (
-                  <span className="tabular-nums text-muted-foreground">{i + 1}</span>
+              {MEDALLAS[i] ? (
+                <span
+                  className={cn(
+                    "flex h-7 w-7 items-center justify-center rounded-lg text-sm",
+                    i === 0 && "bg-amber-400/[0.10] text-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.08)]",
+                    i === 1 && "bg-slate-300/[0.07]",
+                    i === 2 && "bg-orange-400/[0.07]",
+                  )}
+                >
+                  {MEDALLAS[i]}
+                </span>
+              ) : (
+                <span className="w-7 text-center text-[10px] tabular-nums text-white/20">
+                  {i + 1}
+                </span>
+              )}
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate text-xs",
+                  i === 0 ? "font-medium text-white/70" : "font-medium text-white/55",
                 )}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-foreground/90">
+              >
                 {entrada.alias_publico}
               </span>
               {i === 0 && <Crown className="h-3.5 w-3.5 text-amber-300" />}
-              <span className="text-[11px] tabular-nums text-muted-foreground">
+              <span
+                className={cn(
+                  "text-[10px] tabular-nums",
+                  i === 0 ? "text-amber-300/70" : "text-white/30",
+                )}
+              >
                 {entrada.xp_total} XP
               </span>
             </li>

@@ -53,6 +53,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   useEffect(() => {
     if (isAuthLoading) return
 
+    // La primera línea de defensa es el middleware del servidor
+    // (frontend/middleware.ts), que redirige a /auth/login antes de servir la
+    // página. Esta redirección NO se elimina: sigue siendo necesaria como
+    // respaldo para expiraciones de sesión en caliente (TOKEN_REFRESHED
+    // fallido, signOut en otra pestaña) y para el flujo de onboarding, que el
+    // middleware no conoce.
     // Sin sesión ni usuario -> al login.
     if (!session && !user) {
       setIsRedirecting(true)
@@ -71,16 +77,18 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   }, [session, user, isAuthLoading, router])
 
   useEffect(() => {
-    // Prefetch silencioso tras autenticarse: getMalla, getAvanceCarrera y
-    // getRecursos quedan en la caché de api-service (con TTL), así que abrir
-    // /malla o /recursos no espera la red. Fire-and-forget: un fallo aquí no
-    // debe afectar la sesión.
+    // Prefetch silencioso tras autenticarse: getMalla y getAvanceCarrera
+    // quedan en la caché de api-service (con TTL), así que abrir /malla no
+    // espera la red. Fire-and-forget: un fallo aquí no debe afectar la sesión.
+    // PAUSADO POR ALIANZA SACU: getRecursos se comenta porque /recursos ya no
+    // usa el banco local (muestra la landing UniVia x SACU). Restaurar junto
+    // con RecursosBiblioteca si la alianza termina.
     if (isAuthLoading || prefetchHecho.current) return
     if (!session || !user) return
     prefetchHecho.current = true
     apiService.getMalla().catch(() => {})
     apiService.getAvanceCarrera().catch(() => {})
-    apiService.getRecursos({}).catch(() => {})
+    // apiService.getRecursos({}).catch(() => {})
   }, [isAuthLoading, session, user])
 
   // isRedirecting evita que el contenido del dashboard se alcance a

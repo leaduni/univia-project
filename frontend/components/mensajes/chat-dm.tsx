@@ -91,16 +91,28 @@ export function ChatDM({ conversacion, onVolver }: ChatDMProps) {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-10rem-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-11rem-env(safe-area-inset-bottom))] rounded-2xl border border-border bg-card overflow-hidden">
+    // Caja transparente: hereda la ventana glass de BandejaMensajes.
+    <div className="relative z-10 flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {/* Cabecera */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-border/60">
-        <Button variant="ghost" size="icon" onClick={onVolver} aria-label="Volver a la bandeja">
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="font-poppins font-semibold text-sm truncate">
-            {conversacion.otro_nombre || "Estudiante"}
-          </span>
+      <div className="flex h-[64px] shrink-0 items-center gap-3 border-b border-white/[0.06] px-5">
+        <button
+          type="button"
+          onClick={onVolver}
+          aria-label="Volver a la bandeja"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.02] text-white/40 transition-colors hover:border-white/[0.12] hover:text-white/80"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </button>
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-xs font-medium uppercase text-white/60">
+          {(conversacion.otro_nombre || "E").charAt(0)}
+        </div>
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-medium text-white/85">
+              {conversacion.otro_nombre || "Estudiante"}
+            </h2>
+            <p className="text-[10px] text-white/25">Conversación privada</p>
+          </div>
           <BadgeModerador perfilId={conversacion.otro_id} />
         </div>
       </div>
@@ -108,18 +120,18 @@ export function ChatDM({ conversacion, onVolver }: ChatDMProps) {
       {/* Mensajes */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
         {error && (
-          <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+          <p className="text-xs text-red-300 bg-red-400/[0.06] border border-red-400/20 rounded-lg px-3 py-2">
             {error}
           </p>
         )}
         {cargando ? (
           <div className="space-y-2">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-10 rounded-xl bg-muted animate-pulse" />
+              <div key={i} className="h-10 rounded-xl bg-white/[0.04] animate-pulse" />
             ))}
           </div>
         ) : mensajes.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center pt-10">
+          <p className="text-sm text-white/35 text-center pt-10">
             Sin mensajes todavía. ¡Saluda!
           </p>
         ) : (
@@ -131,9 +143,9 @@ export function ChatDM({ conversacion, onVolver }: ChatDMProps) {
       </div>
 
       {/* Input */}
-      <form onSubmit={enviar} className="p-3 border-t border-border/60">
+      <form onSubmit={enviar} className="border-t border-white/[0.06] p-4">
         {envError && (
-          <p className="text-xs text-destructive mb-2">{envError}</p>
+          <p className="mb-2 text-xs text-red-400">{envError}</p>
         )}
         <div className="flex gap-2">
           <input
@@ -142,7 +154,7 @@ export function ChatDM({ conversacion, onVolver }: ChatDMProps) {
             placeholder="Escribe un mensaje…"
             maxLength={5000}
             aria-label="Mensaje"
-            className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-2.5 text-sm text-white placeholder:text-white/25 focus:border-cyan-400/30 focus:outline-none focus:ring-4 focus:ring-cyan-500/10"
           />
           <Button type="submit" disabled={!texto.trim() || enviando} className="gap-1.5 shrink-0">
             {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

@@ -90,3 +90,56 @@ export async function reportarEnvio(donacionId: number): Promise<void> {
   })
   if (!response.ok) throw await leerError(response, 'No se pudo registrar tu aporte.')
 }
+
+// ---------------------------------------------------------------------------
+// Panel de administración (verificación manual contra el Yape)
+// ---------------------------------------------------------------------------
+
+export interface DonacionPendiente {
+  id: number
+  nombre: string
+  nombre_real: string | null
+  facultad: string | null
+  tipo_donante: 'estudiante' | 'egresado'
+  monto_base: number
+  monto_exacto: number
+  mensaje_muro: string | null
+  reportado_en: string
+  creado_en: string
+}
+
+export async function getDonacionesPendientes(): Promise<DonacionPendiente[]> {
+  const response = await fetchWithAuth(`${API_URL}/admin/donaciones/pendientes`)
+  if (!response.ok) {
+    if (response.status === 403) throw new Error('403')
+    throw await leerError(response, 'No se pudo cargar la bandeja de donaciones.')
+  }
+  return response.json()
+}
+
+/** ¿El usuario de la sesión puede ver el panel admin? (No es la barrera: esa es el servidor.) */
+export async function soyAdminDonaciones(): Promise<boolean> {
+  try {
+    const response = await fetchWithAuth(`${API_URL}/admin/donaciones/es_admin`)
+    if (!response.ok) return false
+    const data = await response.json().catch(() => null)
+    return data?.es_admin === true
+  } catch {
+    // Sin red o backend caído: ocultar el enlace es el fallo seguro.
+    return false
+  }
+}
+
+export async function confirmarDonacion(donacionId: number): Promise<void> {
+  const response = await fetchWithAuth(`${API_URL}/admin/donaciones/${donacionId}/confirmar`, {
+    method: 'POST',
+  })
+  if (!response.ok) throw await leerError(response, 'No se pudo aprobar la donación.')
+}
+
+export async function rechazarDonacion(donacionId: number): Promise<void> {
+  const response = await fetchWithAuth(`${API_URL}/admin/donaciones/${donacionId}/rechazar`, {
+    method: 'POST',
+  })
+  if (!response.ok) throw await leerError(response, 'No se pudo rechazar la donación.')
+}

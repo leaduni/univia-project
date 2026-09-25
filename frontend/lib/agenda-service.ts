@@ -6,11 +6,14 @@
  */
 
 import { fetchWithAuth } from './api-service';
+import { leerClaveByok } from './byok';
+import { API_URL } from './env';
 import type { CalendarioEvento } from "@/components/agenda/calendar-grid";
 import { mockFacultySchedules, type FacultyScheduleRow } from "@/lib/mockData";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const API = BASE_URL.endsWith('/api') ? BASE_URL : `${BASE_URL}/api`;
+// URL de la API centralizada en env.ts (fail-fast en producción: sin
+// NEXT_PUBLIC_API_URL el build falla en vez de servir llamadas a localhost).
+const API = API_URL;
 
 // ── Tipos ────────────────────────────────────────────────────────────────
 
@@ -229,25 +232,35 @@ export async function fetchProductividad(): Promise<Productividad> {
   return resp.json();
 }
 
-// ── Importar Matrícula (PDF → Gemini → Eventos) ─────────────────────────
+// ── Importar Matrícula (PDF → Parser local UNI / Gemini fallback → Eventos) ─
 
-// Este endpoint extrae el PDF y llama a Gemini: el timeout global de 15s
-// no es suficiente. El override se aplica solo a esta petición.
+// El endpoint procesa el PDF (parser determinista primario, Gemini como
+// fallback): el timeout global de 15s no es suficiente para el fallback.
 const TIMEOUT_PARSE_MATRICULA_MS = 60_000;
 
 export interface ParseMatriculaResult {
   eventos_creados: AgendaEvento[];
   cursos_detectados: { course_code: string; section: string }[];
+  metodo?: "local" | "gemini";
   message: string;
+  /** Los eventos ya fueron persistidos por el backend. */
+  __persistidos?: true;
 }
 
 export async function parseMatricula(file: File): Promise<ParseMatriculaResult> {
   const formData = new FormData();
   formData.append('file', file);
+  // BYOK: si el estudiante tiene una clave propia guardada, el backend la usa
+  // para el fallback IA (mismo header que chat y evaluaciones) en lugar de la
+  // cuota compartida. Viaja solo por cabecera, nunca en el body.
+  const llmKey = leerClaveByok();
+  const headers: Record<string, string> = {};
+  if (llmKey) headers['X-User-LLM-Key'] = llmKey;
   const resp = await fetchWithAuth(
     `${API}/agenda/parse-matricula`,
     {
       method: 'POST',
+      headers,
       body: formData,
     },
     undefined,
@@ -258,6 +271,27 @@ export async function parseMatricula(file: File): Promise<ParseMatriculaResult> 
     throw new Error(extraerError(body));
   }
   return resp.json();
+}
+
+/**
+ * Carga horaria filtrada por los cursos que el alumno registró en el
+ * Onboarding (progreso_cursos, status 'in_progress'). Devuelve null si no
+ * hay cursos registrados o si falla (el caller decide el fallback).
+ */
+export async function fetchMisCursos(ciclo: string = "2026-II"): Promise<FacultyScheduleRow[] | null> {
+  try {
+    const resp = await fetchWithAuth(`${API}/agenda/mis-cursos?ciclo=${ciclo}`);
+    if (resp.ok) {
+      const data = await resp.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return data;
+      }
+      return null; // sin cursos en onboarding → el caller usa catálogo completo
+    }
+  } catch (err) {
+    console.warn("No se pudo cargar mis-cursos de Supabase:", err);
+  }
+  return null;
 }
 
 export async function fetchCargaHoraria(ciclo: string = "2026-II"): Promise<FacultyScheduleRow[]> {

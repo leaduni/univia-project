@@ -30,11 +30,28 @@ export const FACULTADES = [
 
 export const MONTO_MINIMO = 0.1
 
+/** Techo razonable por aporte. Debe coincidir con MONTO_MAXIMO del backend. */
+export const MONTO_MAXIMO = 5000
+
+const FORMATO_SOLES = new Intl.NumberFormat("es-PE", {
+  style: "currency",
+  currency: "PEN",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
+const FORMATO_SOLES_CORTO = new Intl.NumberFormat("es-PE", {
+  style: "currency",
+  currency: "PEN",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+})
+
 export function formatearSoles(valor: number): string {
-  return `S/${valor.toFixed(2)}`
+  return FORMATO_SOLES.format(Number.isFinite(valor) ? valor : 0)
 }
 
 /** Sin decimales, para rótulos donde el céntimo solo mete ruido. */
 export function formatearSolesCorto(valor: number): string {
-  return `S/${Math.round(valor).toLocaleString("es-PE")}`
+  return FORMATO_SOLES_CORTO.format(Number.isFinite(valor) ? Math.round(valor) : 0)
 }

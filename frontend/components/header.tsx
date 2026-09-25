@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Menu, Bell, User, LogOut } from "lucide-react"
+import { Menu, Bell, User, LogOut, ShieldCheck } from "lucide-react"
 import { HeaderSearch } from "./header-search"
 import { Logo } from "./logo"
 import { cn } from "@/lib/utils"
@@ -21,6 +21,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 
 import { useAuth } from "@/components/providers/auth-context"
 import { GamificationWidget } from "@/components/gamificacion/gamification-widget"
+import { soyAdminDonaciones } from "@/lib/donaciones-service"
 
 interface HeaderProps {
   onMenuClick: () => void
@@ -49,6 +50,9 @@ const ACCESOS = [
 export function Header({ onMenuClick }: HeaderProps) {
   const { user, signOut } = useAuth()
   const pathname = usePathname()
+  // El servidor decide: la membresía admin se consulta una vez por sesión y el
+  // enlace al panel nunca se muestra a estudiantes normales.
+  const [esAdmin, setEsAdmin] = useState(false)
   const [isAtTop, setIsAtTop] = useState(true)
   const [isHidden, setIsHidden] = useState(false)
   const ultimoScroll = useRef(0)
@@ -56,6 +60,20 @@ export function Header({ onMenuClick }: HeaderProps) {
   const rafId = useRef<number | null>(null)
 
   const nombre = user?.nombre_completo || "Estudiante"
+
+  useEffect(() => {
+    if (!user?.id) {
+      setEsAdmin(false)
+      return
+    }
+    let activo = true
+    soyAdminDonaciones().then((ok) => {
+      if (activo) setEsAdmin(ok)
+    })
+    return () => {
+      activo = false
+    }
+  }, [user?.id])
 
   useEffect(() => {
     const main = document.querySelector("main")
@@ -210,6 +228,14 @@ export function Header({ onMenuClick }: HeaderProps) {
                   Mi perfil
                 </Link>
               </DropdownMenuItem>
+              {esAdmin && (
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link href="/dashboard/admin/donaciones">
+                    <ShieldCheck className="w-4 h-4 mr-2" />
+                    Panel Admin
+                  </Link>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive cursor-pointer"

@@ -6,25 +6,18 @@ import { BandejaMensajes } from "@/components/mensajes/bandeja-mensajes"
 export default function MensajesPage() {
   return (
     <DashboardLayout>
-      <div className="p-4 sm:p-6">
-        <header className="mb-6">
-          <h1 className="font-poppins font-semibold text-2xl text-foreground">Mensajes</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Conversa en privado con otros estudiantes.
-          </p>
-        </header>
-        {/* BandejaMensajes lee ?dm= con useSearchParams, que en el App Router
-            exige un límite de Suspense. */}
-        <Suspense
-          fallback={
-            <div className="p-6">
-              <div className="h-24 w-full rounded-xl bg-muted animate-pulse" />
-            </div>
-          }
-        >
-          <BandejaMensajes />
-        </Suspense>
-      </div>
+      {/* BandejaMensajes lee ?dm= con useSearchParams, que en el App Router
+          exige un límite de Suspense. El encabezado vive dentro del
+          componente (rediseño glass). */}
+      <Suspense
+        fallback={
+          <div className="p-6">
+            <div className="h-24 w-full rounded-xl bg-muted animate-pulse" />
+          </div>
+        }
+      >
+        <BandejaMensajes />
+      </Suspense>
     </DashboardLayout>
   )
 }

@@ -21,6 +21,7 @@ function mockResponse(status: number, body: unknown) {
 describe("parseMatricula", () => {
   beforeEach(() => {
     mocks.fetchWithAuth.mockReset();
+    localStorage.clear();
   });
 
   it("usa un timeout de 60s SOLO para matrícula y envía el PDF como FormData", async () => {
@@ -55,5 +56,30 @@ describe("parseMatricula", () => {
     await expect(parseMatricula(file)).rejects.toThrow(
       "No se detectaron cursos."
     );
+  });
+
+  it("envía la clave BYOK en X-User-LLM-Key cuando el usuario guardó una", async () => {
+    localStorage.setItem("univia_byok_gemini", "  AIzaSyClaveDePrueba123  ");
+    mocks.fetchWithAuth.mockResolvedValueOnce(
+      mockResponse(200, { eventos_creados: [], cursos_detectados: [], message: "ok" })
+    );
+
+    const file = new File(["pdf"], "matricula.pdf", { type: "application/pdf" });
+    await parseMatricula(file);
+
+    const [, options] = mocks.fetchWithAuth.mock.calls[0];
+    expect(options.headers?.["X-User-LLM-Key"]).toBe("AIzaSyClaveDePrueba123");
+  });
+
+  it("no envía X-User-LLM-Key cuando no hay clave BYOK guardada", async () => {
+    mocks.fetchWithAuth.mockResolvedValueOnce(
+      mockResponse(200, { eventos_creados: [], cursos_detectados: [], message: "ok" })
+    );
+
+    const file = new File(["pdf"], "matricula.pdf", { type: "application/pdf" });
+    await parseMatricula(file);
+
+    const [, options] = mocks.fetchWithAuth.mock.calls[0];
+    expect(options.headers?.["X-User-LLM-Key"]).toBeUndefined();
   });
 });

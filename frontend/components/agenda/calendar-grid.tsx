@@ -42,6 +42,7 @@ export interface OpenModalParams {
   horaInicio: number
   horaFin?: number
   fecha: Date
+  evento?: CalendarioEvento
 }
 
 interface CalendarioGridProps {
@@ -55,6 +56,7 @@ interface CalendarioGridProps {
   onOpenModal: (params: OpenModalParams) => void
   onEventClick: (evento: CalendarioEvento) => void
   onAutoReschedule?: (eventoId: string) => void
+  onEventMove?: (params: { evento: CalendarioEvento, newFechaISO: string, newHoraInicio: number, newHoraFin: number }) => void
 }
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -174,6 +176,15 @@ function BloqueEvento({ evento, etiquetas, filtros, onClick, totalHorasPx, onAut
 
   return (
     <div
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("application/json", JSON.stringify(evento))
+        e.dataTransfer.effectAllowed = "move"
+        ;(window as any).__draggedEvent = evento
+      }}
+      onDragEnd={() => {
+        ;(window as any).__draggedEvent = null
+      }}
       role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); onClick(e); }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={e => e.key === "Enter" && onClick(e as any)}
       className={`absolute left-1 right-1 rounded-md cursor-pointer overflow-hidden
         ${s.bg} ${s.bgHover} ${s.border} ${s.glow}
@@ -186,14 +197,33 @@ function BloqueEvento({ evento, etiquetas, filtros, onClick, totalHorasPx, onAut
       title={`${evento.titulo}${evento.subtitulo ? ` · ${evento.subtitulo}` : ""}`}
     >
       <div className="px-2 py-1.5 h-full flex flex-col overflow-hidden relative group">
-        <div className="flex items-start gap-1">
-          {isExamen && <AlertTriangle className="w-3 h-3 text-rose-400 shrink-0 mt-0.5" />}
-          {evento.completed && <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0 mt-0.5" />}
-          <p className={`text-xs font-semibold leading-tight truncate ${s.text} ${evento.completed ? "line-through opacity-80" : ""}`}>{evento.titulo}</p>
+        <div className="flex items-start gap-1 mb-0.5">
+          {isExamen && <AlertTriangle className="w-3 h-3 text-rose-400 shrink-0 mt-[2px]" />}
+          {evento.completed && <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0 mt-[2px]" />}
+          <div className="flex flex-col min-w-0 flex-1">
+            <p className={`text-xs font-semibold leading-tight truncate ${s.text} ${evento.completed ? "line-through opacity-80" : ""}`}>{evento.titulo}</p>
+            
+            {!esPequeno && evento.subtitulo && (() => {
+              const restDesc = evento.subtitulo.replace(/^\[Subcategoría:\s*.*?\]\n?/, "").trim()
+              if (restDesc) {
+                return <p className={`text-[10px] leading-tight truncate mt-1 ${s.sub}`}>{restDesc}</p>
+              }
+              return null
+            })()}
+
+            {!esPequeno && evento.subtitulo && (() => {
+              const match = evento.subtitulo.match(/^\[Subcategoría:\s*(.*?)\]/)
+              if (match) {
+                return (
+                  <span className={`inline-flex self-start mt-1.5 px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider ${s.badge} border border-white/10 shadow-[0_1px_2px_rgba(0,0,0,0.2)] leading-none whitespace-nowrap`}>
+                    {match[1]}
+                  </span>
+                )
+              }
+              return null
+            })()}
+          </div>
         </div>
-        {!esPequeno && evento.subtitulo && (
-          <p className={`text-[10px] leading-tight truncate mt-0.5 ${s.sub}`}>{evento.subtitulo}</p>
-        )}
         
         {/* Botón Reubicar */}
         {estaVencido && onAutoReschedule && (
@@ -290,11 +320,12 @@ function LineasGuia({ totalHorasPx }: { totalHorasPx: number }) {
 // ─── Celdas clickeables ───────────────────────────────────────────────────────
 
 function CeldasClickeables({
-  fecha, totalHorasPx, onCeldaClick,
+  fecha, totalHorasPx, onCeldaClick, onEventMove
 }: {
   fecha: Date
   totalHorasPx: number
   onCeldaClick: (params: OpenModalParams) => void
+  onEventMove?: (params: { evento: CalendarioEvento, newFechaISO: string, newHoraInicio: number, newHoraFin: number }) => void
 }) {
   const totalSlots = TOTAL_H * SLOTS_POR_HORA
   const alturaCelda = totalHorasPx / totalSlots
@@ -360,9 +391,63 @@ function CeldasClickeables({
     )
   }
 
+  const [dragOverSlot, setDragOverSlot] = useState<number | null>(null)
+  
   return (
-    <div className="absolute inset-0 z-0 select-none" onMouseUp={handleMouseUp} onMouseLeave={() => setHoverSlot(null)}>
+    <div 
+      className="absolute inset-0 z-0 select-none" 
+      onMouseUp={handleMouseUp} 
+      onMouseLeave={() => { setHoverSlot(null); setDragOverSlot(null); }}
+      onDragOver={(e) => { 
+        e.preventDefault()
+        e.dataTransfer.dropEffect = "move"
+        const ev = (window as any).__draggedEvent as CalendarioEvento | null
+        if (ev) {
+          const rect = e.currentTarget.getBoundingClientRect()
+          const y = e.clientY - rect.top
+          setDragOverSlot(Math.floor(y / alturaCelda))
+        }
+      }}
+      onDragLeave={() => setDragOverSlot(null)}
+      onDrop={(e) => {
+        e.preventDefault()
+        setDragOverSlot(null)
+        if (!onEventMove) return
+        const data = e.dataTransfer.getData("application/json")
+        if (!data) return
+        try {
+          const evento = JSON.parse(data) as CalendarioEvento
+          const rect = e.currentTarget.getBoundingClientRect()
+          const y = e.clientY - rect.top
+          const slotIdx = Math.floor(y / alturaCelda)
+          const newHoraInicio = slotIdx / SLOTS_POR_HORA
+          const newFechaISO = formatearISO(fecha)
+          
+          onEventMove({
+            evento,
+            newFechaISO,
+            newHoraInicio,
+            newHoraFin: newHoraInicio + evento.duracion
+          })
+        } catch (err) {}
+      }}
+    >
       {renderSelectionBox()}
+      {/* Ghost visual block */}
+      {dragOverSlot !== null && (window as any).__draggedEvent && (() => {
+        const ev = (window as any).__draggedEvent as CalendarioEvento
+        const newHoraInicio = dragOverSlot / SLOTS_POR_HORA
+        const topPx = dragOverSlot * alturaCelda
+        const heightPx = (ev.duracion / TOTAL_H) * totalHorasPx
+        return (
+          <div className="absolute left-1 right-1 rounded-md overflow-hidden bg-white/10 border-2 border-white/30 border-dashed z-20 pointer-events-none opacity-60 flex flex-col items-center justify-center"
+               style={{ top: `${topPx}px`, height: `${heightPx}px` }}>
+            <span className="text-[10px] font-bold text-white bg-black/40 px-2 py-0.5 rounded">
+              {hora12Label(newHoraInicio, true)} - {hora12Label(newHoraInicio + ev.duracion, true)}
+            </span>
+          </div>
+        )
+      })()}
       {Array.from({ length: totalSlots }, (_, slotIdx) => {
         const horaInicio = slotIdx / SLOTS_POR_HORA
         const topPx = slotIdx * alturaCelda
@@ -436,10 +521,11 @@ interface ColumnaProps {
   onCeldaClick: (params: OpenModalParams) => void
   onEventClick: (evento: CalendarioEvento) => void
   onAutoReschedule?: (id: string) => void
+  onEventMove?: (params: { evento: CalendarioEvento, newFechaISO: string, newHoraInicio: number, newHoraFin: number }) => void
 }
 
 function ColumnaDia({
-  fecha, esHoy, eventos, etiquetas, filtros, sleepSettings, totalHorasPx, onCeldaClick, onEventClick, onAutoReschedule
+  fecha, esHoy, eventos, etiquetas, filtros, sleepSettings, totalHorasPx, onCeldaClick, onEventClick, onAutoReschedule, onEventMove
 }: ColumnaProps) {
   const diaSemana = fecha.getDay() === 0 ? 6 : fecha.getDay() - 1
   const diaLabel = DIAS_CORTOS[diaSemana]
@@ -456,7 +542,7 @@ function ColumnaDia({
       <div className="relative flex-1 bg-[#090b1c]" style={{ height: `${totalHorasPx}px` }}>
         <LineasGuia totalHorasPx={totalHorasPx} />
         <SleepZones totalHorasPx={totalHorasPx} sleepSettings={sleepSettings} />
-        <CeldasClickeables fecha={fecha} totalHorasPx={totalHorasPx} onCeldaClick={onCeldaClick} />
+        <CeldasClickeables fecha={fecha} totalHorasPx={totalHorasPx} onCeldaClick={onCeldaClick} onEventMove={onEventMove} />
         {esHoy && <CurrentTimeLine totalHorasPx={totalHorasPx} />}
         {eventos.map(ev => (
           <BloqueEvento key={ev.id} evento={ev} etiquetas={etiquetas} filtros={filtros} totalHorasPx={totalHorasPx} onAutoReschedule={onAutoReschedule} onClick={(e) => { e.stopPropagation(); onEventClick(ev) }} />
@@ -469,7 +555,8 @@ function ColumnaDia({
 // ─── Vistas ───────────────────────────────────────────────────────────────────
 
 function VistaSemana({
-  eventos, etiquetas, filtros, sleepSettings, fechasSemana, onCeldaClick, onEventClick, onAutoReschedule,
+  eventos, etiquetas, filtros, sleepSettings, fechasSemana, onCeldaClick, onEventClick, onAutoReschedule, onEventMove
+
 }: Omit<CalendarioGridProps, "vista" | "baseDate"> & { fechasSemana: Date[], onCeldaClick: (p: OpenModalParams) => void }) {
   const totalHorasPx = TOTAL_H * PX_POR_HORA
   const hoyStr = formatearISO(new Date())
@@ -504,6 +591,7 @@ function VistaSemana({
               onCeldaClick={onCeldaClick}
               onEventClick={onEventClick}
               onAutoReschedule={onAutoReschedule}
+              onEventMove={onEventMove}
             />
           )
         })}
@@ -513,7 +601,7 @@ function VistaSemana({
 }
 
 function VistaDia({
-  eventos, etiquetas, filtros, sleepSettings, baseDate, onCeldaClick, onEventClick, onAutoReschedule,
+  eventos, etiquetas, filtros, sleepSettings, baseDate, onCeldaClick, onEventClick, onAutoReschedule, onEventMove
 }: Omit<CalendarioGridProps, "vista" | "fechasSemana"> & { baseDate: Date, onCeldaClick: (p: OpenModalParams) => void }) {
   const totalHorasPx = TOTAL_H * PX_POR_HORA
   const isoDate = formatearISO(baseDate)
@@ -546,6 +634,7 @@ function VistaDia({
           onCeldaClick={onCeldaClick}
           onEventClick={onEventClick}
           onAutoReschedule={onAutoReschedule}
+          onEventMove={onEventMove}
         />
       </div>
     </div>

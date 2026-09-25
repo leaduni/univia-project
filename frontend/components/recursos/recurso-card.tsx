@@ -68,15 +68,16 @@ export function RecursoCard({ recurso, onDownload, descargando }: RecursoCardPro
   }
 
   // Gradientes semánticos de fondo para la cabecera/thumbnail según tipo
+  // Usa los colores de marca (violet, magenta, carmin) como base
   const thumbGradients: Record<string, string> = {
-    Examen: "linear-gradient(135deg, #f43f5e 0%, #9f1239 100%)", // Rose
-    Practica: "linear-gradient(135deg, #f59e0b 0%, #b45309 100%)", // Amber
-    Silabo: "linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)", // Sky
-    PDF: "linear-gradient(135deg, #64748b 0%, #334155 100%)", // Slate
-    Compendio: "linear-gradient(135deg, #8b5cf6 0%, #5b21b6 100%)", // Violet
-    Libro: "linear-gradient(135deg, #ec4899 0%, #be185d 100%)", // Pink
-    Apunte: "linear-gradient(135deg, #10b981 0%, #047857 100%)", // Emerald
-    Video: "linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)", // Red
+    Examen: "linear-gradient(135deg, #d93340 0%, #bf2a51 100%)",      // brand-red → brand-carmin
+    Practica: "linear-gradient(135deg, #f59e0b 0%, #d93340 100%)",    // Amber → brand-red
+    Silabo: "linear-gradient(135deg, #7957f1 0%, #a6249d 100%)",      // brand-violet → brand-magenta
+    PDF: "linear-gradient(135deg, #64748b 0%, #334155 100%)",         // Slate
+    Compendio: "linear-gradient(135deg, #a6249d 0%, #7957f1 100%)",   // brand-magenta → brand-violet
+    Libro: "linear-gradient(135deg, #ec4899 0%, #a6249d 100%)",       // Pink → brand-magenta
+    Apunte: "linear-gradient(135deg, #10b981 0%, #047857 100%)",      // Emerald
+    Video: "linear-gradient(135deg, #d93340 0%, #a6249d 100%)",       // brand-red → brand-magenta
   }
 
   // Iconos de marca de agua por tipo
@@ -96,18 +97,18 @@ export function RecursoCard({ recurso, onDownload, descargando }: RecursoCardPro
   // Nivel / badge de dificultad inferido para el prototipo visual
   const getDificultadBadge = () => {
     if (recurso.tipo === "Examen") {
-      return <span className="text-[10.5px] font-semibold px-2.5 py-1 rounded-lg backdrop-blur-sm text-rose-300 bg-rose-950/60 border border-rose-800/40">Difícil</span>
+      return <span className="text-[10.5px] font-bold px-2.5 py-1 rounded-lg backdrop-blur-sm text-rose-300 bg-rose-950/60 border border-rose-800/40">Difícil</span>
     }
     if (recurso.tipo === "Practica") {
-      return <span className="text-[10.5px] font-semibold px-2.5 py-1 rounded-lg backdrop-blur-sm text-amber-300 bg-amber-950/60 border border-amber-800/40">Media</span>
+      return <span className="text-[10.5px] font-bold px-2.5 py-1 rounded-lg backdrop-blur-sm text-amber-300 bg-amber-950/60 border border-amber-800/40">Media</span>
     }
-    return <span className="text-[10.5px] font-semibold px-2.5 py-1 rounded-lg backdrop-blur-sm text-emerald-300 bg-emerald-950/60 border border-emerald-800/40">Ciclo {recurso.ciclo ?? "—"}</span>
+    return <span className="text-[10.5px] font-bold px-2.5 py-1 rounded-lg backdrop-blur-sm text-brand-lila bg-brand-violet/20 border border-brand-violet/30">Ciclo {recurso.ciclo ?? "—"}</span>
   }
 
   const thumbBackground = thumbGradients[recurso.tipo] || "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)"
 
   return (
-    <div className="group flex flex-col rounded-2xl bg-card border border-border overflow-hidden cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:border-primary/40">
+    <div className="group flex flex-col rounded-2xl bg-card border border-border/60 overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-brand-violet/10 hover:border-brand-violet/30">
       {/* Header / Thumbnail */}
       <div className="relative h-44 overflow-hidden" style={{ background: thumbBackground }}>
         {/* Previsualización real del archivo (miniatura de Drive) */}
@@ -129,7 +130,7 @@ export function RecursoCard({ recurso, onDownload, descargando }: RecursoCardPro
         )}
 
         {/* Badge Tipo (Superior Izquierda) */}
-        <div className="absolute left-3 top-3 text-[10.5px] font-semibold px-2.5 py-1 rounded-lg bg-black/50 backdrop-blur-md text-white border border-white/10 shadow-sm">
+        <div className="absolute left-3 top-3 text-[10.5px] font-bold px-2.5 py-1 rounded-lg bg-black/50 backdrop-blur-md text-white border border-white/10 shadow-sm uppercase tracking-wider">
           {recurso.tipo}
         </div>
 
@@ -143,7 +144,7 @@ export function RecursoCard({ recurso, onDownload, descargando }: RecursoCardPro
 
         {/* Título en thumbnail overlay */}
         <div className="absolute left-3 right-16 bottom-3 z-10">
-          <span className="text-[11px] font-medium text-white/80 block uppercase tracking-wider mb-0.5">
+          <span className="text-[10px] font-bold text-white/80 block uppercase tracking-widest mb-0.5">
             {recurso.codigo_curso || recurso.nombre_curso || "General"}
           </span>
         </div>
@@ -152,7 +153,7 @@ export function RecursoCard({ recurso, onDownload, descargando }: RecursoCardPro
       {/* Cuerpo de la tarjeta */}
       <div className="p-4 flex-1 flex flex-col gap-3">
         <div>
-          <h3 className="font-poppins font-semibold text-[14px] leading-snug text-foreground line-clamp-2 group-hover:text-primary transition-colors">
+          <h3 className="font-heading font-bold text-[14px] leading-snug text-foreground line-clamp-2 group-hover:text-brand-violet transition-colors duration-200">
             {recurso.titulo}
           </h3>
           <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 mt-1">
@@ -166,7 +167,7 @@ export function RecursoCard({ recurso, onDownload, descargando }: RecursoCardPro
                 <Badge
                   key={esp.codigo_curso ?? esp.curso_id ?? index}
                   variant="outline"
-                  className="text-[10px] font-normal bg-secondary/60 text-muted-foreground border-border/60"
+                  className="text-[10px] font-semibold bg-brand-violet/10 text-brand-lila border-brand-violet/20"
                 >
                   {[esp.codigo_curso, esp.nombre_curso].filter(Boolean).join(" · ")}
                 </Badge>
@@ -180,7 +181,7 @@ export function RecursoCard({ recurso, onDownload, descargando }: RecursoCardPro
           <Button
             size="sm"
             variant="secondary"
-            className="w-full gap-1.5 h-8 text-xs bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/30 font-medium rounded-xl transition-colors"
+            className="w-full gap-1.5 h-8 text-xs bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/30 font-bold rounded-xl transition-colors"
             disabled={!urlSolucionario && !recurso.url_drive}
             onClick={abrirSolucionario}
           >
@@ -190,23 +191,23 @@ export function RecursoCard({ recurso, onDownload, descargando }: RecursoCardPro
         )}
 
         {/* Footer de la tarjeta */}
-        <div className="mt-auto pt-3 border-t border-border/60 space-y-2.5">
+        <div className="mt-auto pt-3 border-t border-border/40 space-y-2.5">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0 text-[11px] text-muted-foreground">
+            <div className="flex items-center gap-2 min-w-0 text-[11px] text-muted-foreground font-medium">
               <span className="shrink-0">{recurso.year ?? "—"}</span>
-              <span className="shrink-0">•</span>
+              <span className="shrink-0 text-border">•</span>
               <span className="flex items-center gap-1 shrink-0">
                 <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
                 {recurso.rating.toFixed(1)}
               </span>
-              <span className="shrink-0">•</span>
+              <span className="shrink-0 text-border">•</span>
               <span className="truncate">{recurso.downloads} descargas</span>
             </div>
 
             <Button
               size="icon"
               variant="ghost"
-              className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary"
+              className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:text-brand-violet hover:bg-brand-violet/10 transition-colors"
               disabled={!puedeAbrir || descargando}
               onClick={previsualizar}
               title="Previsualizar"
@@ -217,7 +218,7 @@ export function RecursoCard({ recurso, onDownload, descargando }: RecursoCardPro
 
           <Button
             size="sm"
-            className="w-full gap-1.5 h-8 text-[11.5px] font-semibold gradient-brand-hover text-white rounded-xl border-0 shadow-sm"
+            className="w-full gap-1.5 h-9 text-[12px] font-bold gradient-brand text-white rounded-xl border-0 shadow-md shadow-brand-violet/15 hover:shadow-lg hover:shadow-brand-violet/25 transition-all duration-200"
             disabled={!puedeAbrir || descargando}
             onClick={descargar}
           >

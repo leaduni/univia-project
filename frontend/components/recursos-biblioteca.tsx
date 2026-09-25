@@ -3,7 +3,11 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
-import { Search, BookMarked, Library } from "lucide-react"
+import {
+  Search, BookMarked, Library, CalendarDays, GraduationCap, ArrowUpDown,
+  Layers, FileText, PenLine, ClipboardList, FolderArchive, BookOpen, StickyNote, Video,
+  type LucideIcon,
+} from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RecursoCard } from "./recursos/recurso-card"
@@ -134,15 +138,15 @@ export function RecursosBiblioteca() {
     setSelectedTypes((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]))
   }
 
-  const categoryChips = [
-    { id: "all", label: "Todos" },
-    { id: "Examen", label: "Exámenes" },
-    { id: "Practica", label: "Prácticas" },
-    { id: "Silabo", label: "Sílabos" },
-    { id: "Compendio", label: "Compendios" },
-    { id: "Libro", label: "Libros" },
-    { id: "Apunte", label: "Apuntes" },
-    { id: "Video", label: "Videos" },
+  const categoryChips: { id: string; label: string; icon: LucideIcon; color: string }[] = [
+    { id: "all",       label: "Todos",      icon: Layers,        color: "text-brand-violet" },
+    { id: "Examen",    label: "Exámenes",   icon: FileText,      color: "text-rose-400" },
+    { id: "Practica",  label: "Prácticas",  icon: PenLine,       color: "text-amber-400" },
+    { id: "Silabo",    label: "Sílabos",    icon: ClipboardList, color: "text-sky-400" },
+    { id: "Compendio", label: "Compendios", icon: FolderArchive, color: "text-purple-400" },
+    { id: "Libro",     label: "Libros",     icon: BookOpen,      color: "text-pink-400" },
+    { id: "Apunte",    label: "Apuntes",    icon: StickyNote,    color: "text-emerald-400" },
+    { id: "Video",     label: "Videos",     icon: Video,         color: "text-red-400" },
   ]
 
   const vistas: { id: Vista; label: string; icon: typeof BookMarked }[] = [
@@ -153,14 +157,18 @@ export function RecursosBiblioteca() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header & Main Search Section */}
-      <div className="bg-background/80 border-b border-border/40 backdrop-blur-md">
-        <div className="p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto space-y-4">
-          {/* Page Header */}
-          <div>
-            <h1 className="font-poppins font-semibold text-3xl text-foreground tracking-tight mb-1">
+      <div className="relative overflow-hidden border-b border-border/40">
+        {/* Fondo con gradiente sutil de marca */}
+        <div className="absolute inset-0 bg-gradient-to-br from-brand-violet/5 via-brand-magenta/3 to-transparent pointer-events-none" />
+        <div className="absolute top-0 right-0 w-96 h-96 bg-[radial-gradient(circle,rgba(121,87,241,0.08),transparent_70%)] pointer-events-none" />
+
+        <div className="relative p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto space-y-5">
+          {/* Page Header — estilo limpio como Mi Malla */}
+          <div className="space-y-1">
+            <h1 className="font-heading text-2xl md:text-3xl font-bold tracking-tight text-foreground">
               Banco de exámenes y recursos
             </h1>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               {vista === "mis-cursos"
                 ? "Material de los cursos que llevas este ciclo"
                 : "Todo el material académico de tu facultad"}
@@ -169,7 +177,7 @@ export function RecursosBiblioteca() {
           </div>
 
           {/* Selector de alcance */}
-          <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-muted/30 border border-border/40">
+          <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-card/80 border border-border/60 backdrop-blur-sm shadow-sm">
             {vistas.map((v) => {
               const Icono = v.icon
               const activa = vista === v.id
@@ -179,9 +187,9 @@ export function RecursosBiblioteca() {
                   type="button"
                   onClick={() => setVista(v.id)}
                   aria-pressed={activa}
-                  className={`inline-flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium transition-all ${
+                  className={`inline-flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
                     activa
-                      ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 font-semibold"
+                      ? "gradient-brand text-white shadow-md shadow-brand-violet/25 font-semibold"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                   }`}
                 >
@@ -192,75 +200,96 @@ export function RecursosBiblioteca() {
             })}
           </div>
 
-          {/* Barra de búsqueda y selectores de filtro superior */}
-          <div className="flex gap-3 mb-2 flex-wrap xl:flex-nowrap items-center">
-            {/* Input de búsqueda */}
-            <div className="relative min-w-0 w-full flex-1 xl:min-w-[240px]">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4 pointer-events-none" />
-              <Input
-                placeholder="Buscar por curso, código o tema..."
-                className="h-11 pl-10 pr-4 rounded-xl bg-muted/30 border border-border/40 text-sm focus-visible:ring-2 focus-visible:ring-primary/50 placeholder:text-muted-foreground/50 w-full"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+          {/* Barra de filtros unificada */}
+          <div className="rounded-2xl bg-card/60 border border-border/40 backdrop-blur-sm p-4 space-y-4">
+            {/* Fila: Búsqueda + Filtros */}
+            <div className="flex gap-3 flex-wrap xl:flex-nowrap items-end">
+              {/* Input de búsqueda */}
+              <div className="min-w-0 w-full flex-1 xl:min-w-[260px] space-y-1.5">
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Search className="w-3 h-3" />
+                  Buscar
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 w-4 h-4 pointer-events-none" />
+                  <Input
+                    placeholder="Curso, código o tema..."
+                    className="h-10 pl-9 pr-4 rounded-xl bg-background/60 border border-border/50 text-sm focus-visible:ring-1 focus-visible:ring-brand-violet/40 focus-visible:border-brand-violet/30 placeholder:text-muted-foreground/40 w-full transition-all"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+              </div>
 
-            {/* Sin selector de facultad: el listado ya viene acotado a la
-                facultad del estudiante, así que ofrecer "todas" prometía
-                material que nunca se iba a mostrar. */}
+              {/* Sin selector de facultad: el listado ya viene acotado a la
+                  facultad del estudiante, así que ofrecer "todas" prometía
+                  material que nunca se iba a mostrar. */}
 
-            {/* Select Ciclo */}
-            <div className="w-full sm:w-40">
-              <Select
-                value={selectedCiclos[0] ?? "all"}
-                onValueChange={(val) => setSelectedCiclos(val === "all" ? [] : [val])}
-              >
-                <SelectTrigger className="h-11 rounded-xl bg-muted/30 border border-border/40 text-sm">
-                  <SelectValue placeholder="Ciclo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los ciclos</SelectItem>
-                  {Array.from({ length: 10 }, (_, i) => (i + 1).toString()).map((ciclo) => (
-                    <SelectItem key={ciclo} value={ciclo}>
-                      Ciclo {ciclo}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              {/* Select Ciclo */}
+              <div className="w-full sm:w-40 space-y-1.5">
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <GraduationCap className="w-3 h-3" />
+                  Ciclo
+                </label>
+                <Select
+                  value={selectedCiclos[0] ?? "all"}
+                  onValueChange={(val) => setSelectedCiclos(val === "all" ? [] : [val])}
+                >
+                  <SelectTrigger className="h-10 rounded-xl bg-background/60 border border-border/50 text-sm font-medium">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los ciclos</SelectItem>
+                    {Array.from({ length: 10 }, (_, i) => (i + 1).toString()).map((ciclo) => (
+                      <SelectItem key={ciclo} value={ciclo}>
+                        Ciclo {ciclo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            {/* Select Año */}
-            <div className="w-full sm:w-36">
-              <Select
-                value={selectedYears[0] ?? "all"}
-                onValueChange={(val) => setSelectedYears(val === "all" ? [] : [val])}
-              >
-                <SelectTrigger className="h-11 rounded-xl bg-muted/30 border border-border/40 text-sm">
-                  <SelectValue placeholder="Año" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los años</SelectItem>
-                  {aniosOpciones.map((year) => (
-                    <SelectItem key={year} value={year}>
-                      {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              {/* Select Año */}
+              <div className="w-full sm:w-36 space-y-1.5">
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <CalendarDays className="w-3 h-3" />
+                  Año
+                </label>
+                <Select
+                  value={selectedYears[0] ?? "all"}
+                  onValueChange={(val) => setSelectedYears(val === "all" ? [] : [val])}
+                >
+                  <SelectTrigger className="h-10 rounded-xl bg-background/60 border border-border/50 text-sm font-medium">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los años</SelectItem>
+                    {aniosOpciones.map((year) => (
+                      <SelectItem key={year} value={year}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            {/* Select Ordenamiento */}
-            <div className="w-full sm:w-44">
-              <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
-                <SelectTrigger className="h-11 rounded-xl bg-muted/30 border border-border/40 text-sm">
-                  <SelectValue placeholder="Ordenar por..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="recent">Más Reciente</SelectItem>
-                  <SelectItem value="downloaded">Más Descargado</SelectItem>
-                  <SelectItem value="rated">Mejor Calificado</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Select Ordenamiento */}
+              <div className="w-full sm:w-44 space-y-1.5">
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <ArrowUpDown className="w-3 h-3" />
+                  Ordenar
+                </label>
+                <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
+                  <SelectTrigger className="h-10 rounded-xl bg-background/60 border border-border/50 text-sm font-medium">
+                    <SelectValue placeholder="Ordenar por..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="recent">Más Reciente</SelectItem>
+                    <SelectItem value="downloaded">Más Descargado</SelectItem>
+                    <SelectItem value="rated">Mejor Calificado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
@@ -269,6 +298,7 @@ export function RecursosBiblioteca() {
             {/* Chips de Categorías */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full scrollbar-none">
               {categoryChips.map((chip) => {
+                const ChipIcon = chip.icon
                 const isActive =
                   chip.id === "all" ? selectedTypes.length === 0 : selectedTypes.includes(chip.id)
                 return (
@@ -281,12 +311,15 @@ export function RecursosBiblioteca() {
                         toggleType(chip.id)
                       }
                     }}
-                    className={`h-9 px-4 rounded-full text-sm font-medium transition-all shrink-0 ${
+                    className={`group/chip h-9 px-4 rounded-xl text-[13px] font-semibold transition-all duration-200 shrink-0 flex items-center gap-2 ${
                       isActive
-                        ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 font-semibold"
-                        : "bg-muted/30 text-muted-foreground border border-border/40 hover:border-primary/50 hover:bg-muted/50 hover:text-foreground"
+                        ? "gradient-brand text-white shadow-md shadow-brand-violet/25 scale-[1.02]"
+                        : "bg-card/80 text-muted-foreground border border-border/50 hover:border-brand-violet/30 hover:bg-brand-violet/5 hover:text-foreground hover:scale-[1.02]"
                     }`}
                   >
+                    <ChipIcon className={`w-3.5 h-3.5 transition-colors ${
+                      isActive ? "text-white" : chip.color
+                    }`} />
                     {chip.label}
                   </button>
                 )
@@ -294,7 +327,7 @@ export function RecursosBiblioteca() {
             </div>
 
             {/* Contador de resultados */}
-            <span className="text-xs text-muted-foreground font-medium shrink-0">
+            <span className="text-xs text-muted-foreground font-semibold shrink-0 bg-card/80 px-3 py-1.5 rounded-full border border-border/60">
               {total} recursos
               {totalPaginas > 1 && ` · página ${paginaActual} de ${totalPaginas}`}
             </span>
@@ -311,7 +344,7 @@ export function RecursosBiblioteca() {
               {Array.from({ length: 8 }).map((_, idx) => (
                 <div
                   key={idx}
-                  className="flex flex-col rounded-2xl bg-[#232532] border border-[#3f424d]/60 overflow-hidden h-[340px] animate-pulse"
+                  className="flex flex-col rounded-2xl bg-card border border-border/60 overflow-hidden h-[340px] animate-pulse"
                 >
                   <div className="h-44 bg-muted/40" />
                   <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
@@ -319,7 +352,7 @@ export function RecursosBiblioteca() {
                       <div className="h-4 bg-muted/40 rounded w-3/4" />
                       <div className="h-3 bg-muted/30 rounded w-1/2" />
                     </div>
-                    <div className="flex justify-between items-center pt-3 border-t border-[#3f424d]/40">
+                    <div className="flex justify-between items-center pt-3 border-t border-border/40">
                       <div className="h-3 bg-muted/30 rounded w-1/3" />
                       <div className="h-8 bg-muted/40 rounded w-24" />
                     </div>
@@ -345,9 +378,11 @@ export function RecursosBiblioteca() {
             /* Vista "Mis cursos" sin cursos activos: sin esto la pantalla
                parecería un banco vacío en vez de un perfil sin matrícula. */
             <div className="text-center py-16 space-y-4">
-              <BookMarked className="w-10 h-10 mx-auto text-muted-foreground/60" />
+              <div className="p-4 rounded-2xl bg-card border border-border/60 shadow-md inline-block">
+                <BookMarked className="w-10 h-10 text-brand-violet" />
+              </div>
               <div className="space-y-1">
-                <h2 className="font-poppins font-semibold text-foreground">
+                <h2 className="font-heading text-lg font-bold text-foreground">
                   Todavía no tienes cursos activos
                 </h2>
                 <p className="text-sm text-muted-foreground max-w-md mx-auto">
@@ -358,7 +393,7 @@ export function RecursosBiblioteca() {
               <button
                 type="button"
                 onClick={() => setVista("todo")}
-                className="h-10 px-5 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+                className="h-10 px-6 rounded-xl text-sm font-bold gradient-brand text-white shadow-md shadow-brand-violet/25 hover:opacity-90 transition-all duration-200"
               >
                 Ver todo el banco
               </button>

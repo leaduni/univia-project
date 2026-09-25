@@ -3,7 +3,8 @@
 import { useState, useMemo, useRef, useEffect } from "react"
 import {
   Search, X, ChevronRight, ChevronLeft, BookOpen, Clock,
-  MapPin, User, Check, Loader2, GraduationCap, Beaker, FlaskConical, UploadCloud, FileText
+  MapPin, User, Check, Loader2, GraduationCap, Beaker, FlaskConical, UploadCloud, FileText,
+  RefreshCw, ExternalLink, CalendarDays
 } from "lucide-react"
 import {
   timeToDecimal,
@@ -15,12 +16,14 @@ import {
 import type { CalendarioEvento, Etiqueta } from "./calendar-grid"
 import { fetchCargaHoraria, parseMatricula } from "@/lib/agenda-service"
 import { fetchWithAuth } from "@/lib/api-service"
+import { supabase } from "@/lib/supabase"
 import { API_URL } from "@/lib/env"
 
 interface AddCourseSectionModalProps {
   onClose: () => void
   etiquetas: Etiqueta[]
-  semesterStart: string
+  semesterSettings: { start: string, end: string }
+  onSaveSemester: (s: { start: string, end: string }) => void
   onAddEvents: (events: CalendarioEvento[]) => void
 }
 
@@ -44,14 +47,38 @@ function getFirstDateForDay(semesterStart: string, dayCode: string): string {
   return `${yyyy}-${mm}-${dd}`
 }
 
+function getDateForDayThisWeek(dayCode: string): string {
+  const targetDay = dayCodeToWeekday(dayCode)
+  const d = new Date()
+  const currentDay = d.getDay() === 0 ? 7 : d.getDay()
+  const diff = targetDay - currentDay
+  d.setDate(d.getDate() + diff)
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, "0")
+  const dd = String(d.getDate()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd}`
+}
+
 export function AddCourseSectionModal({
   onClose,
   etiquetas,
-  semesterStart,
+  semesterSettings,
+  onSaveSemester,
   onAddEvents,
 }: AddCourseSectionModalProps) {
   const [tab, setTab] = useState<Tab>("manual")
-  
+
+  // Local state for semester settings
+  const [semStart, setSemStart] = useState(semesterSettings.start)
+  const [semEnd, setSemEnd] = useState(semesterSettings.end)
+
+  // Auto-save when local state changes
+  useEffect(() => {
+    if (semStart !== semesterSettings.start || semEnd !== semesterSettings.end) {
+      onSaveSemester({ start: semStart, end: semEnd })
+    }
+  }, [semStart, semEnd, semesterSettings, onSaveSemester])
+
   // Tab Manual
   const [step, setStep] = useState<Step>("search")
   const [query, setQuery] = useState("")
@@ -69,6 +96,8 @@ export function AddCourseSectionModal({
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [pdfResult, setPdfResult] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  const [isFullSemester, setIsFullSemester] = useState(true)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const modalRef = useRef<HTMLDivElement>(null)
@@ -80,13 +109,28 @@ export function AddCourseSectionModal({
         setCourses(groupSchedulesByCourse(rows))
 
         try {
-          const res = await fetchWithAuth(`${API_URL}/onboarding/resumen`)
-          if (res.ok) {
-            const data = await res.json()
-            if (data.cursos_en_curso) {
-              const codes = data.cursos_en_curso.map((c: any) => c.code)
-              setMyCourseCodes(codes)
-              if (codes.length === 0) setShowOnlyMine(false)
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            const { data: progreso } = await supabase
+              .from("progreso_cursos")
+              .select("curso_id")
+              .eq("perfil_id", user.id)
+              .eq("status", "in_progress")
+
+            if (progreso && progreso.length > 0) {
+              const cursoIds = progreso.map(p => p.curso_id)
+              const { data: cursosData } = await supabase
+                .from("cursos")
+                .select("code")
+                .in("id", cursoIds)
+
+              if (cursosData) {
+                const codes = cursosData.map(c => c.code)
+                setMyCourseCodes(codes)
+                if (codes.length === 0) setShowOnlyMine(false)
+              }
+            } else {
+              setShowOnlyMine(false)
             }
           }
         } catch (e) {
@@ -147,15 +191,16 @@ export function AddCourseSectionModal({
         titulo: `${b.codigo} - ${TIPO_LABELS[b.tipo_clase] || b.tipo_clase}`,
         subtitulo: `${b.nombre_curso} | Sección ${b.seccion} | Aula: ${b.aula} | ${b.docente}`,
         etiquetaId,
-        fechaISO: getFirstDateForDay(semesterStart, b.dia),
+        fechaISO: isFullSemester ? getFirstDateForDay(semStart, b.dia) : getDateForDayThisWeek(b.dia),
+        fechaFinISO: isFullSemester ? semEnd : undefined,
         horaInicio,
         duracion: horaFin - horaInicio,
         todoElDia: false,
-        recurrencia: "Cada semana",
+        recurrencia: isFullSemester ? "Cada semana" : "No se repite",
         ubicacion: b.aula,
       }
     })
-    
+
     onAddEvents(events)
     setAdding(false)
     onClose()
@@ -173,7 +218,7 @@ export function AddCourseSectionModal({
     setIsUploading(true)
     try {
       const res = await parseMatricula(selectedFile)
-      
+
       const newEvents: CalendarioEvento[] = res.eventos_creados.map(ev => ({
         id: ev.id?.toString() || `ev_${Date.now()}_${Math.random()}`,
         titulo: ev.titulo,
@@ -186,7 +231,7 @@ export function AddCourseSectionModal({
         recurrencia: ev.recurrencia === 'weekly' ? 'Cada semana' : 'No se repite',
         ubicacion: ev.ubicacion || undefined
       }))
-      
+
       onAddEvents(newEvents)
       setPdfResult(`Éxito: ${res.message}`)
       setTimeout(() => onClose(), 2500)
@@ -198,16 +243,18 @@ export function AddCourseSectionModal({
 
   const selectedBloques = selectedCourse && selectedSection ? selectedCourse.secciones[selectedSection]?.bloques || [] : []
 
+  const hayMisCursos = myCourseCodes.length > 0
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" />
-      <div ref={modalRef} className="relative z-10 w-full max-w-lg bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
-        
+      <div ref={modalRef} className="relative z-10 w-full max-w-2xl bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+
         {/* Header con Tabs */}
         <div className="border-b border-white/[0.08]">
           <div className="px-6 py-4 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-              <GraduationCap className="w-4 h-4 text-indigo-400" /> 
+              <GraduationCap className="w-4 h-4 text-indigo-400" />
               {tab === "manual" && step !== "search" ? (
                 <>
                   <button onClick={handleBack} className="w-6 h-6 hover:bg-white/10 rounded flex items-center justify-center"><ChevronLeft className="w-4 h-4" /></button>
@@ -227,40 +274,135 @@ export function AddCourseSectionModal({
           )}
         </div>
 
+        {/* Banner de configuración del semestre */}
+        <div className="bg-indigo-900/30 border-b border-indigo-500/20 px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-indigo-200">
+            <CalendarDays className="w-4 h-4 text-indigo-400 shrink-0" />
+            <p className="text-[11px] sm:text-xs">
+              Según estas fechas se agregarán tus cursos en tu horario semanal:
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={semStart}
+              onChange={e => setSemStart(e.target.value)}
+              className="bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+              title="Día de inicio de clases"
+            />
+            <span className="text-slate-400 text-xs">hasta</span>
+            <input
+              type="date"
+              value={semEnd}
+              onChange={e => setSemEnd(e.target.value)}
+              className="bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+              title="Día de fin de clases"
+            />
+          </div>
+        </div>
+
         {/* CONTENIDO MANUAL */}
         {tab === "manual" && step === "search" && (
           <div className="flex flex-col">
-            <div className="px-6 py-3 border-b border-white/5">
+            {/* Toggle Mis cursos / Todos + buscador */}
+            <div className="px-6 py-3 border-b border-white/5 space-y-3">
+              {/* Toggle de vista - AHORA SIEMPRE SE MUESTRA */}
+              <div className="flex items-center gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/[0.08]">
+                <button
+                  onClick={() => setShowOnlyMine(true)}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${showOnlyMine
+                      ? "bg-indigo-600 text-white shadow-md"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                    }`}
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  Mis cursos ({myCourseCodes.length})
+                </button>
+                <button
+                  onClick={() => setShowOnlyMine(false)}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${!showOnlyMine
+                      ? "bg-indigo-600 text-white shadow-md"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                    }`}
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  Todos los cursos
+                </button>
+              </div>
+
+              {/* Buscador */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <input ref={inputRef} type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por código o nombre de curso..." className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all" />
               </div>
-              {myCourseCodes.length > 0 && (
-                <label className="flex items-center gap-2 mt-3 cursor-pointer text-xs text-slate-400 hover:text-slate-300">
-                  <input 
-                    type="checkbox" 
-                    checked={showOnlyMine} 
-                    onChange={(e) => setShowOnlyMine(e.target.checked)}
-                    className="rounded border-white/10 bg-white/5 text-indigo-500 focus:ring-indigo-500/50"
-                  />
-                  Mostrar mis cursos (Onboarding)
-                </label>
+
+              {/* Banner informativo: cómo cambiar los cursos */}
+              {showOnlyMine && (
+                <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-indigo-500/8 border border-indigo-500/15">
+                  <RefreshCw className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1 text-[11px] text-indigo-300/80 leading-relaxed">
+                    {hayMisCursos ? (
+                      <p>Estos son los cursos que marcaste como en curso.</p>
+                    ) : (
+                      <p>No tienes cursos en curso registrados actualmente.</p>
+                    )}
+                    <a
+                      href="/perfil"
+                      className="inline-flex items-center gap-0.5 font-semibold text-indigo-400 hover:text-indigo-300 underline underline-offset-2"
+                    >
+                      Actualizar situación académica
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
               )}
             </div>
-            <div className="overflow-y-auto max-h-[45vh] custom-scrollbar">
+
+            {/* Lista de cursos */}
+            <div className="overflow-y-auto max-h-[50vh] custom-scrollbar">
               {loadingCourses ? (
                 <div className="p-8 flex justify-center"><Loader2 className="w-6 h-6 text-indigo-400 animate-spin" /></div>
               ) : filtered.length === 0 ? (
-                <div className="p-8 text-center"><GraduationCap className="w-8 h-8 text-slate-600 mx-auto mb-3" /><p className="text-sm text-slate-500">No se encontraron cursos</p></div>
+                <div className="p-8 text-center space-y-3">
+                  <GraduationCap className="w-8 h-8 text-slate-600 mx-auto" />
+                  <p className="text-sm text-slate-500">
+                    {showOnlyMine
+                      ? hayMisCursos
+                        ? "Tus cursos activos no tienen horarios programados en la base de datos. (¿Subiste el Excel de la facultad?)"
+                        : "No tienes cursos 'en curso' registrados actualmente."
+                      : "No se encontraron cursos"}
+                  </p>
+                  {showOnlyMine && (
+                    <button
+                      onClick={() => setShowOnlyMine(false)}
+                      className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold"
+                    >
+                      Ver todos los cursos disponibles →
+                    </button>
+                  )}
+                </div>
               ) : (
-                <div className="p-2 space-y-1">
+                <div className="p-2 space-y-1 grid grid-cols-1 md:grid-cols-2 gap-2">
                   {filtered.map((course) => {
                     const secs = Object.keys(course.secciones)
+                    const esMio = myCourseCodes.includes(course.codigo)
                     return (
                       <button key={course.codigo} onClick={() => handleSelectCourse(course)} className="w-full flex items-center gap-4 p-3.5 rounded-xl text-left hover:bg-white/[0.04] transition-all group">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0"><span className="text-[10px] font-black text-indigo-400 tracking-wider">{course.codigo.slice(0, 3)}</span></div>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${esMio
+                            ? "bg-indigo-500/15 border border-indigo-500/25"
+                            : "bg-white/5 border border-white/10"
+                          }`}>
+                          <span className={`text-[10px] font-black tracking-wider ${esMio ? "text-indigo-400" : "text-slate-500"
+                            }`}>{course.codigo.slice(0, 3)}</span>
+                        </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2"><span className="text-xs font-bold text-indigo-400">{course.codigo}</span><span className="text-[10px] text-slate-500">{secs.length} secc.</span></div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-bold ${esMio ? "text-indigo-400" : "text-slate-400"}`}>{course.codigo}</span>
+                            <span className="text-[10px] text-slate-500">{secs.length} secc.</span>
+                            {esMio && !showOnlyMine && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">EN CURSO</span>
+                            )}
+                          </div>
                           <p className="text-sm font-medium text-slate-200 truncate mt-0.5">{course.nombre_curso}</p>
                         </div>
                         <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition-colors shrink-0" />
@@ -284,10 +426,22 @@ export function AddCourseSectionModal({
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-indigo-400 transition-colors" />
                 </div>
-                <div className="flex gap-2 ml-[42px] mt-2 flex-wrap">
-                  {data.bloques.map((b, i) => (
-                    <span key={`${b.tipo_clase}_${b.dia}_${b.hora_inicio}_${i}`} className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[10px] font-medium text-slate-300">{TIPO_LABELS[b.tipo_clase] || b.tipo_clase}: {DIA_LABELS[b.dia]?.slice(0, 3) || b.dia} {b.hora_inicio}</span>
-                  ))}
+                <div className="ml-[42px] mt-2 flex flex-col gap-2">
+                  <div className="flex gap-2 flex-wrap">
+                    {data.bloques.map((b, i) => (
+                      <span key={`${b.tipo_clase}_${b.dia}_${b.hora_inicio}_${i}`} className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[10px] font-medium text-slate-300">
+                        {TIPO_LABELS[b.tipo_clase] || b.tipo_clase}: {DIA_LABELS[b.dia]?.slice(0, 3) || b.dia} {b.hora_inicio?.slice(0, 5)} - {b.hora_fin?.slice(0, 5)}
+                      </span>
+                    ))}
+                  </div>
+                  {data.bloques.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                      <User className="w-3 h-3 text-slate-500 shrink-0" />
+                      <span className="truncate">
+                        {Array.from(new Set(data.bloques.map(b => b.docente).filter(Boolean))).join(" | ")}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </button>
             ))}
@@ -313,7 +467,25 @@ export function AddCourseSectionModal({
                   </div>
                 )
               })}
-              <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-3 mt-2"><p className="text-[11px] text-indigo-300/80">Se agregarán <strong>{selectedBloques.length} bloques</strong> con recurrencia semanal.</p></div>
+              <div 
+                className="bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-3.5 mt-2 flex items-center justify-between gap-4 cursor-pointer hover:bg-indigo-500/10 transition-colors" 
+                onClick={() => setIsFullSemester(!isFullSemester)}
+              >
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs font-semibold text-indigo-200">Repetir todo el semestre</span>
+                  <span className="text-[10px] text-indigo-300/70">
+                    {isFullSemester 
+                      ? "Se programará semanalmente hasta el fin del semestre." 
+                      : "Solo se agregará a la semana actual. Útil para clases puntuales o de recuperación."}
+                  </span>
+                </div>
+                <div className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${isFullSemester ? 'bg-indigo-500' : 'bg-slate-600'}`}>
+                  <span 
+                    className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform" 
+                    style={{ transform: isFullSemester ? 'translateX(18px)' : 'translateX(4px)' }} 
+                  />
+                </div>
+              </div>
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 bg-[#11121d] border-t border-white/5">
               <button onClick={handleBack} className="px-5 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-all">Volver</button>
@@ -363,4 +535,3 @@ export function AddCourseSectionModal({
     </div>
   )
 }
-

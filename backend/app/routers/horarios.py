@@ -29,11 +29,9 @@ async def get_secciones_disponibles(user_data=Depends(get_current_user)):
     sb = get_supabase(token)
 
     try:
-        # Primero, necesitamos saber qué cursos está llevando actualmente
-        # Asumiendo que `progreso_academico` tiene `status = 'in_progress'`
-        # o que hay un RPC/tabla de perfiles_cursos.
-        # Por simplicidad, obtenemos el progreso actual:
-        resp_progreso = await _run(lambda: sb.table("progreso_academico")
+        # Los cursos "en curso" se guardan en `progreso_cursos` durante el
+        # onboarding (status = 'in_progress'). Solo mostramos secciones de esos.
+        resp_progreso = await _run(lambda: sb.table("progreso_cursos")
                                    .select("curso_id")
                                    .eq("perfil_id", user.id)
                                    .eq("status", "in_progress")

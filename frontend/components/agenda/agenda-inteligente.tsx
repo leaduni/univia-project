@@ -409,23 +409,69 @@ interface ModalEventoProps {
   onOpenCrearEtiqueta: () => void
 }
 
+function ComboBox({ value, onChange, options, placeholder }: { value: string, onChange: (v: string) => void, options: string[], placeholder?: string }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [filteredOptions, setFilteredOptions] = useState(options)
+
+  useEffect(() => {
+    setFilteredOptions(options.filter(o => o.toLowerCase().includes(value.toLowerCase()) && o !== value))
+  }, [value, options])
+
+  return (
+    <div className="relative w-full">
+      <input 
+        type="text" 
+        value={value}
+        onChange={e => { onChange(e.target.value); setIsOpen(true); }}
+        onFocus={() => setIsOpen(true)}
+        placeholder={placeholder}
+        className="w-full bg-white/5 border border-white/10 rounded-lg text-sm font-medium text-slate-200 px-3 py-2 focus:outline-none focus:border-indigo-500 transition-all"
+      />
+      <button type="button" onClick={() => setIsOpen(!isOpen)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded-md transition-colors">
+         <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (filteredOptions.length > 0 || !value) && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <div className="absolute top-full left-0 right-0 mt-1 bg-[#1c1d2e] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden max-h-48 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150">
+            {(filteredOptions.length > 0 ? filteredOptions : options).map(opt => (
+              <button key={opt} type="button" onClick={() => { onChange(opt); setIsOpen(false); }}
+                className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-colors">
+                {opt}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearEtiqueta }: ModalEventoProps) {
-  const [tipoNuevo, setTipoNuevo] = useState<TipoNuevo>("Evento")
-  const [titulo, setTitulo] = useState("")
+  const [tipoNuevo, setTipoNuevo] = useState<TipoNuevo>(prefill?.evento?.tipo === 'tarea' ? "Tarea" : "Evento")
+  
+  const [titulo, setTitulo] = useState(() => prefill?.evento?.titulo || "")
   
   // Fechas y Horas
-  const [todoElDia, setTodoElDia] = useState(false)
-  const [fechaIni, setFechaIni] = useState(() => prefill?.fecha ? formatearISO(prefill.fecha) : formatearISO(new Date()))
-  const [fechaFin, setFechaFin] = useState(() => prefill?.fecha ? formatearISO(prefill.fecha) : formatearISO(new Date()))
+  const [todoElDia, setTodoElDia] = useState(prefill?.evento?.todoElDia || false)
+  const [fechaIni, setFechaIni] = useState(() => prefill?.evento?.fechaISO ? prefill.evento.fechaISO : (prefill?.fecha ? formatearISO(prefill.fecha) : formatearISO(new Date())))
+  const [fechaFin, setFechaFin] = useState(() => prefill?.evento?.fechaFinISO ? prefill.evento.fechaFinISO : (prefill?.fecha ? formatearISO(prefill.fecha) : formatearISO(new Date())))
   
   const [horaIni, setHoraIni] = useState(() => {
-    if (prefill?.horaInicio !== undefined) {
-      const h = Math.floor(HORA_INI + prefill.horaInicio), m = Math.round((prefill.horaInicio % 1) * 60)
+    const startH = prefill?.evento ? prefill.evento.horaInicio : prefill?.horaInicio
+    if (startH !== undefined) {
+      const h = Math.floor(HORA_INI + startH), m = Math.round((startH % 1) * 60)
       return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
     }
     return "09:00"
   })
   const [horaFin, setHoraFin] = useState(() => {
+    if (prefill?.evento) {
+      const endH = prefill.evento.horaInicio + prefill.evento.duracion
+      const h = Math.floor(HORA_INI + endH), m = Math.round((endH % 1) * 60)
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+    }
     if (prefill?.horaFin !== undefined) {
       const h = Math.floor(HORA_INI + prefill.horaFin), m = Math.round((prefill.horaFin % 1) * 60)
       return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
@@ -438,15 +484,48 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
   })
 
   // Google Calendar extra fields
-  const [recurrencia, setRecurrencia] = useState("No se repite")
-  const [ubicacion, setUbicacion] = useState("")
-  const [videollamada, setVideollamada] = useState("")
+  const [recurrencia, setRecurrencia] = useState(() => {
+    if (!prefill?.evento?.recurrencia) return "No se repite"
+    const recMap: Record<string, string> = { 'none': 'No se repite', 'daily': 'Cada día', 'weekly': 'Cada semana', 'weekdays': 'Días laborables (lun-vie)' }
+    return recMap[prefill.evento.recurrencia] || "No se repite"
+  })
+  const [ubicacion, setUbicacion] = useState(prefill?.evento?.ubicacion || "")
+  const [videollamada, setVideollamada] = useState(prefill?.evento?.videollamada || "")
   const [invitados, setInvitados] = useState("")
   const [notificacion, setNotificacion] = useState("10 minutos antes")
-  const [desc, setDesc] = useState("")
-  const [etiquetaSel, setEtiquetaSel] = useState<string>(etiquetas[0]?.id || "")
+  const [desc, setDesc] = useState(() => {
+    let d = prefill?.evento?.subtitulo || ""
+    d = d.replace(/^\[Subcategoría:\s*.*?\]\n?/, "")
+    return d
+  })
+  
+  // Encontrar la etiqueta por id
+  const [etiquetaSel, setEtiquetaSel] = useState<string>(() => {
+    if (prefill?.evento?.etiquetaId) return prefill.evento.etiquetaId.toString()
+    return etiquetas[0]?.id || ""
+  })
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false)
-  const etiquetaSeleccionada = etiquetas.find(e => e.id === etiquetaSel)
+  const etiquetaSeleccionada = etiquetas.find(e => e.id.toString() === etiquetaSel.toString())
+  
+  const checkIsEval = (nombre: string) => {
+    const n = nombre.toLowerCase()
+    return n.includes("evalua") || n.includes("examen") || n.includes("parcial") || n.includes("final") || n.includes("práctica") || n.includes("practica") || n.includes("pc") || n.includes("expo") || n.includes("presentaci") || n.includes("monograf") || n.includes("proyecto") || n.includes("tarea") || n.includes("entrega")
+  }
+  const isTagEvaluacion = etiquetaSeleccionada ? checkIsEval(etiquetaSeleccionada.nombre) : false
+
+  const [subtipoEval, setSubtipoEval] = useState(() => {
+    const sub = prefill?.evento?.subtitulo || ""
+    const match = sub.match(/^\[Subcategoría:\s*(.*?)\]/)
+    return match ? match[1] : ""
+  })
+  
+  const [customSubtagsMap, setCustomSubtagsMap] = useState<Record<string, string[]>>({})
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("univia_custom_subtags")
+      if (saved) setCustomSubtagsMap(JSON.parse(saved))
+    } catch(e) {}
+  }, [])
 
   const [prevEtiquetasLength, setPrevEtiquetasLength] = useState(etiquetas.length)
   useEffect(() => {
@@ -471,10 +550,28 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
         dur = Math.max(0.5, (hf + mf / 60) - (h + m / 60))
       }
 
+      let finalDesc = desc || ""
+      if (subtipoEval) {
+        if (!finalDesc.includes(`[Subcategoría: ${subtipoEval}]`)) {
+          finalDesc = `[Subcategoría: ${subtipoEval}]\n${finalDesc}`.trim()
+        }
+        
+        // Guardar custom subtag
+        if (etiquetaSel) {
+          const etqStr = etiquetaSel.toString()
+          const existents = customSubtagsMap[etqStr] || []
+          if (!existents.includes(subtipoEval)) {
+            const nextMap = { ...customSubtagsMap, [etqStr]: [...existents, subtipoEval] }
+            localStorage.setItem("univia_custom_subtags", JSON.stringify(nextMap))
+            setCustomSubtagsMap(nextMap)
+          }
+        }
+      }
+
       onGuardar({
-        id: `ev_${Date.now()}`,
-        titulo,
-        subtitulo: desc || undefined,
+        id: prefill?.evento?.id || `ev_${Date.now()}`,
+        titulo: titulo.trim(),
+        subtitulo: finalDesc || undefined,
         ubicacion: ubicacion || undefined,
         videollamada: videollamada || undefined,
         todoElDia,
@@ -527,7 +624,7 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
         </div>
 
         {/* Form Body */}
-        <div className="p-6 space-y-6 overflow-y-auto max-h-[60vh] custom-scrollbar">
+        <div className="p-6 space-y-6 overflow-y-auto max-h-[60vh] custom-scrollbar pb-32">
           
           {/* Fechas y Horas */}
           <div className="flex gap-4 items-start">
@@ -606,6 +703,24 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
               )}
             </div>
           </div>
+          
+          <div className="flex gap-4 items-center bg-indigo-500/5 border border-indigo-500/10 p-3 rounded-xl mt-2 animate-in fade-in slide-in-from-top-2">
+            <Tag className="w-5 h-5 text-indigo-400 shrink-0" />
+            <div className="flex-1 relative z-50">
+              <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1.5">Subcategoría (Opcional)</p>
+              <ComboBox 
+                value={subtipoEval}
+                onChange={setSubtipoEval}
+                placeholder={isTagEvaluacion ? "Ej: Parcial, Control de Lectura..." : "Ej: Reunión, Asesoría, Avance..."}
+                options={Array.from(new Set([
+                  ...(isTagEvaluacion 
+                    ? ["Parcial", "Final", "Práctica", "Exposición", "Monografía", "Presentación Final", "Control de Lectura"] 
+                    : ["Reunión", "Investigación", "Asesoría", "Taller", "Clase Extra"]),
+                  ...(customSubtagsMap[etiquetaSel.toString()] || [])
+                ]))}
+              />
+            </div>
+          </div>
 
           {tipoNuevo === "Evento" && (
             <>
@@ -662,16 +777,17 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
   )
 }
 
-function ModalCrearEtiqueta({ onClose, onCrear }: { onClose: () => void, onCrear: (etq: Etiqueta) => void }) {
+function ModalCrearEtiqueta({ onClose, onCrear }: { onClose: () => void, onCrear: (etq: Etiqueta, isEval: boolean) => void }) {
   const [nombre, setNombre] = useState("")
   const [color, setColor] = useState<ColorEtiqueta>("indigo")
+  const [isEval, setIsEval] = useState(false)
   const [creando, setCreando] = useState(false)
 
   const handleCrear = () => {
     if (!nombre.trim()) return
     setCreando(true)
     setTimeout(() => {
-      onCrear({ id: `c_${Date.now()}`, nombre: nombre.trim(), color })
+      onCrear({ id: `c_${Date.now()}`, nombre: nombre.trim(), color }, isEval)
       onClose()
     }, 400)
   }
@@ -704,6 +820,16 @@ function ModalCrearEtiqueta({ onClose, onCrear }: { onClose: () => void, onCrear
               })}
             </div>
           </div>
+          
+          <label className="flex items-center gap-3 cursor-pointer group bg-white/5 border border-white/10 p-3 rounded-xl transition-colors hover:bg-white/10" onClick={() => setIsEval(!isEval)}>
+            <div className={`relative w-8 h-4.5 rounded-full transition-colors ${isEval ? "bg-rose-500" : "bg-white/10"}`}>
+              <div className={`absolute top-0.5 left-0.5 w-3.5 h-3.5 bg-white rounded-full shadow transition-transform ${isEval ? "translate-x-3.5" : "translate-x-0"}`} />
+            </div>
+            <div>
+              <span className="text-xs font-semibold text-slate-200 group-hover:text-white transition-colors block">Considerar como Evaluación</span>
+              <span className="text-[10px] text-slate-400">Aparecerá en Evaluaciones Próximas</span>
+            </div>
+          </label>
         </div>
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-white/[0.05] bg-[#11121d]">
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-all">Cancelar</button>
@@ -733,9 +859,23 @@ function EventDetailPopover({ evento, etiqueta, onClose, onEdit, onDelete, onSta
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200" onClick={onClose} />
       <div className="relative z-10 w-full max-w-sm bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200 p-6">
         <div className="flex justify-between items-start mb-4">
-          <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 shadow-sm mt-1">
-            <div className="w-2.5 h-2.5 rounded-full" style={{ background: s.dot }} />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">{etiqueta.nombre}</span>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 shadow-sm">
+              <div className="w-2.5 h-2.5 rounded-full" style={{ background: s.dot }} />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">{etiqueta.nombre}</span>
+            </div>
+            
+            {(() => {
+              const match = (evento.subtitulo || "").match(/^\[Subcategoría:\s*(.*?)\]/)
+              if (match) {
+                return (
+                  <div className="flex items-center px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 shadow-sm">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">{match[1]}</span>
+                  </div>
+                )
+              }
+              return null
+            })()}
           </div>
           <div className="flex gap-1 bg-[#11121d] rounded-full p-1 border border-white/5">
             <button onClick={onEdit} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors text-slate-400 hover:text-indigo-400">
@@ -759,11 +899,15 @@ function EventDetailPopover({ evento, etiqueta, onClose, onEdit, onDelete, onSta
           <span>{evento.todoElDia ? "Todo el día" : `${f(evento.horaInicio)} a ${f(evento.horaInicio + evento.duracion)}`}</span>
         </div>
         
-        {evento.subtitulo && (
-          <div className="bg-white/[0.03] rounded-xl p-4 border border-white/5 mb-5 max-h-32 overflow-y-auto custom-scrollbar shadow-inner">
-            <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{evento.subtitulo}</p>
-          </div>
-        )}
+        {(() => {
+          const restDesc = (evento.subtitulo || "").replace(/^\[Subcategoría:\s*.*?\]\n?/, "").trim()
+          if (!restDesc) return null
+          return (
+            <div className="bg-white/[0.03] rounded-xl p-4 border border-white/5 mb-5 max-h-32 overflow-y-auto custom-scrollbar shadow-inner">
+              <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{restDesc}</p>
+            </div>
+          )
+        })()}
         
         {(evento.ubicacion || evento.videollamada) && (
           <div className="space-y-3 mt-2 bg-[#11121d] p-4 rounded-xl border border-white/5">
@@ -880,26 +1024,12 @@ function ModalAjustesGeneral({
               <DropdownMenu value={end12} onChange={setEnd12} options={timeOptions} />
             </div>
           </div>
-
-          {/* Configuración de Semestre */}
-          <div className="space-y-4 border-t border-white/5 pt-4">
-            <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><CalendarDays className="w-3.5 h-3.5 text-rose-400" /> Fechas del Semestre</h3>
-            <div>
-              <label className="text-xs text-slate-400 mb-2 block font-medium">Día de inicio de clases</label>
-              <input type="date" value={semStart} onChange={e => setSemStart(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-all" />
-            </div>
-            <div>
-              <label className="text-xs text-slate-400 mb-2 block font-medium">Día de fin de ciclo</label>
-              <input type="date" value={semEnd} onChange={e => setSemEnd(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-all" />
-            </div>
-          </div>
         </div>
 
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-white/[0.05] bg-[#11121d] rounded-b-2xl">
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-all">Cancelar</button>
           <button onClick={() => { 
             onSaveSleep({ start: to24h(start12), end: to24h(end12) }); 
-            onSaveSemester({ start: semStart, end: semEnd });
             onClose(); 
           }} className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-all">Guardar</button>
         </div>
@@ -929,6 +1059,7 @@ export function AgendaInteligente() {
   const [isFocusModeOpen, setIsFocusModeOpen] = useState(false)
   const [focusEvent, setFocusEvent] = useState<CalendarioEvento | null>(null)
   const [pomodoroStartTime, setPomodoroStartTime] = useState<string | null>(null)
+  const [moveConfirmData, setMoveConfirmData] = useState<{evento: CalendarioEvento, newFechaISO: string, newHoraInicio: number, newHoraFin: number} | null>(null)
 
   // -- Reprogramación Anti-culpa --
   const handleAutoReschedule = useCallback(async (eventoId: string) => {
@@ -948,14 +1079,34 @@ export function AgendaInteligente() {
       editarEvento(numId, { fecha_iso: iso, hora_inicio: 18, completed: false }).catch(() => {})
     }
   }, [])
+
+  const handleEventMove = useCallback(async (params: { evento: CalendarioEvento, newFechaISO: string, newHoraInicio: number, newHoraFin: number }) => {
+    setMoveConfirmData(params)
+  }, [])
+
+  const confirmMove = async () => {
+    if (!moveConfirmData) return
+    const { evento, newFechaISO, newHoraInicio, newHoraFin } = moveConfirmData
+    
+    // Actualizar UI instantáneo
+    setEventos(prev => prev.map(ev => {
+      if (ev.id === evento.id) return { ...ev, fechaISO: newFechaISO, horaInicio: newHoraInicio, duracion: newHoraFin - newHoraInicio }
+      return ev
+    }))
+
+    setMoveConfirmData(null)
+
+    // Persistir en DB si es ID numérico
+    const numId = parseInt(evento.id)
+    if (!isNaN(numId)) {
+      editarEvento(numId, { fecha_iso: newFechaISO, hora_inicio: newHoraInicio }).catch(err => console.error(err))
+    }
+  }
   
   // Settings de Sueño y Semestre
   const [sleepSettings, setSleepSettings] = useState({ start: "23:00", end: "07:00" })
   const [semesterSettings, setSemesterSettings] = useState(() => {
-    const d = new Date()
-    const dEnd = new Date(d)
-    dEnd.setMonth(d.getMonth() + 4)
-    return { start: formatearISO(d), end: formatearISO(dEnd) }
+    return { start: "2026-08-17", end: "2026-12-19" }
   })
   const [isSleepModalOpen, setIsSleepModalOpen] = useState(false)
   const [isCourseSectionModalOpen, setIsCourseSectionModalOpen] = useState(false)
@@ -966,6 +1117,14 @@ export function AgendaInteligente() {
   const [isTagsExpanded, setIsTagsExpanded] = useState(false)
   const [filtros, setFiltros] = useState<Record<string, boolean>>(ETIQUETAS_BASE.reduce((acc, e) => ({ ...acc, [e.id]: true }), {}))
   const [eventos, setEventos] = useState<CalendarioEvento[]>([])
+  
+  const [customEvalTags, setCustomEvalTags] = useState<string[]>([])
+  useEffect(() => {
+    try {
+      const savedEvals = localStorage.getItem("univia_eval_tags")
+      if (savedEvals) setCustomEvalTags(JSON.parse(savedEvals))
+    } catch(e) {}
+  }, [])
   const [modalPrefill, setModalPrefill] = useState<OpenModalParams | null>(null)
   const [apiReady, setApiReady] = useState(false)
 
@@ -1030,17 +1189,25 @@ export function AgendaInteligente() {
     return [...normales, ...generados]
   }, [eventos, semDates])
 
-  // Derivar exámenes/evaluaciones próximas dinámicamente desde los eventos reales del usuario
   const examenesProximos = useMemo(() => {
-    const evalEtq = etiquetas.find(e => 
-      e.nombre.toLowerCase().includes("evalua") || 
-      e.nombre.toLowerCase().includes("examen") ||
-      e.nombre.toLowerCase().includes("parcial") ||
-      e.nombre.toLowerCase().includes("final")
-    )
+    const isEval = (ev: CalendarioEvento) => {
+      // 1. Explicitly tagged as exam type
+      if (ev.tipo === 'examen') return true
+      // 2. The tag was explicitly marked as Evaluation by the user (checkbox)
+      if (ev.etiquetaId && customEvalTags.includes(ev.etiquetaId.toString())) return true
+      // 3. The event has an evaluation subcategory
+      if (ev.subtitulo) {
+        const match = ev.subtitulo.match(/^\[Subcategoría:\s*(.*?)\]/)
+        if (match) {
+          const sub = match[1].toLowerCase()
+          return sub.includes("evalua") || sub.includes("examen") || sub.includes("parcial") || sub.includes("final") || sub.includes("práctica") || sub.includes("practica") || sub.includes("pc") || sub.includes("expo") || sub.includes("presentaci") || sub.includes("monograf") || sub.includes("proyecto") || sub.includes("tarea") || sub.includes("entrega") || sub.includes("control")
+        }
+      }
+      return false
+    }
     const now = new Date()
-    return eventos
-      .filter(ev => ev.tipo === 'examen' || (evalEtq && ev.etiquetaId === evalEtq.id))
+    return eventosConRecurrencia
+      .filter(ev => isEval(ev))
       .map(ev => {
         const h = Math.floor(ev.horaInicio)
         const m = Math.round((ev.horaInicio - h) * 60)
@@ -1051,7 +1218,7 @@ export function AgendaInteligente() {
       .filter(ex => ex.fechaTarget.getTime() >= now.getTime() - 86400000)
       .sort((a, b) => a.fechaTarget.getTime() - b.fechaTarget.getTime())
       .slice(0, 5)
-  }, [eventos, etiquetas])
+  }, [eventosConRecurrencia, customEvalTags])
   
   // Modo Semana de Exámenes
   const [examWeekMode, setExamWeekMode] = useState(false)
@@ -1114,12 +1281,19 @@ export function AgendaInteligente() {
         <ModalCrearEvento
           onClose={() => { setIsCreateModalOpen(false); setModalPrefill(null) }}
           onGuardar={async (ev) => {
-            // Agregar localmente inmediato para UI responsiva
-            setEventos(prev => [...prev, ev])
+            const isEditing = ev.id && typeof ev.id === 'string' ? !ev.id.startsWith("ev_") : true
+            
+            // UI optimista
+            if (isEditing) {
+              setEventos(prev => prev.map(e => e.id === ev.id ? ev : e))
+            } else {
+              setEventos(prev => [...prev, ev])
+            }
+            
             // Persistir en backend
             try {
               const recMap: Record<string, string> = { 'No se repite': 'none', 'Cada día': 'daily', 'Cada semana': 'weekly', 'Días laborables (lun-vie)': 'weekdays' }
-              const saved = await crearEvento({
+              const payload = {
                 titulo: ev.titulo,
                 subtitulo: ev.subtitulo,
                 tipo: ev.tipo === 'examen' ? 'examen' : 'evento',
@@ -1133,9 +1307,18 @@ export function AgendaInteligente() {
                 ubicacion: ev.ubicacion,
                 videollamada: ev.videollamada,
                 descripcion: ev.subtitulo,
-              })
-              // Reemplazar el evento local con el del backend (tiene ID real)
-              setEventos(prev => prev.map(e => e.id === ev.id ? apiEventoToLocal(saved) : e))
+              }
+              
+              if (isEditing) {
+                const numId = parseInt(ev.id.toString().split('_gen_')[0])
+                if (!isNaN(numId)) {
+                  const saved = await editarEvento(numId, payload)
+                  setEventos(prev => prev.map(e => e.id === ev.id ? apiEventoToLocal(saved) : e))
+                }
+              } else {
+                const saved = await crearEvento(payload)
+                setEventos(prev => prev.map(e => e.id === ev.id ? apiEventoToLocal(saved) : e))
+              }
             } catch (err) {
               console.warn("[Agenda] No se pudo guardar en backend:", err)
             }
@@ -1149,16 +1332,32 @@ export function AgendaInteligente() {
       {isTagModalOpen && (
         <ModalCrearEtiqueta
           onClose={() => setIsTagModalOpen(false)}
-          onCrear={async (etq) => {
+          onCrear={async (etq, isEval) => {
             // Agregar localmente
             setEtiquetas(p => [...p, etq])
             setFiltros(p => ({ ...p, [etq.id]: true }))
+            if (isEval) {
+              setCustomEvalTags(p => {
+                const n = [...p, etq.id.toString()]
+                localStorage.setItem("univia_eval_tags", JSON.stringify(n))
+                return n
+              })
+            }
             // Persistir en backend
             try {
               const saved = await crearEtiquetaAPI({ nombre: etq.nombre, color: etq.color })
               const localSaved = apiEtiquetaToLocal(saved)
               setEtiquetas(p => p.map(e => e.id === etq.id ? localSaved : e))
               setFiltros(p => { const n = { ...p }; delete n[etq.id]; n[localSaved.id] = true; return n })
+              
+              if (isEval) {
+                setCustomEvalTags(p => {
+                  const arr = p.filter(x => x !== etq.id.toString())
+                  const n = [...arr, localSaved.id.toString()]
+                  localStorage.setItem("univia_eval_tags", JSON.stringify(n))
+                  return n
+                })
+              }
             } catch (err) {
               console.warn("[Agenda] No se pudo crear etiqueta en backend:", err)
             }
@@ -1198,7 +1397,11 @@ export function AgendaInteligente() {
             if (!isNaN(numId)) eliminarEvento(numId).catch(() => {})
           }}
           onEdit={() => {
-            setModalPrefill({ horaInicio: popoverEvent.horaInicio, fecha: new Date(popoverEvent.fechaISO + "T00:00:00") })
+            setModalPrefill({ 
+              horaInicio: popoverEvent.horaInicio, 
+              fecha: new Date(popoverEvent.fechaISO + "T00:00:00"),
+              evento: popoverEvent 
+            })
             setPopoverEvent(null)
             setIsCreateModalOpen(true)
           }}
@@ -1237,7 +1440,8 @@ export function AgendaInteligente() {
         <AddCourseSectionModal
           onClose={() => setIsCourseSectionModalOpen(false)}
           etiquetas={etiquetas}
-          semesterStart={semesterSettings.start}
+          semesterSettings={semesterSettings}
+          onSaveSemester={setSemesterSettings}
           onAddEvents={async (newEvents) => {
             // Agregar localmente inmediato
             setEventos(prev => [...prev, ...newEvents])
@@ -1251,6 +1455,7 @@ export function AgendaInteligente() {
                   tipo: 'evento',
                   etiqueta_id: ev.etiquetaId ? parseInt(ev.etiquetaId) : null,
                   fecha_iso: ev.fechaISO,
+                  fecha_fin_iso: ev.fechaFinISO,
                   hora_inicio: ev.horaInicio,
                   duracion: ev.duracion,
                   todo_el_dia: false,
@@ -1401,6 +1606,7 @@ export function AgendaInteligente() {
               onOpenModal={(params) => { setModalPrefill(params); setIsCreateModalOpen(true) }}
               onEventClick={(ev) => setPopoverEvent(ev)}
               onAutoReschedule={handleAutoReschedule}
+              onEventMove={handleEventMove}
             />
           </div>
 
@@ -1436,9 +1642,9 @@ export function AgendaInteligente() {
                 </p>
               </div>
 
-              {/* Radar Próximo */}
+              {/* Evaluaciones Próximas */}
               <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg">
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><AlertTriangle className="w-3.5 h-3.5 text-rose-500" /> Radar Próximo</p>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><AlertTriangle className="w-3.5 h-3.5 text-rose-500" /> Evaluaciones Próximas</p>
                 <div className="space-y-2.5">
                   {examenesProximos.length > 0 ? (
                     examenesProximos.map(ex => {
@@ -1446,12 +1652,12 @@ export function AgendaInteligente() {
                       return (
                         <div key={ex.id} onClick={() => openAIPanel(ex.nombre)} className={`cursor-pointer rounded-xl p-3 transition-all hover:scale-[1.02] ${urgente ? "bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20" : "bg-white/5 border border-white/5 hover:bg-white/10"}`}>
                           <p className="text-xs font-semibold text-slate-200 truncate">{ex.nombre}</p>
-                          <p className={`text-[10px] font-mono font-bold mt-1 ${urgente ? "text-rose-400" : "text-indigo-400"}`}>En {txt}</p>
+                          <p className={`text-[10px] font-mono font-bold mt-1 ${urgente ? "text-rose-400" : "text-indigo-400"}`}>Faltan {txt}</p>
                         </div>
                       )
                     })
                   ) : (
-                    <p className="text-xs text-slate-500 italic py-1 text-center">Sin exámenes próximos</p>
+                    <p className="text-xs text-slate-500 italic py-1 text-center">Sin evaluaciones próximas</p>
                   )}
                 </div>
               </div>
@@ -1520,6 +1726,66 @@ export function AgendaInteligente() {
               )}
             </div>
           </div>
+        {/* Modal de Confirmación de Movimiento */}
+        {moveConfirmData && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center animate-in fade-in duration-200">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMoveConfirmData(null)} />
+            <div className="relative z-10 w-full max-w-sm bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-6 animate-in zoom-in-95">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Reagendar Evento</h3>
+                  <p className="text-xs text-slate-400">Confirmar nuevo horario</p>
+                </div>
+              </div>
+              
+              <div className="bg-black/20 rounded-xl p-4 border border-white/5 space-y-3 mb-6">
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Evento</p>
+                  <p className="text-sm font-semibold text-slate-200 truncate">{moveConfirmData.evento.titulo}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4 pt-1">
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-indigo-400/80 mb-0.5">Nuevo Día</p>
+                    <p className="text-sm font-medium text-white capitalize">
+                      {(() => {
+                        const [yy, mm, dd] = moveConfirmData.newFechaISO.split("-")
+                        const d = new Date(Number(yy), Number(mm)-1, Number(dd))
+                        return d.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric' })
+                      })()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-emerald-400/80 mb-0.5">Nuevo Horario</p>
+                    <p className="text-sm font-medium text-white whitespace-nowrap">
+                      {(() => {
+                        const formatTime = (h: number) => {
+                          const hInt = Math.floor(h)
+                          const mInt = Math.round((h - hInt) * 60)
+                          const ampm = hInt >= 12 ? 'PM' : 'AM'
+                          const h12 = hInt % 12 || 12
+                          return `${h12}:${mInt.toString().padStart(2, '0')} ${ampm}`
+                        }
+                        return `${formatTime(moveConfirmData.newHoraInicio)} - ${formatTime(moveConfirmData.newHoraFin)}`
+                      })()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3">
+                <button onClick={() => setMoveConfirmData(null)} className="flex-1 py-2.5 rounded-xl border border-white/10 hover:bg-white/5 text-sm font-medium text-slate-300 transition-colors">
+                  Cancelar
+                </button>
+                <button onClick={confirmMove} className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.3)] text-sm font-semibold text-white transition-colors">
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         </div>
       </div>
     </>

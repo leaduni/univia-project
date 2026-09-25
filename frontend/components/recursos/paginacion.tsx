@@ -33,7 +33,7 @@ export function Paginacion({ paginaActual, totalPaginas, onCambiar }: Paginacion
 
   const rango = construirRango(paginaActual, totalPaginas)
   const btnBase =
-    "h-9 min-w-9 px-3 rounded-xl text-sm font-medium transition-colors border disabled:opacity-40 disabled:pointer-events-none"
+    "h-9 min-w-9 px-3 rounded-xl text-sm font-semibold transition-all duration-200 border disabled:opacity-40 disabled:pointer-events-none"
 
   return (
     <nav
@@ -42,7 +42,7 @@ export function Paginacion({ paginaActual, totalPaginas, onCambiar }: Paginacion
     >
       <button
         type="button"
-        className={`${btnBase} bg-[#232532] text-muted-foreground border-[#3f424d]/60 hover:border-primary/50 hover:text-foreground flex items-center gap-1`}
+        className={`${btnBase} bg-card text-muted-foreground border-border/60 hover:border-brand-violet/40 hover:text-brand-violet hover:bg-brand-violet/5 flex items-center gap-1`}
         onClick={() => onCambiar(paginaActual - 1)}
         disabled={paginaActual === 1}
         aria-label="Página anterior"
@@ -52,7 +52,7 @@ export function Paginacion({ paginaActual, totalPaginas, onCambiar }: Paginacion
 
       {rango.map((pagina, idx) =>
         pagina === "…" ? (
-          <span key={`gap-${idx}`} className="px-2 text-sm text-muted-foreground select-none">
+          <span key={`gap-${idx}`} className="px-2 text-sm text-muted-foreground select-none font-bold">
             …
           </span>
         ) : (
@@ -61,8 +61,8 @@ export function Paginacion({ paginaActual, totalPaginas, onCambiar }: Paginacion
             type="button"
             className={`${btnBase} ${
               pagina === paginaActual
-                ? "bg-primary text-primary-foreground border-primary font-semibold shadow-sm"
-                : "bg-[#232532] text-muted-foreground border-[#3f424d]/60 hover:border-primary/50 hover:text-foreground"
+                ? "gradient-brand text-white border-transparent shadow-md shadow-brand-violet/20"
+                : "bg-card text-muted-foreground border-border/60 hover:border-brand-violet/40 hover:text-brand-violet hover:bg-brand-violet/5"
             }`}
             onClick={() => onCambiar(pagina)}
             aria-current={pagina === paginaActual ? "page" : undefined}
@@ -74,7 +74,7 @@ export function Paginacion({ paginaActual, totalPaginas, onCambiar }: Paginacion
 
       <button
         type="button"
-        className={`${btnBase} bg-[#232532] text-muted-foreground border-[#3f424d]/60 hover:border-primary/50 hover:text-foreground flex items-center gap-1`}
+        className={`${btnBase} bg-card text-muted-foreground border-border/60 hover:border-brand-violet/40 hover:text-brand-violet hover:bg-brand-violet/5 flex items-center gap-1`}
         onClick={() => onCambiar(paginaActual + 1)}
         disabled={paginaActual === totalPaginas}
         aria-label="Página siguiente"

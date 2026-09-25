@@ -69,14 +69,14 @@ export function RecursoCard({ recurso, onDownload, descargando }: RecursoCardPro
 
   // Gradientes semánticos de fondo para la cabecera/thumbnail según tipo
   const thumbGradients: Record<string, string> = {
-    Examen: "linear-gradient(135deg, #451219 0%, #1e1b4b 100%)",
-    Practica: "linear-gradient(135deg, #1e1b4b 0%, #31103f 100%)",
-    Silabo: "linear-gradient(135deg, #0c4a6e 0%, #1e1b4b 100%)",
-    PDF: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
-    Compendio: "linear-gradient(135deg, #3b0764 0%, #1e1b4b 100%)",
-    Libro: "linear-gradient(135deg, #451a03 0%, #1e1b4b 100%)",
-    Apunte: "linear-gradient(135deg, #064e3b 0%, #0f172a 100%)",
-    Video: "linear-gradient(135deg, #831843 0%, #31103f 100%)",
+    Examen: "linear-gradient(135deg, #f43f5e 0%, #9f1239 100%)", // Rose
+    Practica: "linear-gradient(135deg, #f59e0b 0%, #b45309 100%)", // Amber
+    Silabo: "linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)", // Sky
+    PDF: "linear-gradient(135deg, #64748b 0%, #334155 100%)", // Slate
+    Compendio: "linear-gradient(135deg, #8b5cf6 0%, #5b21b6 100%)", // Violet
+    Libro: "linear-gradient(135deg, #ec4899 0%, #be185d 100%)", // Pink
+    Apunte: "linear-gradient(135deg, #10b981 0%, #047857 100%)", // Emerald
+    Video: "linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)", // Red
   }
 
   // Iconos de marca de agua por tipo

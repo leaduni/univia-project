@@ -151,9 +151,9 @@ export function RecursosBiblioteca() {
   ]
 
   return (
-    <div className="min-h-screen bg-[#161826] text-foreground">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Header & Main Search Section */}
-      <div className="bg-[#161826]/80 border-b border-[#3f424d]/60 backdrop-blur-md">
+      <div className="bg-background/80 border-b border-border/40 backdrop-blur-md">
         <div className="p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto space-y-4">
           {/* Page Header */}
           <div>
@@ -169,7 +169,7 @@ export function RecursosBiblioteca() {
           </div>
 
           {/* Selector de alcance */}
-          <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-[#232532] border border-[#3f424d]/60">
+          <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-muted/30 border border-border/40">
             {vistas.map((v) => {
               const Icono = v.icon
               const activa = vista === v.id
@@ -181,8 +181,8 @@ export function RecursosBiblioteca() {
                   aria-pressed={activa}
                   className={`inline-flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium transition-all ${
                     activa
-                      ? "bg-primary text-primary-foreground shadow-sm font-semibold"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 font-semibold"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                   }`}
                 >
                   <Icono className="w-4 h-4" />
@@ -199,7 +199,7 @@ export function RecursosBiblioteca() {
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4 pointer-events-none" />
               <Input
                 placeholder="Buscar por curso, código o tema..."
-                className="h-11 pl-10 pr-4 rounded-xl bg-[#232532] border border-[#3f424d]/60 text-sm focus-visible:ring-2 focus-visible:ring-primary/50 placeholder:text-muted-foreground/50 w-full"
+                className="h-11 pl-10 pr-4 rounded-xl bg-muted/30 border border-border/40 text-sm focus-visible:ring-2 focus-visible:ring-primary/50 placeholder:text-muted-foreground/50 w-full"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -215,7 +215,7 @@ export function RecursosBiblioteca() {
                 value={selectedCiclos[0] ?? "all"}
                 onValueChange={(val) => setSelectedCiclos(val === "all" ? [] : [val])}
               >
-                <SelectTrigger className="h-11 rounded-xl bg-[#232532] border border-[#3f424d]/60 text-sm">
+                <SelectTrigger className="h-11 rounded-xl bg-muted/30 border border-border/40 text-sm">
                   <SelectValue placeholder="Ciclo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -235,7 +235,7 @@ export function RecursosBiblioteca() {
                 value={selectedYears[0] ?? "all"}
                 onValueChange={(val) => setSelectedYears(val === "all" ? [] : [val])}
               >
-                <SelectTrigger className="h-11 rounded-xl bg-[#232532] border border-[#3f424d]/60 text-sm">
+                <SelectTrigger className="h-11 rounded-xl bg-muted/30 border border-border/40 text-sm">
                   <SelectValue placeholder="Año" />
                 </SelectTrigger>
                 <SelectContent>
@@ -252,7 +252,7 @@ export function RecursosBiblioteca() {
             {/* Select Ordenamiento */}
             <div className="w-full sm:w-44">
               <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
-                <SelectTrigger className="h-11 rounded-xl bg-[#232532] border border-[#3f424d]/60 text-sm">
+                <SelectTrigger className="h-11 rounded-xl bg-muted/30 border border-border/40 text-sm">
                   <SelectValue placeholder="Ordenar por..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -283,8 +283,8 @@ export function RecursosBiblioteca() {
                     }}
                     className={`h-9 px-4 rounded-full text-sm font-medium transition-all shrink-0 ${
                       isActive
-                        ? "bg-primary text-primary-foreground shadow-sm font-semibold"
-                        : "bg-[#232532] text-muted-foreground border border-[#3f424d]/60 hover:border-primary/50 hover:text-foreground"
+                        ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 font-semibold"
+                        : "bg-muted/30 text-muted-foreground border border-border/40 hover:border-primary/50 hover:bg-muted/50 hover:text-foreground"
                     }`}
                   >
                     {chip.label}

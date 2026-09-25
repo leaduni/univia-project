@@ -81,8 +81,13 @@ if IS_PRODUCTION:
         )
     origins = [origin.strip() for origin in cors_origins_raw.split(",") if origin.strip()]
 else:
-    # En desarrollo permitimos todos los orígenes para soportar el túnel del frontend
-    origins = ["*"]
+    # En desarrollo permitimos orígenes locales comunes para evitar error con allow_credentials=True
+    origins = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000"
+    ]
 
 app.add_middleware(
     CORSMiddleware,

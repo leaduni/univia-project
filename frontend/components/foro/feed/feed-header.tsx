@@ -44,17 +44,20 @@ const ORDENES: { valor: OrdenFeed; etiqueta: string; icono?: React.ReactNode }[]
 
 export function FeedHeader({ busqueda, onBusqueda, orden, onOrden, onNuevoHilo }: FeedHeaderProps) {
   return (
-    // Sticky: se ancla bajo el Header del dashboard al hacer scroll.
-    // INVARIANTE (ver globals.css): --foro-feed-sticky-top === pt-20 (5rem) del
-    // scroll container de DashboardLayout + --foro-feed-top-gap, que es el hueco
-    // que reserva la <section> en foro-feed.tsx. Si los tres valores no cuadran,
-    // el navegador desplaza la barra fuera de su hueco (position: sticky no
-    // reserva el espacio del desplazamiento) y tapa la primera tarjeta.
-    // mb-6 es la ÚNICA fuente del aire entre la barra y la lista.
-    // El fondo es casi opaco para que los posts que pasan por debajo no se
-    // transparenten; la sombra se mantiene contenida para no oscurecer el borde
-    // superior de la primera tarjeta.
-    <div className="sticky top-[var(--foro-feed-sticky-top)] z-20 mb-6">
+    // Sticky: se ancla bajo el Header flotante del dashboard al hacer scroll.
+    // La barra es un hijo de bloque NORMAL de la <section> del feed: reserva
+    // su altura real en el flujo y empuja la lista hacia abajo (sticky no
+    // "flota": solo desplaza dentro de su hueco al hacer scroll).
+    // Ancla constante y directa: top-24 = 96px. El Header flotante mide como
+    // máximo ~86px (safe-top 12 + ~74px en lg+), así que 96px lo cubre en
+    // todos los breakpoints SIN depender de calc() ni tokens de globals.css.
+    // En reposo la barra nace exactamente en 96px (main pt-20 = 80px + grid
+    // pt-4 = 16px en foro/page.tsx), así que reposo == punto de anclaje: no
+    // hay salto ni desplazamiento que pueda cubrir la primera tarjeta.
+    // Sin márgenes propios: el aire barra→lista es el gap-6 de la sección.
+    // El fondo es casi opaco a propósito: con `sticky` el contenido SÍ pasa
+    // por debajo al anclarse (es su comportamiento normal, no un solape).
+    <div className="sticky top-24 z-20">
       <div className="rounded-2xl border border-white/[0.08] bg-[#090a12]/95 p-2 shadow-xl shadow-black/30 backdrop-blur-2xl">
         <div className="flex gap-2">
           {/* Search */}

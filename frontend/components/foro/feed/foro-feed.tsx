@@ -58,13 +58,14 @@ export function ForoFeed() {
   }, [feed.setBusqueda, feed.setFiltro])
 
   return (
-    // El scroll container del dashboard (DashboardLayout: <main pt-20>) reserva
-    // 5rem para el Header flotante, pero el tope sticky de la barra del feed
-    // (--foro-feed-sticky-top) es mayor. Sin este padding el navegador desplaza
-    // la barra 16px hacia abajo sin reservar hueco y se come el aire de la
-    // primera tarjeta. --foro-feed-top-gap es exactamente esa diferencia, así
-    // que la barra arranca en la misma posición en la que se ancla al scrollear.
-    <section aria-label="Feed del foro" className="pt-[var(--foro-feed-top-gap)]">
+    // La reserva del ancla NO vive aquí: la pone el grid de /foro (pt-4) encima
+    // de todas las columnas, así el fallback de Suspense (FeedSkeleton) hereda
+    // el mismo hueco. Esta sección sólo ordena el flujo en columna: la barra y
+    // la lista son hermanas secuenciales y el único aire entre ellas es el
+    // gap-6. En flex los márgenes no colapsan, así que ese aire no se duplica
+    // ni desaparece (el bug venía de depender de márgenes + una reserva
+    // calculada fuera del feed).
+    <section aria-label="Feed del foro" className="flex flex-col gap-6">
       <FeedHeader
         busqueda={feed.busqueda}
         onBusqueda={feed.setBusqueda}
@@ -73,9 +74,10 @@ export function ForoFeed() {
         onNuevoHilo={() => setModalAbierto(true)}
       />
 
-      {/* El aire entre la barra y la lista lo pone SOLO el mb-6 de FeedHeader:
-          un mt-* aquí se colapsaría con ese margen y duplicaría la intención. */}
-      <div className="space-y-4">
+      {/* Lista en columna con gap: el aire barra→primera tarjeta sale del gap-6
+          de la sección (única fuente) y aquí sólo se separan las tarjetas entre
+          sí. Sin space-y-* (regla del repo: flex + gap, no márgenes entre hijos). */}
+      <div className="flex flex-col gap-4">
         {feed.cargando && <FeedSkeleton />}
 
         {!feed.cargando && feed.error && (

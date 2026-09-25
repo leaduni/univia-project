@@ -107,11 +107,32 @@ export async function middleware(request: NextRequest) {
   return response
 }
 
+// El matcher restringe dónde corre el middleware: solo las rutas del panel,
+// ignorando estáticos de Next, imágenes optimizadas y favicon. Debe ser un
+// array de LITERALES: Next lo parsea estáticamente en build y no acepta
+// spreads ni .map() (rompe el build de producción).
+// Debe coincidir con RUTAS_PROTEGIDAS (cada ruta y su prefijo /:path*).
 export const config = {
-  // El matcher restringe dónde corre el middleware: solo las rutas del
-  // panel, ignorando estáticos de Next, imágenes optimizadas y favicon.
   matcher: [
-    ...RUTAS_PROTEGIDAS.map((ruta) => `${ruta}/:path*`),
-    ...RUTAS_PROTEGIDAS.map((ruta) => ruta),
+    "/dashboard/:path*",
+    "/dashboard",
+    "/agenda/:path*",
+    "/agenda",
+    "/curso/:path*",
+    "/curso",
+    "/donaciones/:path*",
+    "/donaciones",
+    "/foro/:path*",
+    "/foro",
+    "/malla/:path*",
+    "/malla",
+    "/mensajes/:path*",
+    "/mensajes",
+    "/perfil/:path*",
+    "/perfil",
+    "/ranking/:path*",
+    "/ranking",
+    "/recursos/:path*",
+    "/recursos",
   ],
 }

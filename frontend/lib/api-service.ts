@@ -392,6 +392,13 @@ export const apiService = {
     /**
      * Cursos en curso con su avance real y el tema donde se quedó.
      * Un solo llamado en vez de un /learning-path por curso.
+     *
+     * Degradación defensiva: si la sección falla (500 transitorio, corte de red
+     * o timeout), se resuelve con la lista vacía en vez de rechazar. El
+     * dashboard dispara este endpoint junto a otros tres en paralelo; un fallo
+     * aquí no debe tumbar el resto de widgets ni pintar "Sincronización
+     * parcial". Como el fallo ocurre dentro del cargador, `leerOCache` NO
+     * guarda el resultado: el siguiente acceso reintenta de verdad.
      */
     async getCursosActivos() {
         try {
@@ -404,7 +411,7 @@ export const apiService = {
             }, { ttl: TTL.UN_MINUTO });
         } catch (error) {
             console.error("API Error (getCursosActivos):", error);
-            throw error;
+            return { cursos: [] };
         }
     },
 

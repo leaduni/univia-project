@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import FileResponse
-from app.core.database import get_supabase
+from app.core.database import ejecutar_con_reintento, get_supabase
 from app.core.auth_utils import get_current_user
 from app.core.prereqs import check_course_status, resolve_prereq_chain
 from typing import Dict, List, Set
@@ -13,10 +13,18 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-async def _run_rpc(supabase, nombre: str, params: dict) -> dict:
-    """Ejecuta un RPC 1-RTT de Supabase en un hilo aparte (no bloquea el loop)."""
+async def _run_rpc(token: str, nombre: str, params: dict) -> dict:
+    """Ejecuta un RPC 1-RTT de Supabase en un hilo aparte (no bloquea el loop).
+
+    Con reintento (`ejecutar_con_reintento`), igual que el resto de routers:
+    un cierre de conexión HTTP/2 (socket idle cerrado por Supabase, o
+    corrompido por peticiones concurrentes del mismo token) se recupera
+    desalojando el cliente muerto y reintentando con uno nuevo.
+    """
     resp = await asyncio.to_thread(
-        lambda: supabase.rpc(nombre, params).execute()
+        ejecutar_con_reintento,
+        token,
+        lambda supabase: supabase.rpc(nombre, params).execute(),
     )
     data = getattr(resp, "data", None)
     if data is None:
@@ -243,11 +251,10 @@ async def get_profesores_curso(course_id: int, user_data=Depends(get_current_use
 @router.get("/curso/{course_id}/learning-path")
 async def get_learning_path(course_id: int, user_data = Depends(get_current_user)):
     user, token = user_data
-    supabase = get_supabase(token)
 
     try:
         datos = await _run_rpc(
-            supabase, "get_learning_path_datos", {"p_user": user.id, "p_curso": course_id}
+            token, "get_learning_path_datos", {"p_user": user.id, "p_curso": course_id}
         )
 
         _verificar_acceso_desde_datos(datos, course_id)

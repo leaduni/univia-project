@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.auth_utils import get_current_user
 from app.core.avance import calcular_avance
-from app.core.database import get_supabase
+from app.core.database import ejecutar_con_reintento
 from app.core.exceptions import raise_field_error
 from app.core.prereqs import check_course_status, direct_prereq_info
 from app.core import rpc_cache
@@ -23,11 +23,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/malla", tags=["Academic Curriculum"])
 
 
-async def _run_rpc(supabase, nombre: str, params: dict) -> dict:
+async def _run_rpc(token: str, nombre: str, params: dict) -> dict:
     """Ejecuta un RPC 1-RTT de Supabase en un hilo aparte (no bloquea el loop).
 
     Las RPC de solo lectura pesada (`get_malla_datos`) se sirven desde caché
     de TTL corto por usuario; las mutaciones de progreso la invalidan.
+
+    Con reintento (`ejecutar_con_reintento`): el dashboard pide `/malla/avance`
+    en paralelo con otros tres endpoints del mismo usuario y todos comparten
+    una única instancia de cliente (pool LRU por token), así que un cierre de
+    conexión HTTP/2 se recupera desalojando el cliente y reintentando.
     """
     p_user = params.get("p_user")
     if p_user is not None:
@@ -35,7 +40,9 @@ async def _run_rpc(supabase, nombre: str, params: dict) -> dict:
         if cacheado is not None:
             return cacheado
     resp = await asyncio.to_thread(
-        lambda: supabase.rpc(nombre, params).execute()
+        ejecutar_con_reintento,
+        token,
+        lambda supabase: supabase.rpc(nombre, params).execute(),
     )
     data = getattr(resp, "data", None)
     if data is None:
@@ -83,9 +90,8 @@ def _cargar_prerrequisitos(mc_data: List[dict], prereq_filas: List[dict]) -> Dic
 async def get_avance_carrera(user_data=Depends(get_current_user)) -> dict:
     """Avance de carrera sobre el total de créditos del plan (RF-07)."""
     user, token = user_data
-    supabase = get_supabase(token)
 
-    datos = await _run_rpc(supabase, "get_malla_datos", {"p_user": user.id})
+    datos = await _run_rpc(token, "get_malla_datos", {"p_user": user.id})
     carrera_id, malla_id = _datos_malla_o_error(datos, user)
     if carrera_id is None:
         return {
@@ -128,9 +134,8 @@ def _acumular_en_resumen(resumen: ResumenCiclo, estado: str, creditos: int) -> N
 async def get_malla(user_data=Depends(get_current_user)) -> List[CicloDetail]:
     """Malla curricular completa de la carrera del estudiante (RF-04)."""
     user, token = user_data
-    supabase = get_supabase(token)
 
-    datos = await _run_rpc(supabase, "get_malla_datos", {"p_user": user.id})
+    datos = await _run_rpc(token, "get_malla_datos", {"p_user": user.id})
     carrera_id, malla_id = _datos_malla_o_error(datos, user)
     if carrera_id is None:
         return []

@@ -1191,9 +1191,10 @@ export function AgendaInteligente() {
           onClose={() => setPopoverEvent(null)}
           onOpenAI={openAIPanel}
           onDelete={() => {
-            setEventos(p => p.filter(ev => ev.id !== popoverEvent.id))
+            const baseId = popoverEvent.id.toString().split('_gen_')[0]
+            setEventos(p => p.filter(ev => ev.id.toString() !== baseId && ev.id !== popoverEvent.id))
             setPopoverEvent(null)
-            const numId = parseInt(popoverEvent.id)
+            const numId = parseInt(baseId)
             if (!isNaN(numId)) eliminarEvento(numId).catch(() => {})
           }}
           onEdit={() => {
@@ -1209,9 +1210,10 @@ export function AgendaInteligente() {
             setIsSidebarOpen(true)
           }}
           onToggleCompleted={() => {
+            const baseId = popoverEvent.id.toString().split('_gen_')[0]
             const newCompleted = !popoverEvent.completed
-            setEventos(prev => prev.map(ev => ev.id === popoverEvent.id ? { ...ev, completed: newCompleted } : ev))
-            const numId = parseInt(popoverEvent.id)
+            setEventos(prev => prev.map(ev => ev.id.toString() === baseId || ev.id === popoverEvent.id ? { ...ev, completed: newCompleted } : ev))
+            const numId = parseInt(baseId)
             if (!isNaN(numId)) editarEvento(numId, { completed: newCompleted }).catch(() => {})
           }}
         />
@@ -1293,7 +1295,7 @@ export function AgendaInteligente() {
               <div className="hidden sm:block w-px h-6 bg-white/10 mx-2" />
 
               <div className="relative">
-                <button onClick={() => setIsViewDropdownOpen(!isViewDropdownOpen)} className="flex items-center gap-2 px-3.5 h-8 rounded-xl border border-white/10 bg-white/[0.02] shadow-sm text-xs font-medium text-slate-200 hover:bg-white/5 transition-all">
+                <button type="button" onClick={() => setIsViewDropdownOpen(!isViewDropdownOpen)} className="flex items-center gap-2 px-3.5 h-8 rounded-xl border border-white/10 bg-white/[0.02] shadow-sm text-xs font-medium text-slate-200 hover:bg-white/5 transition-all">
                   {(() => {
                     const Ico = VISTA_ICONS[currentView]
                     return <><Ico className="w-3.5 h-3.5" /> {currentView}</>
@@ -1325,7 +1327,7 @@ export function AgendaInteligente() {
               <div className="flex items-center gap-2">
                 {/* Botón de Integraciones */}
                 <div className="relative">
-                  <button onClick={() => setIsIntegrationsDropdownOpen(!isIntegrationsDropdownOpen)} className="flex items-center justify-center w-9 h-9 rounded-xl border border-white/10 bg-white/[0.02] shadow-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all" title="Integraciones y Sincronización">
+                  <button type="button" onClick={() => setIsIntegrationsDropdownOpen(!isIntegrationsDropdownOpen)} className="flex items-center justify-center w-9 h-9 rounded-xl border border-white/10 bg-white/[0.02] shadow-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all" title="Integraciones y Sincronización">
                     <Zap className="w-4 h-4" />
                   </button>
                   {isIntegrationsDropdownOpen && (
@@ -1335,17 +1337,14 @@ export function AgendaInteligente() {
                         <div className="px-4 py-2 border-b border-white/5 mb-1">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Conexiones</p>
                         </div>
-                        <button onClick={() => { setIsIntegrationsDropdownOpen(false); setIsCourseSectionModalOpen(true) }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-slate-300 hover:bg-white/5 hover:text-white whitespace-nowrap">
-                          <div className="w-6 h-6 rounded-md bg-emerald-500/20 flex items-center justify-center shrink-0">
-                            <UploadCloud className="w-3.5 h-3.5 text-emerald-400" />
+                        <button type="button" disabled className="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-sm transition-colors text-slate-500 cursor-not-allowed whitespace-nowrap">
+                          <div className="flex items-center gap-3">
+                            <div className="w-6 h-6 rounded-md bg-blue-500/10 flex items-center justify-center shrink-0">
+                              <RefreshCw className="w-3.5 h-3.5 text-blue-500/50" />
+                            </div>
+                            Google Calendar
                           </div>
-                          Importar Matrícula
-                        </button>
-                        <button onClick={() => { setIsIntegrationsDropdownOpen(false); alert("Sincronización con Google Calendar iniciada") }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-slate-300 hover:bg-white/5 hover:text-white whitespace-nowrap">
-                          <div className="w-6 h-6 rounded-md bg-blue-500/20 flex items-center justify-center shrink-0">
-                            <RefreshCw className="w-3.5 h-3.5 text-blue-400" />
-                          </div>
-                          Google Calendar
+                          <span className="text-[9px] font-bold uppercase tracking-widest bg-white/5 text-slate-400 px-1.5 py-0.5 rounded ml-2">Próximamente</span>
                         </button>
                       </div>
                     </>
@@ -1354,7 +1353,7 @@ export function AgendaInteligente() {
 
                 {/* Botón Principal: Crear */}
                 <div className="relative">
-                  <button onClick={() => setIsCreateDropdownOpen(!isCreateDropdownOpen)} className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.3)] transition-all shrink-0">
+                  <button type="button" onClick={() => setIsCreateDropdownOpen(!isCreateDropdownOpen)} className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.3)] transition-all shrink-0">
                     <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Crear</span> <ChevronDown className="w-3 h-3 ml-1 opacity-70" />
                   </button>
                   {isCreateDropdownOpen && (

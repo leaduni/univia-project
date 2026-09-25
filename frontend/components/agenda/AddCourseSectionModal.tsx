@@ -14,6 +14,8 @@ import {
 } from "@/lib/mockData"
 import type { CalendarioEvento, Etiqueta } from "./calendar-grid"
 import { fetchCargaHoraria, parseMatricula } from "@/lib/agenda-service"
+import { fetchWithAuth } from "@/lib/api-service"
+import { API_URL } from "@/lib/env"
 
 interface AddCourseSectionModalProps {
   onClose: () => void
@@ -58,6 +60,8 @@ export function AddCourseSectionModal({
   const [adding, setAdding] = useState(false)
   const [courses, setCourses] = useState<CourseGroup[]>([])
   const [loadingCourses, setLoadingCourses] = useState(true)
+  const [myCourseCodes, setMyCourseCodes] = useState<string[]>([])
+  const [showOnlyMine, setShowOnlyMine] = useState(true)
 
   // Tab PDF
   const [isDragActive, setIsDragActive] = useState(false)
@@ -70,19 +74,44 @@ export function AddCourseSectionModal({
   const modalRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    fetchCargaHoraria("2026-II").then(rows => {
-      setCourses(groupSchedulesByCourse(rows))
-      setLoadingCourses(false)
-    })
+    async function loadData() {
+      try {
+        const rows = await fetchCargaHoraria("2026-II")
+        setCourses(groupSchedulesByCourse(rows))
+
+        try {
+          const res = await fetchWithAuth(`${API_URL}/onboarding/resumen`)
+          if (res.ok) {
+            const data = await res.json()
+            if (data.cursos_en_curso) {
+              const codes = data.cursos_en_curso.map((c: any) => c.code)
+              setMyCourseCodes(codes)
+              if (codes.length === 0) setShowOnlyMine(false)
+            }
+          }
+        } catch (e) {
+          console.warn("Ignorando error al obtener onboarding:", e);
+        }
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setLoadingCourses(false)
+      }
+    }
+    loadData()
   }, [])
 
   const filtered = useMemo(() => {
-    if (!query.trim()) return courses
+    let list = courses
+    if (showOnlyMine && myCourseCodes.length > 0) {
+      list = list.filter(c => myCourseCodes.includes(c.codigo))
+    }
+    if (!query.trim()) return list
     const q = query.toLowerCase()
-    return courses.filter(
+    return list.filter(
       (c) => c.codigo.toLowerCase().includes(q) || c.nombre_curso.toLowerCase().includes(q)
     )
-  }, [courses, query])
+  }, [courses, query, showOnlyMine, myCourseCodes])
 
   useEffect(() => {
     if (tab === "manual" && step === "search") inputRef.current?.focus()
@@ -206,6 +235,17 @@ export function AddCourseSectionModal({
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <input ref={inputRef} type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por código o nombre de curso..." className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all" />
               </div>
+              {myCourseCodes.length > 0 && (
+                <label className="flex items-center gap-2 mt-3 cursor-pointer text-xs text-slate-400 hover:text-slate-300">
+                  <input 
+                    type="checkbox" 
+                    checked={showOnlyMine} 
+                    onChange={(e) => setShowOnlyMine(e.target.checked)}
+                    className="rounded border-white/10 bg-white/5 text-indigo-500 focus:ring-indigo-500/50"
+                  />
+                  Mostrar mis cursos (Onboarding)
+                </label>
+              )}
             </div>
             <div className="overflow-y-auto max-h-[45vh] custom-scrollbar">
               {loadingCourses ? (
@@ -245,8 +285,8 @@ export function AddCourseSectionModal({
                   <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-indigo-400 transition-colors" />
                 </div>
                 <div className="flex gap-2 ml-[42px] mt-2 flex-wrap">
-                  {data.bloques.map((b) => (
-                    <span key={`${b.tipo_clase}_${b.dia}`} className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[10px] font-medium text-slate-300">{TIPO_LABELS[b.tipo_clase] || b.tipo_clase}: {DIA_LABELS[b.dia]?.slice(0, 3) || b.dia} {b.hora_inicio}</span>
+                  {data.bloques.map((b, i) => (
+                    <span key={`${b.tipo_clase}_${b.dia}_${b.hora_inicio}_${i}`} className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[10px] font-medium text-slate-300">{TIPO_LABELS[b.tipo_clase] || b.tipo_clase}: {DIA_LABELS[b.dia]?.slice(0, 3) || b.dia} {b.hora_inicio}</span>
                   ))}
                 </div>
               </button>

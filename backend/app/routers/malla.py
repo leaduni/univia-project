@@ -9,6 +9,7 @@ from app.core.avance import calcular_avance
 from app.core.database import get_supabase
 from app.core.exceptions import raise_field_error
 from app.core.prereqs import check_course_status, direct_prereq_info
+from app.core import rpc_cache
 from app.schemas.malla import (
     CicloDetail,
     CourseDetail,
@@ -23,13 +24,24 @@ router = APIRouter(prefix="/malla", tags=["Academic Curriculum"])
 
 
 async def _run_rpc(supabase, nombre: str, params: dict) -> dict:
-    """Ejecuta un RPC 1-RTT de Supabase en un hilo aparte (no bloquea el loop)."""
+    """Ejecuta un RPC 1-RTT de Supabase en un hilo aparte (no bloquea el loop).
+
+    Las RPC de solo lectura pesada (`get_malla_datos`) se sirven desde caché
+    de TTL corto por usuario; las mutaciones de progreso la invalidan.
+    """
+    p_user = params.get("p_user")
+    if p_user is not None:
+        cacheado = rpc_cache.obtener(nombre, str(p_user))
+        if cacheado is not None:
+            return cacheado
     resp = await asyncio.to_thread(
         lambda: supabase.rpc(nombre, params).execute()
     )
     data = getattr(resp, "data", None)
     if data is None:
         raise HTTPException(status_code=500, detail="No se pudieron cargar los datos.")
+    if p_user is not None:
+        rpc_cache.guardar(nombre, str(p_user), data)
     return data
 
 

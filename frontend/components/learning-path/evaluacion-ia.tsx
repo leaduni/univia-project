@@ -26,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/components/providers/auth-context"
 import { apiService } from "@/lib/api-service"
 import { leerClaveByok } from "@/lib/byok"
+import { API_URL } from "@/lib/env"
 import type { EvaluationResultData, QuestionDetail } from "@/types/evaluation"
 
 // Carga diferida (client-only) de los renderizadores pesados: react-markdown +
@@ -44,8 +45,6 @@ const EvaluationResultsView = dynamic(
     loading: () => null,
   },
 )
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
 interface Pregunta {
   id: number;
@@ -124,10 +123,23 @@ export function EvaluacionIA({
   const [resultado, setResultado] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Progreso de la generación por stream; separado de `error` para que una
+  // actualización de avance nunca se pinte como fallo.
+  const [progreso, setProgreso] = useState<string | null>(null)
   // Saldo agotado (429 credit_balance_exhausted): muestra banner con enlace a Perfil.
   const [saldoAgotado, setSaldoAgotado] = useState(false)
   const [executionResults, setExecutionResults] = useState<Record<number, ExecutionResult>>({});
   const { session } = useAuth()
+
+  // AbortController del stream de generación: al desmontar el componente o
+  // cancelar, se corta el fetch y el backend libera el cupo del usuario.
+  const abortGeneracionRef = useRef<AbortController | null>(null)
+  useEffect(() => {
+    return () => {
+      abortGeneracionRef.current?.abort()
+      abortGeneracionRef.current = null
+    }
+  }, [])
 
   const normalizeTopics = (topics: any): string[] => {
     if (Array.isArray(topics)) return topics
@@ -168,7 +180,7 @@ export function EvaluacionIA({
   useEffect(() => {
     apiService.getProfesoresCurso(courseId)
       .then(setProfesores)
-      .catch((err: unknown) => console.error("Error cargando profesores del curso:", err))
+      .catch(() => {})
   }, [courseId])
 
   // Determinar qué módulos están disponibles según progreso
@@ -233,24 +245,40 @@ export function EvaluacionIA({
   };
 
   const generarEvaluacion = async () => {
+    if (modulos.length === 0) {
+      setError("No se puede generar una evaluación porque este curso no tiene módulos configurados.")
+      return
+    }
     if (!selectedModulo) return
+
+    // Sin token no se puede ni iniciar: se valida ANTES de cambiar de pantalla
+    // para no dejar el spinner infinito si la sesión expiró justo ahora.
+    const token = session?.access_token
+    if (!token) {
+      setError("Tu sesión expiró. Inicia sesión de nuevo para generar una evaluación.")
+      return
+    }
+
+    // Cancela cualquier generación anterior que siguiera viva.
+    abortGeneracionRef.current?.abort()
+    const controller = new AbortController()
+    abortGeneracionRef.current = controller
 
     try {
       setIsLoading(true)
       setError(null)
+      setProgreso(null)
       setSaldoAgotado(false)
       setStep("loading")
 
-      const token = session?.access_token
-      if (!token) { console.error("No active authentication token found."); return }
-
       const llmKey = leerClaveByok()
 
-      const response = await fetch(`${API_URL}/api/evaluaciones/generar-stream`, {
+      const response = await fetch(`${API_URL}/evaluaciones/generar-stream`, {
         method: "POST",
+        signal: controller.signal,
         headers: {
           "Content-Type": "application/json",
-          "Authorization": token ? `Bearer ${token}` : "",
+          "Authorization": `Bearer ${token}`,
           ...(llmKey ? { "X-User-LLM-Key": llmKey } : {}),
         },
         body: JSON.stringify({
@@ -265,52 +293,62 @@ export function EvaluacionIA({
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.detail || "Error al generar la evaluación")
+        const errorData = await response.json().catch(() => null)
+        throw new Error(errorData?.detail || "Error al generar la evaluación")
       }
 
-      const reader = response.body!.getReader()
+      if (!response.body) throw new Error("El servidor no devolvió un flujo de datos.")
+
+      const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let data: any = null
       let preguntasRecibidas = 0
       let buffer = ""
 
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        // Acumula en buffer y procesa solo eventos SSE completos (separados por \n\n)
-        buffer += decoder.decode(value, { stream: true })
-        const eventos = buffer.split("\n\n")
-        buffer = eventos.pop() ?? "" // el último puede estar incompleto
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          // Acumula en buffer y procesa solo eventos SSE completos (separados por \n\n)
+          buffer += decoder.decode(value, { stream: true })
+          const eventos = buffer.split("\n\n")
+          buffer = eventos.pop() ?? "" // el último puede estar incompleto
 
-        for (const evento of eventos) {
-          const linea = evento.split("\n").find((l) => l.startsWith("data: "))
-          if (!linea) continue
-          let payload: any
-          try { payload = JSON.parse(linea.slice(6)) } catch { continue }
-          if (payload.error) {
-            if (payload.codigo === "saldo_agotado") setSaldoAgotado(true)
-            throw new Error(payload.error)
+          for (const evento of eventos) {
+            const linea = evento.split("\n").find((l) => l.startsWith("data: "))
+            if (!linea) continue
+            let payload: any
+            try { payload = JSON.parse(linea.slice(6)) } catch { continue }
+            if (payload.error || (payload.evento === "error")) {
+              if (payload.codigo === "saldo_agotado") setSaldoAgotado(true)
+              throw new Error(payload.mensaje || payload.error)
+            }
+            if (payload.pregunta) {
+              preguntasRecibidas++
+              setProgreso(`Generando... ${preguntasRecibidas}/${payload.total ?? numPreguntas} preguntas listas`)
+            }
+            if (payload.done && payload.result) data = payload.result
           }
-          if (payload.pregunta) {
-            preguntasRecibidas++
-            setError(`Generando... ${preguntasRecibidas}/${payload.total ?? numPreguntas} preguntas listas`)
-          }
-          if (payload.done && payload.result) data = payload.result
         }
+      } finally {
+        // Libera la conexión HTTP aunque el parseo falle a mitad de evento.
+        try { await reader.cancel() } catch { /* stream ya cerrado */ }
       }
 
-      setError(null)
+      setProgreso(null)
       if (!data) throw new Error("No se recibió respuesta de la IA")
 
       setEvaluacion(normalizarEvaluacion(data))
       setStep("evaluacion")
-} catch (err: any) {
+    } catch (err: any) {
+      // Abortar (desmontaje o nueva generación) no es un error de cara al usuario.
+      if (err?.name === "AbortError") return
       if (onResultsChange) onResultsChange(false)
       setError(`No se pudo generar la evaluación: ${err.message}`)
       setStep("config")
     } finally {
       setIsLoading(false)
+      if (abortGeneracionRef.current === controller) abortGeneracionRef.current = null
     }
   }
 
@@ -340,9 +378,9 @@ export function EvaluacionIA({
       });
 
       const token = session?.access_token
-      if (!token) { console.error("No active authentication token found."); return }
+      if (!token) return
 
-      const response = await fetch(`${API_URL}/api/evaluaciones/evaluar`, {
+      const response = await fetch(`${API_URL}/evaluaciones/evaluar`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -497,8 +535,18 @@ export function EvaluacionIA({
           <CardContent className="space-y-6">
             {/* Paso 1: Selección de módulo */}
             <div className="space-y-3">
-              <Label>1. Selecciona un módulo</Label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {modulos.length === 0 ? (
+                <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4" role="status">
+                  <BookOpen className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+                  <div>
+                    <p className="font-medium">Este curso aún no tiene un temario/módulos configurados.</p>
+                    <p className="text-sm text-muted-foreground">Contacta a soporte o al coordinador.</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <Label>1. Selecciona un módulo</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {getModulosDisponibles().map((modulo, idx) => (
                   <button
                     key={idx}
@@ -542,7 +590,9 @@ export function EvaluacionIA({
                     )}
                   </button>
                 ))}
-              </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Número de preguntas */}
@@ -603,14 +653,20 @@ export function EvaluacionIA({
               />
             </div>
 
-            <Button
+<Button
               onClick={generarEvaluacion}
-              disabled={!selectedModulo || isLoading}
+              disabled={!selectedModulo || modulos.length === 0 || isLoading}
+              title={modulos.length === 0 ? "No puedes generar una evaluación hasta que el curso tenga módulos configurados." : undefined}
               className="w-full gap-2 gradient-ai-neon text-white border-0"
             >
               <Sparkles className="w-4 h-4" />
               Generar Evaluación con IA
             </Button>
+            {modulos.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                La generación estará disponible cuando se configure el temario del curso.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -626,7 +682,7 @@ export function EvaluacionIA({
           <Brain className="w-8 h-8 text-[var(--ai-neon-pink)] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
         </div>
         <p className="text-lg font-medium animate-pulse ai-glow-text">Generando evaluación con IA...</p>
-        <p className="text-sm text-muted-foreground">{error || "Preparando preguntas en paralelo..."}</p>
+        <p className="text-sm text-muted-foreground">{progreso || "Preparando preguntas en paralelo..."}</p>
       </div>
     )
   }

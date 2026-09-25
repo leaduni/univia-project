@@ -11,6 +11,8 @@ import { CompletionStep } from "./onboarding/completion-step"
 import type { Carrera, Facultad, OnboardingData, OnboardingDataResponse } from "@/types/onboarding"
 import { useAuth } from "./providers/auth-context"
 import { apiService } from "@/lib/api-service"
+import { gamificacionService } from "@/lib/gamificacion-service"
+import { tomarCodigoReferido } from "@/lib/gamificacion-utils"
 import { Loader2 } from "lucide-react"
 import { BrandLogo } from "@/app/auth/brand-logo"
 import { OnboardingProgress } from "./onboarding/onboarding-progress"
@@ -164,6 +166,17 @@ export function OnboardingWizard() {
       }
       await apiService.completeOnboarding(payload)
       await refreshProfile()
+
+      // Acredita el referido del enlace `?ref=` con el que se registró. Se hace
+      // aquí (tras el onboarding) porque el backend solo lo acepta con el
+      // perfil completado; un fallo no debe bloquear el ingreso a la app.
+      if (!modoActualizacion) {
+        const codigo = tomarCodigoReferido()
+        if (codigo) {
+          gamificacionService.registrarReferido(codigo).catch(() => {})
+        }
+      }
+
       // Quien vino a actualizar su situación vuelve a donde la ve reflejada;
       // mandarlo al dashboard lo deja sin confirmación de que algo cambió.
       router.push(modoActualizacion ? "/perfil" : "/dashboard")

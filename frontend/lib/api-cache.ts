@@ -24,10 +24,28 @@ const almacen = new Map<string, EntradaCache>();
 // Single-flight: unifica peticiones concurrentes a la misma clave.
 const enVuelo = new Map<string, Promise<unknown>>();
 
+// Namespace por usuario: impide que la caché persistida de una cuenta se
+// muestre a otra cuenta en el mismo navegador (logout/login). "anon" para
+// el estado sin sesión.
+let namespaceUsuario = "anon";
+
+export function establecerNamespaceUsuario(userId: string | null): void {
+    const nuevo = userId ?? "anon";
+    if (nuevo === namespaceUsuario) return;
+    namespaceUsuario = nuevo;
+    // El estado en memoria pertenece al usuario anterior: no debe filtrarse.
+    almacen.clear();
+    enVuelo.clear();
+}
+
+function claveReal(clave: string): string {
+    return `univia_cache_${namespaceUsuario}_${clave}`;
+}
+
 function persistirCache(clave: string, data: unknown, timestamp: number) {
     if (typeof window !== "undefined") {
         try {
-            localStorage.setItem(`univia_cache_${clave}`, JSON.stringify({ data, timestamp }));
+            localStorage.setItem(claveReal(clave), JSON.stringify({ data, timestamp }));
         } catch (e) {
             // Ignorar errores de quota o navegación privada
         }
@@ -40,7 +58,7 @@ function recuperarCache(clave: string): EntradaCache | undefined {
     }
     if (typeof window !== "undefined") {
         try {
-            const raw = localStorage.getItem(`univia_cache_${clave}`);
+            const raw = localStorage.getItem(claveReal(clave));
             if (raw) {
                 const parsed = JSON.parse(raw);
                 almacen.set(clave, parsed);
@@ -137,7 +155,7 @@ export function invalidarClave(clave: string): void {
     almacen.delete(clave);
     enVuelo.delete(clave);
     if (typeof window !== "undefined") {
-        localStorage.removeItem(`univia_cache_${clave}`);
+        localStorage.removeItem(claveReal(clave));
     }
 }
 
@@ -158,7 +176,7 @@ export function invalidarPrefijo(prefijo: string): void {
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            if (key && key.startsWith(`univia_cache_${prefijo}`)) {
+            if (key && key.startsWith(claveReal(prefijo))) {
                 keysToRemove.push(key);
             }
         }

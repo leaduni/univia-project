@@ -14,29 +14,20 @@ alertas no forman parte del trámite del estudiante.
 import asyncio
 import logging
 import os
-import smtplib
 from datetime import datetime, timezone
-from email.message import EmailMessage
 from typing import Optional
 from uuid import uuid4
 
-import httpx
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, field_validator
 
 from app.core.auth_utils import get_current_user
 from app.core.database import get_admin_client, get_supabase
+from app.core.notificaciones_dev import despachar_notificacion_dev
 from app.core.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/feedback", tags=["feedback"])
-
-# Cliente HTTP persistente (keep-alive) para la notificación a devs. Reusa
-# sockets entre peticiones y evita el handshake TCP/TLS en cada ticket.
-_http_feedback = httpx.AsyncClient(
-    timeout=10.0,
-    limits=httpx.Limits(max_keepalive_connections=10, max_connections=30),
-)
 
 # Límites de contenido del formulario (protegen contra abuso de tamaño).
 MAX_CARACTERES_TITULO = 120
@@ -170,58 +161,13 @@ async def _es_dev(supabase, perfil_id: str) -> bool:
     return bool(getattr(resp, "data", None))
 
 
-def _enviar_correo_devs(
-    ticket_id: int,
-    email_estudiante: Optional[str],
-    categoria: str,
-    titulo: str,
-    descripcion: str,
-) -> bool:
-    """Fallback SMTP: se usa cuando no hay webhook de Discord configurado.
+def _enviar_correo_devs(ticket_id: int) -> None:
+    """Vacío a propósito: la notificación vive en app/core/notificaciones_dev.py.
 
-    Replica la estructura de usuarios.py::_notificar_solicitud_invitado
-    (smtplib + EmailMessage + DEV_NOTIFICATION_EMAILS) para no refactorizar
-    ese módulo en producción; aquí solo se suma el cuerpo del ticket.
+    Mantenemos el stub para no tocar el contrato interno de llamadas antiguas;
+    `_despachar_notificacion` (delegado) ya usa el módulo compartido.
     """
-    destinos = [
-        d.strip()
-        for d in os.getenv("DEV_NOTIFICATION_EMAILS", "").split(",")
-        if d.strip()
-    ]
-    if not destinos:
-        logger.warning("[FEEDBACK] DEV_NOTIFICATION_EMAILS no configurado.")
-        return False
-    host = os.getenv("SMTP_HOST", "")
-    if not host:
-        logger.warning("[FEEDBACK] SMTP_HOST no configurado; no se envió notificación.")
-        return False
-    try:
-        msg = EmailMessage()
-        msg["Subject"] = f"[UniVia] Ticket #{ticket_id}: [{categoria}] {titulo}"
-        msg["From"] = os.getenv("SMTP_FROM", "no-reply@univiap.pe")
-        msg["To"] = ", ".join(destinos)
-        msg.set_content(
-            "Nuevo ticket de feedback en UniVia:\n\n"
-            f"ID: #{ticket_id}\n"
-            f"Estudiante: {email_estudiante or 'desconocido'}\n"
-            f"Categoría: {categoria}\n"
-            f"Asunto: {titulo}\n\n"
-            f"{descripcion}\n"
-        )
-        with smtplib.SMTP(host, int(os.getenv("SMTP_PORT", "587"))) as s:
-            s.starttls()
-            usuario = os.getenv("SMTP_USER", "")
-            if usuario:
-                s.login(usuario, os.getenv("SMTP_PASS", ""))
-            s.send_message(msg)
-        logger.info(
-            "[FEEDBACK] Notificación SMTP de ticket %s enviada a %s correo(s).",
-            ticket_id, len(destinos),
-        )
-        return True
-    except Exception as e:
-        logger.error(f"[FEEDBACK] Error enviando correo de ticket {ticket_id}: {e}")
-        return False
+    return None
 
 
 async def _despachar_notificacion(
@@ -231,52 +177,66 @@ async def _despachar_notificacion(
     titulo: str,
     descripcion: str,
 ) -> None:
-    """Notifica a los devs en segundo plano (Discord con fallback SMTP).
-
-    A propósito nunca propaga errores: si la notificación falla, el ticket ya
-    quedó persistido y la respuesta al alumno ya se envió; solo queda constancia
-    en el log.
-    """
-    try:
-        webhook = os.getenv("WEBHOOK_DISCORD_DEV", "").strip()
-        if webhook:
-            payload = {
-                "content": f"**Nuevo ticket de feedback** (#{ticket_id})",
-                "embeds": [
-                    {
-                        "title": f"[{categoria}] {titulo}",
-                        # El límite del campo description del embed es 2048.
-                        "description": descripcion[:1500],
-                        "color": 11342943,
-                        "fields": [
-                            {"name": "Ticket", "value": f"#{ticket_id}", "inline": True},
-                            {"name": "Estudiante", "value": email_estudiante or "—", "inline": True},
-                            {"name": "Categoría", "value": categoria, "inline": True},
-                        ],
-                    }
-                ],
-            }
-            respuesta = await _http_feedback.post(webhook, json=payload)
-            if respuesta.status_code >= 400:
-                logger.warning(
-                    "[FEEDBACK] Discord devolvió %s para el ticket %s; se cae a SMTP.",
-                    respuesta.status_code, ticket_id,
-                )
-            else:
-                logger.info(
-                    "[FEEDBACK] Webhook Discord enviado para ticket %s.", ticket_id
-                )
-                return
-
-        # Fallback: SMTP (espejo de usuarios.py).
-        _enviar_correo_devs(ticket_id, email_estudiante, categoria, titulo, descripcion)
-    except Exception as e:
-        logger.error(f"[FEEDBACK] Error despachando notificación del ticket {ticket_id}: {e}")
+    """Delega en app/core/notificaciones_dev (Discord con fallback SMTP)."""
+    await despachar_notificacion_dev(
+        asunto=f"Nuevo ticket de feedback (#{ticket_id})",
+        detalle=descripcion,
+        campos=[
+            {"name": "Ticket", "value": f"#{ticket_id}", "inline": True},
+            {"name": "Estudiante", "value": email_estudiante or "—", "inline": True},
+            {"name": "Categoría", "value": categoria, "inline": True},
+        ],
+        color=11342943,
+    )
 
 
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+MAX_CHARS_NOTIF_MENSAJE = 300
+
+
+async def _despachar_notificacion_mensaje(
+    ticket_id: int,
+    autor_rol: str,
+    contenido: str,
+) -> None:
+    """Notifica al canal interno (Discord/SMTP) una nueva respuesta del hilo.
+
+    Best-effort y asíncrono, igual que la notificación de creación: jamás
+    rompe la petición principal.
+    """
+    extracto = contenido[:MAX_CHARS_NOTIF_MENSAJE]
+    if len(contenido) > MAX_CHARS_NOTIF_MENSAJE:
+        extracto += "…"
+    await despachar_notificacion_dev(
+        asunto=f"Nueva respuesta en ticket #{ticket_id}",
+        detalle=extracto,
+        campos=[
+            {"name": "Ticket", "value": f"#{ticket_id}", "inline": True},
+            {"name": "Autor", "value": autor_rol, "inline": True},
+        ],
+        color=5814783,
+    )
+
+
+async def _despachar_notificacion_estado(
+    ticket_id: int,
+    estado_anterior: str,
+    estado_nuevo: str,
+) -> None:
+    """Traza interna (Discord/SMTP) del cambio de estado de un ticket."""
+    await despachar_notificacion_dev(
+        asunto=f"Cambio de estado en ticket #{ticket_id}",
+        detalle=f"El estado pasó de «{estado_anterior}» a «{estado_nuevo}».",
+        campos=[
+            {"name": "Ticket", "value": f"#{ticket_id}", "inline": True},
+            {"name": "Estado anterior", "value": estado_anterior, "inline": True},
+            {"name": "Estado nuevo", "value": estado_nuevo, "inline": True},
+        ],
+        color=15844367,
+    )
 
 @router.post("/tickets", status_code=201)
 @limiter.limit("20/hour")
@@ -284,6 +244,7 @@ async def crear_ticket(
     request: Request,
     data: NuevoTicket,
     user_data=Depends(get_current_user),
+    x_idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
     """Crea un ticket de feedback y notifica a los devs en segundo plano.
 
@@ -291,9 +252,17 @@ async def crear_ticket(
     así que la política RLS `feedback_tickets_insert` asegura que solo pueda
     registrarse un ticket a nombre del usuario autenticado. El rate limiter
     (SlowAPI, in-memory) corta el spam desde una misma IP.
+
+    Idempotente: con el header `Idempotency-Key`, un reintento del cliente
+    devuelve el ticket creado la primera vez sin duplicarlo.
     """
     user, token = user_data
     supabase = get_supabase(token)
+
+    from app.core.idempotencia import verificar_idempotencia, registrar_resultado, liberar_clave
+    previa = await verificar_idempotencia(str(user.id), x_idempotency_key)
+    if previa is not None:
+        return previa
 
     fila = {
         "perfil_id": str(user.id),
@@ -310,11 +279,13 @@ async def crear_ticket(
             .execute()
         )
     except Exception as e:
+        await liberar_clave(str(user.id), x_idempotency_key)
         logger.error(f"[FEEDBACK] Error creando ticket de {user.id}: {e}")
         raise HTTPException(status_code=500, detail="No se pudo guardar tu reporte.")
 
     creado = getattr(resp, "data", None) or []
     if not creado:
+        await liberar_clave(str(user.id), x_idempotency_key)
         raise HTTPException(status_code=500, detail="No se pudo guardar tu reporte.")
     ticket = creado[0]
 
@@ -328,6 +299,7 @@ async def crear_ticket(
         descripcion=ticket.get("descripcion", data.descripcion),
     ))
 
+    await registrar_resultado(str(user.id), x_idempotency_key, ticket)
     return ticket
 
 
@@ -468,6 +440,24 @@ async def cambiar_estado_ticket(
         raise HTTPException(
             status_code=403, detail="Solo el equipo de desarrollo puede cambiar el estado.")
 
+    # Leemos el estado previo para la traza de notificación.
+    estado_anterior: Optional[str] = None
+    try:
+        resp_prev = await _run(
+            lambda: (
+                supabase.table("feedback_tickets")
+                .select("estado")
+                .eq("id", ticket_id)
+                .maybe_single()
+                .execute()
+            )
+        )
+        previo = getattr(resp_prev, "data", None)
+        if previo:
+            estado_anterior = previo.get("estado")
+    except Exception as e:
+        logger.warning(f"[FEEDBACK] No se pudo leer estado previo del ticket {ticket_id}: {e}")
+
     try:
         resp = await _run(
             lambda: (
@@ -489,6 +479,14 @@ async def cambiar_estado_ticket(
     actualizado = getattr(resp, "data", None)
     if not actualizado:
         raise HTTPException(status_code=404, detail="El reporte no existe.")
+
+    # Traza interna del cambio de estado (asíncrona, best-effort).
+    if estado_anterior and estado_anterior != actualizado.get("estado"):
+        asyncio.create_task(_despachar_notificacion_estado(
+            ticket_id=ticket_id,
+            estado_anterior=estado_anterior,
+            estado_nuevo=actualizado["estado"],
+        ))
     return actualizado
 
 
@@ -555,6 +553,14 @@ async def responder_ticket(
     mensaje = getattr(resp, "data", None)
     if not mensaje:
         raise HTTPException(status_code=500, detail="No se pudo registrar tu respuesta.")
+
+    # Notificación asíncrona al canal interno (best-effort): la respuesta HTTP
+    # no espera al webhook ni al correo.
+    asyncio.create_task(_despachar_notificacion_mensaje(
+        ticket_id=ticket_id,
+        autor_rol=fila["autor_rol"],
+        contenido=data.contenido,
+    ))
     return mensaje
 
 

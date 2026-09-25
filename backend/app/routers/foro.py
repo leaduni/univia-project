@@ -1,4 +1,5 @@
-"""Foro de la comunidad (Fases 1-4: secciones, publicaciones, comentarios, votos, IA).
+"""Foro de la comunidad (Fases 1-5: secciones, publicaciones, comentarios,
+votos, IA y feed global).
 
 Endpoints:
     GET    /api/foro/secciones                     -> lista de secciones visibles
@@ -11,6 +12,16 @@ Endpoints:
     DELETE /api/foro/comentarios/{id}              -> borrar (propio o moderador)
     POST   /api/foro/votos                         -> votar (toggle up/down)
     POST   /api/foro/publicaciones/{id}/resolver   -> marcar solución (autor)
+    GET    /api/foro/feed                          -> feed global con filtros y cursor (Fase 5)
+    GET    /api/foro/tendencias                    -> top hilos últimas 24h (fallback 7d)
+    POST   /api/foro/publicaciones/{id}/guardar    -> guardar hilo (bookmark)
+    DELETE /api/foro/publicaciones/{id}/guardar    -> quitar hilo guardado
+    POST   /api/foro/publicaciones/{id}/vista      -> registrar vista única
+
+Fase 5: los contadores (num_comentarios/num_votos/num_vistas) viven
+desnormalizados en foro_publicaciones y foro_comentarios, mantenidos por
+triggers (ver base_de_datos/esquema/migracion_foro_fase5_feed.sql); este
+router los LEE de columna y ya no agrega en Python.
 
 Convenciones (mismo patrón que routers/recursos.py y chatbot.py):
     - dependencia get_current_user -> (user, token)
@@ -27,19 +38,21 @@ import threading
 import time
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
 
 from app.core.auth_utils import get_current_user
 from app.core.database import get_admin_client, get_supabase
 from app.schemas.foro import (
     ComentarioCreate,
     ComentarioOut,
+    FeedOut,
     ModeradorCreate,
     PublicacionCreate,
     PublicacionOut,
     ResolverRequest,
     SeccionCreate,
     SeccionOut,
+    TendenciasOut,
     VotoCreate,
     VotoOut,
 )
@@ -196,54 +209,148 @@ def _nombres_facultad(supabase) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Votos
+# Feed global (Fase 5): columnas desnormalizadas + helpers compartidos
 # ---------------------------------------------------------------------------
 
-def _votos_de_publicaciones(supabase, publicacion_ids: list) -> dict:
-    """{publicacion_id: suma de votos} para el conjunto dado (filtrado por ids)."""
+# Columnas seleccionadas en cada lectura de publicaciones. Los contadores
+# (num_comentarios/num_votos/num_vistas) son columnas reales mantenidas por
+# triggers: leerlas evita los agregados en Python de fases anteriores.
+_COLUMNAS_PUBLICACION = (
+    "id, seccion_id, autor_perfil_id, titulo, cuerpo, tags, estado, "
+    "created_at, updated_at, sugerencia_ia, "
+    "num_comentarios, num_votos, num_vistas, portada_url, tipo_contenido"
+)
+
+# Columnas de comentarios con su contador desnormalizado.
+_COLUMNAS_COMENTARIO = (
+    "id, publicacion_id, autor_perfil_id, parent_id, cuerpo, created_at, "
+    "es_solucion, num_votos"
+)
+
+
+def _ids_guardados(supabase, user, publicacion_ids: list) -> set:
+    """Ids de publicaciones guardadas por el usuario (filtrado por ids)."""
     ids = [pid for pid in publicacion_ids if pid is not None]
     if not ids:
-        return {}
+        return set()
     try:
         resp = (
-            supabase.table("foro_votos")
-            .select("publicacion_id, valor")
+            supabase.table("foro_guardados")
+            .select("publicacion_id")
+            .eq("perfil_id", user.id)
             .in_("publicacion_id", ids)
             .execute()
         )
-        resultado: dict = {}
-        for v in (getattr(resp, "data", None) or []):
-            pid = v.get("publicacion_id")
-            if pid is not None:
-                resultado[pid] = resultado.get(pid, 0) + (v.get("valor") or 0)
-        return resultado
+        return {
+            f["publicacion_id"]
+            for f in (getattr(resp, "data", None) or [])
+            if f.get("publicacion_id") is not None
+        }
     except Exception as e:
-        logger.warning(f"No se pudo agregar votos de publicaciones: {e}")
-        return {}
+        logger.warning(f"No se pudieron leer guardados: {e}")
+        return set()
 
 
-def _votos_de_comentarios(supabase, comentario_ids: list) -> dict:
-    """{comentario_id: suma de votos} para el conjunto dado (filtrado por ids)."""
-    ids = [cid for cid in comentario_ids if cid is not None]
-    if not ids:
-        return {}
-    try:
+def _secciones_por_id(supabase) -> dict:
+    """{seccion_id: {'tipo', 'titulo', 'facultad_id'}} de secciones activas."""
+    filas = _cat_get("secciones_activas")
+    if filas is None:
         resp = (
-            supabase.table("foro_votos")
-            .select("comentario_id, valor")
-            .in_("comentario_id", ids)
+            supabase.table("foro_secciones")
+            .select("id, tipo, titulo, descripcion, facultad_id, activa, created_at")
+            .eq("activa", True)
             .execute()
         )
-        resultado: dict = {}
-        for v in (getattr(resp, "data", None) or []):
-            cid = v.get("comentario_id")
-            if cid is not None:
-                resultado[cid] = resultado.get(cid, 0) + (v.get("valor") or 0)
-        return resultado
-    except Exception as e:
-        logger.warning(f"No se pudo agregar votos de comentarios: {e}")
-        return {}
+        filas = getattr(resp, "data", None) or []
+        _cat_set("secciones_activas", filas)
+    return {f["id"]: f for f in filas}
 
+
+def _publicacion_out(
+    fila: dict,
+    autores: dict,
+    mis_votos: dict,
+    guardados: set,
+    secciones: Optional[dict] = None,
+    nombres_facultad: Optional[dict] = None,
+) -> PublicacionOut:
+    """Construye un PublicacionOut desde una fila de foro_publicaciones."""
+    seccion = (secciones or {}).get(fila["seccion_id"]) or {}
+    return PublicacionOut(
+        id=fila["id"],
+        seccion_id=fila["seccion_id"],
+        autor_perfil_id=fila["autor_perfil_id"],
+        autor_nombre=autores.get(fila["autor_perfil_id"]),
+        titulo=fila["titulo"],
+        cuerpo=fila["cuerpo"],
+        tags=fila.get("tags") or [],
+        estado=fila.get("estado", "abierta"),
+        created_at=fila["created_at"],
+        num_comentarios=fila.get("num_comentarios") or 0,
+        num_votos=fila.get("num_votos") or 0,
+        mi_voto=mis_votos.get(fila["id"], 0),
+        num_vistas=fila.get("num_vistas") or 0,
+        portada_url=fila.get("portada_url"),
+        tipo_contenido=fila.get("tipo_contenido") or "text",
+        guardado=fila["id"] in guardados,
+        seccion_tipo=seccion.get("tipo"),
+        seccion_titulo=seccion.get("titulo"),
+        facultad_nombre=(nombres_facultad or {}).get(seccion.get("facultad_id")),
+        sugerencia_ia=fila.get("sugerencia_ia"),
+    )
+
+
+def _sanitizar_busqueda(q: str) -> str:
+    """Limpia el término de búsqueda para websearch_to_tsquery.
+
+    PostgREST interpreta ciertos caracteres como operadores; se eliminan para
+    evitar 400s y se trunca a un tamaño razonable.
+    """
+    limpia = q.strip()[:200]
+    # Quitar caracteres con significado especial en la sintaxis FTS/PostgREST.
+    for ch in ("(", ")", ":", "'", "&", "|", "!", "<", ">"):
+        limpia = limpia.replace(ch, " ")
+    return " ".join(limpia.split())
+
+
+def _num_votos_publicacion(supabase, publicacion_id: int) -> int:
+    """Lee num_votos de columna (mantenido por trigger)."""
+    try:
+        resp = (
+            supabase.table("foro_publicaciones")
+            .select("num_votos")
+            .eq("id", publicacion_id)
+            .maybe_single()
+            .execute()
+        )
+        fila = getattr(resp, "data", None) if resp else None
+        return (fila or {}).get("num_votos") or 0
+    except Exception as e:
+        logger.warning(f"No se pudo leer num_votos de {publicacion_id}: {e}")
+        return 0
+
+
+def _num_votos_comentario(supabase, comentario_id: int) -> int:
+    try:
+        resp = (
+            supabase.table("foro_comentarios")
+            .select("num_votos")
+            .eq("id", comentario_id)
+            .maybe_single()
+            .execute()
+        )
+        fila = getattr(resp, "data", None) if resp else None
+        return (fila or {}).get("num_votos") or 0
+    except Exception as e:
+        logger.warning(f"No se pudo leer num_votos de comentario {comentario_id}: {e}")
+        return 0
+
+
+# ---------------------------------------------------------------------------
+# Votos
+# ---------------------------------------------------------------------------
+# Desde la Fase 5 los acumulados num_votos viven en columna (trigger); estas
+# secciones solo necesitan el voto del usuario actual para la UI.
 
 def _mis_votos(supabase, user, publicacion_ids: list = None, comentario_ids: list = None) -> dict:
     """{objetivo_id: valor del voto del usuario} en batch (evita N+1).
@@ -430,7 +537,7 @@ async def listar_publicaciones(seccion_id: int, user_data=Depends(get_current_us
 
     resp = (
         supabase.table("foro_publicaciones")
-        .select("id, seccion_id, autor_perfil_id, titulo, cuerpo, tags, estado, created_at, updated_at, sugerencia_ia")
+        .select(_COLUMNAS_PUBLICACION)
         .eq("seccion_id", seccion_id)
         .order("created_at", desc=True)
         .execute()
@@ -438,47 +545,14 @@ async def listar_publicaciones(seccion_id: int, user_data=Depends(get_current_us
     filas = getattr(resp, "data", None) or []
     ids = [f["id"] for f in filas]
 
-    # Conteo de comentarios por publicación (filtrado por ids, sin full scan).
-    counts: dict = {}
-    if ids:
-        try:
-            agg = (
-                supabase.table("foro_comentarios")
-                .select("publicacion_id")
-                .in_("publicacion_id", ids)
-                .execute()
-            )
-            for c in (getattr(agg, "data", None) or []):
-                pid = c.get("publicacion_id")
-                counts[pid] = counts.get(pid, 0) + 1
-        except Exception as e:
-            logger.warning(f"No se pudo contar comentarios: {e}")
-
-    # Puntuación (Fase 2) de los hilos de la sección (filtrado por ids).
-    votos = _votos_de_publicaciones(supabase, ids)
     autores = _nombres_autores(supabase, [f["autor_perfil_id"] for f in filas])
     mis_votos = _mis_votos(supabase, user, publicacion_ids=ids)
+    guardados = _ids_guardados(supabase, user, ids)
 
-    resultado = []
-    for fila in filas:
-        resultado.append(
-            PublicacionOut(
-                id=fila["id"],
-                seccion_id=fila["seccion_id"],
-                autor_perfil_id=fila["autor_perfil_id"],
-                autor_nombre=autores.get(fila["autor_perfil_id"]),
-                titulo=fila["titulo"],
-                cuerpo=fila["cuerpo"],
-                tags=fila.get("tags") or [],
-                estado=fila.get("estado", "abierta"),
-                created_at=fila["created_at"],
-                num_comentarios=counts.get(fila["id"], 0),
-                num_votos=votos.get(fila["id"], 0),
-                mi_voto=mis_votos.get(fila["id"], 0),
-                sugerencia_ia=fila.get("sugerencia_ia"),
-            )
-        )
-    return resultado
+    return [
+        _publicacion_out(fila, autores, mis_votos, guardados)
+        for fila in filas
+    ]
 
 
 @router.get("/foro/publicaciones/{publicacion_id}", response_model=PublicacionOut)
@@ -489,7 +563,7 @@ async def obtener_publicacion(publicacion_id: int, user_data=Depends(get_current
 
     resp = (
         supabase.table("foro_publicaciones")
-        .select("id, seccion_id, autor_perfil_id, titulo, cuerpo, tags, estado, created_at, updated_at, sugerencia_ia")
+        .select(_COLUMNAS_PUBLICACION)
         .eq("id", publicacion_id)
         .maybe_single()
         .execute()
@@ -502,19 +576,13 @@ async def obtener_publicacion(publicacion_id: int, user_data=Depends(get_current
     if not _seccion_o_404(supabase, fila["seccion_id"], user):
         raise HTTPException(status_code=404, detail="Publicación no encontrada.")
 
-    return PublicacionOut(
-        id=fila["id"],
-        seccion_id=fila["seccion_id"],
-        autor_perfil_id=fila["autor_perfil_id"],
-        autor_nombre=_nombre_autor(supabase, fila["autor_perfil_id"]),
-        titulo=fila["titulo"],
-        cuerpo=fila["cuerpo"],
-        tags=fila.get("tags") or [],
-        estado=fila.get("estado", "abierta"),
-        created_at=fila["created_at"],
-        num_votos=_votos_de_publicaciones(supabase, [fila["id"]]).get(fila["id"], 0),
-        mi_voto=_mi_voto(supabase, user, publicacion_id=fila["id"]),
-        sugerencia_ia=fila.get("sugerencia_ia"),
+    return _publicacion_out(
+        fila,
+        autores={fila["autor_perfil_id"]: _nombre_autor(supabase, fila["autor_perfil_id"])},
+        mis_votos={fila["id"]: _mi_voto(supabase, user, publicacion_id=fila["id"])},
+        guardados=_ids_guardados(supabase, user, [fila["id"]]),
+        secciones=_secciones_por_id(supabase),
+        nombres_facultad=_nombres_facultad(supabase),
     )
 
 
@@ -523,6 +591,7 @@ async def crear_publicacion(
     datos: PublicacionCreate,
     background_tasks: BackgroundTasks,
     user_data=Depends(get_current_user),
+    x_idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
     """Crea un hilo en una sección visible para el usuario.
 
@@ -530,26 +599,39 @@ async def crear_publicacion(
     publicación es una duda académica y el RAG encuentra fuentes relevantes, el
     bot genera una sugerencia y la guarda en `sugerencia_ia` sin bloquear el
     POST original.
+
+    Idempotente: con el header `Idempotency-Key`, un doble envío (reintento de
+    red o doble clic) devuelve la publicación ya creada en lugar de duplicarla.
     """
     user, token = user_data
     supabase = get_supabase(token)
 
-    if not _seccion_o_404(supabase, datos.seccion_id, user):
-        raise HTTPException(status_code=404, detail="Sección no encontrada.")
+    from app.core.idempotencia import verificar_idempotencia, registrar_resultado, liberar_clave
+    previa = await verificar_idempotencia(str(user.id), x_idempotency_key)
+    if previa is not None:
+        return previa
 
-    resp = (
-        supabase.table("foro_publicaciones")
-        .insert({
-            "seccion_id": datos.seccion_id,
-            "autor_perfil_id": user.id,
-            "titulo": datos.titulo,
-            "cuerpo": datos.cuerpo,
-            "tags": datos.tags,
-        })
-        .execute()
-    )
+    try:
+        if not _seccion_o_404(supabase, datos.seccion_id, user):
+            raise HTTPException(status_code=404, detail="Sección no encontrada.")
+
+        resp = (
+            supabase.table("foro_publicaciones")
+            .insert({
+                "seccion_id": datos.seccion_id,
+                "autor_perfil_id": user.id,
+                "titulo": datos.titulo,
+                "cuerpo": datos.cuerpo,
+                "tags": datos.tags,
+            })
+            .execute()
+        )
+    except Exception:
+        await liberar_clave(str(user.id), x_idempotency_key)
+        raise
     fila = getattr(resp, "data", None) or []
     if not fila:
+        await liberar_clave(str(user.id), x_idempotency_key)
         raise HTTPException(status_code=500, detail="No se pudo crear la publicación.")
 
     nueva = fila[0]
@@ -558,7 +640,7 @@ async def crear_publicacion(
     background_tasks.add_task(
         _generar_sugerencia_ia, nueva["id"], token
     )
-    return PublicacionOut(
+    publicacion = PublicacionOut(
         id=nueva["id"],
         seccion_id=nueva["seccion_id"],
         autor_perfil_id=nueva["autor_perfil_id"],
@@ -572,6 +654,8 @@ async def crear_publicacion(
         mi_voto=0,
         sugerencia_ia=None,
     )
+    await registrar_resultado(str(user.id), x_idempotency_key, publicacion.model_dump(mode="json"))
+    return publicacion
 
 
 @router.delete("/foro/publicaciones/{publicacion_id}", status_code=200)
@@ -618,14 +702,13 @@ async def listar_comentarios(publicacion_id: int, user_data=Depends(get_current_
 
     resp = (
         supabase.table("foro_comentarios")
-        .select("id, publicacion_id, autor_perfil_id, parent_id, cuerpo, created_at, es_solucion")
+        .select(_COLUMNAS_COMENTARIO)
         .eq("publicacion_id", publicacion_id)
         .order("created_at")
         .execute()
     )
     filas = getattr(resp, "data", None) or []
     ids = [f["id"] for f in filas]
-    votos = _votos_de_comentarios(supabase, ids)
     autores = _nombres_autores(supabase, [f["autor_perfil_id"] for f in filas])
     mis_votos = _mis_votos(supabase, user, comentario_ids=ids)
     return [
@@ -637,7 +720,7 @@ async def listar_comentarios(publicacion_id: int, user_data=Depends(get_current_
             parent_id=f.get("parent_id"),
             cuerpo=f["cuerpo"],
             created_at=f["created_at"],
-            num_votos=votos.get(f["id"], 0),
+            num_votos=f.get("num_votos") or 0,
             mi_voto=mis_votos.get(f["id"], 0),
             es_solucion=f.get("es_solucion", False),
         )
@@ -824,11 +907,11 @@ async def votar(datos: VotoCreate, user_data=Depends(get_current_user)):
         logger.error(f"Error aplicando voto: {e}")
         raise HTTPException(status_code=500, detail="No se pudo procesar el voto.")
 
-    # Nuevo acumulado del objetivo.
+    # Nuevo acumulado del objetivo (columna desnormalizada, tras el trigger).
     if datos.publicacion_id is not None:
-        num_votos = _votos_de_publicaciones(supabase, [datos.publicacion_id]).get(datos.publicacion_id, 0)
+        num_votos = _num_votos_publicacion(supabase, datos.publicacion_id)
     else:
-        num_votos = _votos_de_comentarios(supabase, [datos.comentario_id]).get(datos.comentario_id, 0)
+        num_votos = _num_votos_comentario(supabase, datos.comentario_id)
 
     return VotoOut(
         id=(fila or {}).get("id") or 0,
@@ -1116,3 +1199,331 @@ async def resolver_hilo(
         }).eq("id", publicacion_id).execute()
 
     return {"ok": True, "estado": "resuelta"}
+
+
+# ---------------------------------------------------------------------------
+# Feed global, tendencias, guardados y vistas (Fase 5)
+# ---------------------------------------------------------------------------
+
+# Límites del feed.
+_FEED_LIMIT_DEFECTO = 10
+_FEED_LIMIT_MAX = 30
+# Filas que se traen para ordenar "tendencia" en memoria antes de paginar.
+_FEED_VENTANA_TENDENCIA = 100
+
+_ORDENES_FEED = ("recientes", "comentados", "tendencia")
+_FILTROS_FEED = ("mis-hilos", "guardados", "sin-resolver", "mi-actividad")
+
+
+def _secciones_visibles_ids(supabase, user) -> list:
+    """Ids de secciones visibles para el usuario (globales + su facultad)."""
+    facultad_id = _facultad_del_usuario(supabase, user)
+    secciones = _secciones_por_id(supabase)
+    return [
+        sid for sid, s in secciones.items()
+        if s.get("tipo") == "global" or s.get("facultad_id") == facultad_id
+    ]
+
+
+def _score_tendencia(fila: dict) -> float:
+    """Score de tendencia: comentarios*3 + votos*2 + vistas*0.1."""
+    return (
+        (fila.get("num_comentarios") or 0) * 3
+        + (fila.get("num_votos") or 0) * 2
+        + (fila.get("num_vistas") or 0) * 0.1
+    )
+
+
+def _query_feed(supabase, user, q, seccion_id, facultad_id, tag, estado, filtro):
+    """Query base del feed ya filtrada (sin orden ni rango)."""
+    visibles = _secciones_visibles_ids(supabase, user)
+    if not visibles:
+        return None
+
+    secciones = _secciones_por_id(supabase)
+    if facultad_id is not None:
+        visibles = [
+            sid for sid in visibles
+            if secciones.get(sid, {}).get("facultad_id") == facultad_id
+        ]
+        if not visibles:
+            return None
+
+    query = supabase.table("foro_publicaciones").select(_COLUMNAS_PUBLICACION)
+    query = query.in_("seccion_id", visibles)
+
+    if seccion_id is not None:
+        query = query.eq("seccion_id", seccion_id)
+    if tag:
+        query = query.contains("tags", [tag.strip().lower()])
+    if estado in ("abierta", "resuelta", "cerrada"):
+        query = query.eq("estado", estado)
+
+    if q:
+        termino = _sanitizar_busqueda(q)
+        if termino:
+            # Full-text sobre search_vector (título A, cuerpo B, tags C) con
+            # diccionario 'spanish'. postgrest-py no expone config en wfts(),
+            # así que se usa la sintaxis de operador de PostgREST:
+            #   ?search_vector=wfts(spanish).<consulta>
+            query = query.filter("search_vector", "wfts(spanish)", termino)
+
+    if filtro in _FILTROS_FEED:
+        if filtro == "mis-hilos":
+            query = query.eq("autor_perfil_id", user.id)
+        elif filtro == "sin-resolver":
+            query = query.eq("estado", "abierta")
+        elif filtro == "guardados":
+            resp = (
+                supabase.table("foro_guardados")
+                .select("publicacion_id")
+                .eq("perfil_id", user.id)
+                .execute()
+            )
+            ids = [f["publicacion_id"] for f in (getattr(resp, "data", None) or [])]
+            if not ids:
+                return None
+            query = query.in_("id", ids)
+        elif filtro == "mi-actividad":
+            resp = (
+                supabase.table("foro_comentarios")
+                .select("publicacion_id")
+                .eq("autor_perfil_id", user.id)
+                .execute()
+            )
+            ids = {f["publicacion_id"] for f in (getattr(resp, "data", None) or [])}
+            query = query.or_(
+                f"autor_perfil_id.eq.{user.id},id.in.({','.join(str(i) for i in ids)})"
+                if ids else f"autor_perfil_id.eq.{user.id}"
+            )
+
+    return query
+
+
+@router.get("/foro/feed", response_model=FeedOut)
+async def feed_global(
+    q: Optional[str] = None,
+    seccion_id: Optional[int] = None,
+    facultad_id: Optional[int] = None,
+    tag: Optional[str] = None,
+    estado: Optional[str] = None,
+    orden: str = "recientes",
+    filtro: Optional[str] = None,
+    limit: int = _FEED_LIMIT_DEFECTO,
+    cursor: Optional[str] = None,
+    user_data=Depends(get_current_user),
+):
+    """Feed global del foro con filtros, orden y paginación por cursor.
+
+    - orden "recientes": keyset por (created_at, id); cursor = "fecha|id".
+    - orden "comentados"/"tendencia": paginación por offset; cursor = offset.
+    - "tendencia" ordena en memoria por score (comentarios*3 + votos*2 +
+      vistas*0.1) sobre una ventana de resultados filtrados.
+    """
+    user, token = user_data
+    supabase = get_supabase(token)
+
+    if orden not in _ORDENES_FEED:
+        raise HTTPException(status_code=422, detail=f"orden debe ser uno de {_ORDENES_FEED}.")
+    if filtro is not None and filtro not in _FILTROS_FEED:
+        raise HTTPException(status_code=422, detail=f"filtro debe ser uno de {_FILTROS_FEED}.")
+    limit = max(1, min(limit, _FEED_LIMIT_MAX))
+
+    query = _query_feed(supabase, user, q, seccion_id, facultad_id, tag, estado, filtro)
+    if query is None:
+        return FeedOut(publicaciones=[], siguiente_cursor=None, total=0)
+
+    if orden == "recientes":
+        query = query.order("created_at", desc=True).order("id", desc=True)
+        if cursor:
+            try:
+                ts_cursor, id_cursor = cursor.rsplit("|", 1)
+                query = query.or_(
+                    f"created_at.lt.{ts_cursor},"
+                    f"and(created_at.eq.{ts_cursor},id.lt.{id_cursor})"
+                )
+            except ValueError:
+                raise HTTPException(status_code=422, detail="Cursor inválido.")
+        resp = query.limit(limit + 1).execute()
+        filas = getattr(resp, "data", None) or []
+        siguiente = None
+        if len(filas) > limit:
+            extra = filas.pop()
+            del extra
+            ultima = filas[-1]
+            siguiente = f"{ultima['created_at']}|{ultima['id']}"
+        total = len(filas) + (1 if siguiente else 0)
+    else:
+        offset = 0
+        if cursor:
+            try:
+                offset = max(0, int(cursor))
+            except ValueError:
+                raise HTTPException(status_code=422, detail="Cursor inválido.")
+        if orden == "comentados":
+            query = (
+                query.order("num_comentarios", desc=True)
+                .order("created_at", desc=True)
+            )
+            resp = query.range(offset, offset + limit).execute()
+            filas = getattr(resp, "data", None) or []
+            siguiente = str(offset + limit) if len(filas) > limit else None
+            filas = filas[:limit]
+            total = offset + len(filas) + (1 if siguiente else 0)
+        else:  # tendencia: se ordena en memoria sobre una ventana.
+            resp = (
+                query.order("created_at", desc=True)
+                .limit(_FEED_VENTANA_TENDENCIA)
+                .execute()
+            )
+            candidatas = getattr(resp, "data", None) or []
+            candidatas.sort(key=lambda f: (_score_tendencia(f), f["created_at"]),
+                            reverse=True)
+            filas = candidatas[offset: offset + limit]
+            siguiente = (
+                str(offset + limit) if len(candidatas) > offset + limit else None
+            )
+            total = offset + len(filas) + (1 if siguiente else 0)
+
+    ids = [f["id"] for f in filas]
+    autores = _nombres_autores(supabase, [f["autor_perfil_id"] for f in filas])
+    mis_votos = _mis_votos(supabase, user, publicacion_ids=ids)
+    guardados = _ids_guardados(supabase, user, ids)
+    secciones = _secciones_por_id(supabase)
+    nombres_facultad = _nombres_facultad(supabase)
+
+    return FeedOut(
+        publicaciones=[
+            _publicacion_out(f, autores, mis_votos, guardados, secciones, nombres_facultad)
+            for f in filas
+        ],
+        siguiente_cursor=siguiente,
+        total=total,
+    )
+
+
+@router.get("/foro/tendencias", response_model=TendenciasOut)
+async def tendencias(user_data=Depends(get_current_user)):
+    """Top 5 hilos con mayor interacción reciente.
+
+    Ventana principal: últimas 24h. Fallback: 7 días (el score se calcula con
+    los contadores desnormalizados, no requiere agregados).
+    """
+    user, token = user_data
+    supabase = get_supabase(token)
+
+    visibles = _secciones_visibles_ids(supabase, user)
+    if not visibles:
+        return TendenciasOut(publicaciones=[], ventana="24h")
+
+    filas, ventana = [], "24h"
+    from datetime import datetime, timedelta, timezone
+    for horas, etiqueta in ((24, "24h"), (168, "7d")):
+        desde = (datetime.now(timezone.utc) - timedelta(hours=horas)).isoformat()
+        resp = (
+            supabase.table("foro_publicaciones")
+            .select(_COLUMNAS_PUBLICACION)
+            .in_("seccion_id", visibles)
+            .gte("created_at", desde)
+            .execute()
+        )
+        filas = getattr(resp, "data", None) or []
+        if filas:
+            ventana = etiqueta
+            break
+
+    filas.sort(key=lambda f: (_score_tendencia(f), f["created_at"]), reverse=True)
+    top = filas[:5]
+    ids = [f["id"] for f in top]
+    return TendenciasOut(
+        publicaciones=[
+            _publicacion_out(
+                f,
+                _nombres_autores(supabase, [x["autor_perfil_id"] for x in top]),
+                _mis_votos(supabase, user, publicacion_ids=ids),
+                _ids_guardados(supabase, user, ids),
+                _secciones_por_id(supabase),
+                _nombres_facultad(supabase),
+            )
+            for f in top
+        ],
+        ventana=ventana,
+    )
+
+
+@router.post("/foro/publicaciones/{publicacion_id}/guardar", status_code=200)
+async def guardar_publicacion(publicacion_id: int, user_data=Depends(get_current_user)):
+    """Guarda un hilo (bookmark). Idempotente: re-guardar no falla."""
+    user, token = user_data
+    supabase = get_supabase(token)
+
+    pub = (
+        supabase.table("foro_publicaciones")
+        .select("id, seccion_id")
+        .eq("id", publicacion_id)
+        .maybe_single()
+        .execute()
+    )
+    fila = getattr(pub, "data", None) if pub else None
+    if not fila or not _seccion_o_404(supabase, fila["seccion_id"], user):
+        raise HTTPException(status_code=404, detail="Publicación no encontrada.")
+
+    try:
+        supabase.table("foro_guardados").upsert(
+            {"perfil_id": user.id, "publicacion_id": publicacion_id},
+            on_conflict="perfil_id,publicacion_id",
+        ).execute()
+    except Exception as e:
+        logger.error(f"Error guardando publicación {publicacion_id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo guardar el hilo.")
+    return {"ok": True, "guardado": True}
+
+
+@router.delete("/foro/publicaciones/{publicacion_id}/guardar", status_code=200)
+async def quitar_guardado(publicacion_id: int, user_data=Depends(get_current_user)):
+    """Quita un hilo de los guardados del usuario. Idempotente."""
+    user, token = user_data
+    supabase = get_supabase(token)
+
+    try:
+        supabase.table("foro_guardados").delete().eq(
+            "perfil_id", user.id
+        ).eq("publicacion_id", publicacion_id).execute()
+    except Exception as e:
+        logger.error(f"Error quitando guardado de {publicacion_id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo quitar el guardado.")
+    return {"ok": True, "guardado": False}
+
+
+@router.post("/foro/publicaciones/{publicacion_id}/vista", status_code=200)
+async def registrar_vista(publicacion_id: int, user_data=Depends(get_current_user)):
+    """Registra una vista única (una por usuario e hilo) vía RPC.
+
+    Devuelve el nuevo total de vistas del hilo.
+    """
+    user, token = user_data
+    supabase = get_supabase(token)
+
+    try:
+        supabase.rpc("foro_registrar_vista", {"p_publicacion_id": publicacion_id}).execute()
+    except Exception as e:
+        logger.error(f"Error registrando vista de {publicacion_id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo registrar la vista.")
+
+    try:
+        resp = (
+            supabase.table("foro_publicaciones")
+            .select("num_vistas")
+            .eq("id", publicacion_id)
+            .maybe_single()
+            .execute()
+        )
+        fila = getattr(resp, "data", None) if resp else None
+        if fila is None:
+            raise HTTPException(status_code=404, detail="Publicación no encontrada.")
+        return {"ok": True, "num_vistas": (fila or {}).get("num_vistas") or 0}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error leyendo vistas de {publicacion_id}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo leer el conteo.")

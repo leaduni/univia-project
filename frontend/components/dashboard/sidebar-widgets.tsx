@@ -4,6 +4,7 @@
 import Link from "next/link"
 import { BookOpen, Flag, Flame, KeyRound, MessageSquarePlus, Search, Sparkles, Trophy, Zap } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useByok } from "@/components/providers/byok-context"
 import type { DashboardMetricas } from "../stats-cards"
 
 interface Logro {
@@ -160,6 +161,9 @@ function Logros({ logros, isLoading }: { logros: Logro[]; isLoading: boolean }) 
 }
 
 function AccesosRapidos() {
+  // BYOK: el acceso a la clave de IA abre el modal global en el acto, en vez
+  // de mandar al estudiante a navegar hasta /perfil.
+  const { abrirModalByok, modoByok } = useByok()
   return (
     <div className="p-5 rounded-2xl bg-[var(--glass-base)] backdrop-blur-md border border-[var(--glass-border)] shadow-[var(--glow-subtle)] transition-all duration-300 hover:shadow-[var(--glow-violet)] anim-right">
       <h3 className="font-poppins text-[14.5px] font-semibold text-[#e9e9ed] mb-3">Accesos rápidos</h3>
@@ -185,13 +189,25 @@ function AccesosRapidos() {
             pronto
           </span>
         </div>
-        <Link
-          href="/perfil"
+        <button
+          type="button"
+          onClick={abrirModalByok}
           className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-[#7957f1]/12 transition-colors text-left group"
         >
           <KeyRound className="w-4 h-4 text-[#7957f1] shrink-0 group-hover:scale-110 transition-transform" />
-          <span className="text-xs text-[#e9e9ed] font-medium">Configurar API Key Gemini</span>
-        </Link>
+          <span className="text-xs text-[#e9e9ed] font-medium">
+            {modoByok ? "Gestionar mi clave de IA" : "Configurar API Key Gemini"}
+          </span>
+          {modoByok && (
+            <span
+              className="ml-auto shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-400/15 text-emerald-300"
+              title="Tu clave personal está activa"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-300" aria-hidden="true" />
+              Activa
+            </span>
+          )}
+        </button>
       </div>
     </div>
   )

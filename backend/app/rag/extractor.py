@@ -488,15 +488,18 @@ class SyllabusExtractor:
 
         sem = AdaptiveSemaphore(initial=max_concurrency, min_concurrency=1)
         quota_exhausted = False
+        vision_rate_limited = False
         rate_limits = 0
         RATE_LIMIT_THRESHOLD = 3  # reducir concurrencia tras N rate limits
 
         async def process_page(n: int):
-            nonlocal quota_exhausted, rate_limits
+            nonlocal quota_exhausted, rate_limits, vision_rate_limited
             if quota_exhausted:
                 return
             await sem.acquire()
             try:
+                if quota_exhausted:
+                    return
                 t_start = time.time()
                 logger.info(f"[Async Extractor] Tarea iniciada para pagina {n}/{total_pages}...")
                 try:
@@ -520,7 +523,14 @@ class SyllabusExtractor:
                     if self._es_cuota_diaria(e):
                         quota_exhausted = True
                         logger.error(f"[Cuota Agotada] Pagina {n}/{total_pages}. Deteniendo.")
-                    elif "429" in str(e).lower() or "quota" in str(e).lower():
+                    elif "429" in str(e).lower():
+                        quota_exhausted = True
+                        vision_rate_limited = True
+                        logger.warning(
+                            f"[Rate Limit] Pagina {n}/{total_pages}. "
+                            "Se descarta el silabo completo."
+                        )
+                    elif "quota" in str(e).lower():
                         rate_limits += 1
                         if rate_limits >= RATE_LIMIT_THRESHOLD:
                             sem.reduce()
@@ -539,12 +549,15 @@ class SyllabusExtractor:
         self.last_run_stats["completed_pages"] = len(final_completed)
         self.last_run_stats["failed_pages"] = total_pages - len(final_completed)
 
-        if quota_exhausted and len(final_completed) < total_pages:
+        if quota_exhausted and len(final_completed) < total_pages and not vision_rate_limited:
             logger.warning(
                 f"[Cuota Agotada] Progreso salvado en checkpoints locales "
                 f"({len(final_completed)}/{total_pages} paginas). "
                 f"Ejecuta con --resume para continuar mas tarde."
             )
+
+        if vision_rate_limited:
+            return ""
 
         s = self.last_run_stats
         logger.info(

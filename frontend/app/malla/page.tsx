@@ -61,10 +61,31 @@ export default function MallaPage() {
     }
   }, [intento])
 
+  const handleMarkCompleted = (courseId: string) => {
+    setMalla(prev => {
+      const nuevo = JSON.parse(JSON.stringify(prev))
+      let found = false
+      for (const ciclo of nuevo) {
+        if (found) break
+        for (const curso of ciclo.courses) {
+          if (curso.id === courseId) {
+            curso.status = 'completed'
+            // Mock: Assign a passing grade and date
+            curso.nota = 15.0
+            curso.fecha_completado = new Date().toISOString()
+            found = true
+            break
+          }
+        }
+      }
+      return nuevo
+    })
+  }
+
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-6">
-        <div className="space-y-1 max-w-5xl">
+      <div className="p-4 md:p-6 flex flex-col h-[calc(100dvh-5rem-env(safe-area-inset-bottom))]">
+        <div className="space-y-1 mb-4 flex-none">
           <h1 className="font-heading text-2xl md:text-3xl font-bold tracking-tight text-foreground">
             Mi malla curricular
           </h1>
@@ -74,7 +95,7 @@ export default function MallaPage() {
         </div>
 
         {error ? (
-          <div className="flex flex-col items-center text-center gap-4 py-16">
+          <div className="flex flex-col items-center justify-center text-center gap-4 py-16 flex-1">
             <div className="p-4 rounded-full bg-destructive/10 border border-destructive/30">
               <AlertCircle className="w-7 h-7 text-destructive" />
             </div>
@@ -96,8 +117,12 @@ export default function MallaPage() {
         ) : cargando && malla.length === 0 ? (
           <MallaSkeleton />
         ) : (
-          <div className="rounded-2xl bg-card border border-border overflow-hidden">
-            <MallaGraph malla={malla as CicloDetail[]} avance={avance as AvanceCarrera | null} />
+          <div className="flex-1 rounded-2xl bg-card border border-border overflow-hidden min-h-0">
+            <MallaGraph 
+              malla={malla as CicloDetail[]} 
+              avance={avance as AvanceCarrera | null}
+              onMarkCompleted={handleMarkCompleted}
+            />
           </div>
         )}
       </div>

@@ -8,7 +8,7 @@ import { StatsCards } from "./stats-cards"
 import { ContinueLearning, type CursoActivo } from "./dashboard/continue-learning"
 import { SidebarWidgets } from "./dashboard/sidebar-widgets"
 import { RecentResources } from "./dashboard/recent-resources"
-import { AIRecommendationBanner } from "./dashboard/ai-recommendation-banner"
+import { DonacionBanner } from "./dashboard/donacion-banner"
 import { useAuth } from "./providers/auth-context"
 import { apiService, type ApiError } from "@/lib/api-service"
 import { picoCache } from "@/lib/api-cache"
@@ -166,6 +166,17 @@ export function Dashboard() {
     }
   }, [router])
 
+  // Refs espejo: el efecto de arranque solo debe reaccionar a cambios de
+  // sesión/usuario, no a cada nueva identidad del objeto `user` o del
+  // callback `loadDashboardData`. Así se declara la dependencia real sin
+  // suprimir la regla exhaustive-deps.
+  const userRef = useRef(user)
+  const loadDashboardDataRef = useRef(loadDashboardData)
+  useEffect(() => {
+    userRef.current = user
+    loadDashboardDataRef.current = loadDashboardData
+  })
+
   useEffect(() => {
     isMounted.current = true
     // No disparar llamadas API sin sesión activa: sin token, todas
@@ -174,11 +185,12 @@ export function Dashboard() {
       // Guard temprano: si el perfil ya indica que el onboarding no está
       // completo, no tiene sentido disparar el batch (su avance respondería
       // 400/requiereOnboarding): se va directo a terminar el onboarding.
-      if (user && user.onboarding_completado === false) {
+      const usuarioActual = userRef.current
+      if (usuarioActual && usuarioActual.onboarding_completado === false) {
         redirigiendoRef.current = true
         router.replace("/onboarding")
       } else {
-        loadDashboardData()
+        loadDashboardDataRef.current()
       }
     } else {
       setIsLoadingSummary(false)
@@ -187,8 +199,7 @@ export function Dashboard() {
     return () => {
       isMounted.current = false
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasSession, userId])
+  }, [hasSession, userId, router])
 
   // Solo el primer nombre: "Hola, Juan Carlos Pérez Ramírez 👋" no saluda a
   // nadie, y el nombre completo ya está en el menú de usuario.
@@ -242,7 +253,7 @@ const skeletonAvance = isLoadingAvance && !hasLoadedOnce.current
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-8 space-y-6">
-            <AIRecommendationBanner />
+            <DonacionBanner />
             <section>
               <ContinueLearning cursos={cursosActivos} isLoading={skeletonSummary} />
             </section>

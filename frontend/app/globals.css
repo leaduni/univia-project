@@ -135,14 +135,49 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html,
+  body {
+    /* Red de seguridad: ningún componente debe poder desbordar el viewport
+       horizontalmente en móvil. `clip` no crea contexto de scroll. */
+    overflow-x: clip;
+  }
   body {
     @apply text-foreground;
+    min-height: 100dvh;
     background-color: #0b0c16;
     background-image:
       radial-gradient(circle at 10% 10%, #1e1338 0%, transparent 45%),
       radial-gradient(circle at 85% 60%, #15102a 0%, transparent 50%);
     background-attachment: fixed;
   }
+}
+
+/* Safe areas: los navegadores iOS solo exponen estos insets cuando la app
+   declara viewport-fit=cover. Estas utilidades mantienen los controles fijos
+   fuera del notch y del indicador de inicio sin alterar el layout de escritorio. */
+.safe-top-3 {
+  top: max(0.75rem, env(safe-area-inset-top));
+}
+
+.safe-bottom-4 {
+  bottom: max(1rem, calc(1rem + env(safe-area-inset-bottom)));
+}
+
+.safe-chat-panel {
+  right: max(0.75rem, calc(0.75rem + env(safe-area-inset-right)));
+  bottom: calc(5.5rem + env(safe-area-inset-bottom));
+}
+
+.safe-fab {
+  right: max(1rem, calc(1rem + env(safe-area-inset-right)));
+  bottom: max(1rem, calc(1rem + env(safe-area-inset-bottom)));
+}
+
+.safe-modal-padding {
+  padding-top: max(1rem, env(safe-area-inset-top));
+  padding-right: max(1rem, env(safe-area-inset-right));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-left: max(1rem, env(safe-area-inset-left));
 }
 
 /* Resplandor de recomendaciones de IA (RAG): degradado oficial
@@ -401,4 +436,41 @@
   display: none;             /* Webkit (Chrome, Safari, Edge) */
   width: 0;
   height: 0;
+}
+
+/* React Flow Dark Mode Overrides */
+.react-flow__controls {
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  background-color: #151522 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  fill: #94a3b8 !important;
+}
+
+.react-flow__controls-button:hover {
+  background-color: #1e293b !important;
+  fill: #ffffff !important;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+/* React Flow MiniMap & Attribution Overrides */
+.react-flow__minimap {
+  background-color: #151522 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6) !important;
+  overflow: hidden;
+}
+
+/* Ocultar la marca de agua "React Flow" para limpiar la UI */
+.react-flow__attribution {
+  display: none !important;
 }

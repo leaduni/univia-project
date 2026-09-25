@@ -1,11 +1,12 @@
 import logging
 import os
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from app.core.actividad import TIPO_LOGIN, registrar_evento
 from app.core.database import get_supabase, get_admin_client
 from app.core.auth_utils import get_current_user
 from app.core.exceptions import raise_field_error
+from app.core.rate_limit import limiter
 from app.schemas.usuarios import (
     CambiarMalla,
     CambioPassword,
@@ -204,7 +205,8 @@ def _cargar_carrera_y_plan(token: str, carrera_id: int | None, malla_id: int | N
 
 
 @router.post("/auth/login")
-async def login(data: LoginRequest):
+@limiter.limit("10/minute")
+async def login(request: Request, data: LoginRequest):
     """Inicia sesión con correo institucional o código universitario (RF-01)."""
     email = _resolver_email(data.identificador, data.es_email)
     logger.error(f"[LOGIN DEBUG] Identificador recibido: {data.identificador} | es_email: {getattr(data, 'es_email', None)}")
@@ -661,7 +663,9 @@ async def cambiar_password(
 
 
 @router.post("/auth/register", status_code=201)
+@limiter.limit("10/minute")
 async def register(
+    request: Request,
     data: RegistroEstudiante,
     user_data=Depends(get_current_user),
 ):
@@ -699,14 +703,14 @@ async def register(
         "malla_id": None,  # NULL: la malla se asigna al completar el onboarding.
         "updated_at": "now()",
     }
-    print(f"[REGISTER] Upsert payload: {payload}")
+    logger.debug("[REGISTER] Upsert payload: %s", payload)
 
     try:
         response = supabase.table("perfiles").upsert(
             payload,
             on_conflict="id",
         ).execute()
-        print(f"[REGISTER] Upsert response: {response.data}")
+        logger.debug("[REGISTER] Upsert response: %s", response.data)
 
         if not response.data:
             raise HTTPException(
@@ -717,7 +721,7 @@ async def register(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[REGISTER] Supabase error: {str(e)}")
+        logger.error("[REGISTER] Supabase error: %s", e)
         raise HTTPException(
             status_code=500,
             detail=f"Error al guardar el perfil en la base de datos: {str(e)}",
@@ -726,7 +730,7 @@ async def register(
     # Verificar que codigo_estudiante se haya guardado correctamente
     saved = response.data[0] if isinstance(response.data, list) else response.data
     if saved.get("codigo_estudiante") != data.codigo_estudiante:
-        print(f"[REGISTER] WARNING: codigo_estudiante mismatch. Saved: {saved.get('codigo_estudiante')}, Expected: {data.codigo_estudiante}")
+        logger.warning("[REGISTER] codigo_estudiante mismatch. Saved: %s, Expected: %s", saved.get('codigo_estudiante'), data.codigo_estudiante)
 
     return {"status": "success", "message": "Registro completado exitosamente"}
 
@@ -767,7 +771,7 @@ async def register_user(data: RegistroCompleto):
             }
         })
     except Exception as e:
-        print(f"[REGISTER-USER] Error creating auth user: {str(e)}")
+        logger.error("[REGISTER-USER] Error creating auth user: %s", e)
         # El chequeo de duplicados de arriba solo mira `perfiles`, así que un
         # usuario que quedó en auth.users sin perfil (registro a medias) llega
         # hasta aquí. Es un problema del campo email, no un fallo del servidor.
@@ -776,7 +780,7 @@ async def register_user(data: RegistroCompleto):
         raise HTTPException(status_code=500, detail=f"Error al crear el usuario de autenticación: {str(e)}")
 
     user_id = user_resp.user.id
-    print(f"[REGISTER-USER] Auth user created: {user_id}")
+    logger.info("[REGISTER-USER] Auth user created: %s", user_id)
 
     # Crear perfil en perfiles
     try:
@@ -789,18 +793,18 @@ async def register_user(data: RegistroCompleto):
             "malla_id": None,  # NULL: se asigna en /onboarding/complete.
             "updated_at": "now()",
         }, on_conflict="id").execute()
-        print(f"[REGISTER-USER] Profile created for user: {user_id}")
+        logger.info("[REGISTER-USER] Profile created for user: %s", user_id)
     except Exception as e:
-        print(f"[REGISTER-USER] Error creating profile: {str(e)}")
+        logger.error("[REGISTER-USER] Error creating profile: %s", e)
         # Sin perfil la cuenta es inservible y además bloquea el reintento: el
         # email queda tomado en auth.users pero invisible para el chequeo de
         # duplicados. Se deshace la creación para que el estudiante pueda
         # volver a registrarse con los mismos datos.
         try:
             admin.auth.admin.delete_user(user_id)
-            print(f"[REGISTER-USER] Rolled back auth user: {user_id}")
+            logger.info("[REGISTER-USER] Rolled back auth user: %s", user_id)
         except Exception as rollback_error:
-            print(f"[REGISTER-USER] Rollback failed for {user_id}: {rollback_error}")
+            logger.warning("[REGISTER-USER] Rollback failed for %s: %s", user_id, rollback_error)
         raise HTTPException(status_code=500, detail=f"Error al crear el perfil: {str(e)}")
 
     return {"status": "success", "message": "Registro completado exitosamente. Ya puedes iniciar sesión."}

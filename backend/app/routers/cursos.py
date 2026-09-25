@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import FileResponse
 from app.core.database import get_supabase
 from app.core.auth_utils import get_current_user
@@ -333,7 +333,12 @@ async def get_learning_path(course_id: int, user_data = Depends(get_current_user
                 "progress": progress_pct
             },
             "timeline": timeline_steps,
-            "ai_insights": ai_insights
+            "ai_insights": ai_insights,
+            # Fase 11: origen de la ruta ('oficial' | 'usuario' | 'ia_provisional')
+            # y trazabilidad de sílabo pendiente para el empty-state del frontend.
+            "ruta_origen": datos.get("ruta_origen"),
+            "hay_oficial": datos.get("hay_oficial", False),
+            "solicitud_silabo": datos.get("solicitud_silabo"),
         }
     except HTTPException:
         raise
@@ -394,6 +399,10 @@ async def complete_step(course_id: int, step_id: int, user_data = Depends(get_cu
                     "status": "in_progress"
                 }).eq("perfil_id", user.id).eq("curso_id", course_id).execute()
 
+        # El avance cambió: se descarta la caché de malla/dashboard del usuario.
+        from app.core import rpc_cache
+        rpc_cache.invalidar_usuario(str(user.id))
+
         return {
             "success": True,
             "message": "Unidad marcada como completada",
@@ -416,9 +425,18 @@ CURSO_PLANCHA_SUBDIR = {
 }
 
 @router.post("/cursos/{curso_id}/completar")
-async def completar_curso(curso_id: int, user_data = Depends(get_current_user)):
+async def completar_curso(
+    curso_id: int,
+    user_data = Depends(get_current_user),
+    x_idempotency_key = Header(None, alias="Idempotency-Key"),
+):
     user, token = user_data
     supabase = get_supabase(token)
+
+    from app.core.idempotencia import verificar_idempotencia, registrar_resultado, liberar_clave
+    previa = await verificar_idempotencia(str(user.id), x_idempotency_key)
+    if previa is not None:
+        return previa
 
     profile_resp = supabase.table("perfiles").select("carrera_id, malla_id").eq("id", user.id).maybe_single().execute()
     perfil = profile_resp.data if profile_resp else None
@@ -454,12 +472,20 @@ async def completar_curso(curso_id: int, user_data = Depends(get_current_user)):
     ]
 
     if progreso_items:
-        supabase.table("progreso_cursos").upsert(
-            progreso_items,
-            on_conflict="perfil_id, curso_id"
-        ).execute()
+        try:
+            supabase.table("progreso_cursos").upsert(
+                progreso_items,
+                on_conflict="perfil_id, curso_id"
+            ).execute()
+        except Exception:
+            await liberar_clave(str(user.id), x_idempotency_key)
+            raise
 
-    return {"status": "success", "message": "Curso marcado como completado exitosamente"}
+    resultado = {"status": "success", "message": "Curso marcado como completado exitosamente"}
+    from app.core import rpc_cache
+    rpc_cache.invalidar_usuario(str(user.id))
+    await registrar_resultado(str(user.id), x_idempotency_key, resultado)
+    return resultado
 
 
 @router.get("/curso/{course_id}/plancha/{filename}")

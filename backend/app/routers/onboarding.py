@@ -1,7 +1,7 @@
 import logging
 from fastapi import APIRouter, HTTPException, Depends, Query
 from app.core.avance import calcular_avance
-from app.core.database import get_supabase
+from app.core.database import get_supabase, get_admin_client
 from app.core.auth_utils import get_current_user
 from app.core.exceptions import raise_field_error
 from app.core.onboarding_service import build_onboarding_courses
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _resolver_malla_id(supabase, carrera_id: int, malla_id: Optional[int] = None) -> Optional[int]:
+def _resolver_malla_id(supabase, carrera_id: Optional[int], malla_id: Optional[int] = None) -> Optional[int]:
     """Obtiene el malla_id directo o busca la malla vigente de la carrera.
 
     Si existen varias mallas vigentes (es_vigente = true) para la carrera, se
@@ -448,6 +448,7 @@ async def actualizar_cursos_del_ciclo(
 ):
     user, token = user_data
     supabase = get_supabase(token)
+    admin_client = get_admin_client()
 
     perfil = _verificar_perfil_minimo(supabase, user)
 
@@ -523,7 +524,7 @@ async def actualizar_cursos_del_ciclo(
     try:
         if a_cerrar:
             (
-                supabase.table("progreso_cursos")
+                admin_client.table("progreso_cursos")
                 .update({"status": "completed", "fecha_completado": "now()"})
                 .eq("perfil_id", user.id)
                 .in_("curso_id", list(a_cerrar))
@@ -532,14 +533,14 @@ async def actualizar_cursos_del_ciclo(
 
         a_insertar = [cid for cid in nuevos if cid not in en_curso]
         if a_insertar:
-            supabase.table("progreso_cursos").insert(
+            admin_client.table("progreso_cursos").insert(
                 [
                     {"perfil_id": user.id, "curso_id": cid, "status": "in_progress"}
                     for cid in a_insertar
                 ]
             ).execute()
 
-        supabase.table("perfiles").update(
+        admin_client.table("perfiles").update(
             {"ciclo_actual": data.ciclo_actual, "updated_at": "now()"}
         ).eq("id", user.id).execute()
     except Exception as e:
@@ -550,6 +551,10 @@ async def actualizar_cursos_del_ciclo(
         f"Cursos actualizados. Usuario={user.id}, ciclo={data.ciclo_actual}, "
         f"cerrados={len(a_cerrar)}, activos={len(nuevos)}"
     )
+
+    # El progreso cambió: se descarta la caché de malla/dashboard del usuario.
+    from app.core import rpc_cache
+    rpc_cache.invalidar_usuario(str(user.id))
 
     return {
         "status": "success",
@@ -574,6 +579,7 @@ async def complete_onboarding(
 ):
     user, token = user_data
     supabase = get_supabase(token)
+    admin_client = get_admin_client()
 
     try:
         carrera_id = data.carrera_id
@@ -641,7 +647,8 @@ async def complete_onboarding(
             .select("curso_id, status") \
             .eq("perfil_id", user.id) \
             .execute()
-        db_status: Dict[int, str] = {p["curso_id"]: p["status"] for p in (progreso_db.data or [])}
+        progreso_raw = getattr(progreso_db, "data", None) or []
+        db_status: Dict[int, str] = {p["curso_id"]: p["status"] for p in progreso_raw if isinstance(p, dict)}
 
         def nombre_curso(cid: int) -> str:
             return cursos_en_carrera.get(cid, {}).get("name", str(cid))
@@ -772,7 +779,7 @@ async def complete_onboarding(
 
         if a_ascender:
             (
-                supabase.table("progreso_cursos")
+                admin_client.table("progreso_cursos")
                 .update({"status": "completed", "fecha_completado": "now()"})
                 .eq("perfil_id", user.id)
                 .in_("curso_id", list(a_ascender))
@@ -781,20 +788,20 @@ async def complete_onboarding(
 
         if a_degradar:
             (
-                supabase.table("progreso_cursos")
+                admin_client.table("progreso_cursos")
                 .update({"status": "available", "fecha_completado": None})
                 .eq("perfil_id", user.id)
                 .in_("curso_id", list(a_degradar))
                 .execute()
             )
             logger.info(
-                f"Cursos desaprobados por declaración del estudiante. "
+                f"Cursos degradados (desmarcados del historial). "
                 f"Usuario={user.id}, cursos={[nombre_curso(c) for c in a_degradar]}"
             )
 
         if a_desmatricular:
             (
-                supabase.table("progreso_cursos")
+                admin_client.table("progreso_cursos")
                 .update({"status": "available", "fecha_completado": None})
                 .eq("perfil_id", user.id)
                 .in_("curso_id", list(a_desmatricular))
@@ -807,7 +814,7 @@ async def complete_onboarding(
 
         if a_reinscribir:
             (
-                supabase.table("progreso_cursos")
+                admin_client.table("progreso_cursos")
                 .update({"status": "in_progress", "fecha_completado": None})
                 .eq("perfil_id", user.id)
                 .in_("curso_id", list(a_reinscribir))
@@ -815,7 +822,7 @@ async def complete_onboarding(
             )
 
         if progreso_items:
-            supabase.table("progreso_cursos").insert(progreso_items).execute()
+            admin_client.table("progreso_cursos").insert(progreso_items).execute()
 
         perfil_update: dict = {
             "carrera_id": carrera_id,
@@ -831,7 +838,7 @@ async def complete_onboarding(
         if data.codigo_estudiante:
             perfil_update["codigo_estudiante"] = data.codigo_estudiante
         perfil_resp = (
-            supabase.table("perfiles").update(perfil_update).eq("id", user.id).execute()
+            admin_client.table("perfiles").update(perfil_update).eq("id", user.id).execute()
         )
         # Sin filas afectadas el perfil no existe o RLS bloqueó la escritura.
         # Devolver éxito aquí es lo que hacía que "Actualizar situación
@@ -865,6 +872,10 @@ async def complete_onboarding(
             f"completados={[nombre_curso(c) for c in completados_final]}, "
             f"en_progreso={inscritos_final}"
         )
+
+        # Carrera, malla y progreso acaban de cambiar: se descarta la caché.
+        from app.core import rpc_cache
+        rpc_cache.invalidar_usuario(str(user.id))
 
         return {
             "status": "success",

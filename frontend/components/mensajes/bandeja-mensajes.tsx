@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { MessageSquare } from "lucide-react"
 import { useSearchParams } from "next/navigation"
 import { dmService } from "@/lib/dm-service"
@@ -17,7 +17,7 @@ export function BandejaMensajes() {
   const searchParams = useSearchParams()
   const dmParam = searchParams.get("dm")
 
-  const cargar = () => {
+  const cargar = useCallback(() => {
     dmService
       .getConversaciones()
       .then((data) => {
@@ -30,12 +30,11 @@ export function BandejaMensajes() {
       })
       .catch((e) => setError(e.message || "No se pudieron cargar tus mensajes."))
       .finally(() => setCargando(false))
-  }
+  }, [dmParam])
 
   useEffect(() => {
     cargar()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [cargar])
 
   const abrir = (conversacion: ConversacionDM) => {
     setActiva(conversacion)
@@ -48,7 +47,7 @@ export function BandejaMensajes() {
   return (
     <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
       {/* Bandeja */}
-      <aside className="lg:h-[calc(100vh-11rem)] overflow-y-auto custom-scrollbar rounded-2xl border border-border bg-card">
+      <aside className="lg:h-[calc(100dvh-11rem)] overflow-y-auto custom-scrollbar rounded-2xl border border-border bg-card">
         <div className="px-4 py-3 border-b border-border/60">
           <h2 className="font-poppins font-semibold text-sm">Conversaciones</h2>
         </div>

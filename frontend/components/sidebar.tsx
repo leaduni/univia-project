@@ -1,11 +1,12 @@
 // Navegación lateral de la app colapsable y armónica
 "use client"
-import { Grid, FileText, User, GraduationCap, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react"
+import { Grid, FileText, User, GraduationCap, MessageSquare, ChevronLeft, ChevronRight, CalendarDays, Database } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { prefetchRuta } from "@/lib/prefetch"
 import { Logo } from "./logo"
+import { useAuth } from "@/components/providers/auth-context"
 
 interface SidebarProps {
   open: boolean
@@ -15,6 +16,7 @@ interface SidebarProps {
 const MENU = [
   { icon: Grid, label: "Mi aprendizaje", id: "Dashboard", href: "/dashboard" },
   { icon: GraduationCap, label: "Mi malla", id: "Malla", href: "/malla" },
+  { icon: CalendarDays, label: "Agenda", id: "Agenda", href: "/agenda" },
   { icon: FileText, label: "Recursos", id: "Recursos", href: "/recursos" },
   { icon: MessageSquare, label: "Sugerencias", id: "Feedback", href: "/dashboard/feedback" },
   { icon: User, label: "Perfil", id: "Perfil", href: "/perfil" },
@@ -22,6 +24,7 @@ const MENU = [
 
 export function Sidebar({ open, onToggle }: SidebarProps) {
   const pathname = usePathname()
+  const { user } = useAuth()
 
   if (pathname?.startsWith("/onboarding") || pathname?.startsWith("/auth")) {
     return null
@@ -30,6 +33,12 @@ export function Sidebar({ open, onToggle }: SidebarProps) {
   const activo =
     MENU.find((m) => pathname === m.href || (m.href !== "/dashboard" && pathname?.startsWith(m.href)))?.id ||
     "Dashboard"
+
+  // Generar lista final de items
+  const menuItems = [...MENU]
+  if (user?.email === "alexandra.peralta.g@uni.pe") {
+    menuItems.push({ icon: Database, label: "Admin Horarios", id: "AdminHorarios", href: "/admin-horarios" })
+  }
 
   return (
     <aside
@@ -69,7 +78,7 @@ export function Sidebar({ open, onToggle }: SidebarProps) {
 
       {/* Navegación principal */}
       <nav className="flex-1 p-3 space-y-1.5" aria-label="Navegación principal">
-        {MENU.map((item) => {
+        {menuItems.map((item) => {
           const Icon = item.icon
           const isActive = activo === item.id
           return (

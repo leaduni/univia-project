@@ -12,6 +12,7 @@ import { useGSAP } from "@gsap/react"
 import { MessageCircle, X } from "lucide-react"
 import gsap from "gsap"
 import { useAuth } from "@/components/providers/auth-context"
+import { useByok } from "@/components/providers/byok-context"
 import { apiService } from "@/lib/api-service"
 import { enviarMensajeChat } from "@/lib/chatbot-service"
 import { useOnline } from "@/lib/use-online"
@@ -81,6 +82,9 @@ function mapearMensajeGuardado(fila: FilaMensajeGuardado): MensajeChat {
 export function ChatBubble() {
   const { user, session } = useAuth()
   const enLinea = useOnline()
+  // BYOK: la clave propia del estudiante (vive en su navegador) y el acceso
+  // global al modal de configuración.
+  const { claveByok, modoByok, abrirModalByok } = useByok()
 
   const [abierto, setAbierto] = useState(false)
   // true mientras la conversación está en modo expandido (panel grande).
@@ -214,7 +218,11 @@ export function ChatBubble() {
     if (!abierto) return
 
     const alHacerClicFuera = (e: MouseEvent) => {
-      if (contenedorRef.current && !contenedorRef.current.contains(e.target as Node)) {
+      // El modal BYOK se abre desde el chat pero vive fuera del contenedor:
+      // un clic sobre él no debe cerrar la conversación.
+      const objetivo = e.target as HTMLElement
+      if (objetivo.closest?.("[data-byok-modal]")) return
+      if (contenedorRef.current && !contenedorRef.current.contains(objetivo)) {
         cerrarChat()
       }
     }
@@ -343,6 +351,7 @@ export function ChatBubble() {
             },
           },
           controlador.signal,
+          claveByok,
         )
       } catch (error) {
         const err = error as { name?: string; message?: string } | null
@@ -361,12 +370,24 @@ export function ChatBubble() {
         if (!abiertoRef.current) setSinVer(true)
       }
     },
-    [session?.access_token, enviando, enLinea, user?.id],
+    [session?.access_token, enviando, enLinea, user?.id, claveByok],
   )
-const manejarInputChange = useCallback((texto: string) => {
+  const manejarInputChange = useCallback((texto: string) => {
     inputValueRef.current = texto
     setInputValue(texto)
   }, [])
+
+  useEffect(() => {
+    const handleOpenChat = (e: Event) => {
+      const customEvent = e as CustomEvent<{ initialContext?: string }>
+      abrirChat()
+      if (customEvent.detail?.initialContext) {
+        manejarInputChange(`Ayúdame a repasar para mi examen de: "${customEvent.detail.initialContext}"`)
+      }
+    }
+    window.addEventListener("open-univia-chat", handleOpenChat)
+    return () => window.removeEventListener("open-univia-chat", handleOpenChat)
+  }, [abrirChat, manejarInputChange])
 
   const manejarEnvio = useCallback(() => {
     const texto = inputValueRef.current.trim()
@@ -414,10 +435,10 @@ const manejarInputChange = useCallback((texto: string) => {
         {mostrandoChat && (
           <div
             ref={panelRef}
-            className={`pointer-events-auto fixed bottom-24 right-6 z-[9991] transition-[width,height] duration-300 ease-out ${
+            className={`pointer-events-auto fixed safe-chat-panel z-[9991] transition-[width,height] duration-300 ease-out ${
               isExpanded
-                ? "w-[min(900px,calc(100vw-32px))] h-[min(85vh,780px)]"
-                : "w-[min(420px,calc(100vw-24px))] h-[min(620px,calc(100vh-120px))]"
+                ? "w-[min(900px,calc(100vw-32px))] h-[min(85dvh,780px)] max-h-[calc(100dvh-6.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))]"
+                : "w-[min(420px,calc(100vw-24px))] h-[min(620px,calc(100dvh-8.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] max-h-[calc(100dvh-6.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))]"
             }`}
           >
             <ChatPanel
@@ -434,6 +455,8 @@ const manejarInputChange = useCallback((texto: string) => {
               conversacionId={conversacionIdRef.current}
               isExpanded={isExpanded}
               onToggleExpand={() => setIsExpanded((previo) => !previo)}
+              modoByok={modoByok}
+              onAbrirByok={abrirModalByok}
             />
           </div>
         )}
@@ -444,7 +467,7 @@ const manejarInputChange = useCallback((texto: string) => {
           onClick={alternar}
           aria-label={abierto ? "Cerrar el asistente" : "Abrir el asistente"}
           aria-expanded={abierto}
-          className="pointer-events-auto fixed bottom-6 right-6 z-[9991] w-14 h-14 rounded-2xl bg-gradient-to-br from-[#d93340] via-[#a6249d] to-[#7957f1] shadow-[0_8px_24px_rgba(121,87,241,0.45)] text-white flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+          className="pointer-events-auto fixed safe-fab z-[9991] w-14 h-14 rounded-2xl bg-gradient-to-br from-[#d93340] via-[#a6249d] to-[#7957f1] shadow-[0_8px_24px_rgba(121,87,241,0.45)] text-white flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
         >
           {!yaInteractuo && !abierto && (
             <span

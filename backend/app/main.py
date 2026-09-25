@@ -28,11 +28,18 @@ async def lifespan(app: FastAPI):
     """Cierra los clientes httpx persistentes al apagar la app."""
     yield
     try:
-        from app.routers import services, feedback
+        from app.routers import services, feedback, silabos_ruta
         await services._http.aclose()
-        await feedback._http_feedback.aclose()
+        from app.core.notificaciones_dev import _http_devs
+        await _http_devs.aclose()
     except Exception as e:
         logger.warning("No se pudieron cerrar los clientes HTTP: %s", e)
+    # Cerrar el pool de hilos de LLM para no dejar hilos colgados al apagar.
+    try:
+        from app.core.executor_llm import executor_llm
+        executor_llm.shutdown(wait=False, cancel_futures=True)
+    except Exception as e:
+        logger.warning("No se pudo cerrar el executor de LLM: %s", e)
 
 
 app = FastAPI(
@@ -42,32 +49,45 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# ── Entorno ──────────────────────────────────────────────────────────
+# `APP_ENV` (o `ENV` como respaldo) distingue desarrollo de producción.
+# En producción se EXIGEN CORS_ORIGINS y TRUSTED_HOSTS explícitos (fail-fast):
+# no queremos arrancar sirviendo CORS de localhost ni TrustedHost="*".
+APP_ENV = os.getenv("APP_ENV", os.getenv("ENV", "development")).strip().lower()
+IS_PRODUCTION = APP_ENV in {"production", "prod"}
+
 # ── TrustedHostMiddleware ────────────────────────────────────────────
-# En desarrollo permite cualquier host. En producción, configuralo con
-# la variable TRUSTED_HOSTS (lista separada por comas).
-TRUSTED_HOSTS_DEFAULT = "*"
-trusted_hosts_raw = os.getenv("TRUSTED_HOSTS", TRUSTED_HOSTS_DEFAULT)
-trusted_hosts = [
-    host.strip()
-    for host in trusted_hosts_raw.split(",")
-    if host.strip()
-] if trusted_hosts_raw != "*" else ["*"]
+if IS_PRODUCTION:
+    trusted_hosts_raw = os.getenv("TRUSTED_HOSTS")
+    if not trusted_hosts_raw or trusted_hosts_raw.strip() in {"", "*"}:
+        raise RuntimeError(
+            "TRUSTED_HOSTS es obligatorio en producción y no puede ser '*'. "
+            "Ejemplo: TRUSTED_HOSTS=univia.pe,api.univia.pe"
+        )
+    trusted_hosts = [host.strip() for host in trusted_hosts_raw.split(",") if host.strip()]
+else:
+    # En desarrollo permitimos cualquier host para aceptar *.trycloudflare.com
+    trusted_hosts = ["*"]
 
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
 
 # ── CORS ─────────────────────────────────────────────────────────────
-# Orígenes permitidos: configurables por entorno (lista separada por comas).
-# Para desarrollo local Next.js (3000, 3001) y Vite (5173).
-DEFAULT_ORIGINS = (
-    "http://localhost:3000,http://127.0.0.1:3000,"
-    "http://localhost:3001,http://127.0.0.1:3001,"
-    "http://localhost:5173,http://127.0.0.1:5173"
-)
-origins = [
-    origin.strip()
-    for origin in os.getenv("CORS_ORIGINS", DEFAULT_ORIGINS).split(",")
-    if origin.strip()
-]
+if IS_PRODUCTION:
+    cors_origins_raw = os.getenv("CORS_ORIGINS")
+    if not cors_origins_raw or not cors_origins_raw.strip():
+        raise RuntimeError(
+            "CORS_ORIGINS es obligatorio en producción. "
+            "Ejemplo: CORS_ORIGINS=https://univia.pe,https://www.univia.pe"
+        )
+    origins = [origin.strip() for origin in cors_origins_raw.split(",") if origin.strip()]
+else:
+    # En desarrollo permitimos orígenes locales comunes para evitar error con allow_credentials=True
+    origins = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000"
+    ]
 
 app.add_middleware(
     CORSMiddleware,
@@ -97,7 +117,6 @@ async def rate_limit_exception_handler(request, exc: RateLimitExceeded):
 
 app.add_middleware(SlowAPIMiddleware)
 
-
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc: RequestValidationError):
     errors = []
@@ -117,7 +136,7 @@ async def http_exception_handler(request, exc: HTTPException):
         return JSONResponse(status_code=exc.status_code, content=exc.detail)
     return JSONResponse(
         status_code=exc.status_code,
-        content=ErrorResponse(errors=[ErrorDetail(field="general", message=str(exc.detail))]).model_dump(),
+        content=ErrorResponse(errors=[ErrorDetail(field="general", message=exc.detail)]).model_dump(),
     )
 
 
@@ -143,7 +162,7 @@ async def root():
     return {"message": "UniVia API v2.0 - Online", "status": "healthy"}
 
 # Importar Routers
-from app.routers import malla, usuarios, onboarding, dashboard, cursos, evaluaciones, services, recursos, chatbot, feedback, foro, dm
+from app.routers import malla, usuarios, onboarding, dashboard, cursos, evaluaciones, services, recursos, chatbot, feedback, foro, dm, evaluaciones_calificables, notas, gamificacion, silabos_ruta, agenda, horarios, donaciones
 
 app.include_router(malla.router, prefix="/api", tags=["malla"])
 app.include_router(usuarios.router, prefix="/api", tags=["usuarios"])
@@ -151,9 +170,16 @@ app.include_router(onboarding.router, prefix="/api", tags=["onboarding"])
 app.include_router(dashboard.router, prefix="/api", tags=["dashboard"])
 app.include_router(cursos.router, prefix="/api", tags=["cursos"])
 app.include_router(evaluaciones.router, prefix="/api", tags=["evaluaciones"])
+app.include_router(evaluaciones_calificables.router, prefix="/api", tags=["evaluaciones-calificables"])
 app.include_router(services.router, prefix="/api", tags=["services"])
 app.include_router(recursos.router, prefix="/api", tags=["recursos"])
 app.include_router(chatbot.router, prefix="/api", tags=["chatbot"])
 app.include_router(feedback.router, prefix="/api", tags=["feedback"])
 app.include_router(foro.router, prefix="/api", tags=["foro"])
 app.include_router(dm.router, prefix="/api", tags=["dm"])
+app.include_router(notas.router, prefix="/api", tags=["notas"])
+app.include_router(gamificacion.router, prefix="/api", tags=["gamificacion"])
+app.include_router(silabos_ruta.router, prefix="/api", tags=["silabos-ruta"])
+app.include_router(agenda.router, prefix="/api", tags=["agenda"])
+app.include_router(horarios.router, prefix="/api", tags=["horarios"])
+app.include_router(donaciones.router, prefix="/api", tags=["donaciones"])

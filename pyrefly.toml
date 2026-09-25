@@ -14,8 +14,7 @@ project_includes = ["backend/app"]
 # así que hay que buscarlos desde backend/, no desde la raíz del repo.
 search_path = ["backend"]
 
-# Entorno virtual del que salen fastapi, pydantic, supabase, etc.
-python_interpreter = "backend/venv/Scripts/python.exe"
+# python_interpreter = "backend/venv/Scripts/python.exe"
 
 # No analizar dependencias ni artefactos de build.
 project_excludes = [

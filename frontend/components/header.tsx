@@ -6,7 +6,6 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Menu, Bell, User, LogOut } from "lucide-react"
 import { HeaderSearch } from "./header-search"
-import { ExplorarMenu } from "./explorar-menu"
 import { Logo } from "./logo"
 import { cn } from "@/lib/utils"
 import { prefetchRuta } from "@/lib/prefetch"
@@ -21,6 +20,7 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 
 import { useAuth } from "@/components/providers/auth-context"
+import { GamificationWidget } from "@/components/gamificacion/gamification-widget"
 
 interface HeaderProps {
   onMenuClick: () => void
@@ -39,9 +39,11 @@ const ACCESOS = [
   { label: "Mi aprendizaje", href: "/dashboard" },
   { label: "Mi malla", href: "/malla" },
   { label: "Recursos", href: "/recursos" },
+  { label: "Agenda", href: "/agenda" },
   { label: "Foro", href: "/foro" },
   { label: "Mensajes", href: "/mensajes" },
   { label: "Sugerencias", href: "/dashboard/feedback" },
+  { label: "Donaciones", href: "/donaciones" },
 ]
 
 export function Header({ onMenuClick }: HeaderProps) {
@@ -55,6 +57,11 @@ export function Header({ onMenuClick }: HeaderProps) {
 
   const nombre = user?.nombre_completo || "Estudiante"
 
+  const accesosFinales = [...ACCESOS]
+  if (user?.email === "alexandra.peralta.g@uni.pe") {
+    accesosFinales.push({ label: "Admin", href: "/admin-horarios" })
+  }
+
   useEffect(() => {
     const main = document.querySelector("main")
 
@@ -64,7 +71,13 @@ export function Header({ onMenuClick }: HeaderProps) {
       rafId.current = null
       const posicion = ultimoScroll.current
       setIsAtTop(posicion === 0)
-      setIsHidden(posicion > ultimoAplicado.current && posicion > 0)
+      
+      if (pathname.startsWith("/agenda")) {
+        setIsHidden(false)
+      } else {
+        setIsHidden(posicion > ultimoAplicado.current && posicion > 0)
+      }
+      
       ultimoAplicado.current = posicion
     }
 
@@ -88,12 +101,12 @@ export function Header({ onMenuClick }: HeaderProps) {
       main?.removeEventListener("scroll", manejarScroll)
       if (rafId.current != null) cancelAnimationFrame(rafId.current)
     }
-  }, [])
+  }, [pathname])
 
   return (
     <header
       className={cn(
-        "absolute top-3 left-0 right-0 z-50 w-[calc(100%-2rem)] mx-auto transition-all duration-300 ease-out",
+        "absolute safe-top-3 left-0 right-0 z-50 w-[calc(100%-2rem)] mx-auto transition-all duration-300 ease-out",
         isHidden
           ? "-translate-y-28 opacity-0 pointer-events-none"
           : "translate-y-0 opacity-100",
@@ -102,7 +115,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           : "rounded-2xl backdrop-blur-xl bg-[rgba(11,12,22,0.75)] border border-white/[0.08] shadow-[0_4px_20px_rgba(0,0,0,0.4)]",
       )}
     >
-      <div className="flex items-center justify-between px-6 py-4 gap-4">
+      <div className="flex items-center justify-between gap-3 px-3 py-3 sm:px-6 sm:py-4 sm:gap-4">
         <div className="flex items-center gap-4 flex-1">
           <Button
             variant="ghost"
@@ -129,7 +142,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               pide arriba, y en pantallas donde el sidebar va colapsado son la
               única navegación con texto. */}
           <nav className="hidden md:flex items-center gap-1" aria-label="Accesos rápidos">
-            {ACCESOS.map((acceso) => {
+            {accesosFinales.map((acceso) => {
               const activo =
                 pathname === acceso.href ||
                 (acceso.href !== "/" && pathname?.startsWith(acceso.href))
@@ -150,8 +163,10 @@ export function Header({ onMenuClick }: HeaderProps) {
                 </Link>
               )
             })}
-            <ExplorarMenu />
           </nav>
+
+          {/* Racha y XP del estudiante, con acceso directo al ranking. */}
+          <GamificationWidget />
 
           {/* Sin punto de "no leídas": no hay fuente de notificaciones todavía
               y un indicador siempre encendido deja de significar algo. */}

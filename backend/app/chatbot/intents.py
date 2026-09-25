@@ -22,6 +22,7 @@ import logging
 import os
 import re
 import time
+import types
 from typing import Optional
 
 from app.core.llm import chatear
@@ -54,6 +55,7 @@ CRONOGRAMA = "cronograma"
 FLASHCARDS = "flashcards"
 CONSULTA_DOCENTES = "consulta_docentes"
 CONSULTA_PRERREQUISITOS = "consulta_prerrequisitos"
+AGENDA = "agenda"
 
 INTENTS = {
     RECURSO,
@@ -68,6 +70,7 @@ INTENTS = {
     FLASHCARDS,
     CONSULTA_DOCENTES,
     CONSULTA_PRERREQUISITOS,
+    AGENDA,
 }
 
 # Adónde cae lo que no se pudo clasificar. `general` es el único que no toca
@@ -103,6 +106,7 @@ cronograma: pide un plan, calendario u organización de estudio.
 flashcards: pide tarjetas de estudio, fichas de repaso o preguntas y respuestas breves.
 consulta_docentes: pregunta por quién dicta/enseña un curso o los docentes/profesores/catedráticos de una materia.
 consulta_prerrequisitos: pregunta por prerrequisitos, qué cursos hay que llevar antes de otro, requisitos previos de X.
+agenda: pregunta sobre su horario, eventos, agenda, productividad, horas de estudio, sesiones pomodoro, qué tiene mañana/hoy/esta semana, o quiere crear/mover/reprogramar un evento.
 
 Desempate:
 - Pedir un archivo gana sobre explicar.
@@ -113,7 +117,8 @@ Desempate:
 - Si pregunta por quién dicta/enseña o los docentes de un curso, es consulta_docentes, aunque mencione exámenes o material.
 - Pedir un ejercicio, problema o ejemplo (aunque empiece con "dame un ejercicio...") es duda_academica, SALVO que pida un archivo exacto para descargar.
 - Consulta abierta de contenido académico sin curso (ej. "dame un ejercicio de la FIIS" o "¿qué temas entran en el examen del curso?") es duda_academica: el RAG busca en todo el banco.
-- "qué prerrequisitos tiene X" o "qué llevo antes de X" es consulta_prerrequisitos; "puedo llevar YO" o "mi avance" sigue siendo estado_academico."""
+- "qué prerrequisitos tiene X" o "qué llevo antes de X" es consulta_prerrequisitos; "puedo llevar YO" o "mi avance" sigue siendo estado_academico.
+- "qué tengo mañana", "mi horario", "cuánto estudié", "reprogramar bloque" o "agenda" es agenda."""
 
 
 def _normalizar(salida: Optional[str]) -> Optional[str]:
@@ -368,7 +373,10 @@ def _reformular_consulta_cacheada(mensaje: str, historial_json: str, api_key: Op
         )
         return mensaje
 
-    reescrito = (salida or "").strip().strip('"')
+    # El type checker puede inferir Generator, aunque stream=False. Lo forzamos a str.
+    if isinstance(salida, types.GeneratorType):
+        salida = "".join(str(chunk) for chunk in salida)
+    reescrito = (str(salida) if salida else "").strip().strip('"')
     if not reescrito or reescrito.lower() == mensaje.strip().lower():
         return mensaje
     logger.info("Consulta reformulada para el RAG: %r -> %r", mensaje, reescrito)
@@ -435,7 +443,9 @@ def _clasificar_cacheada(mensaje: str, historial_json: str, api_key: Optional[st
             import time
             time.sleep(espera)
 
-    intent = _normalizar(salida)
+    if isinstance(salida, types.GeneratorType):
+        salida = "".join(str(chunk) for chunk in salida)
+    intent = _normalizar(str(salida) if salida else None)
     if intent is None:
         if _es_consulta_catalogo(mensaje):
             logger.info("Clasificador falló; rescue por keyword → 'catalogo'.")

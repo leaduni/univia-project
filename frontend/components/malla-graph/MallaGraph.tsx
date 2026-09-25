@@ -6,12 +6,14 @@
 // estado. Espejo funcional del prototipo, alineado a la spec del equipo.
 "use client"
 
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useMemo, useState, useRef, useEffect } from "react"
 import type { CSSProperties } from "react"
 import {
   Background,
   Controls,
+  MiniMap,
   ReactFlow,
+  useReactFlow,
   type NodeMouseHandler,
 } from "@xyflow/react"
 import { CourseNode } from "./CourseNode"
@@ -40,11 +42,30 @@ interface MallaGraphProps {
   // Test hook: la virtualización de React Flow necesita un viewport real;
   // se desactiva en entornos sin medidas (jsdom).
   virtualize?: boolean
+  onMarkCompleted?: (courseId: string) => void
 }
 
 const nodeTypes = { course: CourseNode, cycleLabel: CycleLabel }
 
-export function MallaGraph({ malla, avance, virtualize = true }: MallaGraphProps) {
+function SmartCenter({ nodes }: { nodes: any[] }) {
+  const { fitView } = useReactFlow()
+  const centered = useRef(false)
+  
+  useEffect(() => {
+    if (centered.current || nodes.length === 0) return
+    const inProgressNodes = nodes.filter((n) => n.data?.status === "in_progress")
+    if (inProgressNodes.length > 0) {
+      centered.current = true
+      setTimeout(() => {
+        fitView({ nodes: inProgressNodes, duration: 800, maxZoom: 1 })
+      }, 150)
+    }
+  }, [nodes, fitView])
+  
+  return null
+}
+
+export function MallaGraph({ malla, avance, virtualize = true, onMarkCompleted }: MallaGraphProps) {
   const base = useMemo(() => transformarAMallaGraph(malla), [malla])
   const stats = useMemo(() => computeStats(malla), [malla])
   const index = useMemo(() => buildCourseIndex(malla), [malla])
@@ -115,7 +136,7 @@ export function MallaGraph({ malla, avance, virtualize = true }: MallaGraphProps
   }, [selectedId, postMap, index])
 
   return (
-    <div className="flex h-[calc(100vh-200px)] min-h-[650px] flex-col">
+    <div className="flex h-[calc(100dvh-12.5rem-env(safe-area-inset-bottom))] min-h-[28rem] sm:min-h-[650px] flex-col">
       <h2 className="sr-only">
         Grafo interactivo de la malla curricular: ciclos en columnas y cursos conectados por
         prerrequisitos. Hover para resaltar la cadena, clic para ver detalles.
@@ -128,7 +149,7 @@ export function MallaGraph({ malla, avance, virtualize = true }: MallaGraphProps
           nodeTypes={nodeTypes}
           fitView
           fitViewOptions={{ padding: 0.15 }}
-          minZoom={0.3}
+          minZoom={0.2}
           maxZoom={2}
           nodesDraggable={false}
           nodesConnectable={false}
@@ -139,14 +160,29 @@ export function MallaGraph({ malla, avance, virtualize = true }: MallaGraphProps
           onNodeMouseLeave={handleNodeLeave}
           onPaneClick={handlePaneClick}
         >
+          <SmartCenter nodes={rfNodes} />
           <Background gap={24} size={1.5} color="#1e293b" />
           <Controls />
+          <MiniMap 
+            position="top-right"
+            zoomable
+            pannable
+            nodeColor={(n) => {
+              if (n.data?.status === "completed") return "#7957f1" // Morado brand
+              if (n.data?.status === "in_progress") return "#ff86ff" // Rosado neon
+              if (n.data?.status === "locked") return "#2a2c3a" // Gris muy sutil
+              return "#1c1d29" // Disponible (casi fondo)
+            }}
+            style={{ width: 150, height: 100, backgroundColor: '#11121d', border: '1px solid rgba(255,255,255,0.05)' }}
+            maskColor="rgba(17, 18, 29, 0.85)"
+          />
         </ReactFlow>
         {seleccionado && (
           <CourseDetailsPanel
             course={seleccionado}
             post={post}
             onClose={() => setSelectedId(null)}
+            onMarkCompleted={onMarkCompleted}
           />
         )}
       </div>

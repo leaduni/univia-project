@@ -1,6 +1,7 @@
 "use client";
 
 import { createElement, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import Image from "next/image";
 
 type HoverableProps = {
   as?: "div" | "span" | "a" | "b" | "i";
@@ -100,10 +101,12 @@ export function Hoverable({ as = "div", style, hoverStyle, children, ...rest }: 
 export function PhotoSlot({ src, alt, label }: { src?: string; alt: string; label: string }) {
   if (src) {
     return (
-      <img
+      <Image
         src={src}
         alt={alt}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+        fill
+        sizes="(max-width: 768px) 100vw, 480px"
+        style={{ objectFit: "cover" }}
       />
     );
   }

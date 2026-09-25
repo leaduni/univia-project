@@ -97,16 +97,19 @@ export function ChatPanel({
             <p className="text-sm font-semibold text-white truncate">Asistente UniVia</p>
             <div className="flex items-center gap-1 min-w-0">
               <p className="text-[11px] text-white/80 truncate">Recursos, dudas y tu avance académico</p>
-              <span
-                className={`shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+              <button
+                type="button"
+                onClick={onAbrirByok}
+                className={`shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full transition-colors ${
                   modoByok
-                    ? "bg-emerald-400/20 text-emerald-200"
-                    : "bg-white/10 text-white/70"
+                    ? "bg-emerald-400/20 text-emerald-200 hover:bg-emerald-400/30"
+                    : "bg-white/10 text-white/70 hover:bg-white/20"
                 }`}
-                title={modoByok ? "Usando tu propia clave de Gemini" : "Usando la cuota compartida de UniVia"}
+                title={modoByok ? "Usando tu clave personal (clic para gestionarla)" : "Usando la cuota compartida (clic para usar tu propia clave)"}
               >
-                {modoByok ? "Cuota propia (Gemini)" : "Cuota compartida UniVia"}
-              </span>
+                {modoByok && <span className="w-1.5 h-1.5 rounded-full bg-emerald-300" aria-hidden="true" />}
+                {modoByok ? "Tu clave personal" : "Cuota compartida UniVia"}
+              </button>
             </div>
           </div>
         </div>
@@ -116,9 +119,14 @@ export function ChatPanel({
             onClick={onAbrirByok}
             aria-label="Configurar tu propia clave de IA"
             title="Configurar tu propia clave de IA"
-            className="w-7 h-7 rounded-full flex items-center justify-center text-white/90 hover:bg-white/15 transition-colors"
+            className={`h-7 rounded-full flex items-center gap-1.5 px-2.5 text-[11px] font-semibold transition-colors ${
+              modoByok
+                ? "bg-emerald-400/20 text-emerald-200 hover:bg-emerald-400/30"
+                : "text-white/90 hover:bg-white/15"
+            }`}
           >
-            <KeyRound className="w-4 h-4" />
+            <KeyRound className="w-4 h-4" aria-hidden="true" />
+            {modoByok ? "Clave activa" : "Mi clave IA"}
           </button>
           <button
             type="button"

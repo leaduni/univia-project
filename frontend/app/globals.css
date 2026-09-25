@@ -59,6 +59,18 @@
   --glow-violet: 0 4px 28px rgba(121,87,241,0.18), 0 1px 4px rgba(0,0,0,0.4);
   --glow-violet-h: 0 8px 36px rgba(121,87,241,0.28), 0 4px 12px rgba(0,0,0,0.5);
   --glow-brand: 0 8px 40px rgba(121,87,241,0.2), 0 2px 8px rgba(0,0,0,0.5);
+  /* === FEED DEL FORO: ANCLAJE DE LA BARRA STICKY ===
+     El Header del dashboard es flotante (`absolute safe-top-3`, ver .safe-top-3
+     más abajo) y mide ~4.8rem; DashboardLayout reserva `pt-20` (5rem) al inicio
+     de su scroll container. La barra sticky del feed (FeedHeader) debe quedar
+     justo debajo de ese Header —también con notch— y, como `position: sticky`
+     desplaza el elemento SIN reservar el hueco del desplazamiento, el espacio
+     reservado encima de ella tiene que ser exactamente la diferencia entre
+     ambos valores. Si no cuadra, la barra se sale de su sitio y se come el aire
+     de la primera tarjeta (era el bug de solapamiento del feed).
+     INVARIANTE: --foro-feed-top-gap === --foro-feed-sticky-top - 5rem. */
+  --foro-feed-sticky-top: calc(max(0.75rem, env(safe-area-inset-top)) + 5.25rem);
+  --foro-feed-top-gap: calc(var(--foro-feed-sticky-top) - 5rem);
 }
 
 @theme inline {

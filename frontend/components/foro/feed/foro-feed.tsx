@@ -58,7 +58,13 @@ export function ForoFeed() {
   }, [feed.setBusqueda, feed.setFiltro])
 
   return (
-    <section aria-label="Feed del foro">
+    // El scroll container del dashboard (DashboardLayout: <main pt-20>) reserva
+    // 5rem para el Header flotante, pero el tope sticky de la barra del feed
+    // (--foro-feed-sticky-top) es mayor. Sin este padding el navegador desplaza
+    // la barra 16px hacia abajo sin reservar hueco y se come el aire de la
+    // primera tarjeta. --foro-feed-top-gap es exactamente esa diferencia, así
+    // que la barra arranca en la misma posición en la que se ancla al scrollear.
+    <section aria-label="Feed del foro" className="pt-[var(--foro-feed-top-gap)]">
       <FeedHeader
         busqueda={feed.busqueda}
         onBusqueda={feed.setBusqueda}
@@ -67,7 +73,9 @@ export function ForoFeed() {
         onNuevoHilo={() => setModalAbierto(true)}
       />
 
-      <div className="mt-4 space-y-4">
+      {/* El aire entre la barra y la lista lo pone SOLO el mb-6 de FeedHeader:
+          un mt-* aquí se colapsaría con ese margen y duplicaría la intención. */}
+      <div className="space-y-4">
         {feed.cargando && <FeedSkeleton />}
 
         {!feed.cargando && feed.error && (

@@ -27,14 +27,27 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Cierra los clientes httpx persistentes al apagar la app."""
     yield
-    try:
-        from app.routers import services, feedback, silabos_ruta
-        await services._http.aclose()
-        await feedback._http_feedback.aclose()
-        from app.core.notificaciones_dev import _http_devs
-        await _http_devs.aclose()
-    except Exception as e:
-        logger.warning("No se pudieron cerrar los clientes HTTP: %s", e)
+
+    # Cierre defensivo: se busca el cliente por nombre en cada módulo con
+    # getattr. Así un módulo que no declare su propio cliente (feedback.py no
+    # define `_http_feedback`, usa el de notificaciones_dev) no tumba el
+    # apagado con AttributeError, y un módulo nuevo solo necesita registrar
+    # su par (modulo, atributo) aquí.
+    from app.core import notificaciones_dev
+    from app.routers import services
+
+    for modulo, atributo in (
+        (services, "_http"),
+        (notificaciones_dev, "_http_devs"),
+    ):
+        cliente = getattr(modulo, atributo, None)
+        if cliente is None:
+            continue
+        try:
+            await cliente.aclose()
+        except Exception as e:
+            logger.warning("No se pudo cerrar %s.%s: %s", modulo.__name__, atributo, e)
+
     # Cerrar el pool de hilos de LLM para no dejar hilos colgados al apagar.
     try:
         from app.core.executor_llm import executor_llm
@@ -59,11 +72,14 @@ IS_PRODUCTION = APP_ENV in {"production", "prod"}
 
 # ── TrustedHostMiddleware ────────────────────────────────────────────
 if IS_PRODUCTION:
-    trusted_hosts_raw = os.getenv("TRUSTED_HOSTS")
+    # TRUSTED_HOSTS es el nombre vigente del despliegue; ALLOWED_HOSTS se
+    # acepta como alias (convención estándar) sin romper infraestructura que
+    # ya use el primero.
+    trusted_hosts_raw = os.getenv("TRUSTED_HOSTS") or os.getenv("ALLOWED_HOSTS")
     if not trusted_hosts_raw or trusted_hosts_raw.strip() in {"", "*"}:
         raise RuntimeError(
-            "TRUSTED_HOSTS es obligatorio en producción y no puede ser '*'. "
-            "Ejemplo: TRUSTED_HOSTS=univia.pe,api.univia.pe"
+            "TRUSTED_HOSTS (o su alias ALLOWED_HOSTS) es obligatorio en producción "
+            "y no puede ser '*'. Ejemplo: TRUSTED_HOSTS=univia.pe,api.univia.pe"
         )
     trusted_hosts = [host.strip() for host in trusted_hosts_raw.split(",") if host.strip()]
 else:

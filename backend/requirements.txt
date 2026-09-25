@@ -12,14 +12,10 @@ httpx>=0.28.0
 langchain-text-splitters
 pdf2image
 anthropic>=1.0.0
-# Sirve para OpenAI y también para Groq (chatbot): su API es compatible y se
-# consume con este mismo SDK cambiando base_url. Ver app/core/llm.py.
 openai>=1.0.0
 google-genai>=1.10.0
-# Base IANA de zonas horarias (necesaria en Windows e imágenes sin ZONEINFO).
 tzdata>=2024.1
 
-# Testing
 pytest>=8.0
 pytest-asyncio>=0.24.0
 gdown>=5.2.0
@@ -27,5 +23,4 @@ pypdf>=5.0.0
 Pillow>=10.0.0
 rapidfuzz>=3.5.0
 pdfplumber
-# Verificaci�n local de los JWT de Supabase Auth (antes era dependencia transitiva de supabase-py; ahora es directa).
 PyJWT>=2.8.0

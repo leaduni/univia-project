@@ -16,11 +16,12 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.core.auth_utils import get_current_user
-from app.core.database import get_admin_client
+from app.core.database import get_admin_client, get_supabase
 from app.core.rate_limit import limiter
 from app.core.rpc import invocar_rpc
 from app.schemas.gamificacion import (
     CuerpoEntregar,
+    RegistrarPracticaUnidad,
     ResultadoEntrega,
     IntentoEntregado,
     SesionCreada,

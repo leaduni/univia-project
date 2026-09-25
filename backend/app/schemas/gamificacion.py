@@ -78,6 +78,37 @@ class ResultadoEntrega(BaseModel):
     xp_otorgado: int = 0
 
 
+class ResultadoPracticaPregunta(BaseModel):
+    """Resultado por pregunta de una práctica IA de unidad.
+
+    El frontend solo informa acierto/desacierto por pregunta (ya corregido en
+    /evaluaciones/evaluar); el servidor vuelve a computar la nota con la clave
+    sintética congelada en la sesión, igual que una evaluación calificable.
+    """
+
+    pregunta_id: str = Field(min_length=1, max_length=64)
+    correcta: bool
+
+
+class RegistrarPracticaUnidad(BaseModel):
+    """Registra una práctica IA de unidad como intento en el récord inmutable."""
+
+    curso_id: int = Field(gt=0)
+    step_id: int = Field(gt=0)
+    resultados: List[ResultadoPracticaPregunta] = Field(min_length=1, max_length=60)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("resultados")
+    @classmethod
+    def sin_preguntas_duplicadas(
+        cls, v: List[ResultadoPracticaPregunta]
+    ) -> List[ResultadoPracticaPregunta]:
+        ids = [r.pregunta_id for r in v]
+        if len(ids) != len(set(ids)):
+            raise ValueError("No puedes enviar dos resultados para la misma pregunta.")
+        return v
+
+
 # ---------------------------------------------------------------------------
 # Notas inmutables
 # ---------------------------------------------------------------------------

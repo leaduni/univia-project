@@ -30,7 +30,6 @@ async def lifespan(app: FastAPI):
     try:
         from app.routers import services, feedback, silabos_ruta
         await services._http.aclose()
-        await feedback._http_feedback.aclose()
         from app.core.notificaciones_dev import _http_devs
         await _http_devs.aclose()
     except Exception as e:

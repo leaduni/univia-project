@@ -959,6 +959,7 @@ export function AgendaInteligente() {
   })
   const [isSleepModalOpen, setIsSleepModalOpen] = useState(false)
   const [isCourseSectionModalOpen, setIsCourseSectionModalOpen] = useState(false)
+  const [schedulePdf, setSchedulePdf] = useState<File | null>(null)
   const [isIntegrationsDropdownOpen, setIsIntegrationsDropdownOpen] = useState(false)
   
   // Estados de UI y Datos
@@ -1233,7 +1234,8 @@ export function AgendaInteligente() {
 
       {isCourseSectionModalOpen && (
         <AddCourseSectionModal
-          onClose={() => setIsCourseSectionModalOpen(false)}
+          onClose={() => { setIsCourseSectionModalOpen(false); setSchedulePdf(null) }}
+          initialFile={schedulePdf}
           etiquetas={etiquetas}
           semesterStart={semesterSettings.start}
           onAddEvents={async (newEvents) => {
@@ -1328,7 +1330,7 @@ export function AgendaInteligente() {
             </div>
 
             <div className="flex items-center gap-2.5 w-full sm:w-auto">
-              <BarraIA />
+              <BarraIA onImportSchedule={(file) => { setSchedulePdf(file); setIsCourseSectionModalOpen(true) }} />
               
               <div className="flex items-center gap-2">
                 {/* Botón de Integraciones */}

@@ -5,7 +5,7 @@
 import { memo } from "react"
 import { Handle, Position, type NodeProps } from "@xyflow/react"
 import { BadgeCheck, Circle, Lock, PlayCircle } from "lucide-react"
-import { GRAPH_STATUS, HIGHLIGHT_COLOR_POST, HIGHLIGHT_COLOR_PRE, HIGHLIGHT_COLOR_SELF, STATUS_LABEL } from "./constants"
+import { GRAPH_STATUS, HIGHLIGHT_COLOR_POST, HIGHLIGHT_COLOR_PRE, HIGHLIGHT_COLOR_SELF, NODE_HEIGHT, NODE_WIDTH, STATUS_LABEL } from "./constants"
 import type { CourseNodeData, CourseNodeType } from "./transformMalla"
 
 const STATUS_ICONS = {
@@ -22,7 +22,7 @@ const STATUS_TEST_ID = {
   locked: "lock-icon",
 } as const
 
-const HANDLE_STYLE = { width: 8, height: 8, background: "var(--border)", border: "1px solid var(--border)" }
+const HANDLE_STYLE = { width: 4, height: 4, background: "var(--border)", border: "none" }
 
 interface CourseNodeInnerProps {
   data: CourseNodeData
@@ -47,12 +47,12 @@ export function CourseNodeInner({ data, withHandles = false }: CourseNodeInnerPr
       data-testid="course-node"
       data-id={data.id}
       data-status={data.status}
-      className={`flex min-h-[90px] w-[200px] flex-col gap-1 rounded-lg border px-3 py-2.5 transition-all hover:shadow-lg ${status.node}`}
-      style={highlightStyle}
+      className={`relative flex flex-col gap-1 rounded-lg border px-3 py-2.5 transition-shadow hover:shadow-lg ${status.node}`}
+      style={{ width: NODE_WIDTH, height: data.nodeHeight ?? NODE_HEIGHT, ...highlightStyle }}
     >
-      {withHandles && (
-        <Handle type="target" position={Position.Left} isConnectable={false} style={HANDLE_STYLE} />
-      )}
+      {withHandles && data.targetPorts?.map((port) => (
+        <Handle key={port.id} id={port.id} type="target" position={Position.Left} isConnectable={false} style={{ ...HANDLE_STYLE, top: port.top }} />
+      ))}
       <div className="flex items-center justify-between gap-1">
         <span className="truncate text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
           {data.code}
@@ -66,9 +66,9 @@ export function CourseNodeInner({ data, withHandles = false }: CourseNodeInnerPr
         {data.name}
       </div>
       <div className="mt-auto text-[10px] text-muted-foreground">{data.credits} créditos</div>
-      {withHandles && (
-        <Handle type="source" position={Position.Right} isConnectable={false} style={HANDLE_STYLE} />
-      )}
+      {withHandles && data.sourcePorts?.map((port) => (
+        <Handle key={port.id} id={port.id} type="source" position={Position.Right} isConnectable={false} style={{ ...HANDLE_STYLE, top: port.top }} />
+      ))}
     </div>
   )
 }

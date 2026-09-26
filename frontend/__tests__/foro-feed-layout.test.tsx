@@ -10,10 +10,8 @@
 //   2. La <section> es un flujo en columna (flex flex-col gap-6): barra y lista
 //      son hermanas secuenciales y el único aire entre ellas es ese gap (en
 //      flex los márgenes no colapsan, así que no se duplica ni desaparece).
-//   3. El ancla es un único token (--foro-feed-anchor): la reserva encima de la
-//      barra la hace el grid de /foro con --foro-feed-top-gap, y las columnas
-//      laterales usan el mismo token. Se comprueba en el describe "contrato de
-//      tokens de anclaje", porque jsdom no tiene motor de layout.
+//   3. El buscador no es sticky: se desplaza junto a las publicaciones.
+//      Solo las columnas laterales conservan el anclaje bajo el header.
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { readFileSync } from "node:fs"
@@ -107,12 +105,12 @@ beforeEach(() => {
 })
 
 describe("ForoFeed · jerarquía del maquetado", () => {
-  it("renderiza la lista como hermana posterior de la barra sticky", async () => {
+  it("renderiza el buscador antes de los posts sin una barra flotante que los tape", async () => {
     const { section, barra, lista } = await renderFeed()
 
-    // 1) La barra abre la <section> y es la única sticky.
+    // El buscador ocupa su lugar en el flujo y se desplaza con la lista.
     expect(section.firstElementChild).toBe(barra)
-    expect(barra.className).toContain("sticky")
+    expect(barra.className).not.toMatch(/\b(sticky|fixed|absolute)\b/)
 
     // 2) Solo dos hijos: barra + contenedor de la lista (el modal cerrado
     //    devuelve null).
@@ -133,13 +131,10 @@ describe("ForoFeed · jerarquía del maquetado", () => {
     expect(screen.getByText("Prueba - Soy nueva")).toBeInTheDocument()
   })
 
-  it("ancla la barra y deja el aire en una sola fuente (gap, sin márgenes)", async () => {
+  it("mantiene la separación entre el buscador y la lista sin desplazar la barra", async () => {
     const { section, barra, lista } = await renderFeed()
 
-    // El tope sticky es una constante (96px), no un token/calc: un var() sin
-    // resolver colapsa a `auto` en el navegador real y la barra pierde el ancla.
-    expect(barra.className).toContain("top-24")
-    expect(barra.className).toContain("z-20")
+    expect(barra.className).not.toMatch(/\b(top-|sticky|fixed)/)
     // El aire NO sale de un margen de la barra: sale del gap de la sección.
     expect(barra.className).not.toMatch(/(^|\s)m[btxy]?-/)
     // La reserva del ancla ya no vive en el feed (la hace el grid de /foro) y la
@@ -164,31 +159,22 @@ describe("ForoFeed · estados de la lista", () => {
   })
 })
 
-// jsdom no tiene motor de layout, así que aquí no se pueden medir rects. Este
-// contrato fija los NÚMEROS CONSTANTES del anclaje y QUÉ archivo posee cada
-// pieza, para que el solapamiento no pueda volver por un cambio suelto:
-//   DashboardLayout main: pt-20 (80px)  →  el scroll container
-//   foro/page.tsx grid:   pt-4  (16px)  →  la reserva
-//   feed-header.tsx:      sticky top-24 (96px = 80 + 16)  →  el ancla
-// En reposo la barra nace exactamente en su punto de anclaje (96px): 0px de
-// desplazamiento, sin calc() ni var() que puedan colapsar en el navegador.
-describe("ForoFeed · contrato de anclaje constante", () => {
+// jsdom no mide layout: aquí se conserva el contrato de las columnas laterales.
+describe("ForoFeed · anclaje de las columnas laterales", () => {
   const leer = (relativo: string) => readFileSync(new URL(relativo, import.meta.url), "utf8")
 
   const css = leer("../app/globals.css")
   const paginaForo = leer("../app/foro/page.tsx")
   const layout = leer("../components/dashboard-layout.tsx")
 
-  it("la barra y las columnas se anclan a 96px constantes (top-24)", () => {
-    // La barra (assert en el describe de jerarquía) y los dos asides; la
-    // combinación con self-start solo aparece en los className, no en comentarios.
-    expect(paginaForo.match(/lg:top-24 lg:self-start/g)).toHaveLength(2)
+  it("las columnas laterales dejan 16px sobre el espacio reservado por el layout", () => {
+    expect(paginaForo.match(/lg:top-4 lg:self-start/g)).toHaveLength(2)
     // Prohibido volver a los tokens frágiles de calc/var.
     expect(paginaForo).not.toMatch(/--foro-feed-anchor|--foro-feed-top-gap/)
     expect(css).not.toMatch(/--foro-feed-anchor\s*:|--foro-feed-top-gap\s*:/)
   })
 
-  it("la reserva del grid (pt-4) + el pt-20 del scroll container = 96px = top-24", () => {
+  it("el layout reserva el encabezado y el grid mantiene un margen inicial de 16px", () => {
     expect(paginaForo).toContain("pt-4")
     // Sin py-* en el grid: el hueco lo define pt-4, no un valor a mano.
     expect(paginaForo).not.toMatch(/(^|\s|")py-\d/)
@@ -197,7 +183,7 @@ describe("ForoFeed · contrato de anclaje constante", () => {
   })
 
   it("el wrapper del grid no crea su propio scrollport", () => {
-    // overflow-hidden aquí rompería el sticky: la barra dejaría de anclarse.
+    // Los laterales comparten el scrollport del dashboard.
     expect(paginaForo).toContain('className="relative min-h-screen bg-[#090a12] text-white"')
   })
 })

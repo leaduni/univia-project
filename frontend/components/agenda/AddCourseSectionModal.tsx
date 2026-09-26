@@ -19,7 +19,8 @@ interface AddCourseSectionModalProps {
   onClose: () => void
   etiquetas: Etiqueta[]
   semesterStart: string
-  onAddEvents: (events: CalendarioEvento[]) => void
+  onAddEvents: (events: CalendarioEvento[]) => void | Promise<void>
+  initialFile?: File | null
 }
 
 type Tab = "manual" | "pdf"
@@ -47,8 +48,9 @@ export function AddCourseSectionModal({
   etiquetas,
   semesterStart,
   onAddEvents,
+  initialFile = null,
 }: AddCourseSectionModalProps) {
-  const [tab, setTab] = useState<Tab>("manual")
+  const [tab, setTab] = useState<Tab>(initialFile ? "pdf" : "manual")
   
   // Tab Manual
   const [step, setStep] = useState<Step>("search")
@@ -62,8 +64,9 @@ export function AddCourseSectionModal({
   // Tab PDF
   const [isDragActive, setIsDragActive] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(initialFile)
   const [pdfResult, setPdfResult] = useState<string | null>(null)
+  const [pdfError, setPdfError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const inputRef = useRef<HTMLInputElement>(null)
@@ -100,11 +103,11 @@ export function AddCourseSectionModal({
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (modalRef.current && !modalRef.current.contains(e.target as Node)) onClose()
+      if (!isUploading && modalRef.current && !modalRef.current.contains(e.target as Node)) onClose()
     }
     document.addEventListener("mousedown", handler)
     return () => document.removeEventListener("mousedown", handler)
-  }, [onClose])
+  }, [onClose, isUploading])
 
   const clasesTag = etiquetas.find(e => e.nombre.toLowerCase().includes("clases"))
   const etiquetaId = clasesTag?.id || etiquetas[0]?.id || ""
@@ -157,18 +160,33 @@ export function AddCourseSectionModal({
     onClose()
   }
 
+  const selectPdf = (file: File) => {
+    setPdfResult(null)
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setPdfError("Selecciona un archivo PDF de tu horario o matrícula.")
+      return
+    }
+    setPdfError(null)
+    setSelectedFile(file)
+  }
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) setSelectedFile(e.target.files[0])
+    if (e.target.files?.[0]) selectPdf(e.target.files[0])
+    e.target.value = ""
   }
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault(); setIsDragActive(false)
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) setSelectedFile(e.dataTransfer.files[0])
+    if (e.dataTransfer.files?.[0]) selectPdf(e.dataTransfer.files[0])
   }
   const startUpload = async () => {
-    if (!selectedFile) return
+    if (!selectedFile || isUploading) return
+    setPdfError(null)
     setIsUploading(true)
     try {
       const res = await parseMatricula(selectedFile)
+      if (res.eventos_creados.length === 0) {
+        setPdfError("No se detectaron bloques de horario. Prueba con tu boleta de matrícula oficial que incluya días y horas de clase.")
+        return
+      }
 
       // Los eventos YA fueron persistidos por el backend → marcarlos para
       // que el padre no los vuelva a insertar (bug de duplicados).
@@ -186,11 +204,11 @@ export function AddCourseSectionModal({
         __persistido: true,
       })) as CalendarioEvento[]
      
-      onAddEvents(newEvents)
+      await onAddEvents(newEvents)
       setPdfResult(`Éxito: ${res.message}`)
-      setTimeout(() => onClose(), 2500)
-    } catch (err: any) {
-      alert(`Error al procesar PDF: ${err.message}`)
+    } catch (err: unknown) {
+      setPdfError(err instanceof Error ? err.message : "No se pudo procesar el PDF. Inténtalo de nuevo.")
+    } finally {
       setIsUploading(false)
     }
   }
@@ -214,14 +232,14 @@ export function AddCourseSectionModal({
                 </>
               ) : "Inscribir Cursos 2026-II"}
             </h2>
-            <button onClick={onClose} disabled={isUploading} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors">
+            <button onClick={onClose} disabled={isUploading} aria-label="Cerrar importación de cursos" className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors">
               <X className="w-4 h-4 text-slate-400" />
             </button>
           </div>
           {step === "search" && (
             <div className="flex px-6 gap-6 border-t border-white/5 bg-white/[0.02]">
-              <button onClick={() => setTab("manual")} className={`py-3 text-xs font-semibold border-b-2 transition-all ${tab === "manual" ? "border-indigo-500 text-indigo-400" : "border-transparent text-slate-400 hover:text-slate-200"}`}>Selección Manual</button>
-              <button onClick={() => setTab("pdf")} className={`py-3 text-xs font-semibold border-b-2 transition-all ${tab === "pdf" ? "border-indigo-500 text-indigo-400" : "border-transparent text-slate-400 hover:text-slate-200"}`}>Subir Matrícula (PDF)</button>
+              <button disabled={isUploading} onClick={() => setTab("manual")} className={`py-3 text-xs font-semibold border-b-2 transition-all ${tab === "manual" ? "border-indigo-500 text-indigo-400" : "border-transparent text-slate-400 hover:text-slate-200"}`}>Selección Manual</button>
+              <button disabled={isUploading} onClick={() => setTab("pdf")} className={`py-3 text-xs font-semibold border-b-2 transition-all ${tab === "pdf" ? "border-indigo-500 text-indigo-400" : "border-transparent text-slate-400 hover:text-slate-200"}`}>Subir Matrícula (PDF)</button>
             </div>
           )}
         </div>
@@ -321,7 +339,8 @@ export function AddCourseSectionModal({
                 <a href="https://matricula-alumno.uni.edu.pe/" target="_blank" rel="noopener noreferrer" className="text-indigo-400 font-semibold hover:underline">matricula-alumno.uni.edu.pe</a>
               </p>
             </div>
-            <input type="file" accept=".pdf" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
+            <input type="file" accept=".pdf,application/pdf" aria-label="Seleccionar PDF de matrícula" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
+            {pdfError && <p role="alert" className="mb-4 w-full text-sm text-rose-300">{pdfError}</p>}
             {isUploading ? (
               <div className="flex flex-col items-center gap-4 py-8">
                 <div className="relative w-16 h-16 flex items-center justify-center">
@@ -336,6 +355,7 @@ export function AddCourseSectionModal({
                   <Check className="w-8 h-8 text-emerald-400" />
                 </div>
                 <p className="text-sm text-emerald-300">{pdfResult}</p>
+                <button onClick={onClose} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">Ver mi horario</button>
               </div>
             ) : selectedFile ? (
               <div className="w-full border-2 border-indigo-500/30 bg-indigo-500/10 rounded-xl flex flex-col items-center justify-center p-6 transition-all">

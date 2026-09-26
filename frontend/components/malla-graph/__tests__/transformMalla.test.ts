@@ -3,6 +3,7 @@
 // funciones puras para no depender del DOM de React Flow en jsdom).
 import { describe, expect, test } from "vitest"
 import type { CicloDetail, CourseDetail } from "@/types/malla"
+import { COLUMN_WIDTH } from "../constants"
 import {
   computeStats,
   resolveEdgePresentation,
@@ -75,11 +76,11 @@ test("prerrequisito directo genera una arista source→target", () => {
 })
 
 // T4
-test("cursos del ciclo I están en X=0, ciclo II en X=220", () => {
+test("ciclos sin conexiones mantienen la separación mínima entre columnas", () => {
   const ciclos = [ciclo(1, [curso({ id: "1" })]), ciclo(2, [curso({ id: "2" })])]
   const { nodes } = transformarAMallaGraph(ciclos)
   expect(nodes.find((n) => n.id === "1")?.position.x).toBe(0)
-  expect(nodes.find((n) => n.id === "2")?.position.x).toBe(220)
+  expect(nodes.find((n) => n.id === "2")?.position.x).toBe(COLUMN_WIDTH)
 })
 
 // T5
@@ -97,7 +98,7 @@ test("cada ciclo con cursos emite una etiqueta de columna", () => {
   expect(labels[0].data.ciclo_num).toBe(1)
   expect(labels[0].position.x).toBe(0)
   expect(labels[1].data.ciclo_num).toBe(2)
-  expect(labels[1].position.x).toBe(220)
+  expect(labels[1].position.x).toBe(COLUMN_WIDTH)
 })
 
 test("computeStats suma créditos y cuenta estados", () => {

@@ -3,9 +3,10 @@
 import type { StatusCurso } from "@/types/malla"
 
 // Layout determinista: un ciclo = una columna (spec malla-graph §2.2).
-export const COLUMN_WIDTH = 220
-export const NODE_HEIGHT = 90
-export const VERTICAL_GAP = 40
+export const NODE_WIDTH = 200
+export const COLUMN_WIDTH = 296
+export const NODE_HEIGHT = 128
+export const VERTICAL_GAP = 48
 
 // Aristas: violeta del brand si el prerrequisito está aprobado, gris si falta.
 export const EDGE_COLOR_PREREQ_OK = "#7957f1" // --accent / brand-violet

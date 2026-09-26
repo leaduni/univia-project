@@ -58,13 +58,7 @@ export function ForoFeed() {
   }, [feed.setBusqueda, feed.setFiltro])
 
   return (
-    // La reserva del ancla NO vive aquí: la pone el grid de /foro (pt-4) encima
-    // de todas las columnas, así el fallback de Suspense (FeedSkeleton) hereda
-    // el mismo hueco. Esta sección sólo ordena el flujo en columna: la barra y
-    // la lista son hermanas secuenciales y el único aire entre ellas es el
-    // gap-6. En flex los márgenes no colapsan, así que ese aire no se duplica
-    // ni desaparece (el bug venía de depender de márgenes + una reserva
-    // calculada fuera del feed).
+    // Buscador y publicaciones comparten el flujo, separados por el gap.
     <section aria-label="Feed del foro" className="flex flex-col gap-6">
       <FeedHeader
         busqueda={feed.busqueda}

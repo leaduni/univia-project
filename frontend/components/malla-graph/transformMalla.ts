@@ -4,18 +4,20 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react"
 import type { CicloDetail, CourseDetail, StatusCurso } from "@/types/malla"
 import {
-  COLUMN_WIDTH,
   EDGE_COLOR_PREREQ_OK,
   EDGE_COLOR_PREREQ_PENDING,
-  NODE_HEIGHT,
-  VERTICAL_GAP,
+  NODE_WIDTH,
 } from "./constants"
+import { layoutPrerequisites, type CoursePort } from "./edgeRouting"
 
 export type NodeHighlight = "self" | "pre" | "post"
 
 export interface CourseNodeData extends CourseDetail, Record<string, unknown> {
   ciclo: number
   highlight?: NodeHighlight | null
+  nodeHeight?: number
+  sourcePorts?: CoursePort[]
+  targetPorts?: CoursePort[]
 }
 
 export type CourseNodeType = Node<CourseNodeData, "course">
@@ -32,6 +34,7 @@ export interface MallaGraphResult {
   nodes: CourseNodeType[]
   labels: CycleLabelNode[]
   edges: Edge[]
+  bounds: Node[]
 }
 
 export interface MallaStats {
@@ -51,23 +54,15 @@ interface HighlightOptions {
   descendants: Record<string, Set<string>>
 }
 
-/** Posiciones deterministas: un ciclo = una columna, cursos centrados en Y. */
+function layout(ciclos: CicloDetail[]) {
+  return layoutPrerequisites(ciclos.map((ciclo) => ciclo.courses.map((curso) => curso.id)), buildEdges(ciclos))
+}
+
+/** Posiciones deterministas con espacio para los carriles de prerrequisitos. */
 export function computeNodePositions(
   ciclos: CicloDetail[],
 ): Record<string, { x: number; y: number }> {
-  const posiciones: Record<string, { x: number; y: number }> = {}
-  ciclos.forEach((ciclo, colIndex) => {
-    const cursos = ciclo.courses
-    const totalHeight =
-      cursos.length * NODE_HEIGHT + Math.max(cursos.length - 1, 0) * VERTICAL_GAP
-    cursos.forEach((curso, rowIndex) => {
-      posiciones[curso.id] = {
-        x: colIndex * COLUMN_WIDTH,
-        y: rowIndex * (NODE_HEIGHT + VERTICAL_GAP) - totalHeight / 2,
-      }
-    })
-  })
-  return posiciones
+  return Object.fromEntries(layout(ciclos).positions)
 }
 
 /** Etiquetas de ciclo: una por columna, justo encima de su primer curso. */
@@ -75,14 +70,12 @@ export function computeLabelPositions(
   ciclos: CicloDetail[],
 ): Record<number, { x: number; y: number }> {
   const posiciones: Record<number, { x: number; y: number }> = {}
-  ciclos.forEach((ciclo, colIndex) => {
-    const cursos = ciclo.courses
-    if (cursos.length === 0) return
-    const totalHeight =
-      cursos.length * NODE_HEIGHT + Math.max(cursos.length - 1, 0) * VERTICAL_GAP
+  const graph = layout(ciclos)
+  ciclos.forEach((ciclo) => {
+    if (ciclo.courses.length === 0) return
     posiciones[ciclo.ciclo_num] = {
-      x: colIndex * COLUMN_WIDTH,
-      y: -totalHeight / 2 - 44,
+      x: graph.positions.get(ciclo.courses[0].id)!.x,
+      y: -44,
     }
   })
   return posiciones
@@ -108,6 +101,9 @@ export function buildEdges(ciclos: CicloDetail[]): Edge[] {
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
+            width: 24,
+            height: 24,
+            markerUnits: "userSpaceOnUse",
             color: completado ? EDGE_COLOR_PREREQ_OK : EDGE_COLOR_PREREQ_PENDING,
           },
         })
@@ -119,7 +115,7 @@ export function buildEdges(ciclos: CicloDetail[]): Edge[] {
 
 /** Transforma los ciclos del backend en nodos + aristas de React Flow. */
 export function transformarAMallaGraph(ciclos: CicloDetail[]): MallaGraphResult {
-  const posiciones = computeNodePositions(ciclos)
+  const graph = layout(ciclos)
   const vistos = new Set<string>()
   const nodes: CourseNodeType[] = []
 
@@ -128,37 +124,41 @@ export function transformarAMallaGraph(ciclos: CicloDetail[]): MallaGraphResult 
       // Defensivo: un mismo curso en dos ciclos no debe duplicar el nodo.
       if (vistos.has(curso.id)) return
       vistos.add(curso.id)
-      const pos = posiciones[curso.id] ?? { x: 0, y: 0 }
+      const pos = graph.positions.get(curso.id) ?? { x: 0, y: 0 }
       nodes.push({
         id: curso.id,
         type: "course",
         position: pos,
-        width: 180,
-        height: NODE_HEIGHT,
-        data: { ...curso, ciclo: ciclo.ciclo_num },
+        width: NODE_WIDTH,
+        height: graph.height,
+        data: {
+          ...curso, ciclo: ciclo.ciclo_num, nodeHeight: graph.height,
+          sourcePorts: graph.sourcePorts.get(curso.id) ?? [],
+          targetPorts: graph.targetPorts.get(curso.id) ?? [],
+        },
       })
     })
   })
 
-  // Solo aristas cuyos extremos existen como nodo (edge case defensivo).
-  const nodeIds = new Set(nodes.map((n) => n.id))
-  const edges = buildEdges(ciclos).filter(
-    (e) => nodeIds.has(e.source) && nodeIds.has(e.target),
-  )
-
-  const labelPositions = computeLabelPositions(ciclos)
+  const edges = graph.edges
   const labels: CycleLabelNode[] = ciclos
     .filter((ciclo) => ciclo.courses.length > 0)
     .map((ciclo) => ({
       id: `ciclo-${ciclo.ciclo_num}`,
       type: "cycleLabel",
-      position: labelPositions[ciclo.ciclo_num] ?? { x: 0, y: 0 },
-      width: 180,
+      position: { x: graph.positions.get(ciclo.courses[0].id)!.x, y: -44 },
+      width: NODE_WIDTH,
       height: 30,
       data: { ciclo_num: ciclo.ciclo_num, ciclo: ciclo.ciclo, credits: ciclo.credits },
     }))
 
-  return { nodes, labels, edges }
+  // fitView también debe incluir los carriles exteriores, no solo tarjetas.
+  const points = edges.flatMap((edge) => edge.data?.points ?? [])
+  const bounds: Node[] = points.length ? [
+    { id: "routing-top-left", type: "routingBounds", position: { x: Math.min(...points.map((p) => p.x)), y: Math.min(...points.map((p) => p.y)) }, width: 1, height: 1, data: {} },
+    { id: "routing-bottom-right", type: "routingBounds", position: { x: Math.max(...points.map((p) => p.x)), y: Math.max(...points.map((p) => p.y)) }, width: 1, height: 1, data: {} },
+  ] : []
+  return { nodes, labels, edges, bounds }
 }
 
 /** Índice id -> datos del curso (para el panel lateral y "Desbloquea"). */

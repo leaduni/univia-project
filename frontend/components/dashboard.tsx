@@ -7,7 +7,6 @@ import { AlertCircle } from "lucide-react"
 import { StatsCards } from "./stats-cards"
 import { ContinueLearning, type CursoActivo } from "./dashboard/continue-learning"
 import { SidebarWidgets } from "./dashboard/sidebar-widgets"
-import { RecentResources } from "./dashboard/recent-resources"
 import { DonacionBanner } from "./dashboard/donacion-banner"
 import { useAuth } from "./providers/auth-context"
 import { apiService, type ApiError } from "@/lib/api-service"
@@ -264,8 +263,6 @@ const skeletonAvance = isLoadingAvance && !hasLoadedOnce.current
             <SidebarWidgets stats={stats} logros={logros} isLoading={skeletonSummary} />
           </div>
         </div>
-
-        <RecentResources />
 
         <footer className="border-t border-border pt-6 mt-16 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-muted-foreground">

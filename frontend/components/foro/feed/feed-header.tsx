@@ -1,6 +1,6 @@
 "use client"
 
-// Cabecera sticky del feed: buscador con debounce (lo aplica useForoFeed),
+// Cabecera del feed: buscador con debounce (lo aplica useForoFeed),
 // selector de ordenamiento y CTA "+ Nuevo hilo".
 
 import { Search, X } from "lucide-react"
@@ -44,20 +44,8 @@ const ORDENES: { valor: OrdenFeed; etiqueta: string; icono?: React.ReactNode }[]
 
 export function FeedHeader({ busqueda, onBusqueda, orden, onOrden, onNuevoHilo }: FeedHeaderProps) {
   return (
-    // Sticky: se ancla bajo el Header flotante del dashboard al hacer scroll.
-    // La barra es un hijo de bloque NORMAL de la <section> del feed: reserva
-    // su altura real en el flujo y empuja la lista hacia abajo (sticky no
-    // "flota": solo desplaza dentro de su hueco al hacer scroll).
-    // Ancla constante y directa: top-24 = 96px. El Header flotante mide como
-    // máximo ~86px (safe-top 12 + ~74px en lg+), así que 96px lo cubre en
-    // todos los breakpoints SIN depender de calc() ni tokens de globals.css.
-    // En reposo la barra nace exactamente en 96px (main pt-20 = 80px + grid
-    // pt-4 = 16px en foro/page.tsx), así que reposo == punto de anclaje: no
-    // hay salto ni desplazamiento que pueda cubrir la primera tarjeta.
-    // Sin márgenes propios: el aire barra→lista es el gap-6 de la sección.
-    // El fondo es casi opaco a propósito: con `sticky` el contenido SÍ pasa
-    // por debajo al anclarse (es su comportamiento normal, no un solape).
-    <div className="sticky top-24 z-20">
+    // Se desplaza junto a la lista para no tapar publicaciones al hacer scroll.
+    <div className="relative shrink-0">
       <div className="rounded-2xl border border-white/[0.08] bg-[#090a12]/95 p-2 shadow-xl shadow-black/30 backdrop-blur-2xl">
         <div className="flex gap-2">
           {/* Search */}

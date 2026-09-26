@@ -28,6 +28,12 @@ export interface Facultad {
   id: number
   codigo: string
   nombre: string
+  /**
+   * Facultad habilitada en UniVia. Cuando es `false` la tarjeta se muestra
+   * bloqueada con "Próximamente" y no se puede elegir; el backend además
+   * rechaza la matrícula en `/onboarding/complete`.
+   */
+  activa: boolean
 }
 
 /** Espejo de `CarreraItem` (GET /onboarding/data). */

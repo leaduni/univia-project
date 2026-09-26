@@ -58,11 +58,14 @@ def _obtener_carrera(supabase, carrera_id: int) -> dict:
 
     Sin esta comprobación, un carrera_id inventado se guardaba igual en el
     perfil y dejaba al estudiante con una carrera que no existe.
+
+    Se embebe `facultades(activa)` (FK `carreras_facultad_id_fkey`) para que
+    `_validar_facultad_activa` pueda exigir la bandera sin un round-trip extra.
     """
     try:
         resp = (
             supabase.table("carreras")
-            .select("id, codigo, name, duracion_ciclos")
+            .select("id, codigo, name, duracion_ciclos, facultad_id, facultades(activa)")
             .eq("id", carrera_id)
             .maybe_single()
             .execute()
@@ -76,6 +79,43 @@ def _obtener_carrera(supabase, carrera_id: int) -> dict:
         raise_field_error("carrera_id", "La carrera seleccionada no existe.", status_code=400)
 
     return carrera
+
+
+def _validar_facultad_activa(supabase, carrera: dict) -> None:
+    """Bloquea la matrícula en una facultad todavía no habilitada.
+
+    La UI ya pinta esas tarjetas como "Próximamente", pero el endpoint es
+    público para cualquier cliente: sin esta regla, una petición manipulada
+    inscribiría a un estudiante en una facultad sin mallas cargadas y su perfil
+    quedaría atado a un plan vacío.
+
+    Si la facultad no viene embebida (p. ej. `facultad_id` nulo) se consulta
+    aparte; un fallo de lectura NO bloquea, porque negar la matrícula por un
+    error de red sería peor que el dato que se quiere proteger.
+    """
+    facultad = carrera.get("facultades")
+    facultad_id = carrera.get("facultad_id")
+
+    if facultad is None and facultad_id:
+        try:
+            resp = (
+                supabase.table("facultades")
+                .select("activa")
+                .eq("id", facultad_id)
+                .maybe_single()
+                .execute()
+            )
+            facultad = getattr(resp, "data", None) if resp else None
+        except Exception as e:
+            logger.error(f"Error consultando facultad {facultad_id}: {e}")
+            facultad = None
+
+    if isinstance(facultad, dict) and facultad.get("activa") is False:
+        raise_field_error(
+            "carrera_id",
+            "Esa facultad aún no está habilitada en UniVia. Pronto podrás elegirla.",
+            status_code=400,
+        )
 
 
 def _validar_ciclo(carrera: dict, ciclo_actual: int) -> None:
@@ -193,6 +233,11 @@ async def get_onboarding_data(user_data=Depends(get_current_user)):
     Devuelve cada carrera con su facultad y la duración de su plan, más el
     rango de ciclos seleccionable, para que el frontend no tenga que asumir
     un número fijo de ciclos.
+
+    Las facultades se devuelven TODAS, con su bandera `activa`. No se filtran
+    aquí a propósito: el paso 1 las muestra igualmente, pero bloqueadas con
+    "Próximamente" cuando `activa` es false. Filtrarlas dejaría el estado vacío
+    del wizard (que significa "no se pudo cargar") como único mensaje posible.
     """
     user, token = user_data
     supabase = get_supabase(token)
@@ -207,7 +252,10 @@ async def get_onboarding_data(user_data=Depends(get_current_user)):
         carreras_raw = getattr(carreras_resp, "data", None) or []
 
         facultades_resp = (
-            supabase.table("facultades").select("id, codigo, nombre").order("nombre").execute()
+            supabase.table("facultades")
+            .select("id, codigo, nombre, activa")
+            .order("nombre")
+            .execute()
         )
         facultades_raw = getattr(facultades_resp, "data", None) or []
     except Exception as e:
@@ -590,6 +638,7 @@ async def complete_onboarding(
 
         perfil = _verificar_perfil_minimo(supabase, user, codigo_entrante=data.codigo_estudiante)
         carrera = _obtener_carrera(supabase, carrera_id)
+        _validar_facultad_activa(supabase, carrera)
         _validar_ciclo(carrera, ciclo_actual)
         _validar_ciclo_no_retrocede(perfil, ciclo_actual)
 

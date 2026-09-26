@@ -84,19 +84,27 @@ export function FacultyStep({ data, onNext, facultades, careers }: FacultyStepPr
           const isSelected = selected === facultad.id
           const totalCarreras = carrerasPorFacultad.get(facultad.id) ?? 0
           const sinCarreras = totalCarreras === 0
+          // Las facultades todavía no habilitadas se listan, pero bloqueadas:
+          // el estudiante ve el catálogo completo y entiende que llegarán, en
+          // vez de creer que la lista falló o que su facultad no existe.
+          const inactiva = !facultad.activa
+          const bloqueada = inactiva || sinCarreras
 
           return (
             <button
               key={facultad.id}
               type="button"
-              onClick={() => setSelected(facultad.id)}
+              onClick={() => {
+                if (!bloqueada) setSelected(facultad.id)
+              }}
               aria-pressed={isSelected}
-              disabled={sinCarreras}
+              aria-disabled={bloqueada}
+              disabled={bloqueada}
               className={`flex items-start gap-4 p-4 rounded-2xl border text-left transition-all duration-200 ${
                 isSelected
                   ? "bg-card border-accent ring-1 ring-accent shadow-lg shadow-accent/10"
                   : "bg-card/60 border-border hover:border-accent/40 hover:bg-card"
-              } ${sinCarreras ? "opacity-50 cursor-not-allowed hover:border-border" : ""}`}
+              } ${bloqueada ? "opacity-50 cursor-not-allowed hover:border-border" : ""}`}
             >
               <div
                 className={`p-3 rounded-xl shrink-0 ${
@@ -108,13 +116,22 @@ export function FacultyStep({ data, onNext, facultades, careers }: FacultyStepPr
                 <Icon className="w-5 h-5" />
               </div>
               <div className="min-w-0 space-y-0.5">
-                <h3 className="font-heading text-sm font-bold text-foreground leading-snug">
-                  {facultad.nombre}
-                </h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-heading text-sm font-bold text-foreground leading-snug">
+                    {facultad.nombre}
+                  </h3>
+                  {inactiva && (
+                    <span className="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full border border-border bg-muted text-muted-foreground">
+                      Próximamente
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground leading-snug">
-                  {sinCarreras
-                    ? "Todavía sin carreras disponibles"
-                    : `${totalCarreras} ${totalCarreras === 1 ? "carrera" : "carreras"}`}
+                  {inactiva
+                    ? "Aún no disponible en UniVia"
+                    : sinCarreras
+                      ? "Todavía sin carreras disponibles"
+                      : `${totalCarreras} ${totalCarreras === 1 ? "carrera" : "carreras"}`}
                 </p>
                 <span className="inline-block text-[11px] font-semibold tracking-wider text-accent uppercase pt-0.5">
                   {facultad.codigo}

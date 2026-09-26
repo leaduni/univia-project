@@ -25,6 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/components/providers/auth-context"
 import { apiService } from "@/lib/api-service"
+import { gamificacionService } from "@/lib/gamificacion-service"
 import { leerClaveByok } from "@/lib/byok"
 import { API_URL } from "@/lib/env"
 import type { EvaluationResultData, QuestionDetail } from "@/types/evaluation"
@@ -96,13 +97,15 @@ export function EvaluacionIA({
   modulos,
   preSelectedModulo,
   onClearPreselection,
-  onResultsChange
+  onResultsChange,
+  onEvaluacionFinalizada
 }: {
   courseId: string
   modulos: ModuloInfo[]
   preSelectedModulo?: string | null
   onClearPreselection?: () => void
   onResultsChange?: (showing: boolean) => void
+  onEvaluacionFinalizada?: () => void
 }) {
   const [step, setStep] = useState<"config" | "loading" | "evaluacion" | "resultados">("config")
   const [selectedModulo, setSelectedModulo] = useState<ModuloInfo | null>(null)
@@ -401,6 +404,27 @@ export function EvaluacionIA({
       }
 
       const data = await response.json()
+
+      // Registra la práctica en el récord inmutable de notas (mejor esfuerzo:
+      // un fallo aquí jamás bloquea al estudiante de ver sus resultados). Se
+      // espera a que termine para que al volver al curso las cachés de notas
+      // ya estén invalidadas y el historial/progreso carguen datos frescos.
+      const stepId = selectedModulo?.id
+      if (stepId != null && Array.isArray(data.detalles) && data.detalles.length > 0) {
+        try {
+          await gamificacionService.registrarPracticaUnidad(
+            parseInt(courseId),
+            stepId,
+            data.detalles.map((d: any) => ({
+              pregunta_id: String(d.pregunta_id),
+              correcta: d.es_correcta === true,
+            })),
+          )
+        } catch (regError) {
+          console.warn("[EVAL-IA] No se pudo registrar la práctica en el historial:", regError)
+        }
+      }
+
       setResultado(data)
       setStep("resultados")
       if (onResultsChange) onResultsChange(true)
@@ -945,10 +969,14 @@ export function EvaluacionIA({
     return (
       <EvaluationResultsView
         data={evaluationData}
-        onGenerateNew={reiniciar}
+        onGenerateNew={() => {
+          reiniciar();
+          if (onEvaluacionFinalizada) onEvaluacionFinalizada();
+        }}
         onBackToCourse={() => {
           reiniciar();
           if (onClearPreselection) onClearPreselection();
+          if (onEvaluacionFinalizada) onEvaluacionFinalizada();
         }}
       />
     );

@@ -9,6 +9,8 @@ import { EvaluacionIA } from "./learning-path/evaluacion-ia"
 import { GradesHistoryCard } from "./gamificacion/grades-history-card"
 import { Sparkles, GraduationCap, Calendar, FileText, Target, Lock, CheckCircle2 } from "lucide-react"
 import { apiService } from "@/lib/api-service"
+import { gamificacionService } from "@/lib/gamificacion-service"
+import { invalidarPrefijo } from "@/lib/api-cache"
 import { EmptyStateRutaAprendizaje } from "./learning-path/empty-state-ruta-aprendizaje"
 
 const TABS = [
@@ -35,15 +37,35 @@ export function LearningPath({ courseId }: LearningPathProps) {
   const [completing, setCompleting] = useState(false)
   const [completeSuccess, setCompleteSuccess] = useState(false)
   const [examCount, setExamCount] = useState(0)
+  // Métricas reales del récord inmutable: promedio oficial del curso y racha.
+  const [notaPromedio, setNotaPromedio] = useState<number | null>(null)
+  const [rachaDias, setRachaDias] = useState<number>(0)
+
+  const cleanCourseId = () =>
+    courseId.toString().startsWith("c") ? courseId.toString().substring(1) : courseId
+
+  const cargarMetricas = async () => {
+    // Mejor esfuerzo: si falla, el promedio queda en "—" y la racha en 0.
+    try {
+      const historial = await gamificacionService.getHistorialCurso(cleanCourseId())
+      setNotaPromedio(historial.nota_promedio)
+    } catch {
+      setNotaPromedio(null)
+    }
+    try {
+      const resumen = await gamificacionService.getResumen()
+      setRachaDias(resumen.racha_actual ?? 0)
+    } catch {
+      setRachaDias(0)
+    }
+  }
 
   const cargarRuta = async () => {
     try {
       setIsLoading(true)
-      const cleanId = courseId.toString().startsWith("c")
-        ? courseId.toString().substring(1)
-        : courseId
-      const result = await apiService.getLearningPath(cleanId)
+      const result = await apiService.getLearningPath(cleanCourseId())
       setData(result)
+      void cargarMetricas()
     } catch (err: any) {
       if (err.status === 403) {
         setAccessDenied(true)
@@ -53,6 +75,15 @@ export function LearningPath({ courseId }: LearningPathProps) {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Al terminar una evaluación IA de unidad: descarta la caché stale de la
+  // ruta (TTL 5 min) y re-pide todo para desbloquear la siguiente unidad al
+  // instante, sin recargas manuales.
+  const handleEvaluacionFinalizada = async () => {
+    invalidarPrefijo(`learning-path:${cleanCourseId()}`)
+    await cargarRuta()
+    setActiveTab("path")
   }
 
   useEffect(() => {
@@ -153,10 +184,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
       setCompleteSuccess(true)
       setTimeout(() => router.push("/malla"), 2500)
       setTimeout(() => setCompleteSuccess(false), 4000)
-      const cleanId = courseId.toString().startsWith("c")
-        ? courseId.toString().substring(1)
-        : courseId
-      const result = await apiService.getLearningPath(cleanId)
+      const result = await apiService.getLearningPath(cleanCourseId())
       setData(result)
     } catch (err: any) {
       setError(err.message || "Error al completar el curso")
@@ -306,6 +334,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
                 courseId={courseId}
                 timeline={timeline}
                 onStartEvaluation={handleStartEvaluation}
+                onStepCompleted={() => void cargarRuta()}
               />
             )
           )}
@@ -321,6 +350,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
                 setPreSelectedModulo(null)
               }}
               onResultsChange={setShowingEvaluationResults}
+              onEvaluacionFinalizada={handleEvaluacionFinalizada}
             />
           )}
         </div>
@@ -368,11 +398,15 @@ export function LearningPath({ courseId }: LearningPathProps) {
               </li>
               <li className="flex items-center justify-between">
                 <span>Promedio</span>
-                <span className="font-semibold text-white">15.2 / 20</span>
+                <span className="font-semibold text-white">
+                  {notaPromedio != null ? notaPromedio.toFixed(1) : "—"} / 20
+                </span>
               </li>
               <li className="flex items-center justify-between">
                 <span>Racha activa</span>
-                <span className="font-semibold text-emerald-400">3 días</span>
+                <span className="font-semibold text-emerald-400">
+                  {rachaDias} {rachaDias === 1 ? "día" : "días"}
+                </span>
               </li>
             </ul>
           </div>

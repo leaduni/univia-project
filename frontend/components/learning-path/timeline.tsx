@@ -35,11 +35,13 @@ interface TimelineStep {
 export function LearningTimeline({
   courseId,
   timeline,
-  onStartEvaluation
+  onStartEvaluation,
+  onStepCompleted
 }: {
   courseId: string
   timeline: TimelineStep[]
   onStartEvaluation?: (moduleTitle: string) => void
+  onStepCompleted?: () => void
 }) {
   const [selectedStep, setSelectedStep] = useState<TimelineStep | null>(null)
   const [completingStep, setCompletingStep] = useState<number | null>(null)
@@ -93,6 +95,9 @@ export function LearningTimeline({
       })
       setCompletingStep(null)
       setSelectedStep(null)
+      // Aviso al padre: re-pide la ruta real (el estado optimista se sincroniza
+      // con los `steps` del servidor vía el useEffect sobre `timeline`).
+      if (onStepCompleted) onStepCompleted()
       if (onStartEvaluation) {
         onStartEvaluation(selectedStep.title)
       }

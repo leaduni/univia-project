@@ -263,3 +263,223 @@ async def entregar_sesion(
         nota_curso_promedio=float(promedio) if promedio is not None else None,
         xp_otorgado=int(fila.get("xp_otorgado") or 0),
     )
+
+
+# Prefijo de título para las publicaciones auto-generadas por unidad (práctica IA).
+# Sirve de clave de get-or-create y distingue estas filas de las curadas por docentes.
+_TITULO_PRACTICA_IA = "Práctica IA · "
+_PUNTAJE_MAX_PRACTICA = 20.0
+_MAX_INTENTOS_PRACTICA = 500
+
+
+@router.post(
+    "/evaluaciones/practica-unidad/registrar",
+    status_code=201,
+    response_model=ResultadoEntrega,
+)
+@limiter.limit("20/minute")
+async def registrar_practica_unidad(
+    request: Request,
+    data: RegistrarPracticaUnidad,
+    user_data=Depends(get_current_user),
+):
+    """Registra una práctica IA de unidad en el récord inmutable de notas.
+
+    El frontend envía solo acierto/desacierto por pregunta (corregido antes por
+    /evaluaciones/evaluar). Aquí se congela una clave sintética en la sesión y
+    la RPC `fase10_registrar_intento` vuelve a computar la nota contra ella:
+    el marcador final nunca depende de un puntaje pre-calculado del cliente.
+
+    La publicación oficial de la unidad (origen práctica IA) se crea una sola
+    vez por (curso_id, step_id) y las siguientes prácticas la reutilizan, igual
+    que lo haría una evaluación publicada por un docente.
+    """
+    user, token = user_data
+    admin = get_admin_client()
+
+    try:
+        resp_step = await _run(
+            lambda: (
+                admin.table("learning_path_steps")
+                .select("id, title")
+                .eq("id", data.step_id)
+                .eq("curso_id", data.curso_id)
+                .maybe_single()
+                .execute()
+            )
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error("[PRACTICA-IA] Error leyendo step %s: %s", data.step_id, e)
+        raise HTTPException(status_code=500, detail="No se pudo registrar la práctica.")
+
+    step = getattr(resp_step, "data", None)
+    if not step:
+        raise HTTPException(status_code=404, detail="La unidad no existe en este curso.")
+
+    titulo = f"{_TITULO_PRACTICA_IA}{step.get('title') or f'Unidad {data.step_id}'}"[:255]
+
+    # Get-or-create de la publicación de la unidad. Concurrencia: si dos
+    # prácticas simultáneas crean la fila a la vez, puede quedar un duplicado
+    # inofensivo (ambas son publicadas e idénticas); el siguiente registro
+    # toma la primera y convergen.
+    try:
+        resp_pub = await _run(
+            lambda: (
+                admin.table("evaluaciones_publicadas")
+                .select("id")
+                .eq("curso_id", data.curso_id)
+                .eq("step_id", data.step_id)
+                .eq("titulo", titulo)
+                .eq("estado", "publicada")
+                .limit(1)
+                .execute()
+            )
+        )
+        pubs = getattr(resp_pub, "data", None) or []
+        if pubs:
+            evaluacion_id = pubs[0]["id"]
+        else:
+            resp_new = await _run(
+                lambda: (
+                    admin.table("evaluaciones_publicadas")
+                    .insert(
+                        {
+                            "curso_id": data.curso_id,
+                            "step_id": data.step_id,
+                            "titulo": titulo,
+                            "peso": 1,
+                            "puntaje_maximo": _PUNTAJE_MAX_PRACTICA,
+                            "estado": "publicada",
+                            "max_intentos": _MAX_INTENTOS_PRACTICA,
+                            "preguntas": [],
+                            "clave_respuestas": {},
+                        }
+                    )
+                    .select("id")
+                    .single()
+                    .execute()
+                )
+            )
+            nueva = getattr(resp_new, "data", None)
+            if not nueva:
+                raise HTTPException(status_code=500, detail="No se pudo registrar la práctica.")
+            evaluacion_id = nueva["id"]
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        logger.error("[PRACTICA-IA] Error con publicación de %s/%s: %s", data.curso_id, data.step_id, e)
+        raise HTTPException(status_code=500, detail="No se pudo registrar la práctica.")
+
+    # Clave sintética: cada pregunta vale 20/N puntos y su "respuesta correcta"
+    # es el esperado "ok". La RPC compara el valor enviado ("ok"/"ko") contra
+    # la clave y recalcula la nota en el servidor.
+    total = len(data.resultados)
+    valor = _PUNTAJE_MAX_PRACTICA / total
+    clave = {
+        "respuestas": [
+            {
+                "pregunta_id": r.pregunta_id,
+                "tipo": "texto",
+                "respuesta_correcta": "ok",
+                "valor": valor,
+            }
+            for r in data.resultados
+        ]
+    }
+    respuestas = [
+        {"pregunta_id": r.pregunta_id, "respuesta": "ok" if r.correcta else "ko"}
+        for r in data.resultados
+    ]
+
+    try:
+        resp_sesion = await _run(
+            lambda: (
+                admin.table("evaluacion_sesiones")
+                .insert(
+                    {
+                        "evaluacion_id": evaluacion_id,
+                        "perfil_id": str(user.id),
+                        "preguntas_snapshot": {"origen": "ia_practica", "preguntas": []},
+                        "clave_respuestas": clave,
+                    }
+                )
+                .select("id")
+                .single()
+                .execute()
+            )
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error("[PRACTICA-IA] Error creando sesión: %s", e)
+        raise HTTPException(status_code=500, detail="No se pudo registrar la práctica.")
+
+    sesion = getattr(resp_sesion, "data", None)
+    if not sesion:
+        raise HTTPException(status_code=500, detail="No se pudo registrar la práctica.")
+
+    metadata = {**data.metadata, "origen": "ia_practica", "modulo": step.get("title")}
+    supabase = get_supabase(token)
+    filas = await invocar_rpc(
+        supabase,
+        "fase10_registrar_intento",
+        {
+            "p_sesion": sesion["id"],
+            "p_respuestas": respuestas,
+            "p_metadata": metadata,
+        },
+    )
+    if not filas:
+        raise HTTPException(status_code=500, detail="No se pudo registrar el intento.")
+
+    fila = filas[0]
+    intento_id = fila.get("intent_id")
+    if not intento_id:
+        raise HTTPException(status_code=500, detail="No se pudo registrar el intento.")
+
+    try:
+        resp_int = await _run(
+            lambda: (
+                supabase.table("evaluacion_intentos")
+                .select(
+                    "id, evaluacion_id, curso_id, nota, puntaje_obtenido, "
+                    "puntaje_maximo, fecha_completado"
+                )
+                .eq("id", intento_id)
+                .maybe_single()
+                .execute()
+            )
+        )
+        intento = getattr(resp_int, "data", None)
+        if not intento:
+            raise HTTPException(status_code=404, detail="El intento no existe.")
+
+        resp_prom = await _run(
+            lambda: (
+                supabase.from_("v_nota_curso_inmutable")
+                .select("nota_promedio")
+                .eq("perfil_id", str(user.id))
+                .eq("curso_id", intento["curso_id"])
+                .maybe_single()
+                .execute()
+            )
+        )
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        logger.error("[PRACTICA-IA] Error leyendo intento %s: %s", intento_id, e)
+        raise HTTPException(status_code=500, detail="No se pudo confirmar el registro.")
+
+    promedio = (getattr(resp_prom, "data", None) or {}).get("nota_promedio")
+
+    return ResultadoEntrega(
+        intento=IntentoEntregado(
+            id=intento["id"],
+            evaluacion_id=intento["evaluacion_id"],
+            curso_id=intento["curso_id"],
+            nota=float(intento["nota"]),
+            puntaje_obtenido=float(intento["puntaje_obtenido"]),
+            puntaje_maximo=float(intento["puntaje_maximo"]),
+            fecha_completado=intento["fecha_completado"],
+        ),
+        nota_curso_promedio=float(promedio) if promedio is not None else None,
+        xp_otorgado=int(fila.get("xp_otorgado") or 0),
+    )

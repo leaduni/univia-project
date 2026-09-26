@@ -14,6 +14,8 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 
+export const runtime = "edge"
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
@@ -135,4 +137,4 @@ export const config = {
     "/recursos/:path*",
     "/recursos",
   ],
-}
+} 

@@ -41,7 +41,7 @@ const RUTAS_PROTEGIDAS = [
 const PREFIJOS_PUBLICOS = ["/auth", "/login", "/api", "/onboarding"]
 const PREFIJOS_ESTATICOS = ["/_next/static", "/_next/image", "/favicon.ico"]
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // 1) Salida inmediata para rutas públicas y estáticas: sin verificación de

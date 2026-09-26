@@ -156,29 +156,6 @@ export function PlatformSection() {
                     Llevas <b style={{ color: "#d2cefd" }}>{Math.round(12 * k)} días</b> de racha estudiando.
                   </span>
                 </div>
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "5px 10px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(63, 66, 77, 0.9)",
-                    fontSize: 10.5,
-                    color: "rgba(233, 233, 237, 0.6)",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: "#67c765",
-                      animation: "univiaPulseDot 1.8s ease-in-out infinite",
-                    }}
-                  />
-                  Sincronizado
-                </span>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>

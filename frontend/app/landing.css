@@ -58,6 +58,40 @@
 .univia-landing section[id] { scroll-margin-top: 76px; }
 .univia-landing ::selection { background: rgba(121, 87, 241, 0.35); }
 
+.univia-team-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 24px;
+}
+.univia-team-card {
+  flex: 0 1 calc((100% - 48px) / 3);
+  min-width: 0;
+}
+.univia-team-card-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 94px;
+  padding: 18px 20px;
+}
+.univia-team-socials { display: flex; flex-shrink: 0; gap: 6px; }
+.univia-landing .univia-team-social {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: rgba(215, 206, 247, 0.1);
+  color: #d7cef7;
+  transition: background 200ms ease, color 200ms ease;
+}
+.univia-landing .univia-team-social:hover,
+.univia-landing .univia-team-social:focus-visible { background: #7957f1; color: #ffffff; }
+.univia-landing .univia-team-social:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+
 /* --- Animaciones --- */
 @keyframes univiaTwinkleA { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.9; } }
 @keyframes univiaTwinkleB { 0%, 100% { opacity: 0.8; } 45% { opacity: 0.25; } }
@@ -88,8 +122,12 @@
   .univia-split { grid-template-columns: 1fr !important; }
   .univia-split > * { grid-column: 1 !important; grid-row: auto !important; text-align: left !important; }
   .univia-split h2 { margin-left: 0 !important; text-align: left !important; }
-  .univia-team-grid { grid-template-columns: 1fr !important; }
+  .univia-team-card { flex-basis: calc((100% - 24px) / 2); }
   .univia-nav-links { display: none !important; }
+}
+
+@media (max-width: 700px) {
+  .univia-team-card { flex-basis: 100%; max-width: 460px; }
 }
 
 @media (max-width: 390px) {

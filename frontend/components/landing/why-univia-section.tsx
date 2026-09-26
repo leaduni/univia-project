@@ -1,20 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Github, Linkedin } from "lucide-react";
 
 import { Hoverable, PhotoSlot } from "./hoverable";
-import { AUTH_ROUTES, EQUIPO, FOTOS } from "./landing-data";
-
-const GAL_MAX = Math.max(0, FOTOS.length - 2);
+import { AUTH_ROUTES, EQUIPO } from "./landing-data";
 
 export function WhyUniviaSection() {
-  const [gal, setGal] = useState(0);
-
-  useEffect(() => {
-    const id = setInterval(() => setGal((g) => (g >= GAL_MAX ? 0 : g + 1)), 3400);
-    return () => clearInterval(id);
-  }, []);
-
   return (
     <section
       id="nosotros"
@@ -38,26 +29,6 @@ export function WhyUniviaSection() {
       />
       <div style={{ position: "relative", maxWidth: 1240, margin: "0 auto", display: "flex", flexDirection: "column", gap: "clamp(44px, 6vw, 72px)" }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, textAlign: "center", maxWidth: 780, margin: "0 auto" }}>
-          <span
-            data-reveal="up"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "6px 14px",
-              borderRadius: 999,
-              border: "1px solid rgba(215, 206, 247, 0.3)",
-              background: "rgba(11, 12, 22, 0.35)",
-              fontSize: 12,
-              fontWeight: 500,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              color: "#d7cef7",
-            }}
-          >
-            <i className="ph ph-users-three" style={{ fontSize: 15 }} />
-            LEAD UNI
-          </span>
           <h2
             data-reveal="up"
             data-reveal-delay="80"
@@ -142,71 +113,6 @@ export function WhyUniviaSection() {
             </Hoverable>
           </div>
         </div>
-
-        <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 26 }}>
-          <div style={{ overflow: "hidden", padding: "6px 0 10px" }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "stretch",
-                transition: "transform 780ms cubic-bezier(0.22, 1, 0.36, 1)",
-                transform: `translateX(-${gal * 58}%)`,
-              }}
-            >
-              {FOTOS.map((f) => (
-                <div key={f.id} style={{ width: "58%", flex: "0 0 58%", paddingRight: 30, boxSizing: "border-box", display: "flex" }}>
-                  <div
-                    style={{
-                      flex: 1,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 18,
-                      padding: "22px 22px 26px",
-                      borderRadius: 20,
-                      background: "#f7f4ff",
-                      boxShadow: "0 26px 64px rgba(11, 12, 22, 0.42)",
-                    }}
-                  >
-                    <div style={{ position: "relative", aspectRatio: "16 / 10", borderRadius: 14, overflow: "hidden", background: "#e5dffa" }}>
-                      <PhotoSlot src={f.src} alt={f.cap} label="Foto LEAD UNI" />
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8, textAlign: "center", padding: "0 clamp(8px, 3vw, 34px)" }}>
-                      <span style={{ fontSize: "clamp(18px, 2vw, 24px)", fontWeight: 600, color: "#1b1442" }}>{f.cap}</span>
-                      <span
-                        style={{
-                          fontSize: "clamp(14px, 1.5vw, 17px)",
-                          fontStyle: "italic",
-                          lineHeight: 1.5,
-                          color: "rgba(27, 20, 66, 0.7)",
-                          minHeight: "3em",
-                        }}
-                      >
-                        {f.desc}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-            {Array.from({ length: GAL_MAX + 1 }, (_, i) => (
-              <span
-                key={i}
-                onClick={() => setGal(i)}
-                style={{
-                  width: 9,
-                  height: 9,
-                  borderRadius: "50%",
-                  cursor: "pointer",
-                  transition: "background 400ms ease, transform 400ms ease",
-                  background: i === gal ? "#ffffff" : "rgba(255, 255, 255, 0.35)",
-                  transform: i === gal ? "scale(1.25)" : "scale(1)",
-                }}
-              />
-            ))}
-          </div>
-        </div>
       </div>
     </section>
   );
@@ -251,13 +157,11 @@ export function TeamSection() {
             Conoce al equipo detrás de UniVia
           </h2>
         </div>
-        <div
-          className="univia-team-grid"
-          style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "clamp(22px, 3vw, 34px)" }}
-        >
+        <div className="univia-team-grid">
           {EQUIPO.map((p) => (
             <Hoverable
               key={p.id}
+              className="univia-team-card"
               data-reveal="up"
               style={{
                 display: "flex",
@@ -270,58 +174,23 @@ export function TeamSection() {
               }}
               hoverStyle={{ transform: "translateY(-4px)", boxShadow: "0 30px 72px rgba(27, 20, 66, 0.3)" }}
             >
-              <div style={{ position: "relative", aspectRatio: "5 / 4", background: "#1f2138" }}>
-                <PhotoSlot src={p.src} alt={p.nombre} label="Foto del equipo" />
-                <Hoverable
-                  as="a"
-                  href={p.linkedin}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={`LinkedIn de ${p.nombre}`}
-                  style={{
-                    position: "absolute",
-                    top: 16,
-                    right: 16,
-                    zIndex: 2,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: 34,
-                    height: 34,
-                    borderRadius: 6,
-                    background: "rgba(11, 12, 22, 0.72)",
-                    backdropFilter: "blur(6px)",
-                    color: "#d7cef7",
-                    fontSize: 17,
-                    transition: "background 200ms ease, color 200ms ease",
-                  }}
-                  hoverStyle={{ background: "#7957f1", color: "#ffffff" }}
-                >
-                  <i className="ph ph-linkedin-logo" />
-                </Hoverable>
+              <div style={{ position: "relative", aspectRatio: "4 / 3", background: "#1f2138" }}>
+                <PhotoSlot src={p.src} alt={`Retrato de ${p.nombre}`} label="Foto del equipo" />
               </div>
               <span aria-hidden="true" style={{ display: "block", height: 4, backgroundImage: "linear-gradient(90deg, #d93340, #a6249d 55%, #7957f1)" }} />
-              <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "clamp(22px, 2.6vw, 32px)" }}>
+              <div className="univia-team-card-body">
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <span style={{ fontSize: "clamp(20px, 2.1vw, 26px)", fontWeight: 700, color: "#ffffff" }}>{p.nombre}</span>
-                  <span style={{ fontSize: 12.5, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "#ef5b66" }}>
-                    {p.rol}
-                  </span>
+                  <span style={{ fontSize: "clamp(19px, 2vw, 23px)", fontWeight: 700, color: "#ffffff" }}>{p.nombre}</span>
+                  {"rol" in p && <span style={{ fontSize: 13, fontWeight: 600, color: "#ef5b66" }}>{p.rol}</span>}
                 </div>
-                <span style={{ fontSize: "clamp(14px, 1.5vw, 16px)", lineHeight: 1.6, color: "rgba(240, 236, 255, 0.72)" }}>{p.desc}</span>
-                <span
-                  style={{
-                    display: "block",
-                    paddingLeft: 16,
-                    borderLeft: "2px solid rgba(121, 87, 241, 0.7)",
-                    fontSize: "clamp(14px, 1.5vw, 16.5px)",
-                    fontStyle: "italic",
-                    lineHeight: 1.55,
-                    color: "#e8e2ff",
-                  }}
-                >
-                  “{p.frase}”
-                </span>
+                <div className="univia-team-socials">
+                  <a href={p.linkedin} target="_blank" rel="noopener noreferrer" aria-label={`LinkedIn de ${p.nombre}`} className="univia-team-social">
+                    <Linkedin size={20} aria-hidden="true" />
+                  </a>
+                  <a href={p.github} target="_blank" rel="noopener noreferrer" aria-label={`GitHub de ${p.nombre}`} className="univia-team-social">
+                    <Github size={20} aria-hidden="true" />
+                  </a>
+                </div>
               </div>
             </Hoverable>
           ))}

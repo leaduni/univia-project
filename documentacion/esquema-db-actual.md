@@ -39,6 +39,7 @@
 | facultades                 | 3     | nombre                       | character varying        | NO           | N/A                                                    |            | -                   | -               |
 | facultades                 | 4     | descripcion                  | text                     | YES          | N/A                                                    |            | -                   | -               |
 | facultades                 | 5     | created_at                   | timestamp with time zone | YES          | now()                                                  |            | -                   | -               |
+| facultades                 | 6     | activa                       | boolean                  | YES          | false                                                  |            | -                   | -               |
 | learning_path_steps        | 1     | id                           | integer                  | NO           | nextval('learning_path_steps_id_seq'::regclass)        | PK         | -                   | -               |
 | learning_path_steps        | 2     | curso_id                     | integer                  | YES          | N/A                                                    | FK         | cursos              | id              |
 | learning_path_steps        | 3     | title                        | character varying        | NO           | N/A                                                    |            | -                   | -               |

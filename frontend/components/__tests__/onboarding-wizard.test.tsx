@@ -31,10 +31,10 @@ const META = {
       id: 7,
       name: "Ingeniería de Sistemas",
       duracion_ciclos: 10,
-      facultad: { id: 3, nombre: "FIIS" },
+      facultad: { id: 3, nombre: "FIIS", activa: true },
     },
   ],
-  facultades: [{ id: 3, nombre: "FIIS" }],
+  facultades: [{ id: 3, nombre: "FIIS", activa: true }],
 }
 
 beforeEach(() => vi.clearAllMocks())

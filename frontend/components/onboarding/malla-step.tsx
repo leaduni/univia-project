@@ -100,7 +100,7 @@ export function MallaStep({ data, onNext, onBack, carrera_id, careerName }: Mall
           <button
             type="button"
             onClick={onBack}
-            className="px-6 py-2.5 rounded-xl text-sm font-semibold text-foreground bg-card border border-border hover:bg-muted transition-colors flex items-center gap-2"
+            className="min-h-11 px-6 py-2.5 rounded-xl text-sm font-semibold text-foreground bg-card border border-border hover:bg-muted transition-colors flex items-center gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Volver</span>
@@ -130,7 +130,7 @@ export function MallaStep({ data, onNext, onBack, carrera_id, careerName }: Mall
               type="button"
               onClick={() => setSelected(malla.id)}
               aria-pressed={isSelected}
-              className={`flex items-start gap-4 p-5 rounded-2xl border text-left transition-all duration-200 ${
+              className={`flex items-start gap-3 sm:gap-4 p-4 sm:p-5 rounded-2xl border text-left transition-all duration-200 ${
                 isSelected
                   ? "bg-card border-accent ring-1 ring-accent shadow-lg shadow-accent/10"
                   : "bg-card/60 border-border hover:border-accent/40 hover:bg-card"
@@ -147,7 +147,7 @@ export function MallaStep({ data, onNext, onBack, carrera_id, careerName }: Mall
               </div>
               <div className="min-w-0 space-y-1 flex-1">
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="font-heading text-base font-bold text-foreground leading-snug">
+                  <h3 className="min-w-0 break-words font-heading text-base font-bold text-foreground leading-snug">
                     {malla.nombre}
                   </h3>
                   {malla.es_vigente && (
@@ -173,11 +173,11 @@ export function MallaStep({ data, onNext, onBack, carrera_id, careerName }: Mall
         })}
       </div>
 
-      <div className="flex items-center justify-between pt-4 border-t border-border">
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between pt-4 border-t border-border">
         <button
           type="button"
           onClick={onBack}
-          className="px-6 py-3 rounded-xl font-semibold text-sm text-foreground bg-card border border-border hover:bg-muted transition-all flex items-center gap-2"
+          className="w-full sm:w-auto justify-center min-h-11 px-6 py-3 rounded-xl font-semibold text-sm text-foreground bg-card border border-border hover:bg-muted transition-all flex items-center gap-2"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Atrás</span>
@@ -187,7 +187,7 @@ export function MallaStep({ data, onNext, onBack, carrera_id, careerName }: Mall
           type="button"
           onClick={handleContinue}
           disabled={!selected}
-          className="px-8 py-3 rounded-xl font-semibold text-sm text-primary-foreground gradient-login-btn disabled:opacity-40 disabled:pointer-events-none transition-all shadow-lg shadow-accent/20 active:scale-[0.99] flex items-center gap-2"
+          className="w-full sm:w-auto justify-center min-h-11 px-8 py-3 rounded-xl font-semibold text-sm text-primary-foreground gradient-login-btn disabled:opacity-40 disabled:pointer-events-none transition-all shadow-lg shadow-accent/20 active:scale-[0.99] flex items-center gap-2"
         >
           <span>Continuar</span>
           <ArrowRight className="w-4 h-4" />

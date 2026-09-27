@@ -16,15 +16,15 @@ export function CicloSection({ ciclo, credits, courses, onCourseClick }: CicloSe
   return (
     <div>
       {/* Ciclo Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <h2 className="text-xl font-bold text-foreground">{ciclo}</h2>
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4">
+        <h2 className="text-lg sm:text-xl font-bold text-foreground">{ciclo}</h2>
         <Badge variant="outline" className="bg-secondary text-foreground border-border">
           {credits} créditos
         </Badge>
       </div>
 
       {/* Courses Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
         {courses.map((course) => (
           <MallaCourseCard key={course.id} course={course} onClick={() => onCourseClick(course)} />
         ))}

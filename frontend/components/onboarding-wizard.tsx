@@ -213,19 +213,19 @@ export function OnboardingWizard() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col relative overflow-hidden">
+    <div className="min-h-dvh bg-background text-foreground flex flex-col relative overflow-hidden">
       {/* Halos de marca, muy tenues, para que el fondo no quede plano */}
       <div className="absolute -top-32 -left-32 w-[28rem] h-[28rem] bg-accent/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-32 -right-32 w-[28rem] h-[28rem] bg-primary/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Cabecera + avance */}
-      <div className="relative z-10 max-w-4xl mx-auto w-full pt-8 pb-6 px-4">
-        <div className="flex items-center justify-between gap-4 mb-8">
+      <div className="relative z-10 max-w-4xl mx-auto w-full pt-5 pb-4 sm:pt-8 sm:pb-6 px-4">
+        <div className="flex items-center justify-between gap-3 sm:gap-4 mb-6 sm:mb-8">
           <BrandLogo className="py-0" />
           <button
             type="button"
             onClick={handleOmitir}
-            className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            className="min-h-10 px-2 -mr-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0"
           >
             {modoActualizacion ? "Cancelar" : "Omitir por ahora"}
           </button>
@@ -235,8 +235,8 @@ export function OnboardingWizard() {
       </div>
 
       {/* Contenido */}
-      <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8 md:py-12">
-        <div className="w-full max-w-4xl">
+      <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-6 sm:py-8 md:py-12">
+        <div className="w-full min-w-0 max-w-4xl">
           {loading ? (
             <div className="flex flex-col items-center justify-center space-y-5 py-16">
               <Loader2 className="w-10 h-10 animate-spin text-accent" />

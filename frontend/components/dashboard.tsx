@@ -211,12 +211,12 @@ const skeletonSummary = isLoadingSummary && !hasLoadedOnce.current
 const skeletonAvance = isLoadingAvance && !hasLoadedOnce.current
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-[1400px] mx-auto p-6 md:p-10">
+    <div className="min-h-dvh bg-background">
+      <div className="max-w-[1400px] mx-auto px-0 py-4 sm:p-6 md:p-10">
         {/* Saludo + métricas */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center mb-8">
-          <div className="lg:col-span-5 space-y-1">
-            <h1 className="font-heading text-2xl lg:text-3xl font-bold text-foreground flex items-center gap-2">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-center mb-6 sm:mb-8">
+          <div className="lg:col-span-5 space-y-1 min-w-0">
+            <h1 className="font-heading text-xl sm:text-2xl lg:text-3xl font-bold text-foreground flex flex-wrap items-center gap-2 break-words">
               Hola, {primerNombre} <span aria-hidden="true">👋</span>
             </h1>
             <p className="text-sm text-muted-foreground leading-relaxed">
@@ -229,7 +229,7 @@ const skeletonAvance = isLoadingAvance && !hasLoadedOnce.current
                 )}
             </p>
           </div>
-          <div className="lg:col-span-7">
+          <div className="lg:col-span-7 min-w-0">
             <StatsCards stats={stats} isLoading={skeletonSummary} compact />
           </div>
         </div>
@@ -238,20 +238,20 @@ const skeletonAvance = isLoadingAvance && !hasLoadedOnce.current
         {error && (
           <div role="alert" className="flex items-start gap-3 p-4 mb-6 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive">
             <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <p className="text-sm font-bold">Aviso del Sistema</p>
               <p className="text-sm opacity-90">{error}</p>
             </div>
-            <button onClick={loadDashboardData} className="text-xs font-bold uppercase hover:underline underline-offset-4">
+            <button onClick={loadDashboardData} className="shrink-0 min-h-10 px-1 text-xs font-bold uppercase hover:underline underline-offset-4">
               Reintentar
             </button>
           </div>
         )}
 
         {/* Main Grid: content + sidebar */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
           {/* Main Content */}
-          <div className="lg:col-span-8 space-y-6">
+          <div className="lg:col-span-8 space-y-4 sm:space-y-6 min-w-0">
             <DonacionBanner />
             <section>
               <ContinueLearning cursos={cursosActivos} isLoading={skeletonSummary} />
@@ -259,12 +259,12 @@ const skeletonAvance = isLoadingAvance && !hasLoadedOnce.current
           </div>
 
           {/* Panel lateral */}
-          <div className="lg:col-span-4 sticky top-24">
+          <div className="lg:col-span-4 min-w-0 lg:sticky lg:top-24">
             <SidebarWidgets stats={stats} logros={logros} isLoading={skeletonSummary} />
           </div>
         </div>
 
-        <footer className="border-t border-border pt-6 mt-16 flex flex-col md:flex-row justify-between items-center gap-4">
+        <footer className="border-t border-border pt-6 mt-10 sm:mt-16 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
           <p className="text-sm text-muted-foreground">
             UniVia · Un proyecto de LEAD UNI para la comunidad UNI
           </p>

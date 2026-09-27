@@ -15,7 +15,7 @@ const HITOS = [0, 0.25, 0.5, 0.75, 1]
 export function RielMeta({ resumen, cargando }: RielMetaProps) {
   if (cargando) {
     return (
-      <div className="rounded-3xl border border-white/[0.08] bg-card/60 p-6 sm:p-8">
+      <div className="rounded-3xl border border-white/[0.08] bg-card/60 p-4 sm:p-8">
         <div className="h-8 w-48 animate-pulse rounded bg-muted" />
         <div className="mt-6 h-4 w-full animate-pulse rounded-full bg-muted" />
       </div>
@@ -28,7 +28,7 @@ export function RielMeta({ resumen, cargando }: RielMetaProps) {
   const restante = Math.max(resumen.meta - resumen.recaudado, 0)
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-white/[0.08] bg-card/60 backdrop-blur-md p-6 sm:p-8">
+    <div className="relative overflow-hidden rounded-3xl border border-white/[0.08] bg-card/60 backdrop-blur-md p-4 sm:p-8">
       <div
         className="pointer-events-none absolute -top-24 left-1/3 h-56 w-56 rounded-full bg-[#7957f1]/10 blur-3xl"
         aria-hidden="true"
@@ -39,12 +39,12 @@ export function RielMeta({ resumen, cargando }: RielMetaProps) {
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
             Recaudado
           </p>
-          <p className="font-heading text-4xl sm:text-5xl font-bold tabular-nums text-foreground">
+          <p className="font-heading text-3xl sm:text-5xl font-bold tabular-nums text-foreground">
             {formatearSoles(resumen.recaudado)}
           </p>
         </div>
 
-        <dl className="flex items-end gap-6 sm:gap-8">
+        <dl className="flex flex-wrap items-end gap-x-5 gap-y-3 sm:gap-8">
           <div>
             <dt className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
               Meta
@@ -104,7 +104,7 @@ export function RielMeta({ resumen, cargando }: RielMetaProps) {
           aria-hidden="true"
         />
 
-        <div className="mt-3 flex justify-between">
+        <div className="mt-3 flex justify-between gap-1">
           {HITOS.map((hito) => (
             <span
               key={hito}

@@ -45,8 +45,8 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center p-6 text-foreground font-sans selection:bg-accent/30">
-      <div className="w-full max-w-md space-y-8">
+    <div className="min-h-dvh w-full bg-background flex flex-col items-center justify-center px-4 py-8 sm:p-6 text-foreground font-sans selection:bg-accent/30">
+      <div className="w-full min-w-0 max-w-md space-y-6 sm:space-y-8">
         <BrandLogo className="justify-center py-0" />
 
         {enviado ? (
@@ -59,7 +59,7 @@ export default function ForgotPasswordPage() {
               </div>
             </div>
             <h1 className="font-heading text-2xl font-bold text-foreground">Revisa tu correo</h1>
-            <p className="text-muted-foreground leading-relaxed">
+            <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
               Si el correo está registrado, recibirás un enlace para restablecer tu
               contraseña. Puede tardar un par de minutos en llegar.
             </p>
@@ -68,7 +68,7 @@ export default function ForgotPasswordPage() {
             </p>
             <Link
               href="/auth/login"
-              className="inline-flex items-center gap-2 text-sm text-accent hover:text-accent/80 font-medium transition-colors pt-2"
+              className="inline-flex min-h-10 items-center gap-2 text-sm text-accent hover:text-accent/80 font-medium transition-colors pt-2"
             >
               <ArrowLeft className="w-4 h-4" />
               Volver al inicio de sesión
@@ -103,7 +103,7 @@ export default function ForgotPasswordPage() {
                           type="email"
                           autoComplete="email"
                           placeholder="tucodigo@uni.pe"
-                          className="w-full px-4 py-3 bg-input border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 h-auto"
+                          className="w-full px-4 py-3 bg-input border border-border rounded-xl text-base sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 h-auto"
                           {...field}
                         />
                       </FormControl>
@@ -129,7 +129,7 @@ export default function ForgotPasswordPage() {
             <div className="text-center">
               <Link
                 href="/auth/login"
-                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="inline-flex min-h-10 items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Volver al inicio de sesión

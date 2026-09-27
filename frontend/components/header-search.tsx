@@ -126,7 +126,7 @@ export function HeaderSearch() {
   const mostrarPanel = abierto && consulta.trim().length > 0
 
   return (
-    <div ref={contenedor} className="relative group flex-1 max-w-xl hidden md:block rounded-full bg-white/[0.05] border border-white/[0.09] ring-0 transition-all duration-250 hover:bg-white/[0.08] hover:border-white/[0.15] focus-within:bg-white/[0.08] focus-within:border-[#7957f1]/40 focus-within:shadow-[0_0_0_3px_rgba(121,87,241,0.12),0_2px_12px_rgba(121,87,241,0.15)]">
+    <div ref={contenedor} className="relative group flex-1 min-w-0 max-w-xl hidden md:block rounded-full bg-white/[0.05] border border-white/[0.09] ring-0 transition-all duration-250 hover:bg-white/[0.08] hover:border-white/[0.15] focus-within:bg-white/[0.08] focus-within:border-[#7957f1]/40 focus-within:shadow-[0_0_0_3px_rgba(121,87,241,0.12),0_2px_12px_rgba(121,87,241,0.15)]">
       <label htmlFor="buscador-cursos" className="sr-only">
         Buscar un curso de tu malla
       </label>

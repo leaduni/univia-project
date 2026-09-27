@@ -30,9 +30,9 @@ export function CourseDetailsSheet({ course, isOpen, onOpenChange }: CourseDetai
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md bg-background border-border">
+      <SheetContent className="w-full sm:max-w-md bg-background border-border overflow-y-auto">
         <SheetHeader>
-          <SheetTitle className="text-2xl text-foreground">{course.name}</SheetTitle>
+          <SheetTitle className="text-xl sm:text-2xl text-foreground break-words pr-8">{course.name}</SheetTitle>
           <SheetDescription>{course.code}</SheetDescription>
         </SheetHeader>
 

@@ -178,7 +178,7 @@ function CodigoBloque({ children, node }: { children: ReactNode; node?: Element 
   }
 
   return (
-    <div className="rounded-xl overflow-hidden border border-border mb-4">
+    <div className="max-w-full min-w-0 rounded-xl overflow-hidden border border-border mb-4">
       <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border bg-muted/60">
         <span className="w-2.5 h-2.5 rounded-full bg-red-500/80" aria-hidden="true" />
         <span className="w-2.5 h-2.5 rounded-full bg-yellow-400/80" aria-hidden="true" />
@@ -193,7 +193,7 @@ function CodigoBloque({ children, node }: { children: ReactNode; node?: Element 
           {copiado ? "Copiado" : "Copiar"}
         </button>
       </div>
-      <pre className="m-0 bg-transparent">{children}</pre>
+      <pre className="m-0 max-w-full overflow-x-auto bg-transparent">{children}</pre>
     </div>
   )
 }
@@ -280,7 +280,7 @@ function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
   const textToRender = preprocessTables(preprocessLaTeX(String(raw)))
 
   return (
-    <div className={`break-words max-w-full ${className ?? ""}`}>
+    <div className={`break-words max-w-full min-w-0 [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden ${className ?? ""}`}>
       <ReactMarkdown
         remarkPlugins={[remarkMath]}
         rehypePlugins={[

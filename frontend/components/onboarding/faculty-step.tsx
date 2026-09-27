@@ -59,7 +59,7 @@ export function FacultyStep({ data, onNext, facultades, careers }: FacultyStepPr
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="px-6 py-2.5 rounded-xl text-sm font-semibold text-foreground bg-card border border-border hover:bg-muted transition-colors"
+          className="min-h-11 px-6 py-2.5 rounded-xl text-sm font-semibold text-foreground bg-card border border-border hover:bg-muted transition-colors"
         >
           Reintentar
         </button>
@@ -92,7 +92,7 @@ export function FacultyStep({ data, onNext, facultades, careers }: FacultyStepPr
               onClick={() => setSelected(facultad.id)}
               aria-pressed={isSelected}
               disabled={sinCarreras}
-              className={`flex items-start gap-4 p-4 rounded-2xl border text-left transition-all duration-200 ${
+              className={`flex items-start gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-2xl border text-left transition-all duration-200 ${
                 isSelected
                   ? "bg-card border-accent ring-1 ring-accent shadow-lg shadow-accent/10"
                   : "bg-card/60 border-border hover:border-accent/40 hover:bg-card"
@@ -125,12 +125,12 @@ export function FacultyStep({ data, onNext, facultades, careers }: FacultyStepPr
         })}
       </div>
 
-      <div className="flex justify-end pt-2">
+      <div className="flex flex-col sm:flex-row sm:justify-end pt-2">
         <button
           type="button"
           onClick={handleContinue}
           disabled={!selected}
-          className="px-8 py-3 rounded-xl font-semibold text-sm text-primary-foreground gradient-login-btn disabled:opacity-40 disabled:pointer-events-none transition-all shadow-lg shadow-accent/20 active:scale-[0.99] flex items-center gap-2"
+          className="w-full sm:w-auto justify-center min-h-11 px-8 py-3 rounded-xl font-semibold text-sm text-primary-foreground gradient-login-btn disabled:opacity-40 disabled:pointer-events-none transition-all shadow-lg shadow-accent/20 active:scale-[0.99] flex items-center gap-2"
         >
           <span>Continuar</span>
           <ArrowRight className="w-4 h-4" />

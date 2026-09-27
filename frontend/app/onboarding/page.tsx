@@ -3,7 +3,7 @@ import { OnboardingWizard } from "@/components/onboarding-wizard"
 
 export default function OnboardingPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh bg-background">
       <OnboardingWizard />
     </div>
   )

@@ -80,8 +80,8 @@ function TarjetaCurso({ curso, index }: { curso: CursoActivo; index: number }) {
         </div>
 
         {/* Fila superior: Código de curso + Badge En curso */}
-        <div className="flex justify-between items-center gap-2 z-10">
-          <span className="font-poppins font-bold text-[11px] text-white/90 tracking-wider">
+        <div className="flex justify-between items-center gap-2 z-10 min-w-0">
+          <span className="font-poppins font-bold text-[11px] text-white/90 tracking-wider truncate min-w-0">
             {curso.code}
           </span>
           <span className="text-[10.5px] px-2.5 py-0.5 rounded-md bg-[#141623]/60 backdrop-blur-md text-white font-medium border border-white/10 flex items-center gap-1.5 shrink-0">
@@ -151,7 +151,7 @@ export function ContinueLearning({ cursos, isLoading }: ContinueLearningProps) {
 
   if (!cursos?.length) {
     return (
-      <div className="p-8 text-center bg-[#232532] rounded-2xl border border-dashed border-[#3f424d]">
+      <div className="p-6 sm:p-8 text-center bg-[#232532] rounded-2xl border border-dashed border-[#3f424d]">
         <div className="p-3 rounded-xl bg-gradient-to-br from-[#a6249d] to-[#7957f1] inline-flex mb-3 shadow-md">
           <BookOpen className="w-6 h-6 text-white" />
         </div>
@@ -167,11 +167,11 @@ export function ContinueLearning({ cursos, isLoading }: ContinueLearningProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-poppins font-semibold text-[19px] text-[#e9e9ed]">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-poppins font-semibold text-[17px] sm:text-[19px] text-[#e9e9ed] min-w-0">
           Continúa donde te quedaste
         </h2>
-        <Link href="/malla" className="text-xs font-semibold text-primary hover:underline transition-colors">
+        <Link href="/malla" className="shrink-0 inline-flex items-center min-h-10 lg:min-h-0 text-xs font-semibold text-primary hover:underline transition-colors">
           Ver mi malla →
         </Link>
       </div>

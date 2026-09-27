@@ -244,7 +244,7 @@ export function HiloPublicacion({ publicacionId, publicacionInicial }: HiloPubli
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#090a12] text-white">
+    <main className="relative min-h-dvh overflow-hidden bg-[#090a12] text-white">
       {/* Atmósfera / orbes de luz */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -left-40 top-32 h-[420px] w-[420px] rounded-full bg-fuchsia-500/[0.045] blur-[120px]" />
@@ -265,7 +265,7 @@ export function HiloPublicacion({ publicacionId, publicacionInicial }: HiloPubli
         }}
       />
 
-      <div className="relative z-10 mx-auto w-full max-w-5xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+      <div className="relative z-10 mx-auto w-full max-w-5xl space-y-6 px-0 py-3 sm:px-6 sm:py-8 lg:px-8">
       {/* Cuerpo de la publicación */}
       <article className="group relative overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.025] shadow-2xl shadow-black/30 backdrop-blur-xl transition-all duration-300 hover:border-white/[0.12]">
         {/* Glow interno superior */}
@@ -273,9 +273,9 @@ export function HiloPublicacion({ publicacionId, publicacionInicial }: HiloPubli
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-fuchsia-400/40 to-transparent opacity-60"
         />
-        <div className="p-6 sm:p-8">
+        <div className="p-4 sm:p-8">
         <div className="flex items-start justify-between gap-3">
-          <h1 className="text-2xl font-semibold tracking-[-0.025em] text-white sm:text-3xl">{publicacion.titulo}</h1>
+          <h1 className="min-w-0 break-words text-xl font-semibold tracking-[-0.025em] text-white sm:text-3xl">{publicacion.titulo}</h1>
           {publicacion.estado === "resuelta" && (
             <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -311,12 +311,12 @@ export function HiloPublicacion({ publicacionId, publicacionInicial }: HiloPubli
         )}
 
         {/* Cuerpo con Markdown (bloques de código con sintaxis incluidos) */}
-        <div className="mt-4 max-w-3xl pt-2 text-[15px] leading-7 text-slate-200/90">
+        <div className="mt-4 min-w-0 max-w-3xl break-words pt-2 text-[15px] leading-7 text-slate-200/90">
           <MarkdownRenderer content={publicacion.cuerpo} />
         </div>
 
         {/* Votos, vistas y guardado de la publicación */}
-        <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-white/[0.07] pt-4">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-2 sm:mt-8 sm:gap-4 border-t border-white/[0.07] pt-4">
           <div className="flex items-center gap-1">
             <VotoBotones
               numVotos={publicacion.num_votos}
@@ -496,8 +496,8 @@ function ComentarioNodo({
   const puedeAnidar = profundidad < PROFUNDIDAD_MAX - 1
 
   return (
-    <div className={cn(profundidad > 0 && "ml-6")}>
-      <div className="group/comment relative overflow-hidden rounded-2xl border border-white/[0.065] bg-white/[0.015] p-5 backdrop-blur-xl transition-all duration-300 hover:border-white/[0.10] hover:bg-white/[0.02]">
+    <div className={cn(profundidad > 0 && "ml-3 sm:ml-6")}>
+      <div className="group/comment relative overflow-hidden rounded-2xl border border-white/[0.065] bg-white/[0.015] p-4 sm:p-5 backdrop-blur-xl transition-all duration-300 hover:border-white/[0.10] hover:bg-white/[0.02]">
         {/* Línea luminosa al hover */}
         <div
           aria-hidden="true"
@@ -514,9 +514,9 @@ function ComentarioNodo({
             autorNombre={comentario.autor_nombre}
           />
         </div>
-        <p className="mt-3 text-sm leading-6 text-slate-200/90 whitespace-pre-wrap">{comentario.cuerpo}</p>
+        <p className="mt-3 text-sm leading-6 text-slate-200/90 whitespace-pre-wrap break-words">{comentario.cuerpo}</p>
 
-        <div className="mt-4 flex items-center gap-1">
+        <div className="mt-4 flex flex-wrap items-center gap-1">
           <VotoBotones
             numVotos={comentario.num_votos}
             miVoto={comentario.mi_voto}
@@ -608,7 +608,7 @@ function VotoBotones({
         aria-label="Votar a favor"
         aria-pressed={miVoto === 1}
         className={cn(
-          "group/action inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs transition-all duration-200",
+          "group/action inline-flex min-h-10 items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs sm:min-h-0 transition-all duration-200",
           miVoto === 1
             ? "text-emerald-400"
             : "text-slate-500 hover:bg-emerald-500/10 hover:text-emerald-400",
@@ -638,7 +638,7 @@ function VotoBotones({
         aria-label="Votar en contra"
         aria-pressed={miVoto === -1}
         className={cn(
-          "rounded-xl p-1.5 transition-all duration-200",
+          "inline-flex min-h-10 min-w-10 items-center justify-center rounded-xl p-1.5 transition-all duration-200 sm:min-h-0 sm:min-w-0",
           miVoto === -1
             ? "text-rose-400"
             : "text-slate-500 hover:bg-white/[0.05] hover:text-slate-300",
@@ -664,7 +664,7 @@ function RespuestaForm({
   onEnviar: () => void
 }) {
   return (
-    <div className="mt-3 flex gap-2">
+    <div className="mt-3 flex flex-wrap gap-2 sm:flex-nowrap">
       <input
         value={respuesta}
         onChange={(e) => setRespuesta(e.target.value)}
@@ -672,7 +672,7 @@ function RespuestaForm({
         maxLength={20000}
         aria-label="Respuesta"
         className={cn(
-          "flex-1 rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2 text-sm text-white",
+          "min-w-0 basis-full flex-1 rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2 text-sm text-white sm:basis-auto",
           "placeholder:text-slate-500 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/10",
         )}
       />

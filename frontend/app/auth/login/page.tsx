@@ -39,7 +39,7 @@ type LoginFormValues = z.infer<typeof loginSchema>
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="h-screen bg-background flex items-center justify-center"><p className="text-foreground">Cargando...</p></div>}>
+    <Suspense fallback={<div className="h-dvh bg-background flex items-center justify-center"><p className="text-foreground">Cargando...</p></div>}>
       <LoginPageContent />
     </Suspense>
   )
@@ -136,10 +136,10 @@ function LoginPageContent() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-background grid grid-cols-1 lg:grid-cols-12 text-foreground font-sans selection:bg-accent/30 selection:text-foreground">
+    <div className="min-h-dvh w-full bg-background grid grid-cols-1 lg:grid-cols-12 text-foreground font-sans selection:bg-accent/30 selection:text-foreground">
       {showSuccessToast && (
-        <div className="fixed top-6 right-6 z-50 animate-in fade-in slide-in-from-top-4 duration-500">
-          <div className="bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-emerald-500/20">
+        <div className="fixed top-4 left-4 right-4 sm:top-6 sm:left-auto sm:right-6 z-50 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="bg-emerald-600 text-white px-4 sm:px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-emerald-500/20">
             <Sparkles className="w-5 h-5 animate-bounce" />
             <p className="font-bold text-sm">¡Cuenta creada! Ya puedes iniciar sesión.</p>
           </div>
@@ -147,7 +147,7 @@ function LoginPageContent() {
       )}
 
       {/* SECCIÓN IZQUIERDA: HERO / BRANDING */}
-      <div className="hidden lg:flex lg:col-span-5 flex-col justify-between bg-card border-r border-border p-8 xl:p-12 2xl:p-16 3xl:p-24 relative overflow-hidden min-h-screen">
+      <div className="hidden lg:flex lg:col-span-5 flex-col justify-between bg-card border-r border-border p-8 xl:p-12 2xl:p-16 3xl:p-24 relative overflow-hidden min-h-dvh">
         <div className="absolute -top-24 -left-24 w-96 h-96 2xl:w-[500px] 2xl:h-[500px] bg-accent/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -right-24 w-96 h-96 2xl:w-[500px] 2xl:h-[500px] bg-primary/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -175,8 +175,8 @@ function LoginPageContent() {
       </div>
 
       {/* SECCIÓN DERECHA: FORMULARIO */}
-      <div className="col-span-1 lg:col-span-7 bg-background flex flex-col justify-center items-center p-6 sm:p-12 xl:p-16 2xl:p-24 min-h-screen">
-        <div className="w-full max-w-md xl:max-w-lg 2xl:max-w-xl space-y-6 2xl:space-y-8">
+      <div className="col-span-1 lg:col-span-7 bg-background flex flex-col justify-center items-center px-4 py-8 sm:p-12 xl:p-16 2xl:p-24 min-h-dvh">
+        <div className="w-full min-w-0 max-w-md xl:max-w-lg 2xl:max-w-xl space-y-6 2xl:space-y-8">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <h2 className="font-heading text-2xl xl:text-3xl 2xl:text-4xl font-bold tracking-tight text-foreground">UniVia</h2>
@@ -196,9 +196,9 @@ function LoginPageContent() {
             type="button"
             disabled={isLoading}
             onClick={handleGoogleLogin}
-            className="w-full py-4 2xl:py-5 px-4 gradient-login-btn text-primary-foreground font-semibold rounded-xl text-sm 2xl:text-base transition-all duration-200 shadow-lg shadow-accent/20 active:scale-[0.99] h-auto"
+            className="w-full whitespace-normal text-center leading-snug py-4 2xl:py-5 px-4 gradient-login-btn text-primary-foreground font-semibold rounded-xl text-sm 2xl:text-base transition-all duration-200 shadow-lg shadow-accent/20 active:scale-[0.99] h-auto"
           >
-            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" aria-hidden="true">
+            <svg className="w-5 h-5 mr-2 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
               <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
               <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z" />
@@ -209,7 +209,7 @@ function LoginPageContent() {
 
           <div className="flex items-center gap-3">
             <span className="h-px flex-1 bg-white/[0.10]" />
-            <span className="text-xs font-medium uppercase text-muted-foreground">
+            <span className="text-center text-[11px] sm:text-xs font-medium uppercase text-muted-foreground">
               o ingresa con tus credenciales
             </span>
             <span className="h-px flex-1 bg-white/[0.10]" />
@@ -231,7 +231,7 @@ function LoginPageContent() {
                         inputMode="email"
                         autoComplete="username"
                         placeholder="tucodigo@uni.pe o 20210001K"
-                        className="w-full px-4 py-3 2xl:py-4 bg-input border border-border rounded-xl text-sm 2xl:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 h-auto"
+                        className="w-full px-4 py-3 2xl:py-4 bg-input border border-border rounded-xl text-base sm:text-sm 2xl:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 h-auto"
                         {...field}
                       />
                     </FormControl>
@@ -253,13 +253,13 @@ function LoginPageContent() {
                         <Input
                           type={showPassword ? "text" : "password"}
                           placeholder="••••••••"
-                          className="w-full px-4 py-3 2xl:py-4 bg-input border border-border rounded-xl text-sm 2xl:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 pr-10 h-auto"
+                          className="w-full px-4 py-3 2xl:py-4 bg-input border border-border rounded-xl text-base sm:text-sm 2xl:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 pr-12 h-auto"
                           {...field}
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs"
+                          className="absolute right-1 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center text-muted-foreground hover:text-foreground text-xs"
                           aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                         >
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}

@@ -54,7 +54,7 @@ export function NuevoHiloModal({ abierto, onCerrar, onCreada }: NuevoHiloModalPr
       aria-label="Crear nuevo hilo"
     >
       <div
-        className="w-full max-w-lg rounded-t-2xl sm:rounded-2xl border border-white/10 bg-card p-5 sm:p-6 shadow-2xl anim-up max-h-[90vh] overflow-y-auto custom-scrollbar"
+        className="w-full max-w-lg rounded-t-2xl sm:rounded-2xl border border-white/10 bg-card p-5 sm:p-6 shadow-2xl anim-up max-h-[90dvh] overflow-y-auto custom-scrollbar"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
@@ -63,7 +63,7 @@ export function NuevoHiloModal({ abierto, onCerrar, onCreada }: NuevoHiloModalPr
             type="button"
             onClick={onCerrar}
             aria-label="Cerrar"
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg p-1.5 text-muted-foreground sm:h-auto sm:w-auto hover:bg-white/5 hover:text-foreground transition-colors"
           >
             <X className="h-4 w-4" />
           </button>

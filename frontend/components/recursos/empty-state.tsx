@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 
 export function RecursosEmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-20 text-center max-w-md mx-auto">
+    <div className="flex flex-col items-center justify-center gap-3 py-12 sm:py-20 text-center max-w-md mx-auto">
       <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-md">
         <Search className="w-8 h-8 text-primary" />
       </div>

@@ -199,7 +199,7 @@ function BloqueEvento({ evento, etiquetas, filtros, onClick, totalHorasPx, onAut
         
         {/* Botón Reubicar */}
         {estaVencido && onAutoReschedule && (
-          <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+          <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity z-10">
             <button
               onClick={(e) => { e.stopPropagation(); onAutoReschedule(evento.id) }}
               className="bg-rose-500 hover:bg-rose-600 text-white rounded shadow-md p-1 transition-transform hover:scale-110 active:scale-95"
@@ -258,12 +258,12 @@ function CurrentTimeLine({ totalHorasPx }: { totalHorasPx: number }) {
 function EjeHoras({ totalHorasPx }: { totalHorasPx: number }) {
   const horas = Array.from({ length: TOTAL_H + 1 }, (_, i) => i)
   return (
-    <div className="shrink-0 w-16 border-r border-slate-800/80 bg-[#0b0d1f]">
+    <div className="shrink-0 w-12 sm:w-16 border-r border-slate-800/80 bg-[#0b0d1f] sticky left-0 z-[35]">
       <div className="sticky top-0 z-30 h-[52px] border-b border-slate-800/80 bg-[#0b0d1f]" />
       <div style={{ height: `${totalHorasPx}px`, position: "relative" }}>
         {horas.map(h => (
-          <div key={h} id={`hour-${h}`} className="absolute right-0 left-0 flex items-start justify-end pr-3" style={{ top: `${(h / TOTAL_H) * 100}%` }}>
-            {h < TOTAL_H && <span className={`text-xs font-medium text-slate-400 whitespace-nowrap select-none ${h === 0 ? "translate-y-1" : "-translate-y-2"}`}>{hora12Label(h)}</span>}
+          <div key={h} id={`hour-${h}`} className="absolute right-0 left-0 flex items-start justify-end pr-1.5 sm:pr-3" style={{ top: `${(h / TOTAL_H) * 100}%` }}>
+            {h < TOTAL_H && <span className={`text-[10px] sm:text-xs font-medium text-slate-400 whitespace-nowrap select-none ${h === 0 ? "translate-y-1" : "-translate-y-2"}`}>{hora12Label(h)}</span>}
           </div>
         ))}
       </div>
@@ -448,7 +448,7 @@ function ColumnaDia({
   const numDia = fecha.getDate()
 
   return (
-    <div className="flex-1 flex flex-col border-r border-slate-800/50 min-w-[120px] relative">
+    <div className="flex-1 flex flex-col border-r border-slate-800/50 min-w-[100px] sm:min-w-[120px] relative">
       <div className={`sticky top-0 z-20 h-[52px] flex flex-col items-center justify-center border-b border-slate-800/80 ${esHoy ? "bg-indigo-500/10 backdrop-blur-md" : "bg-[#0b0d1f]"}`}>
         <span className={`text-[10px] font-bold uppercase tracking-wider ${esHoy ? "text-indigo-400" : "text-slate-500"}`}>{diaLabel}</span>
         <div className={`mt-0.5 flex items-center justify-center w-7 h-7 rounded-full ${esHoy ? "bg-indigo-500 shadow-[0_0_12px_rgba(99,102,241,0.5)]" : ""}`}>
@@ -489,7 +489,7 @@ function VistaSemana({
 
   return (
     <div className="flex-1 overflow-auto custom-scrollbar">
-      <div className="flex pb-20" style={{ minWidth: "768px" }}>
+      <div className="flex pb-20 min-w-max md:min-w-[768px]">
         <EjeHoras totalHorasPx={totalHorasPx} />
         {fechasSemana.map((fecha) => {
           const iso = formatearISO(fecha)
@@ -569,13 +569,13 @@ function VistaMes({
   })
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden p-4">
-      <div className="grid grid-cols-7 mb-2">
+    <div className="flex-1 flex flex-col h-full overflow-hidden p-1.5 sm:p-4">
+      <div className="grid grid-cols-7 mb-1 sm:mb-2">
         {DIAS_CORTOS.map(d => (
-          <div key={d} className="py-2 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-widest">{d}</div>
+          <div key={d} className="py-1.5 sm:py-2 text-center text-[9px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-normal sm:tracking-widest">{d}</div>
         ))}
       </div>
-      <div className="flex-1 grid grid-cols-7 gap-px bg-slate-800/40 rounded-xl overflow-hidden border border-slate-800/50">
+      <div className="flex-1 grid grid-cols-7 gap-px bg-slate-800/40 rounded-lg sm:rounded-xl overflow-hidden border border-slate-800/50">
         {celdas.map((dia, i) => {
           if (!dia) return <div key={`e-${i}`} className="bg-[#090b1c]" />
           const fechaCelda = new Date(año, mes, dia)
@@ -589,27 +589,27 @@ function VistaMes({
             <div
               key={dia}
               onClick={() => onCeldaClick({ horaInicio: 9, fecha: fechaCelda })}
-              className={`bg-[#090b1c] p-2 flex flex-col cursor-pointer hover:bg-white/[0.03] transition-colors group ${esHoy ? "ring-1 ring-inset ring-indigo-500/40" : ""}`}
+              className={`bg-[#090b1c] p-0.5 sm:p-2 min-w-0 flex flex-col cursor-pointer hover:bg-white/[0.03] transition-colors group ${esHoy ? "ring-1 ring-inset ring-indigo-500/40" : ""}`}
             >
-              <div className="flex justify-end mb-1.5">
-                <span className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-semibold transition-all
+              <div className="flex justify-center sm:justify-end mb-0.5 sm:mb-1.5">
+                <span className={`w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-full text-xs font-semibold transition-all
                   ${esHoy ? "bg-indigo-500 text-white shadow-[0_0_10px_rgba(99,102,241,0.5)]" : "text-slate-400 group-hover:text-slate-200"}`}>
                   {dia}
                 </span>
               </div>
-              <div className="space-y-1 overflow-hidden flex-1">
+              <div className="space-y-0.5 sm:space-y-1 overflow-hidden flex-1 min-w-0">
                 {visibles.map(ev => {
                   const etiqueta = etiquetas.find(e => e.id === ev.etiquetaId)
                   const s = getEstiloColor(etiqueta ? etiqueta.color : "indigo")
                   return (
                     <div key={ev.id} onClick={e => e.stopPropagation()}
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-medium truncate cursor-pointer ${s.bg} ${s.bgHover} ${s.text} border-l-2`}
+                      className={`rounded px-0.5 sm:px-1.5 py-0.5 text-[8px] sm:text-[10px] font-medium truncate cursor-pointer ${s.bg} ${s.bgHover} ${s.text} border-l-2`}
                       style={{ borderColor: s.dot }}>
                       {ev.titulo}
                     </div>
                   )
                 })}
-                {masEventos > 0 && <p className="text-[10px] font-medium text-slate-500 pl-1">+{masEventos} más</p>}
+                {masEventos > 0 && <p className="text-[8px] sm:text-[10px] font-medium text-slate-500 pl-0.5 sm:pl-1 truncate">+{masEventos} más</p>}
               </div>
             </div>
           )
@@ -623,8 +623,8 @@ function VistaAño({ baseDate }: { baseDate: Date }) {
   const año = baseDate.getFullYear()
   const hoy = new Date()
   return (
-    <div className="flex-1 overflow-auto custom-scrollbar p-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+    <div className="flex-1 overflow-auto custom-scrollbar p-3 sm:p-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
         {MESES.map((nombreMes, mesIdx) => {
           const primerDia = new Date(año, mesIdx, 1).getDay()
           const offset = primerDia === 0 ? 6 : primerDia - 1
@@ -633,7 +633,7 @@ function VistaAño({ baseDate }: { baseDate: Date }) {
           const esMesActual = hoy.getFullYear() === año && hoy.getMonth() === mesIdx
 
           return (
-            <div key={nombreMes} className="bg-[#13142a]/50 rounded-xl border border-white/5 p-4">
+            <div key={nombreMes} className="bg-[#13142a]/50 rounded-xl border border-white/5 p-3 sm:p-4">
               <h3 className={`text-sm font-semibold mb-3 ${esMesActual ? "text-indigo-400" : "text-slate-300"}`}>{nombreMes}</h3>
               <div className="grid grid-cols-7 gap-1 text-center mb-1">
                 {["L", "M", "M", "J", "V", "S", "D"].map((d, i) => <span key={i} className="text-[10px] font-medium text-slate-500">{d}</span>)}
@@ -689,7 +689,7 @@ function VistaAgenda({
   const fechasOrdenadas = Object.keys(grupos).sort()
 
   return (
-    <div className="flex-1 overflow-auto custom-scrollbar p-6 w-full">
+    <div className="flex-1 overflow-auto custom-scrollbar p-3 sm:p-6 w-full">
       <div className="max-w-none w-full">
         {fechasOrdenadas.length === 0 && (
           <div className="flex flex-col items-center justify-center h-48 gap-3 text-slate-600">
@@ -709,7 +709,7 @@ function VistaAgenda({
 
           return (
             <div key={iso} className="mb-8">
-              <div className={`flex items-center gap-3 mb-4 pb-2 border-b ${esHoy ? "border-indigo-500/40" : "border-slate-800"}`}>
+              <div className={`flex items-center flex-wrap gap-2 sm:gap-3 mb-3 sm:mb-4 pb-2 border-b ${esHoy ? "border-indigo-500/40" : "border-slate-800"}`}>
                 <div className={`flex items-center gap-2 ${esHoy ? "text-indigo-400" : "text-slate-300"}`}>
                   <span className="text-sm font-bold uppercase tracking-wider">{diaNombre}</span>
                   <span className="text-sm font-medium text-slate-500">{d.toLocaleDateString("es-PE", { day: "numeric", month: "long" })}</span>
@@ -717,7 +717,7 @@ function VistaAgenda({
                 {esHoy && <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">Hoy</span>}
               </div>
 
-              <div className="space-y-2.5 pl-2">
+              <div className="space-y-2.5 pl-0 sm:pl-2">
                 {evsDia.map(ev => {
                   const etiqueta = etiquetas.find(e => e.id === ev.etiquetaId)
                   const s = getEstiloColor(etiqueta ? etiqueta.color : "indigo")
@@ -726,7 +726,7 @@ function VistaAgenda({
                   const completado = completados.has(ev.id)
 
                   return (
-                    <div key={ev.id} className={`flex items-center gap-4 p-3.5 rounded-xl cursor-pointer transition-all duration-300 border
+                    <div key={ev.id} className={`flex items-center gap-2.5 sm:gap-4 p-3 sm:p-3.5 rounded-xl cursor-pointer transition-all duration-300 border
                       ${completado ? "bg-white/5 border-white/5 opacity-60 grayscale-[0.3]" : `${s.bg} ${s.bgHover} ${s.border} ${s.glow}`}`}>
                       
                       <div onClick={(e) => toggleCompletado(ev.id, e)}
@@ -735,17 +735,17 @@ function VistaAgenda({
                         {completado && <Check className="w-4 h-4 text-white" />}
                       </div>
 
-                      <div className={`flex flex-col items-center shrink-0 w-16 ${completado ? "text-slate-500" : s.text}`}>
-                        <span className="text-xs font-bold">{hora12Label(ev.horaInicio, true)}</span>
-                        <span className="text-[10px] opacity-70">{hora12Label(ev.horaInicio + ev.duracion, true)}</span>
+                      <div className={`flex flex-col items-center shrink-0 w-14 sm:w-16 ${completado ? "text-slate-500" : s.text}`}>
+                        <span className="text-[11px] sm:text-xs font-bold whitespace-nowrap">{hora12Label(ev.horaInicio, true)}</span>
+                        <span className="text-[10px] opacity-70 whitespace-nowrap">{hora12Label(ev.horaInicio + ev.duracion, true)}</span>
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <p className={`text-[15px] font-semibold truncate transition-all ${completado ? "line-through text-slate-500" : s.text}`}>{ev.titulo}</p>
+                        <p className={`text-sm sm:text-[15px] font-semibold truncate transition-all ${completado ? "line-through text-slate-500" : s.text}`}>{ev.titulo}</p>
                         {ev.subtitulo && <p className={`text-xs mt-0.5 truncate transition-all ${completado ? "text-slate-600" : s.sub}`}>{ev.subtitulo}</p>}
                       </div>
 
-                      <span className={`text-[10px] font-medium px-2.5 py-1 rounded-full shrink-0 transition-all ${completado ? "bg-white/5 text-slate-500" : s.badge}`}>
+                      <span className={`text-[10px] font-medium px-2 sm:px-2.5 py-1 rounded-full shrink-0 max-w-[84px] sm:max-w-none truncate transition-all ${completado ? "bg-white/5 text-slate-500" : s.badge}`}>
                         {etiqueta ? etiqueta.nombre : "Evento"}
                       </span>
                     </div>

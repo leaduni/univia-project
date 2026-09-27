@@ -131,7 +131,7 @@ export function HeroSection({ ctaLabel = "Empieza a aprender" }: { ctaLabel?: st
           data-reveal-delay="200"
           style={{
             margin: 0,
-            fontSize: "clamp(60px, 13vw, 168px)",
+            fontSize: "clamp(48px, 13vw, 168px)",
             fontWeight: 800,
             lineHeight: 0.92,
             letterSpacing: "0.03em",
@@ -163,6 +163,7 @@ export function HeroSection({ ctaLabel = "Empieza a aprender" }: { ctaLabel?: st
         <div
           data-reveal="up"
           data-reveal-delay="470"
+          className="univia-cta-row"
           style={{
             display: "flex",
             flexWrap: "wrap",

@@ -53,7 +53,7 @@ export function MessageBubble({ message, isTyping = false, recursos }: MessageBu
       <div className="flex justify-end">
         <div
           ref={burbujaRef}
-          className={`${CHAT_TOKENS.RADIUS_BUBBLE_USER} bg-primary text-primary-foreground px-4 py-2.5 max-w-[78%] text-sm leading-relaxed shadow-md`}
+          className={`${CHAT_TOKENS.RADIUS_BUBBLE_USER} bg-primary text-primary-foreground px-3.5 py-2.5 sm:px-4 max-w-[85%] sm:max-w-[78%] text-sm leading-relaxed shadow-md`}
         >
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         </div>
@@ -62,7 +62,7 @@ export function MessageBubble({ message, isTyping = false, recursos }: MessageBu
   }
 
   return (
-    <div className="flex justify-start gap-2.5">
+    <div className="flex justify-start gap-2 sm:gap-2.5">
       {/* Avatar oficial del asistente */}
       <div
         className="w-7 h-7 rounded-full bg-gradient-to-br from-[#d93340] via-[#a6249d] to-[#7957f1] flex items-center justify-center shrink-0 shadow-sm"
@@ -74,7 +74,7 @@ export function MessageBubble({ message, isTyping = false, recursos }: MessageBu
       <div className="min-w-0 flex flex-col items-start gap-1.5">
         <div
           ref={burbujaRef}
-          className={`${CHAT_TOKENS.RADIUS_BUBBLE_AI} ${PANEL_BG} ${CHAT_TOKENS.PANEL_BLUR} ${CHAT_TOKENS.BORDER} px-4 py-3 max-w-[82%] text-sm leading-relaxed`}
+          className={`${CHAT_TOKENS.RADIUS_BUBBLE_AI} ${PANEL_BG} ${CHAT_TOKENS.PANEL_BLUR} ${CHAT_TOKENS.BORDER} px-3.5 py-3 sm:px-4 max-w-full sm:max-w-[82%] min-w-0 text-sm leading-relaxed`}
         >
           {isTyping && !message.content ? (
             <span className="flex gap-1 items-center py-1 px-1">
@@ -93,7 +93,7 @@ export function MessageBubble({ message, isTyping = false, recursos }: MessageBu
 
         {/* Tarjetas de recursos: una por enlace, debajo de la respuesta. */}
         {recursos && recursos.length > 0 && (
-          <div className="flex flex-col gap-1.5 max-w-[82%]">
+          <div className="flex flex-col gap-1.5 max-w-full sm:max-w-[82%]">
             {recursos.map((recurso) => {
               const esPortalUni = recurso.url.includes("uni.edu.pe")
               return (

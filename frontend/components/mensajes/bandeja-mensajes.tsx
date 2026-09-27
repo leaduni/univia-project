@@ -43,7 +43,7 @@ export function BandejaMensajes() {
   }
 
   return (
-    <main className="relative min-h-[calc(100vh-96px)] overflow-hidden bg-[#090a12] text-white">
+    <main className="relative min-h-[calc(100dvh-96px)] overflow-hidden bg-[#090a12] text-white">
 
       {/* =========================================================
           ATMÓSFERA
@@ -69,10 +69,10 @@ export function BandejaMensajes() {
           PAGE CONTENT
       ========================================================== */}
 
-      <div className="relative mx-auto w-full max-w-[1600px] px-5 py-7 sm:px-8 lg:px-10 lg:py-8">
+      <div className="relative mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-8 sm:py-7 lg:px-10 lg:py-8">
 
         {/* Page heading */}
-        <header className="mb-6">
+        <header className="mb-4 sm:mb-6">
           <div className="mb-2 flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.7)]" />
 
@@ -81,7 +81,7 @@ export function BandejaMensajes() {
             </span>
           </div>
 
-          <h1 className="text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">
+          <h1 className="text-2xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">
             Mensajes
           </h1>
 
@@ -105,10 +105,13 @@ export function BandejaMensajes() {
             className="
               relative
               flex
-              h-[calc(100dvh-245px)]
-              min-h-[560px]
+              h-[calc(100dvh-200px)]
+              min-h-[420px]
+              sm:h-[calc(100dvh-245px)]
+              sm:min-h-[560px]
               overflow-hidden
-              rounded-[24px]
+              rounded-[20px]
+              sm:rounded-[24px]
               border
               border-white/[0.08]
               bg-white/[0.02]
@@ -125,21 +128,24 @@ export function BandejaMensajes() {
                 SIDEBAR
             ====================================================== */}
 
+            {/* Móvil: un panel a la vez según `activa`; md+: lado a lado. */}
             <aside
-              className="
-                flex
+              className={`
+                ${activa ? "hidden md:flex" : "flex"}
                 w-full
-                max-w-[330px]
+                min-w-0
+                md:max-w-[280px]
+                lg:max-w-[330px]
                 shrink-0
                 flex-col
-                border-r
+                md:border-r
                 border-white/[0.06]
                 bg-white/[0.01]
-              "
+              `}
             >
 
               {/* Sidebar header */}
-              <div className="flex h-[64px] shrink-0 items-center border-b border-white/[0.06] px-5">
+              <div className="flex h-[64px] shrink-0 items-center border-b border-white/[0.06] px-4 sm:px-5">
                 <div>
                   <h2 className="text-sm font-semibold tracking-[-0.01em] text-white/90">
                     Conversaciones
@@ -236,7 +242,7 @@ export function BandejaMensajes() {
                      EMPTY STATE — SIDEBAR
                   ================================================== */
 
-                  <div className="flex h-full min-h-[360px] flex-col items-center justify-start px-6 pt-14 text-center">
+                  <div className="flex h-full min-h-[280px] flex-col items-center justify-start px-4 pt-10 text-center sm:min-h-[360px] sm:px-6 sm:pt-14">
 
                     {/* Icon container (variante pulida con brillo) */}
                     <div className="relative mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/15 bg-cyan-400/[0.07] text-cyan-400">
@@ -265,7 +271,7 @@ export function BandejaMensajes() {
                 CHAT AREA
             ====================================================== */}
 
-            <section className="relative flex min-w-0 flex-1 flex-col">
+            <section className={`relative ${activa ? "flex" : "hidden md:flex"} min-w-0 flex-1 flex-col`}>
 
               {/* Subtle radial light inside chat */}
               <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
@@ -287,7 +293,7 @@ export function BandejaMensajes() {
                    EMPTY STATE — CHAT PRINCIPAL
                 ================================================== */
 
-                <div className="relative flex flex-1 items-center justify-center px-6">
+                <div className="relative flex flex-1 items-center justify-center px-4 sm:px-6">
 
                   <div className="flex max-w-md flex-col items-center text-center">
 

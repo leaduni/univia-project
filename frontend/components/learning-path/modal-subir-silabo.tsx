@@ -92,11 +92,11 @@ export function ModalSubirSilabo({
       onClick={cerrar}
     >
       <div
-        className="bg-[#14132a] border border-[#27244a] rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4"
+        className="bg-[#14132a] border border-[#27244a] rounded-2xl p-4 sm:p-6 w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[90dvh] overflow-y-auto shadow-2xl space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0 break-words">
             <h3 className="text-lg font-bold text-white">Subir sílabo oficial</h3>
             <p className="text-xs text-slate-400 mt-1">
               Lo procesaremos en menos de 24 horas y la ruta oficial de{" "}
@@ -106,7 +106,7 @@ export function ModalSubirSilabo({
           <button
             onClick={cerrar}
             disabled={subiendo}
-            className="text-slate-500 hover:text-slate-300 disabled:opacity-40"
+            className="shrink-0 -m-2 p-2 text-slate-500 hover:text-slate-300 disabled:opacity-40"
             aria-label="Cerrar"
           >
             <X className="w-5 h-5" />
@@ -122,7 +122,7 @@ export function ModalSubirSilabo({
             </p>
             <button
               onClick={cerrar}
-              className="mt-2 px-5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-all"
+              className="mt-2 min-h-[40px] sm:min-h-0 px-5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-all"
             >
               Entendido
             </button>
@@ -146,7 +146,7 @@ export function ModalSubirSilabo({
                   setArrastrando(false)
                   seleccionar(e.dataTransfer.files?.[0])
                 }}
-                className={`rounded-xl border-2 border-dashed p-8 text-center cursor-pointer transition-all ${
+                className={`rounded-xl border-2 border-dashed p-5 sm:p-8 text-center cursor-pointer transition-all ${
                   arrastrando
                     ? "border-[#ec4899] bg-pink-500/5"
                     : "border-[#3b3475] hover:border-[#5a4fb0] hover:bg-[#1d1a3b]/60"
@@ -171,7 +171,7 @@ export function ModalSubirSilabo({
                 {!subiendo && (
                   <button
                     onClick={() => setArchivo(null)}
-                    className="text-slate-500 hover:text-slate-300 shrink-0"
+                    className="-m-2 p-2 text-slate-500 hover:text-slate-300 shrink-0"
                     aria-label="Quitar archivo"
                   >
                     <X className="w-4 h-4" />

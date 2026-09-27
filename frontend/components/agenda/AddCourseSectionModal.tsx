@@ -216,30 +216,30 @@ export function AddCourseSectionModal({
   const selectedBloques = selectedCourse && selectedSection ? selectedCourse.secciones[selectedSection]?.bloques || [] : []
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 safe-modal-padding">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" />
-      <div ref={modalRef} className="relative z-10 w-full max-w-lg bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+      <div ref={modalRef} className="relative z-10 w-full max-w-lg max-h-[90dvh] overflow-x-hidden overflow-y-auto custom-scrollbar bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header con Tabs */}
         <div className="border-b border-white/[0.08]">
-          <div className="px-6 py-4 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-              <GraduationCap className="w-4 h-4 text-indigo-400" /> 
+          <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-white flex items-center gap-2 min-w-0">
+              <GraduationCap className="w-4 h-4 text-indigo-400 shrink-0" /> 
               {tab === "manual" && step !== "search" ? (
                 <>
-                  <button onClick={handleBack} className="w-6 h-6 hover:bg-white/10 rounded flex items-center justify-center"><ChevronLeft className="w-4 h-4" /></button>
-                  {step === "sections" ? selectedCourse?.nombre_curso : `Sección ${selectedSection}`}
+                  <button onClick={handleBack} className="w-10 h-10 sm:w-6 sm:h-6 shrink-0 hover:bg-white/10 rounded flex items-center justify-center"><ChevronLeft className="w-4 h-4" /></button>
+                  <span className="truncate">{step === "sections" ? selectedCourse?.nombre_curso : `Sección ${selectedSection}`}</span>
                 </>
               ) : "Inscribir Cursos 2026-II"}
             </h2>
-            <button onClick={onClose} disabled={isUploading} aria-label="Cerrar importación de cursos" className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors">
+            <button onClick={onClose} disabled={isUploading} aria-label="Cerrar importación de cursos" className="w-10 h-10 sm:w-8 sm:h-8 shrink-0 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors">
               <X className="w-4 h-4 text-slate-400" />
             </button>
           </div>
           {step === "search" && (
-            <div className="flex px-6 gap-6 border-t border-white/5 bg-white/[0.02]">
-              <button disabled={isUploading} onClick={() => setTab("manual")} className={`py-3 text-xs font-semibold border-b-2 transition-all ${tab === "manual" ? "border-indigo-500 text-indigo-400" : "border-transparent text-slate-400 hover:text-slate-200"}`}>Selección Manual</button>
-              <button disabled={isUploading} onClick={() => setTab("pdf")} className={`py-3 text-xs font-semibold border-b-2 transition-all ${tab === "pdf" ? "border-indigo-500 text-indigo-400" : "border-transparent text-slate-400 hover:text-slate-200"}`}>Subir Matrícula (PDF)</button>
+            <div className="flex px-4 sm:px-6 gap-4 sm:gap-6 border-t border-white/5 bg-white/[0.02] overflow-x-auto">
+              <button disabled={isUploading} onClick={() => setTab("manual")} className={`py-3 shrink-0 whitespace-nowrap text-xs font-semibold border-b-2 transition-all ${tab === "manual" ? "border-indigo-500 text-indigo-400" : "border-transparent text-slate-400 hover:text-slate-200"}`}>Selección Manual</button>
+              <button disabled={isUploading} onClick={() => setTab("pdf")} className={`py-3 shrink-0 whitespace-nowrap text-xs font-semibold border-b-2 transition-all ${tab === "pdf" ? "border-indigo-500 text-indigo-400" : "border-transparent text-slate-400 hover:text-slate-200"}`}>Subir Matrícula (PDF)</button>
             </div>
           )}
         </div>
@@ -247,13 +247,13 @@ export function AddCourseSectionModal({
         {/* CONTENIDO MANUAL */}
         {tab === "manual" && step === "search" && (
           <div className="flex flex-col">
-            <div className="px-6 py-3 border-b border-white/5">
+            <div className="px-4 sm:px-6 py-3 border-b border-white/5">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <input ref={inputRef} type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por código o nombre de curso..." className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all" />
               </div>
             </div>
-            <div className="overflow-y-auto max-h-[45vh] custom-scrollbar">
+            <div className="overflow-y-auto max-h-[45dvh] custom-scrollbar">
               {loadingCourses ? (
                 <div className="p-8 flex justify-center"><Loader2 className="w-6 h-6 text-indigo-400 animate-spin" /></div>
               ) : filtered.length === 0 ? (
@@ -263,7 +263,7 @@ export function AddCourseSectionModal({
                   {filtered.map((course) => {
                     const secs = Object.keys(course.secciones)
                     return (
-                      <button key={course.codigo} onClick={() => handleSelectCourse(course)} className="w-full flex items-center gap-4 p-3.5 rounded-xl text-left hover:bg-white/[0.04] transition-all group">
+                      <button key={course.codigo} onClick={() => handleSelectCourse(course)} className="w-full flex items-center gap-3 sm:gap-4 p-3 sm:p-3.5 rounded-xl text-left hover:bg-white/[0.04] transition-all group">
                         <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0"><span className="text-[10px] font-black text-indigo-400 tracking-wider">{course.codigo.slice(0, 3)}</span></div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2"><span className="text-xs font-bold text-indigo-400">{course.codigo}</span><span className="text-[10px] text-slate-500">{secs.length} secc.</span></div>
@@ -280,17 +280,17 @@ export function AddCourseSectionModal({
         )}
 
         {tab === "manual" && step === "sections" && selectedCourse && (
-          <div className="p-6 space-y-3 overflow-y-auto max-h-[50vh] custom-scrollbar">
+          <div className="p-4 sm:p-6 space-y-3 overflow-y-auto max-h-[50dvh] custom-scrollbar">
             {Object.entries(selectedCourse.secciones).map(([seccion, data]) => (
               <button key={seccion} onClick={() => handleSelectSection(seccion)} className="w-full p-4 rounded-xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.06] hover:border-indigo-500/30 transition-all group text-left">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-600/20 flex items-center justify-center"><span className="text-sm font-black text-indigo-400">{seccion}</span></div>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 shrink-0 rounded-lg bg-indigo-600/20 flex items-center justify-center"><span className="text-sm font-black text-indigo-400">{seccion}</span></div>
                     <span className="text-sm font-semibold text-white">Sección {seccion}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-indigo-400 transition-colors" />
                 </div>
-                <div className="flex gap-2 ml-[42px] mt-2 flex-wrap">
+                <div className="flex gap-2 ml-0 sm:ml-[42px] mt-2 flex-wrap">
                   {data.bloques.map((b) => (
                     <span key={`${b.tipo_clase}_${b.dia}`} className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[10px] font-medium text-slate-300">{TIPO_LABELS[b.tipo_clase] || b.tipo_clase}: {DIA_LABELS[b.dia]?.slice(0, 3) || b.dia} {b.hora_inicio}</span>
                   ))}
@@ -302,7 +302,7 @@ export function AddCourseSectionModal({
 
         {tab === "manual" && step === "detail" && selectedCourse && selectedSection && (
           <>
-            <div className="p-6 space-y-4 overflow-y-auto max-h-[50vh] custom-scrollbar">
+            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto max-h-[50dvh] custom-scrollbar">
               {selectedBloques.map((b, i) => {
                 const Icon = TIPO_ICONS[b.tipo_clase] || BookOpen
                 return (
@@ -311,17 +311,17 @@ export function AddCourseSectionModal({
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${b.tipo_clase === "T" ? "bg-blue-500/15 text-blue-400" : b.tipo_clase === "P" ? "bg-emerald-500/15 text-emerald-400" : "bg-purple-500/15 text-purple-400"}`}><Icon className="w-4 h-4" /></div>
                       <div><p className="text-sm font-semibold text-white">{TIPO_LABELS[b.tipo_clase] || b.tipo_clase}</p></div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 ml-11">
-                      <div className="flex items-center gap-1.5 text-xs text-slate-300"><Clock className="w-3 h-3 text-slate-500" /><span>{DIA_LABELS[b.dia] || b.dia} {b.hora_inicio} - {b.hora_fin}</span></div>
-                      <div className="flex items-center gap-1.5 text-xs text-slate-300"><MapPin className="w-3 h-3 text-slate-500" /><span>{b.aula}</span></div>
-                      <div className="flex items-center gap-1.5 text-xs text-slate-300 col-span-2"><User className="w-3 h-3 text-slate-500" /><span>{b.docente}</span></div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 ml-0 sm:ml-11">
+                      <div className="flex items-center gap-1.5 text-xs text-slate-300 min-w-0"><Clock className="w-3 h-3 text-slate-500 shrink-0" /><span className="break-words">{DIA_LABELS[b.dia] || b.dia} {b.hora_inicio} - {b.hora_fin}</span></div>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-300 min-w-0"><MapPin className="w-3 h-3 text-slate-500 shrink-0" /><span className="break-words">{b.aula}</span></div>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-300 sm:col-span-2 min-w-0"><User className="w-3 h-3 text-slate-500 shrink-0" /><span className="break-words">{b.docente}</span></div>
                     </div>
                   </div>
                 )
               })}
               <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-3 mt-2"><p className="text-[11px] text-indigo-300/80">Se agregarán <strong>{selectedBloques.length} bloques</strong> con recurrencia semanal.</p></div>
             </div>
-            <div className="flex justify-end gap-3 px-6 py-4 bg-[#11121d] border-t border-white/5">
+            <div className="flex justify-end gap-3 px-4 sm:px-6 py-3 sm:py-4 bg-[#11121d] border-t border-white/5">
               <button onClick={handleBack} className="px-5 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-all">Volver</button>
               <button onClick={handleConfirmManual} disabled={adding || !semesterOk} title={!semesterOk ? "Configura primero el inicio de semestre en Ajustes de Agenda" : undefined} className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
                 {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Agregar
@@ -332,7 +332,7 @@ export function AddCourseSectionModal({
 
         {/* CONTENIDO PDF */}
         {tab === "pdf" && (
-          <div className="p-8 flex flex-col items-center justify-center">
+          <div className="p-4 sm:p-8 flex flex-col items-center justify-center">
             <div className="w-full mb-4 bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-3">
               <p className="text-[11px] text-indigo-300/80 leading-relaxed">
                 Para una importación exacta, descarga tu <strong>Boleta de Matrícula oficial</strong> en PDF desde el portal de la universidad:{" "}
@@ -354,18 +354,18 @@ export function AddCourseSectionModal({
                 <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center">
                   <Check className="w-8 h-8 text-emerald-400" />
                 </div>
-                <p className="text-sm text-emerald-300">{pdfResult}</p>
-                <button onClick={onClose} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">Ver mi horario</button>
+                <p className="text-sm text-emerald-300 break-words">{pdfResult}</p>
+                <button onClick={onClose} className="rounded-lg bg-indigo-600 px-4 py-2.5 sm:py-2 text-sm font-semibold text-white hover:bg-indigo-500">Ver mi horario</button>
               </div>
             ) : selectedFile ? (
-              <div className="w-full border-2 border-indigo-500/30 bg-indigo-500/10 rounded-xl flex flex-col items-center justify-center p-6 transition-all">
+              <div className="w-full border-2 border-indigo-500/30 bg-indigo-500/10 rounded-xl flex flex-col items-center justify-center p-4 sm:p-6 transition-all">
                 <FileText className="w-10 h-10 text-indigo-400 mb-3" />
                 <p className="text-sm font-semibold text-white truncate max-w-full mb-1">{selectedFile.name}</p>
                 <button onClick={startUpload} className="w-full py-2.5 mt-4 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md">Analizar e Inscribir</button>
-                <button onClick={() => fileInputRef.current?.click()} className="mt-3 text-[11px] text-slate-400 hover:text-white">Cambiar archivo</button>
+                <button onClick={() => fileInputRef.current?.click()} className="mt-3 py-2 sm:py-0 text-[11px] text-slate-400 hover:text-white">Cambiar archivo</button>
               </div>
             ) : (
-              <div onDragOver={e => { e.preventDefault(); setIsDragActive(true) }} onDragLeave={() => setIsDragActive(false)} onDrop={handleDrop} onClick={() => fileInputRef.current?.click()} className={`w-full py-10 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 cursor-pointer transition-all ${isDragActive ? "border-indigo-400 bg-indigo-500/10" : "border-white/20 bg-white/5 hover:border-indigo-400 hover:bg-white/10"}`}>
+              <div onDragOver={e => { e.preventDefault(); setIsDragActive(true) }} onDragLeave={() => setIsDragActive(false)} onDrop={handleDrop} onClick={() => fileInputRef.current?.click()} className={`w-full py-8 sm:py-10 px-4 text-center border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 cursor-pointer transition-all ${isDragActive ? "border-indigo-400 bg-indigo-500/10" : "border-white/20 bg-white/5 hover:border-indigo-400 hover:bg-white/10"}`}>
                 <UploadCloud className={`w-8 h-8 ${isDragActive ? "text-indigo-400" : "text-slate-400"}`} />
                 <p className="text-sm font-medium text-white">Arrastra tu Ficha de Matrícula aquí (PDF)</p>
               </div>

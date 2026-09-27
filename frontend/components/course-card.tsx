@@ -37,12 +37,12 @@ export function CourseCard({ id, title, professor, status, progress, currentTopi
   return (
     <Card className="bg-card border-border hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 overflow-hidden">
       <CardHeader className="pb-3">
-        <div className="flex items-start justify-between mb-2">
-          <div className="flex-1">
-            <CardTitle className="text-lg text-foreground mb-1">{title}</CardTitle>
-            <CardDescription className="text-sm">{professor}</CardDescription>
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-base sm:text-lg text-foreground mb-1 break-words">{title}</CardTitle>
+            <CardDescription className="text-sm truncate">{professor}</CardDescription>
           </div>
-          <Badge className={statusConfig.badge}>{statusConfig.label}</Badge>
+          <Badge className={`shrink-0 ${statusConfig.badge}`}>{statusConfig.label}</Badge>
         </div>
       </CardHeader>
 
@@ -63,9 +63,9 @@ export function CourseCard({ id, title, professor, status, progress, currentTopi
           <div className="bg-secondary/50 rounded-lg p-3">
             <div className="flex items-start gap-2">
               <BookMarked className="w-4 h-4 text-accent mt-0.5 flex-shrink-0" />
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-muted-foreground mb-0.5">Tema Actual</p>
-                <p className="text-sm text-foreground">{currentTopic}</p>
+                <p className="text-sm text-foreground break-words">{currentTopic}</p>
               </div>
             </div>
           </div>

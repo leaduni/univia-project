@@ -83,7 +83,7 @@ export function ShareUniviaModal({ open, onOpenChange }: ShareUniviaModalProps) 
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="mx-auto w-full max-w-lg rounded-t-3xl">
+      <SheetContent side="bottom" className="mx-auto w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-t-3xl">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2 text-lg">
             <Share2 className="w-5 h-5 text-[#7957f1]" aria-hidden="true" />
@@ -94,7 +94,7 @@ export function ShareUniviaModal({ open, onOpenChange }: ShareUniviaModalProps) 
           </SheetDescription>
         </SheetHeader>
 
-        <div className="px-4 pb-6">
+        <div className="px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
           {!codigo ? (
             <div className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.04] p-4 text-sm text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin text-[#7957f1]" aria-hidden="true" />
@@ -102,13 +102,13 @@ export function ShareUniviaModal({ open, onOpenChange }: ShareUniviaModalProps) 
             </div>
           ) : (
             <div className="space-y-5">
-              <div className="flex items-center gap-4 rounded-2xl border border-[#7957f1]/30 bg-[#7957f1]/10 p-4">
-                <div className="flex items-center gap-1.5 tabular-nums">
+              <div className="flex items-center gap-3 rounded-2xl border border-[#7957f1]/30 bg-[#7957f1]/10 p-3 sm:gap-4 sm:p-4">
+                <div className="flex shrink-0 items-center gap-1.5 tabular-nums">
                   <Zap className="w-5 h-5 text-[#7957f1]" aria-hidden="true" />
                   <span className="font-bold text-foreground">{formatearXp(resumen?.xp_total)}</span>
                   <span className="text-xs text-muted-foreground">XP</span>
                 </div>
-                <p className="text-sm text-muted-foreground">
+                <p className="min-w-0 text-sm text-muted-foreground">
                   Ganas <span className="font-semibold text-foreground">+50 XP</span> por cada referido que complete el onboarding.
                 </p>
               </div>
@@ -119,7 +119,7 @@ export function ShareUniviaModal({ open, onOpenChange }: ShareUniviaModalProps) 
                   Tu enlace de invitación
                 </p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 truncate rounded-xl border border-white/[0.1] bg-black/30 px-3 py-2.5 text-xs text-foreground">
+                  <code className="min-w-0 flex-1 truncate rounded-xl border border-white/[0.1] bg-black/30 px-3 py-2.5 text-xs text-foreground">
                     {url}
                   </code>
                   <Button variant="outline" size="sm" onClick={copiar} disabled={registrando} aria-live="polite">
@@ -134,16 +134,16 @@ export function ShareUniviaModal({ open, onOpenChange }: ShareUniviaModalProps) 
               </div>
 
               {/* Canales de compartición */}
-              <div className="grid grid-cols-3 gap-3">
-                <Button variant="outline" className="flex-col gap-1.5 py-4 h-auto" onClick={() => abrirEnlace("whatsapp")} disabled={registrando}>
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                <Button variant="outline" className="min-w-0 flex-col gap-1.5 py-4 h-auto" onClick={() => abrirEnlace("whatsapp")} disabled={registrando}>
                   <MessageCircle className="w-5 h-5 text-emerald-400" aria-hidden="true" />
                   <span className="text-xs">WhatsApp</span>
                 </Button>
-                <Button variant="outline" className="flex-col gap-1.5 py-4 h-auto" onClick={() => abrirEnlace("telegram")} disabled={registrando}>
+                <Button variant="outline" className="min-w-0 flex-col gap-1.5 py-4 h-auto" onClick={() => abrirEnlace("telegram")} disabled={registrando}>
                   <Send className="w-5 h-5 text-sky-400" aria-hidden="true" />
                   <span className="text-xs">Telegram</span>
                 </Button>
-                <Button variant="outline" className="flex-col gap-1.5 py-4 h-auto" onClick={copiar} disabled={registrando}>
+                <Button variant="outline" className="min-w-0 flex-col gap-1.5 py-4 h-auto" onClick={copiar} disabled={registrando}>
                   <Share2 className={cn("w-5 h-5 text-[#7957f1]")} aria-hidden="true" />
                   <span className="text-xs">Copiar</span>
                 </Button>

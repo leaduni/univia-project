@@ -6,7 +6,7 @@ export default async function SeccionPage({ params }: { params: Promise<{ seccio
   const { seccionId } = await params
   return (
     <DashboardLayout>
-      <div className="p-6">
+      <div className="p-3 sm:p-4 lg:p-6">
         <SeccionView seccionId={Number(seccionId)} />
       </div>
     </DashboardLayout>

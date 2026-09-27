@@ -81,7 +81,7 @@ export function ForoSecciones() {
       )}
 
       {secciones.length === 0 && (
-        <div className="rounded-2xl border border-border bg-card p-10 text-center">
+        <div className="rounded-2xl border border-border bg-card p-6 sm:p-10 text-center">
           <MessageSquare className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
           <p className="text-muted-foreground">Aún no hay secciones disponibles.</p>
         </div>

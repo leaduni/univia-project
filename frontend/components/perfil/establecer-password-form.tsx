@@ -40,7 +40,7 @@ const schema = z
 type Valores = z.infer<typeof schema>
 
 const INPUT =
-  "w-full px-4 py-2.5 bg-input border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all pr-10 h-auto"
+  "w-full px-4 py-2.5 bg-input border border-border rounded-xl text-base sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all pr-12 h-auto"
 
 export function EstablecerPasswordForm({ onPasswordSet }: { onPasswordSet?: () => void }) {
   const [abierto, setAbierto] = useState(false)
@@ -74,9 +74,9 @@ export function EstablecerPasswordForm({ onPasswordSet }: { onPasswordSet?: () =
 
   return (
     <div className="border-t border-border pt-6">
-      <div className="flex items-start justify-between gap-4 mb-2">
-        <div>
-          <h2 className="font-heading text-lg font-bold text-foreground">
+      <div className="flex flex-col gap-3 mb-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h2 className="font-heading text-base sm:text-lg font-bold text-foreground">
             Establecer contraseña para acceso en PCs públicas
           </h2>
           <p className="text-xs text-muted-foreground">
@@ -89,6 +89,7 @@ export function EstablecerPasswordForm({ onPasswordSet }: { onPasswordSet?: () =
             type="button"
             variant="outline"
             size="sm"
+            className="w-full sm:w-auto shrink-0"
             onClick={() => {
               setAbierto(true)
               setError("")
@@ -102,7 +103,7 @@ export function EstablecerPasswordForm({ onPasswordSet }: { onPasswordSet?: () =
 
       {listo && (
         <div className="flex items-center gap-2 text-sm text-emerald-500 mb-3">
-          <CheckCircle2 className="w-4 h-4" />
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>Clave asignada. Ya puedes ingresar manualmente.</span>
         </div>
       )}
@@ -134,7 +135,7 @@ export function EstablecerPasswordForm({ onPasswordSet }: { onPasswordSet?: () =
                           type="button"
                           onClick={() => setVerPassword((v) => !v)}
                           aria-label={verPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          className="absolute right-1 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center text-muted-foreground hover:text-foreground"
                         >
                           {verPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
@@ -167,8 +168,8 @@ export function EstablecerPasswordForm({ onPasswordSet }: { onPasswordSet?: () =
                 )}
               />
 
-              <div className="flex items-center gap-2 pt-1">
-                <Button type="submit" variant="brand" size="sm" disabled={enviando}>
+              <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
+                <Button type="submit" variant="brand" size="sm" className="w-full sm:w-auto" disabled={enviando}>
                   {enviando ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -182,6 +183,7 @@ export function EstablecerPasswordForm({ onPasswordSet }: { onPasswordSet?: () =
                   type="button"
                   variant="ghost"
                   size="sm"
+                  className="w-full sm:w-auto"
                   disabled={enviando}
                   onClick={() => {
                     setAbierto(false)

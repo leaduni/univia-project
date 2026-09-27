@@ -80,9 +80,9 @@ export function RecentResources() {
   }, [userId])
 
   return (
-    <section className="mt-10">
+    <section className="mt-8 sm:mt-10">
       <div className="flex items-baseline justify-between gap-4 mb-4">
-        <h2 className="font-heading text-lg font-semibold text-foreground">
+        <h2 className="font-heading text-lg font-semibold text-foreground min-w-0">
           Recursos nuevos en tus cursos
         </h2>
         <div className="flex items-center gap-3">
@@ -104,7 +104,7 @@ export function RecentResources() {
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="shrink-0 w-64 h-40 rounded-xl bg-card border border-border animate-pulse"
+              className="shrink-0 w-56 sm:w-64 h-40 rounded-xl bg-card border border-border animate-pulse"
             />
           ))}
         </div>
@@ -115,7 +115,7 @@ export function RecentResources() {
             return (
               <article
                 key={recurso.id}
-                className="shrink-0 w-64 bg-card border border-border rounded-xl overflow-hidden hover:border-accent/40 transition-colors"
+                className="shrink-0 w-56 sm:w-64 bg-card border border-border rounded-xl overflow-hidden hover:border-accent/40 transition-colors"
               >
                 <div
                   className={`relative h-16 overflow-hidden ${CABECERAS[i % CABECERAS.length]}`}

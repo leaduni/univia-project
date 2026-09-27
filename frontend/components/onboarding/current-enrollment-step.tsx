@@ -366,7 +366,7 @@ export function CurrentEnrollmentStep({
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="px-6 py-2.5 rounded-xl text-sm font-semibold text-foreground bg-card border border-border hover:bg-muted transition-colors"
+          className="min-h-11 px-6 py-2.5 rounded-xl text-sm font-semibold text-foreground bg-card border border-border hover:bg-muted transition-colors"
         >
           Reintentar
         </button>
@@ -394,8 +394,8 @@ export function CurrentEnrollmentStep({
         {/* ---------- Card 1: historial declarado ---------- */}
         {historialPorCiclo.length > 0 && (
           <section className="rounded-2xl border border-border bg-card/60 overflow-hidden">
-            <header className="p-4 border-b border-border flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
+            <header className="p-3.5 sm:p-4 border-b border-border flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2.5">
                 <div className="p-1.5 rounded-lg bg-accent/15 text-accent">
                   <History className="w-4 h-4" />
                 </div>
@@ -413,7 +413,7 @@ export function CurrentEnrollmentStep({
               </span>
             </header>
 
-            <div className="max-h-[280px] overflow-y-auto p-3 space-y-2">
+            <div className="max-h-[280px] overflow-y-auto p-2.5 sm:p-3 space-y-2">
               {historialPorCiclo.map((grupo) => {
                 const cerrado = ciclosCerrados.has(grupo.cicloNum)
                 const aprobadosDelCiclo = grupo.courses.filter((c) => aprobados.has(c.id)).length
@@ -443,7 +443,7 @@ export function CurrentEnrollmentStep({
                       <button
                         type="button"
                         onClick={() => marcarCicloCompleto(grupo.cicloNum, !todosMarcados)}
-                        className="text-[11px] font-semibold text-accent hover:underline shrink-0"
+                        className="min-h-8 px-1.5 text-[11px] font-semibold text-accent hover:underline shrink-0"
                       >
                         {todosMarcados ? "Desmarcar todo" : "Marcar todo"}
                       </button>
@@ -468,7 +468,7 @@ export function CurrentEnrollmentStep({
                                   ? `${course.code} · ${course.name} · consta aprobado. Si lo desmarcas dejará de contar en tus créditos.`
                                   : `${course.code} · ${course.name} · ${course.credits} créditos`
                               }
-                              className={`inline-flex items-center gap-2 pl-2.5 pr-3 py-1.5 rounded-full border text-left transition-all duration-200 ${
+                              className={`inline-flex max-w-full min-w-0 items-center gap-2 pl-2.5 pr-3 py-1.5 rounded-full border text-left transition-all duration-200 ${
                                 estaAprobado
                                   ? "border-accent/50 bg-accent/10 text-accent"
                                   : "border-border bg-card text-muted-foreground hover:border-accent/40"
@@ -481,10 +481,10 @@ export function CurrentEnrollmentStep({
                                   <div className="w-3.5 h-3.5 rounded-full border-2 border-muted-foreground/50" />
                                 )}
                               </span>
-                              <span className="text-[11px] font-semibold tracking-wide">
+                              <span className="shrink-0 text-[11px] font-semibold tracking-wide">
                                 {course.code}
                               </span>
-                              <span className="text-[11px] max-w-[11rem] truncate">
+                              <span className="text-[11px] min-w-0 max-w-[8rem] sm:max-w-[11rem] truncate">
                                 {course.name}
                               </span>
                             </button>
@@ -501,7 +501,7 @@ export function CurrentEnrollmentStep({
 
         {/* ---------- Card 2: cursos del ciclo ---------- */}
         <section className="rounded-2xl border border-border bg-card/60 overflow-hidden">
-          <header className="p-4 border-b border-border space-y-3">
+          <header className="p-3.5 sm:p-4 border-b border-border space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="font-heading font-semibold text-foreground text-sm">
@@ -525,12 +525,12 @@ export function CurrentEnrollmentStep({
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 placeholder="Buscar curso por nombre o código..."
-                className="w-full h-10 pl-9 pr-3 rounded-xl bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-accent/40"
+                className="w-full h-10 pl-9 pr-3 rounded-xl bg-background border border-border text-base sm:text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-accent/40"
               />
             </div>
           </header>
 
-          <div className="max-h-[300px] overflow-y-auto p-3 space-y-3">
+          <div className="max-h-[300px] overflow-y-auto p-2.5 sm:p-3 space-y-3">
             {ofertadosFiltrados.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
                 No hay cursos que coincidan con tu búsqueda.
@@ -567,7 +567,7 @@ export function CurrentEnrollmentStep({
                               .join(", ")} para llevar ${course.name}.`
                           : `${course.code} · ${course.name} · ${course.credits} créditos`
                       }
-                      className={`inline-flex items-center gap-2 pl-3 pr-3.5 py-2 rounded-full border text-left transition-all duration-200 ${estilo}`}
+                      className={`inline-flex max-w-full min-w-0 items-center gap-2 pl-3 pr-3.5 py-2 rounded-full border text-left transition-all duration-200 ${estilo}`}
                     >
                       <span className="shrink-0">
                         {isSelected ? (
@@ -578,16 +578,16 @@ export function CurrentEnrollmentStep({
                           <Circle className="w-4 h-4 text-muted-foreground/60" />
                         )}
                       </span>
-                      <span className="text-xs font-semibold tracking-wide">{course.code}</span>
-                      <span className="text-xs max-w-[13rem] truncate">{course.name}</span>
+                      <span className="shrink-0 text-xs font-semibold tracking-wide">{course.code}</span>
+                      <span className="text-xs min-w-0 max-w-[8rem] sm:max-w-[13rem] truncate">{course.name}</span>
                       {esDeCicloPrevio && (
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
                           Ciclo {aRomano(course.ciclo)}
                         </span>
                       )}
                       {leFalta && (
                         <span
-                          className="text-[10px] font-semibold uppercase tracking-wider text-amber-500"
+                          className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-amber-500"
                           title="Según lo que marcaste, te falta un prerrequisito"
                         >
                           Bloqueado
@@ -628,7 +628,7 @@ export function CurrentEnrollmentStep({
       </div>
 
       <div className="max-w-3xl mx-auto p-4 rounded-2xl bg-card border border-border flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold text-muted-foreground">Cursos a inscribir:</span>
           <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-accent/15 text-accent border border-accent/40">
             {selected.size}
@@ -651,11 +651,11 @@ export function CurrentEnrollmentStep({
         )}
       </div>
 
-      <div className="flex justify-between items-center pt-4 max-w-3xl mx-auto w-full">
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between sm:items-center pt-4 max-w-3xl mx-auto w-full">
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-border bg-card text-sm font-semibold text-foreground hover:bg-muted hover:border-accent/40 transition-all"
+          className="w-full sm:w-auto justify-center min-h-11 flex items-center gap-2 px-5 py-2.5 rounded-xl border border-border bg-card text-sm font-semibold text-foreground hover:bg-muted hover:border-accent/40 transition-all"
         >
           <ChevronLeft className="w-4 h-4" /> Atrás
         </button>
@@ -663,7 +663,7 @@ export function CurrentEnrollmentStep({
           type="button"
           onClick={handleContinue}
           disabled={!isValidEnrollment || cursos.length === 0}
-          className="px-8 py-3 rounded-xl font-semibold text-sm text-primary-foreground gradient-login-btn disabled:opacity-40 disabled:pointer-events-none transition-all shadow-lg shadow-accent/20 active:scale-[0.99] flex items-center gap-2"
+          className="w-full sm:w-auto justify-center min-h-11 px-8 py-3 rounded-xl font-semibold text-sm text-primary-foreground gradient-login-btn disabled:opacity-40 disabled:pointer-events-none transition-all shadow-lg shadow-accent/20 active:scale-[0.99] flex items-center gap-2"
         >
           <span>Continuar</span>
           <ArrowRight className="w-4 h-4" />

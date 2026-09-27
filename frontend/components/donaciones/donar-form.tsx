@@ -113,7 +113,7 @@ export function DonarForm({ onDonacionRegistrada }: DonarFormProps) {
   }
 
   return (
-    <section className="rounded-3xl border border-white/[0.08] bg-card/60 backdrop-blur-md p-6 sm:p-8">
+    <section className="rounded-3xl border border-white/[0.08] bg-card/60 backdrop-blur-md p-4 sm:p-8">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="font-heading text-2xl font-bold text-foreground">Aportar</h2>
@@ -142,7 +142,7 @@ export function DonarForm({ onDonacionRegistrada }: DonarFormProps) {
                 }}
                 title={RANGO_TEXTO[valor]}
                 className={cn(
-                  "rounded-full px-4 py-1.5 text-xs font-bold transition-all",
+                  "min-h-10 rounded-full px-4 py-1.5 text-xs font-bold transition-all sm:min-h-0",
                   activo
                     ? "gradient-brand text-white shadow-[0_2px_12px_rgba(121,87,241,0.35)]"
                     : "text-muted-foreground hover:text-foreground",
@@ -173,7 +173,7 @@ export function DonarForm({ onDonacionRegistrada }: DonarFormProps) {
                 }}
                 aria-pressed={activo}
                 className={cn(
-                  "min-w-[5rem] rounded-2xl border px-5 py-3 font-heading text-lg font-bold tabular-nums transition-all",
+                  "min-w-[4.5rem] rounded-2xl border px-4 py-3 font-heading text-lg sm:min-w-[5rem] sm:px-5 font-bold tabular-nums transition-all",
                   activo
                     ? "border-transparent gradient-brand text-white shadow-[0_4px_18px_rgba(121,87,241,0.4)]"
                     : "border-white/[0.08] bg-white/[0.02] text-foreground hover:border-white/20 hover:bg-white/[0.05]",

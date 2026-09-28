@@ -56,7 +56,7 @@ export function CareerStep({ data, onNext, onBack, careers }: CareerStepProps) {
         <button
           type="button"
           onClick={onBack}
-          className="px-6 py-2.5 rounded-xl text-sm font-semibold text-foreground bg-card border border-border hover:bg-muted transition-colors flex items-center gap-2"
+          className="min-h-11 px-6 py-2.5 rounded-xl text-sm font-semibold text-foreground bg-card border border-border hover:bg-muted transition-colors flex items-center gap-2"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Volver</span>
@@ -92,7 +92,7 @@ export function CareerStep({ data, onNext, onBack, careers }: CareerStepProps) {
               placeholder="20241092E"
               value={codigo}
               onChange={(e) => setCodigo(e.target.value)}
-              className={`w-full pl-9 pr-4 py-3 bg-input border rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all ${
+              className={`w-full pl-9 pr-4 py-3 bg-input border rounded-xl text-base sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all ${
                 codigo && codigoInvalido ? "border-destructive" : "border-border"
               }`}
             />
@@ -117,7 +117,7 @@ export function CareerStep({ data, onNext, onBack, careers }: CareerStepProps) {
               type="button"
               onClick={() => setSelected(career.id)}
               aria-pressed={isSelected}
-              className={`flex items-start gap-4 p-4 rounded-2xl border text-left transition-all duration-200 ${
+              className={`flex items-start gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-2xl border text-left transition-all duration-200 ${
                 isSelected
                   ? "bg-card border-accent ring-1 ring-accent shadow-lg shadow-accent/10"
                   : "bg-card/60 border-border hover:border-accent/40 hover:bg-card"
@@ -152,11 +152,11 @@ export function CareerStep({ data, onNext, onBack, careers }: CareerStepProps) {
         })}
       </div>
 
-      <div className="flex justify-between items-center pt-2">
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between sm:items-center pt-2">
         <button
           type="button"
           onClick={onBack}
-          className="px-6 py-3 rounded-xl text-sm font-semibold text-foreground bg-card border border-border hover:bg-muted transition-colors flex items-center gap-2"
+          className="w-full sm:w-auto justify-center min-h-11 px-6 py-3 rounded-xl text-sm font-semibold text-foreground bg-card border border-border hover:bg-muted transition-colors flex items-center gap-2"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Volver</span>
@@ -165,7 +165,7 @@ export function CareerStep({ data, onNext, onBack, careers }: CareerStepProps) {
           type="button"
           onClick={handleContinue}
           disabled={!selected || codigoInvalido}
-          className="px-8 py-3 rounded-xl font-semibold text-sm text-primary-foreground gradient-login-btn disabled:opacity-40 disabled:pointer-events-none transition-all shadow-lg shadow-accent/20 active:scale-[0.99] flex items-center gap-2"
+          className="w-full sm:w-auto justify-center min-h-11 px-8 py-3 rounded-xl font-semibold text-sm text-primary-foreground gradient-login-btn disabled:opacity-40 disabled:pointer-events-none transition-all shadow-lg shadow-accent/20 active:scale-[0.99] flex items-center gap-2"
         >
           <span>Continuar</span>
           <ArrowRight className="w-4 h-4" />

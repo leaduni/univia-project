@@ -14,7 +14,7 @@ export default function ForoPage() {
     <DashboardLayout>
       {/* El buscador se desplaza con el feed. Solo las columnas laterales
           se anclan bajo el header; este wrapper no crea otro scrollport. */}
-      <div className="relative min-h-screen bg-[#090a12] text-white">
+      <div className="relative min-h-dvh bg-[#090a12] text-white">
         {/* Atmósfera global */}
         <div className="pointer-events-none fixed inset-0 overflow-hidden">
           {/* Fuchsia */}
@@ -29,23 +29,23 @@ export default function ForoPage() {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_25%,#090a12_95%)]" />
         </div>
 
-        <div className="relative grid w-full grid-cols-1 gap-4 pt-4 pb-6 lg:grid-cols-12">
+        <div className="relative grid w-full grid-cols-1 gap-4 pt-3 pb-6 sm:pt-4 md:grid-cols-2 lg:grid-cols-12">
           {/* Columna izquierda: navegación, categorías y tendencias */}
-          <aside className="order-2 lg:order-1 lg:col-span-3 lg:border-0 lg:sticky lg:top-4 lg:self-start">
+          <aside className="order-2 min-w-0 lg:order-1 lg:col-span-3 lg:border-0 lg:sticky lg:top-4 lg:self-start">
             <Suspense fallback={null}>
               <ForoSidebarLeft />
             </Suspense>
           </aside>
 
           {/* Columna central: feed global */}
-          <main className="order-1 min-w-0 lg:order-2 lg:col-span-6">
+          <main className="order-1 min-w-0 md:col-span-2 lg:order-2 lg:col-span-6">
             <Suspense fallback={<FeedSkeleton />}>
               <ForoFeed />
             </Suspense>
           </main>
 
           {/* Columna derecha: gamificación y accesos */}
-          <aside className="order-3 lg:col-span-3 lg:sticky lg:top-4 lg:self-start">
+          <aside className="order-3 min-w-0 lg:col-span-3 lg:sticky lg:top-4 lg:self-start">
             <Suspense fallback={null}>
               <ForoSidebarRight />
             </Suspense>

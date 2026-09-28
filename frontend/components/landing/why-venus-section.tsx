@@ -66,6 +66,7 @@ export function WhyVenusSection() {
           <div
             data-reveal="up"
             data-reveal-delay="260"
+            className="univia-cta-row"
             style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 14, marginTop: 6 }}
           >
             <Hoverable

@@ -50,12 +50,12 @@ export function AIAnalysisBox({ courseId, insights }: { courseId: string; insigh
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="flex items-center justify-center h-10 w-10 rounded-lg gradient-ai-neon">
+      <div className="flex items-center gap-3 mb-4 sm:mb-6 min-w-0">
+        <div className="flex items-center justify-center h-10 w-10 shrink-0 rounded-lg gradient-ai-neon">
           <Sparkles className="h-6 w-6 text-white" />
         </div>
-        <div>
-          <h3 className="text-lg font-semibold text-foreground">Análisis Inteligente de IA</h3>
+        <div className="min-w-0">
+          <h3 className="text-base sm:text-lg font-semibold text-foreground">Análisis Inteligente de IA</h3>
           <p className="text-sm text-muted-foreground">Insights personalizados basados en tu progreso</p>
         </div>
       </div>
@@ -69,21 +69,21 @@ export function AIAnalysisBox({ courseId, insights }: { courseId: string; insigh
           return (
             <Card key={idx} className={`border-2 ${config.border} ${config.bg}`}>
               <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3 flex-1">
+                <div className="flex items-start justify-between gap-2 sm:gap-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
                     <Icon className="w-5 h-5 mt-1 flex-shrink-0" />
-                    <div>
+                    <div className="min-w-0 break-words">
                       <CardTitle className="text-base text-foreground">{insight.title}</CardTitle>
                       <CardDescription className="mt-1 text-sm">{insight.description}</CardDescription>
                     </div>
                   </div>
-                  <Badge className={config.badge}>{config.label}</Badge>
+                  <Badge className={`${config.badge} shrink-0`}>{config.label}</Badge>
                 </div>
               </CardHeader>
 
               {insight.impact && (
                 <CardContent>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                     <span className="text-xs text-muted-foreground">Impacto estimado:</span>
                     <span className="text-sm font-semibold text-foreground">{insight.impact}</span>
                   </div>
@@ -92,7 +92,7 @@ export function AIAnalysisBox({ courseId, insights }: { courseId: string; insigh
 
               {insight.action && (
                 <CardContent className="pt-0">
-                  <Button variant="outline" size="sm" className="w-full bg-transparent">
+                  <Button variant="outline" size="sm" className="w-full min-h-[40px] sm:min-h-0 whitespace-normal bg-transparent">
                     {insight.action} →
                   </Button>
                 </CardContent>
@@ -108,17 +108,17 @@ export function AIAnalysisBox({ courseId, insights }: { courseId: string; insigh
           <CardTitle className="text-base text-foreground">Tu Perfil de Aprendizaje</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-primary">85%</div>
+              <div className="text-xl sm:text-2xl font-bold text-primary">85%</div>
               <p className="text-xs text-muted-foreground mt-1">Comprensión Conceptual</p>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-secondary">72%</div>
+              <div className="text-xl sm:text-2xl font-bold text-secondary">72%</div>
               <p className="text-xs text-muted-foreground mt-1">Aplicación Práctica</p>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-emerald-400">8/10</div>
+              <div className="text-xl sm:text-2xl font-bold text-emerald-400">8/10</div>
               <p className="text-xs text-muted-foreground mt-1">Velocidad Aprendizaje</p>
             </div>
           </div>

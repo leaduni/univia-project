@@ -21,7 +21,7 @@ export function PublicacionesLista({
 }: PublicacionesListaProps) {
   if (publicaciones.length === 0) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-10 text-center">
+      <div className="rounded-2xl border border-border bg-card p-6 sm:p-10 text-center">
         <MessageSquare className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
         <p className="text-muted-foreground mb-4">Todavía no hay publicaciones en esta sección.</p>
         <button
@@ -41,10 +41,10 @@ export function PublicacionesLista({
         <Link
           key={publicacion.id}
           href={`/foro/seccion/${seccionId}/publicacion/${publicacion.id}`}
-          className="block rounded-2xl border border-border bg-card p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-xl"
+          className="block rounded-2xl border border-border bg-card p-4 sm:p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-xl"
         >
           <div className="flex items-start justify-between gap-3">
-            <h3 className="font-poppins font-semibold text-[15px] text-foreground line-clamp-2">
+            <h3 className="font-poppins font-semibold text-[15px] text-foreground line-clamp-2 break-words min-w-0">
               {publicacion.titulo}
             </h3>
             <EstadoBadge estado={publicacion.estado} />
@@ -66,7 +66,7 @@ export function PublicacionesLista({
             </div>
           )}
 
-          <div className="flex items-center gap-4 mt-4 pt-3 border-t border-border/60 text-[11px] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:gap-4 mt-4 pt-3 border-t border-border/60 text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1 min-w-0">
               <span className="truncate">{publicacion.autor_nombre || "Estudiante"}</span>
               <BadgeModerador perfilId={publicacion.autor_perfil_id} />

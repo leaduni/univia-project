@@ -66,13 +66,13 @@ export function DonacionesView() {
   }, [cargar])
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+    <div className="min-h-dvh bg-background">
+      <div className="mx-auto max-w-6xl px-0 py-4 sm:px-6 sm:py-6">
         <header className="mb-6 max-w-2xl">
           <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#c4b5fd]">
             Financiamiento comunitario
           </p>
-          <h1 className="mt-1.5 font-heading text-3xl font-bold text-foreground sm:text-4xl">
+<h1 className="mt-1.5 font-heading text-2xl font-bold break-words text-foreground sm:text-4xl">
             Ayuda a crecer a Venus
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
@@ -87,31 +87,31 @@ export function DonacionesView() {
             className="mb-6 flex items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-destructive"
           >
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-bold">No pudimos cargar las donaciones</p>
               <p className="text-sm opacity-90">{error}</p>
             </div>
             <button
               onClick={cargar}
-              className="text-xs font-bold uppercase underline-offset-4 hover:underline"
+              className="min-h-10 shrink-0 px-1 text-xs font-bold uppercase underline-offset-4 hover:underline sm:min-h-0"
             >
               Reintentar
             </button>
           </div>
         )}
 
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           <RielMeta resumen={resumen} cargando={cargando} />
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            <div className="lg:col-span-7">
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-12">
+            <div className="min-w-0 lg:col-span-7">
               <DonarForm onDonacionRegistrada={cargar} />
             </div>
 
-            <div className="space-y-6 lg:col-span-5">
+            <div className="min-w-0 space-y-4 sm:space-y-6 lg:col-span-5">
               <LibroCaja resumen={resumen} cargando={cargando} />
 
-              <section className="rounded-3xl border border-white/[0.08] bg-card/60 backdrop-blur-md p-6">
+              <section className="rounded-3xl border border-white/[0.08] bg-card/60 backdrop-blur-md p-5 sm:p-6">
                 <h2 className="font-heading text-base font-bold text-foreground">
                   ¿A dónde va tu aporte?
                 </h2>

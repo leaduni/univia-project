@@ -102,11 +102,11 @@ export function ModalCrearUnidades({
       onClick={resetearYCerrar}
     >
       <div
-        className="bg-[#14132a] border border-[#27244a] rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto"
+        className="bg-[#14132a] border border-[#27244a] rounded-2xl p-4 sm:p-6 w-full max-w-[calc(100vw-2rem)] sm:max-w-lg shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0 break-words">
             <h3 className="text-lg font-bold text-white">Crear mis unidades</h3>
             <p className="text-xs text-slate-400 mt-1">
               Arma tu propia ruta para{" "}
@@ -117,7 +117,7 @@ export function ModalCrearUnidades({
           <button
             onClick={resetearYCerrar}
             disabled={guardando}
-            className="text-slate-500 hover:text-slate-300 disabled:opacity-40"
+            className="shrink-0 -m-2 p-2 text-slate-500 hover:text-slate-300 disabled:opacity-40"
             aria-label="Cerrar"
           >
             <X className="w-5 h-5" />
@@ -128,7 +128,7 @@ export function ModalCrearUnidades({
           {unidades.map((unidad, i) => (
             <div
               key={i}
-              className="rounded-xl border border-[#3b3475] bg-[#1d1a3b]/50 p-4 space-y-3"
+              className="rounded-xl border border-[#3b3475] bg-[#1d1a3b]/50 p-3 sm:p-4 space-y-3"
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-bold text-indigo-300 uppercase tracking-wide">
@@ -137,7 +137,7 @@ export function ModalCrearUnidades({
                 {unidades.length > 1 && (
                   <button
                     onClick={() => quitar(i)}
-                    className="text-slate-500 hover:text-rose-400 transition-colors"
+                    className="-m-2 p-2 text-slate-500 hover:text-rose-400 transition-colors"
                     aria-label={`Quitar unidad ${i + 1}`}
                   >
                     <Trash2 className="w-4 h-4" />

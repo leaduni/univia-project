@@ -96,7 +96,7 @@ function Toggle({ checked, onChange, label, dot }: { checked: boolean; onChange:
     <button onClick={onChange} 
       className={`flex items-center justify-between w-full p-2.5 rounded-xl transition-all duration-200 border
         ${checked ? "bg-white/[0.04] border-white/10 shadow-sm" : "bg-transparent border-transparent hover:bg-white/[0.02]"}`}>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0">
         <div className={`w-4 h-4 rounded-full flex items-center justify-center transition-all duration-300 shrink-0
           ${checked ? "scale-100" : "scale-90 opacity-50"}`} 
           style={{ 
@@ -106,7 +106,7 @@ function Toggle({ checked, onChange, label, dot }: { checked: boolean; onChange:
           }}>
           {checked && <Check className="w-2.5 h-2.5 text-white/90" strokeWidth={3} />}
         </div>
-        <span className={`text-xs font-semibold transition-colors ${checked ? "text-slate-100" : "text-slate-500"}`}>
+        <span className={`text-xs font-semibold transition-colors truncate ${checked ? "text-slate-100" : "text-slate-500"}`}>
           {label}
         </span>
       </div>
@@ -217,14 +217,14 @@ function SidebarPomodoro({ evento, onClose, onComplete }: { evento: CalendarioEv
 
   if (isConfiguring) {
     const configContent = (
-      <div className={`${isFullscreen ? 'w-full max-w-sm scale-110 relative z-10' : ''} bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg relative transition-all duration-300`}>
+      <div className={`${isFullscreen ? 'w-full max-w-sm sm:scale-110 relative z-10' : ''} bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg relative transition-all duration-300`}>
         <div className="flex justify-between items-center mb-4">
           <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><Brain className="w-3.5 h-3.5 text-purple-400" /> Pomodoro</p>
           <div className="flex items-center gap-1.5">
-            <button onClick={() => setIsFullscreen(!isFullscreen)} className="p-1 hover:bg-white/10 rounded-full transition-colors" title={isFullscreen ? "Minimizar" : "Pantalla completa"}>
+            <button onClick={() => setIsFullscreen(!isFullscreen)} className="p-2.5 sm:p-1 hover:bg-white/10 rounded-full transition-colors" title={isFullscreen ? "Minimizar" : "Pantalla completa"}>
               {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" /> : <Maximize2 className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" />}
             </button>
-            <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full transition-colors"><X className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" /></button>
+            <button onClick={onClose} className="p-2.5 sm:p-1 hover:bg-white/10 rounded-full transition-colors"><X className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" /></button>
           </div>
         </div>
         <p className="text-sm font-semibold text-white mb-4 truncate">{evento.titulo}</p>
@@ -255,7 +255,7 @@ function SidebarPomodoro({ evento, onClose, onComplete }: { evento: CalendarioEv
   }
 
   const timerContent = (
-    <div className={`${isFullscreen ? 'w-full max-w-sm scale-[1.3] relative z-10' : ''} bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg relative overflow-hidden transition-all duration-500`}>
+    <div className={`${isFullscreen ? 'w-full max-w-sm sm:scale-110 lg:scale-[1.3] relative z-10' : ''} bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg relative overflow-hidden transition-all duration-500`}>
       <div className={`absolute inset-0 blur-3xl opacity-20 transition-colors duration-1000 ${phase === "focus" ? "bg-purple-500" : "bg-emerald-500"}`} />
       <div className="relative z-10">
         <div className="flex justify-between items-center mb-6">
@@ -264,10 +264,10 @@ function SidebarPomodoro({ evento, onClose, onComplete }: { evento: CalendarioEv
             {phase === "focus" ? "Enfoque" : "Descanso"}
           </p>
           <div className="flex items-center gap-1.5">
-            <button onClick={() => setIsFullscreen(!isFullscreen)} className="p-1 hover:bg-white/10 rounded-full transition-colors" title={isFullscreen ? "Minimizar" : "Pantalla completa"}>
+            <button onClick={() => setIsFullscreen(!isFullscreen)} className="p-2.5 sm:p-1 hover:bg-white/10 rounded-full transition-colors" title={isFullscreen ? "Minimizar" : "Pantalla completa"}>
               {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" /> : <Maximize2 className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" />}
             </button>
-            <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full transition-colors"><X className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" /></button>
+            <button onClick={onClose} className="p-2.5 sm:p-1 hover:bg-white/10 rounded-full transition-colors"><X className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" /></button>
           </div>
         </div>
 
@@ -323,13 +323,13 @@ function CustomDatePicker({ currentDate, onSelect, onClose }: { currentDate: Dat
   const celdas = Array.from({ length: 42 }, (_, i) => i < offset || i >= offset + diasMes ? null : i - offset + 1)
 
   return (
-    <div className="absolute top-full left-0 mt-3 p-4 bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] z-[110] w-72 animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-x-4 top-24 sm:absolute sm:inset-x-auto sm:top-full sm:left-0 mt-3 p-4 bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] z-[110] w-auto sm:w-72 max-w-sm mx-auto sm:mx-0 animate-in fade-in zoom-in-95 duration-200">
       <div className="flex items-center justify-between mb-4">
-        <button onClick={() => setViewDate(new Date(year, month - 1, 1))} className="w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center transition-colors">
+        <button onClick={() => setViewDate(new Date(year, month - 1, 1))} className="w-10 h-10 sm:w-7 sm:h-7 rounded-lg hover:bg-white/10 flex items-center justify-center transition-colors">
           <ChevronLeft className="w-4 h-4 text-slate-300" />
         </button>
         <span className="text-sm font-semibold text-slate-100">{MESES[month]} {year}</span>
-        <button onClick={() => setViewDate(new Date(year, month + 1, 1))} className="w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center transition-colors">
+        <button onClick={() => setViewDate(new Date(year, month + 1, 1))} className="w-10 h-10 sm:w-7 sm:h-7 rounded-lg hover:bg-white/10 flex items-center justify-center transition-colors">
           <ChevronRight className="w-4 h-4 text-slate-300" />
         </button>
       </div>
@@ -340,14 +340,14 @@ function CustomDatePicker({ currentDate, onSelect, onClose }: { currentDate: Dat
       </div>
       <div className="grid grid-cols-7 gap-1">
         {celdas.map((dia, i) => {
-          if (!dia) return <div key={i} className="h-8" />
+          if (!dia) return <div key={i} className="h-9 sm:h-8" />
           const esHoy = new Date().toDateString() === new Date(year, month, dia).toDateString()
           const esSeleccionado = currentDate.toDateString() === new Date(year, month, dia).toDateString()
           return (
             <button
               key={i}
               onClick={() => { onSelect(new Date(year, month, dia)); onClose() }}
-              className={`h-8 w-full rounded-lg text-xs font-medium flex items-center justify-center transition-all ${esSeleccionado ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/25" : esHoy ? "bg-white/10 text-indigo-300 border border-indigo-500/30" : "text-slate-300 hover:bg-white/10 hover:text-white"}`}
+              className={`h-9 sm:h-8 w-full rounded-lg text-xs font-medium flex items-center justify-center transition-all ${esSeleccionado ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/25" : esHoy ? "bg-white/10 text-indigo-300 border border-indigo-500/30" : "text-slate-300 hover:bg-white/10 hover:text-white"}`}
             >
               {dia}
             </button>
@@ -381,7 +381,7 @@ function DropdownMenu({
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute top-full left-0 mt-2 min-w-[200px] bg-[#1c1d2e] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="absolute top-full left-0 mt-2 min-w-[200px] max-w-[calc(100vw-3rem)] bg-[#1c1d2e] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="max-h-48 overflow-y-auto custom-scrollbar flex flex-col py-1">
               {options.map(opt => (
                 <button key={opt} type="button" onClick={() => { onChange(opt); setIsOpen(false) }}
@@ -502,20 +502,20 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center safe-modal-padding">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" />
-      <div ref={modalRef} className="relative z-10 w-full max-w-lg bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+      <div ref={modalRef} className="relative z-10 w-full max-w-lg max-h-[90dvh] bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header & Tabs */}
-        <div className="px-6 py-4 border-b border-white/[0.08]">
-          <div className="flex justify-between items-center mb-4">
+        <div className="px-4 sm:px-6 py-4 border-b border-white/[0.08] shrink-0">
+          <div className="flex justify-between items-center gap-3 mb-4">
             <div className="flex gap-1.5 p-1 bg-white/5 rounded-xl border border-white/5">
               {(["Evento", "Tarea"] as TipoNuevo[]).map(t => (
                 <button key={t} onClick={() => setTipoNuevo(t)}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${tipoNuevo === t ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"}`}>
+                  className={`px-4 py-2.5 sm:py-1.5 rounded-lg text-xs font-semibold transition-all ${tipoNuevo === t ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"}`}>
                   {t}
                 </button>
               ))}
             </div>
-            <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors">
+            <button onClick={onClose} className="w-10 h-10 sm:w-8 sm:h-8 shrink-0 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors">
               <X className="w-4 h-4 text-slate-400" />
             </button>
           </div>
@@ -523,16 +523,16 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
           {/* Título Principal */}
           <input type="text" value={titulo} onChange={e => setTitulo(e.target.value)} autoFocus
             placeholder="Añade un título..."
-            className="w-full bg-transparent text-2xl font-semibold text-white placeholder-slate-500 focus:outline-none" />
+            className="w-full min-w-0 bg-transparent text-xl sm:text-2xl font-semibold text-white placeholder-slate-500 focus:outline-none" />
         </div>
 
         {/* Form Body */}
-        <div className="p-6 space-y-6 overflow-y-auto max-h-[60vh] custom-scrollbar">
+        <div className="p-4 sm:p-6 space-y-5 sm:space-y-6 overflow-y-auto flex-1 min-h-0 sm:max-h-[60dvh] custom-scrollbar">
           
           {/* Fechas y Horas */}
-          <div className="flex gap-4 items-start">
+          <div className="flex gap-3 sm:gap-4 items-start">
             <Clock className="w-5 h-5 text-slate-400 mt-2 shrink-0" />
-            <div className="flex-1 space-y-3">
+            <div className="flex-1 min-w-0 space-y-3">
               <div className="flex items-center flex-wrap gap-2 text-sm text-slate-200">
                 <input type="date" value={fechaIni} onChange={e => setFechaIni(e.target.value)} className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500 [color-scheme:dark]" />
                 
@@ -549,7 +549,7 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
                 )}
               </div>
               
-              <div className="flex items-center gap-6">
+              <div className="flex items-center flex-wrap gap-x-6 gap-y-2">
                 <label className="flex items-center gap-2 cursor-pointer group">
                   <div className={`relative w-8 h-4.5 rounded-full transition-colors ${todoElDia ? "bg-indigo-500" : "bg-white/10"}`}>
                     <div className={`absolute top-0.5 left-0.5 w-3.5 h-3.5 bg-white rounded-full shadow transition-transform ${todoElDia ? "translate-x-3.5" : "translate-x-0"}`} />
@@ -570,16 +570,16 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
           </div>
 
           {/* Calendario / Etiqueta */}
-          <div className="flex gap-4 items-center">
+          <div className="flex gap-3 sm:gap-4 items-center">
             <CalendarDays className="w-5 h-5 text-slate-400 shrink-0" />
-            <div className="flex-1 relative">
+            <div className="flex-1 min-w-0 relative">
               <button onClick={() => setIsTagDropdownOpen(!isTagDropdownOpen)}
                 className="w-full flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-all">
-                <div className="flex items-center gap-2.5">
-                  {etiquetaSeleccionada && <div className="w-3 h-3 rounded-full" style={{ background: getEstiloColor(etiquetaSeleccionada.color).dot }} />}
-                  <span>{etiquetaSeleccionada ? etiquetaSeleccionada.nombre : "Seleccionar Etiqueta"}</span>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {etiquetaSeleccionada && <div className="w-3 h-3 rounded-full shrink-0" style={{ background: getEstiloColor(etiquetaSeleccionada.color).dot }} />}
+                  <span className="truncate">{etiquetaSeleccionada ? etiquetaSeleccionada.nombre : "Seleccionar Etiqueta"}</span>
                 </div>
-                <ChevronDown className="w-4 h-4 text-slate-400" />
+                <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
               </button>
               
               {isTagDropdownOpen && (
@@ -609,27 +609,27 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
 
           {tipoNuevo === "Evento" && (
             <>
-              <div className="flex gap-4 items-center">
+              <div className="flex gap-3 sm:gap-4 items-center">
                 <Users className="w-5 h-5 text-slate-400 shrink-0" />
                 <input type="text" value={invitados} onChange={e => setInvitados(e.target.value)} placeholder="Añade invitados (correos)"
                   className="w-full bg-transparent border-b border-white/10 pb-1.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all" />
               </div>
 
-              <div className="flex gap-4 items-center">
+              <div className="flex gap-3 sm:gap-4 items-center">
                 <Video className="w-5 h-5 text-slate-400 shrink-0" />
                 <input type="text" value={videollamada} onChange={e => setVideollamada(e.target.value)} placeholder="Añade videollamada de Google Meet o Zoom"
                   className="w-full bg-transparent border-b border-white/10 pb-1.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all" />
               </div>
               
-              <div className="flex gap-4 items-center">
+              <div className="flex gap-3 sm:gap-4 items-center">
                 <MapPin className="w-5 h-5 text-slate-400 shrink-0" />
                 <input type="text" value={ubicacion} onChange={e => setUbicacion(e.target.value)} placeholder="Añade una ubicación"
                   className="w-full bg-transparent border-b border-white/10 pb-1.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all" />
               </div>
 
-              <div className="flex gap-4 items-center">
+              <div className="flex gap-3 sm:gap-4 items-center">
                 <Bell className="w-5 h-5 text-slate-400 shrink-0" />
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <DropdownMenu 
                     value={notificacion} 
                     onChange={setNotificacion} 
@@ -640,7 +640,7 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
             </>
           )}
 
-          <div className="flex gap-4 items-start">
+          <div className="flex gap-3 sm:gap-4 items-start">
             <AlignLeft className="w-5 h-5 text-slate-400 mt-1 shrink-0" />
             <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={3} placeholder="Añade una descripción..."
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 resize-none transition-all" />
@@ -648,7 +648,7 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 px-6 py-4 bg-[#11121d] border-t border-white/5">
+        <div className="flex justify-end gap-3 px-4 sm:px-6 py-3 sm:py-4 bg-[#11121d] border-t border-white/5 shrink-0">
           <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-all">
             Cancelar
           </button>
@@ -679,10 +679,10 @@ function ModalCrearEtiqueta({ onClose, onCrear }: { onClose: () => void, onCrear
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center safe-modal-padding">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-sm bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative z-10 w-full max-w-sm max-h-[90dvh] overflow-y-auto bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
         <div className="px-5 py-4 border-b border-white/[0.08] flex justify-between items-center">
           <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Tag className="w-4 h-4 text-indigo-400" /> Nueva Etiqueta</h2>
-          <button onClick={onClose} className="w-7 h-7 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"><X className="w-4 h-4 text-slate-400" /></button>
+          <button onClick={onClose} className="w-10 h-10 sm:w-7 sm:h-7 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"><X className="w-4 h-4 text-slate-400" /></button>
         </div>
         <div className="p-5 space-y-5">
           <div>
@@ -697,7 +697,7 @@ function ModalCrearEtiqueta({ onClose, onCrear }: { onClose: () => void, onCrear
                 const bg = getEstiloColor(c).dot
                 const isSelected = color === c
                 return (
-                  <button key={c} onClick={() => setColor(c)} className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${isSelected ? "ring-2 ring-offset-2 ring-offset-[#151522]" : "opacity-60 hover:opacity-100 hover:scale-110"}`} style={{ background: bg, "--tw-ring-color": bg } as React.CSSProperties}>
+                  <button key={c} onClick={() => setColor(c)} className={`w-9 h-9 sm:w-7 sm:h-7 rounded-full flex items-center justify-center transition-all ${isSelected ? "ring-2 ring-offset-2 ring-offset-[#151522]" : "opacity-60 hover:opacity-100 hover:scale-110"}`} style={{ background: bg, "--tw-ring-color": bg } as React.CSSProperties}>
                     {isSelected && <Check className="w-3.5 h-3.5 text-white/90" />}
                   </button>
                 )
@@ -706,8 +706,8 @@ function ModalCrearEtiqueta({ onClose, onCrear }: { onClose: () => void, onCrear
           </div>
         </div>
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-white/[0.05] bg-[#11121d]">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-all">Cancelar</button>
-          <button onClick={handleCrear} disabled={!nombre.trim() || creando} className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 transition-all flex items-center gap-1.5">
+          <button onClick={onClose} className="px-4 py-2.5 sm:py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-all">Cancelar</button>
+          <button onClick={handleCrear} disabled={!nombre.trim() || creando} className="px-4 py-2.5 sm:py-2 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 transition-all flex items-center gap-1.5">
             {creando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Crear Etiqueta"}
           </button>
         </div>
@@ -731,29 +731,29 @@ function EventDetailPopover({ evento, etiqueta, onClose, onEdit, onDelete, onSta
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center safe-modal-padding">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-sm bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200 p-6">
-        <div className="flex justify-between items-start mb-4">
-          <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 shadow-sm mt-1">
-            <div className="w-2.5 h-2.5 rounded-full" style={{ background: s.dot }} />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">{etiqueta.nombre}</span>
+      <div className="relative z-10 w-full max-w-sm max-h-[90dvh] overflow-y-auto custom-scrollbar bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200 p-5 sm:p-6">
+        <div className="flex justify-between items-start gap-2 mb-4">
+          <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 shadow-sm mt-1 min-w-0">
+            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.dot }} />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300 truncate">{etiqueta.nombre}</span>
           </div>
-          <div className="flex gap-1 bg-[#11121d] rounded-full p-1 border border-white/5">
-            <button onClick={onEdit} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors text-slate-400 hover:text-indigo-400">
+          <div className="flex gap-1 bg-[#11121d] rounded-full p-1 border border-white/5 shrink-0">
+            <button onClick={onEdit} className="w-10 h-10 sm:w-8 sm:h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors text-slate-400 hover:text-indigo-400">
               <Pencil className="w-4 h-4" />
             </button>
-            <button onClick={onDelete} className="w-8 h-8 rounded-full hover:bg-rose-500/10 flex items-center justify-center transition-colors text-slate-400 hover:text-rose-500">
+            <button onClick={onDelete} className="w-10 h-10 sm:w-8 sm:h-8 rounded-full hover:bg-rose-500/10 flex items-center justify-center transition-colors text-slate-400 hover:text-rose-500">
               <Trash2 className="w-4 h-4" />
             </button>
             <div className="w-px h-4 bg-white/10 my-auto mx-1" />
-            <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors text-slate-400">
+            <button onClick={onClose} className="w-10 h-10 sm:w-8 sm:h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors text-slate-400">
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
         
-        <h2 className="text-xl font-bold text-white mb-2 leading-tight pr-4">{evento.titulo}</h2>
-        <div className="flex items-center gap-2 text-sm text-slate-300 mb-5">
-          <Clock className="w-4 h-4 text-slate-400" />
+        <h2 className="text-lg sm:text-xl font-bold text-white mb-2 leading-tight pr-4 break-words">{evento.titulo}</h2>
+        <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-sm text-slate-300 mb-5">
+          <Clock className="w-4 h-4 text-slate-400 shrink-0" />
           <span>{new Date(evento.fechaISO + "T00:00:00").toLocaleDateString("es-PE", { weekday: 'short', day: 'numeric', month: 'long' })}</span>
           <span className="text-slate-500">•</span>
           <span>{evento.todoElDia ? "Todo el día" : `${f(evento.horaInicio)} a ${f(evento.horaInicio + evento.duracion)}`}</span>
@@ -761,21 +761,21 @@ function EventDetailPopover({ evento, etiqueta, onClose, onEdit, onDelete, onSta
         
         {evento.subtitulo && (
           <div className="bg-white/[0.03] rounded-xl p-4 border border-white/5 mb-5 max-h-32 overflow-y-auto custom-scrollbar shadow-inner">
-            <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{evento.subtitulo}</p>
+            <p className="text-sm text-slate-300 whitespace-pre-wrap break-words leading-relaxed">{evento.subtitulo}</p>
           </div>
         )}
         
         {(evento.ubicacion || evento.videollamada) && (
           <div className="space-y-3 mt-2 bg-[#11121d] p-4 rounded-xl border border-white/5">
             {evento.videollamada && (
-              <div className="flex gap-3 items-center text-sm text-slate-300">
-                <Video className="w-4 h-4 text-indigo-400" /> 
+              <div className="flex gap-3 items-center text-sm text-slate-300 min-w-0">
+                <Video className="w-4 h-4 text-indigo-400 shrink-0" /> 
                 <span className="truncate">{evento.videollamada}</span>
               </div>
             )}
             {evento.ubicacion && (
-              <div className="flex gap-3 items-center text-sm text-slate-300">
-                <MapPin className="w-4 h-4 text-rose-400" /> 
+              <div className="flex gap-3 items-center text-sm text-slate-300 min-w-0">
+                <MapPin className="w-4 h-4 text-rose-400 shrink-0" /> 
                 <span className="truncate">{evento.ubicacion}</span>
               </div>
             )}
@@ -861,13 +861,13 @@ function ModalAjustesGeneral({
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center safe-modal-padding">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-sm bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative z-10 w-full max-w-sm max-h-[90dvh] bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
         <div className="px-5 py-4 border-b border-white/[0.08] flex justify-between items-center">
           <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Settings className="w-4 h-4 text-indigo-400" /> Configuración</h2>
-          <button onClick={onClose} className="w-7 h-7 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"><X className="w-4 h-4 text-slate-400" /></button>
+          <button onClick={onClose} className="w-10 h-10 sm:w-7 sm:h-7 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"><X className="w-4 h-4 text-slate-400" /></button>
         </div>
         
-        <div className="p-5 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+        <div className="p-5 space-y-6 flex-1 min-h-0 sm:max-h-[60dvh] overflow-y-auto custom-scrollbar">
           {/* Configuración de Sueño */}
           <div className="space-y-4">
             <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-indigo-400" /> Horas de Sueño</h3>
@@ -896,12 +896,12 @@ function ModalAjustesGeneral({
         </div>
 
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-white/[0.05] bg-[#11121d] rounded-b-2xl">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-all">Cancelar</button>
+          <button onClick={onClose} className="px-4 py-2.5 sm:py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-all">Cancelar</button>
           <button onClick={() => { 
             onSaveSleep({ start: to24h(start12), end: to24h(end12) }); 
             onSaveSemester({ start: semStart, end: semEnd });
             onClose(); 
-          }} className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-all">Guardar</button>
+          }} className="px-4 py-2.5 sm:py-2 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-all">Guardar</button>
         </div>
       </div>
     </div>
@@ -1274,22 +1274,22 @@ export function AgendaInteligente() {
         />
       )}
 
-      <div className="flex flex-col gap-4" style={{ maxWidth: "1800px", margin: "0 auto", padding: "16px" }}>
+      <div className="flex flex-col gap-3 sm:gap-4 w-full min-w-0 px-0 py-2 sm:p-4" style={{ maxWidth: "1800px", margin: "0 auto" }}>
 
         {/* ── BARRA SUPERIOR ─────────────────────────────────────────────── */}
-        <div className="bg-[#11121d] border border-white/10 rounded-2xl p-4 shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="bg-[#11121d] border border-white/10 rounded-2xl p-3 sm:p-4 shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
             
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="flex items-center gap-2">
-                <button onClick={() => navegar("hoy")} className="px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-200 bg-white/5 border border-white/10 hover:bg-white/10 transition-all shadow-sm">Hoy</button>
-                <div className="flex rounded-lg overflow-hidden border border-white/10 shadow-sm">
-                  <button onClick={() => navegar("prev")} className="w-8 h-7 bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all"><ChevronLeft className="w-4 h-4 text-slate-400" /></button>
-                  <button onClick={() => navegar("next")} className="w-8 h-7 bg-white/5 border-l border-white/10 hover:bg-white/10 flex items-center justify-center transition-all"><ChevronRight className="w-4 h-4 text-slate-400" /></button>
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <button onClick={() => navegar("hoy")} className="px-4 h-10 sm:h-auto sm:py-1.5 shrink-0 rounded-lg text-xs font-semibold text-slate-200 bg-white/5 border border-white/10 hover:bg-white/10 transition-all shadow-sm">Hoy</button>
+                <div className="flex shrink-0 rounded-lg overflow-hidden border border-white/10 shadow-sm">
+                  <button onClick={() => navegar("prev")} className="w-10 h-10 sm:w-8 sm:h-7 bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all"><ChevronLeft className="w-4 h-4 text-slate-400" /></button>
+                  <button onClick={() => navegar("next")} className="w-10 h-10 sm:w-8 sm:h-7 bg-white/5 border-l border-white/10 hover:bg-white/10 flex items-center justify-center transition-all"><ChevronRight className="w-4 h-4 text-slate-400" /></button>
                 </div>
-                <div className="relative flex items-center ml-2 group">
-                  <h2 onClick={() => setIsDatePickerOpen(!isDatePickerOpen)} className="text-base font-bold text-slate-100 tracking-tight group-hover:text-indigo-400 transition-colors flex items-center gap-2 cursor-pointer">
-                    {getHeaderTitle()} <Calendar className="w-4 h-4 opacity-30 group-hover:opacity-100 transition-opacity" />
+                <div className="relative flex items-center ml-1 sm:ml-2 group min-w-0">
+                  <h2 onClick={() => setIsDatePickerOpen(!isDatePickerOpen)} className="text-sm sm:text-base font-bold min-w-0 text-slate-100 tracking-tight group-hover:text-indigo-400 transition-colors flex items-center gap-2 cursor-pointer">
+                    <span className="truncate">{getHeaderTitle()}</span> <Calendar className="w-4 h-4 shrink-0 opacity-30 group-hover:opacity-100 transition-opacity" />
                   </h2>
                   {isDatePickerOpen && (
                     <>
@@ -1300,10 +1300,10 @@ export function AgendaInteligente() {
                 </div>
               </div>
 
-              <div className="hidden sm:block w-px h-6 bg-white/10 mx-2" />
+              <div className="hidden lg:block w-px h-6 bg-white/10 mx-2" />
 
               <div className="relative">
-                <button onClick={() => setIsViewDropdownOpen(!isViewDropdownOpen)} className="flex items-center gap-2 px-3.5 h-8 rounded-xl border border-white/10 bg-white/[0.02] shadow-sm text-xs font-medium text-slate-200 hover:bg-white/5 transition-all">
+                <button onClick={() => setIsViewDropdownOpen(!isViewDropdownOpen)} className="flex items-center gap-2 px-3.5 h-10 sm:h-8 rounded-xl border border-white/10 bg-white/[0.02] shadow-sm text-xs font-medium text-slate-200 hover:bg-white/5 transition-all">
                   {(() => {
                     const Ico = VISTA_ICONS[currentView]
                     return <><Ico className="w-3.5 h-3.5" /> {currentView}</>
@@ -1313,12 +1313,12 @@ export function AgendaInteligente() {
                 {isViewDropdownOpen && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setIsViewDropdownOpen(false)} />
-                    <div className="absolute top-full left-0 mt-1 w-32 bg-[#1c1d2e] border border-white/10 rounded-xl shadow-xl z-50 py-1 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="absolute top-full left-0 mt-1 w-36 sm:w-32 bg-[#1c1d2e] border border-white/10 rounded-xl shadow-xl z-50 py-1 animate-in fade-in zoom-in-95 duration-150">
                       {(["Día", "Semana", "Mes", "Año", "Agenda"] as CalendarioVista[]).map(v => {
                         const Ico = VISTA_ICONS[v]
                         const activo = currentView === v
                         return (
-                          <button key={v} onClick={() => { setCurrentView(v); setIsViewDropdownOpen(false) }} className={`w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors ${activo ? "bg-white/10 text-white font-medium" : "text-slate-400 hover:bg-white/5 hover:text-slate-200"}`}>
+                          <button key={v} onClick={() => { setCurrentView(v); setIsViewDropdownOpen(false) }} className={`w-full flex items-center gap-2 px-3 py-2.5 sm:py-2 text-xs transition-colors ${activo ? "bg-white/10 text-white font-medium" : "text-slate-400 hover:bg-white/5 hover:text-slate-200"}`}>
                             <Ico className="w-3.5 h-3.5" />{v}
                           </button>
                         )
@@ -1329,19 +1329,19 @@ export function AgendaInteligente() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            <div className="flex items-center gap-2 sm:gap-2.5 w-full lg:w-auto min-w-0">
               <BarraIA onImportSchedule={(file) => { setSchedulePdf(file); setIsCourseSectionModalOpen(true) }} />
               
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 {/* Botón de Integraciones */}
                 <div className="relative">
-                  <button onClick={() => setIsIntegrationsDropdownOpen(!isIntegrationsDropdownOpen)} className="flex items-center justify-center w-9 h-9 rounded-xl border border-white/10 bg-white/[0.02] shadow-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all" title="Integraciones y Sincronización">
+                  <button onClick={() => setIsIntegrationsDropdownOpen(!isIntegrationsDropdownOpen)} className="flex items-center justify-center w-10 h-10 sm:w-9 sm:h-9 rounded-xl border border-white/10 bg-white/[0.02] shadow-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all" title="Integraciones y Sincronización">
                     <Zap className="w-4 h-4" />
                   </button>
                   {isIntegrationsDropdownOpen && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setIsIntegrationsDropdownOpen(false)} />
-                      <div className="absolute top-full right-0 mt-2 w-max min-w-[200px] bg-[#1c1d2e] border border-white/10 rounded-xl shadow-xl z-50 py-1.5 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="absolute top-full right-0 mt-2 w-max min-w-[200px] max-w-[calc(100vw-2rem)] bg-[#1c1d2e] border border-white/10 rounded-xl shadow-xl z-50 py-1.5 animate-in fade-in zoom-in-95 duration-150">
                         <div className="px-4 py-2 border-b border-white/5 mb-1">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Conexiones</p>
                         </div>
@@ -1364,7 +1364,7 @@ export function AgendaInteligente() {
 
                 {/* Botón Principal: Crear */}
                 <div className="relative">
-                  <button onClick={() => setIsCreateDropdownOpen(!isCreateDropdownOpen)} className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.3)] transition-all shrink-0">
+                  <button onClick={() => setIsCreateDropdownOpen(!isCreateDropdownOpen)} className="flex items-center gap-2 px-3 sm:px-4 h-10 sm:h-9 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.3)] transition-all shrink-0">
                     <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Crear</span> <ChevronDown className="w-3 h-3 ml-1 opacity-70" />
                   </button>
                   {isCreateDropdownOpen && (
@@ -1399,8 +1399,8 @@ export function AgendaInteligente() {
         </div>
 
         {/* ── ÁREA PRINCIPAL ─────────────────────────────────────────────── */}
-        <div className="flex gap-4 relative">
-          <div className={`flex-1 min-w-0 bg-[#090b1c] border rounded-3xl flex flex-col overflow-hidden h-[calc(100dvh-220px)] transition-all duration-500 ${examWeekMode ? 'border-purple-500/30 shadow-[inset_0_0_20px_rgba(168,85,247,0.05),0_12px_40px_rgba(0,0,0,0.4)]' : 'border-slate-800/60 shadow-[0_12px_40px_rgba(0,0,0,0.4)]'}`}>
+        <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 relative">
+          <div className={`flex-1 min-w-0 bg-[#090b1c] border rounded-2xl sm:rounded-3xl flex flex-col overflow-hidden h-[calc(100dvh-240px)] min-h-[440px] sm:h-[calc(100dvh-220px)] transition-all duration-500 ${examWeekMode ? 'border-purple-500/30 shadow-[inset_0_0_20px_rgba(168,85,247,0.05),0_12px_40px_rgba(0,0,0,0.4)]' : 'border-slate-800/60 shadow-[0_12px_40px_rgba(0,0,0,0.4)]'}`}>
             <CalendarioGrid
               vista={currentView}
               eventos={eventosConRecurrencia}
@@ -1416,18 +1416,18 @@ export function AgendaInteligente() {
           </div>
 
           {/* Botón de Colapsar (Integrado en el layout flex para evitar superposición) */}
-          <div className="flex flex-col justify-center transition-all duration-300 z-30">
+          <div className="flex flex-row lg:flex-col justify-center transition-all duration-300 z-30">
             <button 
               onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
-              className="w-5 h-16 flex items-center justify-center bg-[#11121d] border border-white/10 hover:bg-white/20 transition-all cursor-pointer shadow-[0_4px_20px_rgba(0,0,0,0.5)] rounded-md hover:scale-105"
+              className="w-full h-10 lg:w-5 lg:h-16 flex items-center justify-center bg-[#11121d] border border-white/10 hover:bg-white/20 transition-all cursor-pointer shadow-[0_4px_20px_rgba(0,0,0,0.5)] rounded-md hover:scale-105"
               title={isSidebarOpen ? "Ocultar panel" : "Mostrar panel"}
             >
-              {isSidebarOpen ? <ChevronRight className="w-3.5 h-3.5 text-slate-400" /> : <ChevronLeft className="w-3.5 h-3.5 text-slate-400" />}
+              {isSidebarOpen ? <ChevronRight className="w-3.5 h-3.5 text-slate-400 rotate-90 lg:rotate-0" /> : <ChevronLeft className="w-3.5 h-3.5 text-slate-400 rotate-90 lg:rotate-0" />}
             </button>
           </div>
 
-          <div className={`flex flex-col gap-4 overflow-hidden transition-all duration-300 shrink-0 relative`} style={{ width: isSidebarOpen ? "280px" : "0px", opacity: isSidebarOpen ? 1 : 0 }}>
-            <div className="flex flex-col gap-4 overflow-y-auto custom-scrollbar h-full relative" style={{ width: "280px" }}>
+          <div className={`flex-col gap-4 overflow-hidden transition-all duration-300 shrink-0 relative w-full ${isSidebarOpen ? "flex lg:w-[280px] opacity-100" : "hidden lg:flex lg:w-0 opacity-0"}`}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-col gap-3 sm:gap-4 lg:overflow-y-auto custom-scrollbar h-full relative w-full lg:w-[280px]">
               
               {/* Modo Semana de Exámenes (Toggle reubicado) */}
               <div className={`p-4 rounded-2xl border transition-all duration-300 shadow-lg ${examWeekMode ? 'bg-purple-900/20 border-purple-500/30' : 'bg-[#11121d] border-white/10'}`}>
@@ -1471,7 +1471,7 @@ export function AgendaInteligente() {
               <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg">
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><Layers className="w-3.5 h-3.5 text-indigo-400" /> Etiquetas</p>
-                  <button onClick={() => setIsTagModalOpen(true)} className="w-5 h-5 rounded hover:bg-white/10 flex items-center justify-center transition-colors">
+                  <button onClick={() => setIsTagModalOpen(true)} className="w-10 h-10 -m-2.5 sm:m-0 sm:w-5 sm:h-5 rounded hover:bg-white/10 flex items-center justify-center transition-colors">
                     <Plus className="w-3.5 h-3.5 text-slate-400" />
                   </button>
                 </div>
@@ -1522,7 +1522,7 @@ export function AgendaInteligente() {
                 <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg relative">
                   <div className="flex justify-between items-center mb-4">
                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-emerald-400" /> Productividad</p>
-                    <button onClick={() => setIsSleepModalOpen(true)} className="p-1 hover:bg-white/10 rounded-full transition-colors">
+                    <button onClick={() => setIsSleepModalOpen(true)} className="p-2.5 -m-1.5 sm:m-0 sm:p-1 hover:bg-white/10 rounded-full transition-colors">
                       <Settings className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" />
                     </button>
                   </div>

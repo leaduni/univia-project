@@ -63,11 +63,11 @@ export function SeccionView({ seccionId }: SeccionViewProps) {
         <Link href="/foro" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="w-4 h-4" /> Foro
         </Link>
-        <h1 className="font-poppins font-semibold text-2xl text-foreground mt-2">{seccion.titulo}</h1>
+        <h1 className="font-poppins font-semibold text-xl sm:text-2xl text-foreground mt-2 break-words">{seccion.titulo}</h1>
         {seccion.descripcion && (
           <p className="text-sm text-muted-foreground mt-1">{seccion.descripcion}</p>
         )}
-        <div className="flex items-center justify-between mt-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 mt-4">
           <p className="text-xs text-muted-foreground">
             {publicaciones.length} publicaciones
           </p>
@@ -79,7 +79,7 @@ export function SeccionView({ seccionId }: SeccionViewProps) {
       </div>
 
       {mostrarFormulario && (
-        <div className="mb-6 rounded-2xl border border-border bg-card p-4">
+        <div className="mb-6 rounded-2xl border border-border bg-card p-3 sm:p-4">
           <CrearPublicacionForm
             seccionId={seccionId}
             onCreada={(creada) => {

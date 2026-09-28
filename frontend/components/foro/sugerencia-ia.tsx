@@ -63,7 +63,7 @@ export function SugerenciaIA({ publicacionId, sugerencia, esAutor, onAceptada }:
         )}
       </div>
 
-      <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+      <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap break-words">
         {sugerencia.respuesta}
       </p>
 
@@ -86,7 +86,7 @@ export function SugerenciaIA({ publicacionId, sugerencia, esAutor, onAceptada }:
       )}
 
       {esAutor && !aceptada && (
-        <div className="mt-3 flex items-center gap-3">
+        <div className="mt-3 flex flex-wrap items-center gap-3">
           <Button size="sm" onClick={aceptar} disabled={aceptando} className="gap-1.5">
             {aceptando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
             Esta sugerencia resuelve mi duda

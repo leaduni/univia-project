@@ -176,7 +176,7 @@ export default function PerfilPage() {
   if (!perfil) {
     return (
       <DashboardLayout>
-        <div className="flex flex-col items-center justify-center gap-3 p-16 text-center">
+        <div className="flex flex-col items-center justify-center gap-3 px-4 py-12 sm:p-16 text-center">
           <p className="font-heading text-lg font-bold text-foreground">
             No pudimos cargar tu perfil
           </p>
@@ -202,7 +202,7 @@ export default function PerfilPage() {
 
   return (
     <DashboardLayout>
-      <main className="relative min-h-screen overflow-hidden bg-[#090a12] text-white">
+      <main className="relative min-h-dvh overflow-hidden bg-[#090a12] text-white">
 
         {/* =========================================================
             ATMÓSFERA
@@ -223,10 +223,10 @@ export default function PerfilPage() {
             PAGE
         ========================================================== */}
 
-        <div className="relative mx-auto w-full max-w-[1450px] px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+        <div className="relative mx-auto w-full max-w-[1450px] px-4 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
 
           {/* Header */}
-          <header className="mb-8">
+          <header className="mb-6 sm:mb-8">
             <div className="mb-2 flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-fuchsia-400 shadow-[0_0_12px_rgba(232,121,249,0.7)]" />
 
@@ -235,7 +235,7 @@ export default function PerfilPage() {
               </span>
             </div>
 
-            <h1 className="text-3xl font-semibold tracking-[-0.045em] text-white sm:text-4xl">
+            <h1 className="text-2xl font-semibold tracking-[-0.045em] text-white sm:text-3xl lg:text-4xl">
               Mi perfil
             </h1>
 
@@ -260,7 +260,7 @@ export default function PerfilPage() {
               {/* Card glow */}
               <div className="pointer-events-none absolute -inset-px rounded-[26px] bg-gradient-to-br from-fuchsia-500/15 via-transparent to-violet-500/10 opacity-60 blur-sm" />
 
-              <div className="relative overflow-hidden rounded-[26px] border border-white/[0.08] bg-white/[0.025] p-6 shadow-2xl shadow-black/30 backdrop-blur-2xl sm:p-7">
+              <div className="relative overflow-hidden rounded-[26px] border border-white/[0.08] bg-white/[0.025] p-5 shadow-2xl shadow-black/30 backdrop-blur-2xl sm:p-7">
 
                 {/* top reflection */}
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/[0.16] to-transparent" />
@@ -273,14 +273,14 @@ export default function PerfilPage() {
                     AVATAR
                 ================================================== */}
 
-                <div className="relative mb-7 flex items-center justify-between">
+                <div className="relative mb-6 flex items-center justify-between gap-3 sm:mb-7">
 
                   <div className="relative">
 
                     {/* avatar glow */}
                     <div className="absolute inset-[-8px] rounded-full bg-fuchsia-500/[0.08] blur-xl" />
 
-                    <div className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border border-white/[0.12] bg-white/[0.05] shadow-[0_0_40px_rgba(168,85,247,0.08)]">
+                    <div className="relative flex h-20 w-20 sm:h-24 sm:w-24 items-center justify-center overflow-hidden rounded-full border border-white/[0.12] bg-white/[0.05] shadow-[0_0_40px_rgba(168,85,247,0.08)]">
                       <Avatar className="h-full w-full rounded-full">
                         <AvatarImage src={perfil.avatar_url} alt={nombre} className="object-cover" />
                         <AvatarFallback className="gradient-brand-br font-heading text-2xl font-bold text-primary-foreground">
@@ -354,7 +354,7 @@ export default function PerfilPage() {
                         onChange={(e) => setNombreBorrador(e.target.value)}
                         autoFocus
                         aria-label="Nombres y apellidos"
-                        className="h-auto rounded-xl border-white/[0.12] bg-white/[0.05] px-3 py-2 text-lg text-white"
+                        className="h-auto rounded-xl border-white/[0.12] bg-white/[0.05] px-3 py-2 text-base sm:text-lg text-white"
                       />
                       {errorNombre && <p className="text-xs text-red-400">{errorNombre}</p>}
                       <div className="flex items-center gap-2">
@@ -382,15 +382,15 @@ export default function PerfilPage() {
                       </div>
                     </div>
                   ) : (
-                    <h2 className="text-xl font-semibold tracking-[-0.035em] text-white">
+                    <h2 className="break-words text-lg font-semibold tracking-[-0.035em] text-white sm:text-xl">
                       {nombre}
                     </h2>
                   )}
 
                   {/* El correo y el código se muestran pero no se editan: son los
                       identificadores del estudiante ante la UNI (RF-PRF-02). */}
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-[11px] text-white/30">
+                  <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="min-w-0 break-all font-mono text-[11px] text-white/30">
                       {perfil.email}
                     </span>
 
@@ -398,7 +398,7 @@ export default function PerfilPage() {
                       <>
                         <span className="text-white/10">•</span>
 
-                        <span className="font-mono text-[11px] text-white/30">
+                        <span className="min-w-0 break-all font-mono text-[11px] text-white/30">
                           {perfil.codigo_estudiante}
                         </span>
                       </>
@@ -414,7 +414,7 @@ export default function PerfilPage() {
                 <div className="mt-6 flex flex-wrap gap-2">
 
                   {carrera && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-400/15 bg-violet-400/[0.08] px-3 py-1.5 text-[10px] font-medium text-violet-300">
+                    <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-violet-400/15 bg-violet-400/[0.08] px-3 py-1.5 text-[10px] font-medium text-violet-300">
                       <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
                       {carrera.name}
                     </span>
@@ -442,7 +442,7 @@ export default function PerfilPage() {
 
                 <div className="mt-7 grid grid-cols-2 gap-2">
 
-                  <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+                  <div className="min-w-0 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-3.5 sm:p-4">
                     <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-white/25">
                       Ciclo
                     </p>
@@ -452,7 +452,7 @@ export default function PerfilPage() {
                     </p>
                   </div>
 
-                  <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+                  <div className="min-w-0 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-3.5 sm:p-4">
                     <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-white/25">
                       Créditos
                     </p>
@@ -488,7 +488,7 @@ export default function PerfilPage() {
                   TABS — VERCEL SEGMENTED CONTROL
               ====================================================== */}
 
-              <div className="mb-5 inline-flex max-w-full overflow-x-auto rounded-xl border border-white/[0.07] bg-white/[0.025] p-1 shadow-lg shadow-black/10 backdrop-blur-xl">
+              <div className="mb-5 flex w-full sm:inline-flex sm:w-auto max-w-full overflow-x-auto rounded-xl border border-white/[0.07] bg-white/[0.025] p-1 shadow-lg shadow-black/10 backdrop-blur-xl">
 
                 {(
                   [
@@ -586,12 +586,12 @@ export default function PerfilPage() {
                   {activeTab === "academic" && (
                     <div className="p-5 sm:p-7">
 
-                      <div className="mb-7">
+                      <div className="mb-6 sm:mb-7">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-fuchsia-300/60">
                           Academic overview
                         </p>
 
-                        <h2 className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                        <h2 className="mt-2 text-lg font-semibold tracking-[-0.035em] text-white sm:text-xl">
                           Información académica
                         </h2>
 
@@ -715,42 +715,42 @@ export default function PerfilPage() {
 
                       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
 
-                        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] p-5">
+                        <div className="min-w-0 rounded-2xl border border-white/[0.06] bg-white/[0.018] p-4 sm:p-5">
                           <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/25">
                             Carrera
                           </span>
 
-                          <p className="mt-3 text-sm font-medium text-white/80">
+                          <p className="mt-3 break-words text-sm font-medium text-white/80">
                             {carrera?.name ?? "No asignada"}
                           </p>
                         </div>
 
-                        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] p-5">
+                        <div className="min-w-0 rounded-2xl border border-white/[0.06] bg-white/[0.018] p-4 sm:p-5">
                           <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/25">
                             Facultad
                           </span>
 
-                          <p className="mt-3 text-sm font-medium text-white/80">
+                          <p className="mt-3 break-words text-sm font-medium text-white/80">
                             {carrera?.facultad?.nombre ?? "—"}
                           </p>
                         </div>
 
-                        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] p-5">
+                        <div className="min-w-0 rounded-2xl border border-white/[0.06] bg-white/[0.018] p-4 sm:p-5">
                           <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/25">
                             Plan de estudios
                           </span>
 
-                          <p className="mt-3 text-sm font-medium text-white/80">
+                          <p className="mt-3 break-words text-sm font-medium text-white/80">
                             {planEstudios}
                           </p>
                         </div>
 
-                        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] p-5">
+                        <div className="min-w-0 rounded-2xl border border-white/[0.06] bg-white/[0.018] p-4 sm:p-5">
                           <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/25">
                             Promedio ponderado
                           </span>
 
-                          <p className="mt-3 text-sm font-medium text-white/80">
+                          <p className="mt-3 break-words text-sm font-medium text-white/80">
                             {promedioPonderado ?? "Sin notas registradas"}
                           </p>
                         </div>
@@ -762,7 +762,7 @@ export default function PerfilPage() {
                           ACADEMIC ACTIONS
                       ================================================== */}
 
-                      <div className="mt-3 rounded-2xl border border-white/[0.06] bg-white/[0.018] p-5 sm:flex sm:items-center sm:justify-between sm:gap-6">
+                      <div className="mt-3 rounded-2xl border border-white/[0.06] bg-white/[0.018] p-4 sm:p-5 sm:flex sm:items-center sm:justify-between sm:gap-6">
 
                         <div>
                           <h3 className="text-sm font-semibold text-white/85">
@@ -775,13 +775,13 @@ export default function PerfilPage() {
                           </p>
                         </div>
 
-                        <div className="mt-4 flex shrink-0 flex-wrap gap-2 sm:mt-0">
+                        <div className="mt-4 flex shrink-0 flex-col gap-2 sm:mt-0 sm:flex-row sm:flex-wrap">
 
                           <button
                             type="button"
                             onClick={() => router.push("/onboarding")}
                             className="
-                              inline-flex
+                              w-full justify-center sm:w-auto inline-flex
                               items-center
                               gap-2
                               rounded-xl
@@ -813,7 +813,7 @@ export default function PerfilPage() {
                               setModalMallaAbierto(true)
                             }}
                             className="
-                              inline-flex
+                              w-full justify-center sm:w-auto inline-flex
                               items-center
                               gap-2
                               rounded-xl
@@ -844,7 +844,7 @@ export default function PerfilPage() {
 
                       {/* Modal de cambio de plan de estudios */}
                       <Sheet open={modalMallaAbierto} onOpenChange={setModalMallaAbierto}>
-                        <SheetContent>
+                        <SheetContent className="w-[90vw] sm:w-3/4">
                           <SheetHeader>
                             <SheetTitle>Cambiar Plan de Estudios</SheetTitle>
                             <SheetDescription>
@@ -870,7 +870,7 @@ export default function PerfilPage() {
                                     : "bg-card/60 border-border hover:border-accent/40"
                                 }`}
                               >
-                                <span className="font-heading block text-sm font-bold text-foreground">
+                                <span className="font-heading block break-words text-sm font-bold text-foreground">
                                   {m.nombre}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
@@ -881,13 +881,14 @@ export default function PerfilPage() {
                             ))}
                           </div>
 
-                          <div className="mt-6 flex items-center justify-end gap-3 border-t border-border pt-4">
-                            <Button variant="outline" size="sm" onClick={() => setModalMallaAbierto(false)}>
+                          <div className="mt-6 flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+                            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setModalMallaAbierto(false)}>
                               Cancelar
                             </Button>
                             <Button
                               variant="brand"
                               size="sm"
+                              className="w-full sm:w-auto"
                               disabled={!mallaNuevaId || cambiandoMalla}
                               onClick={handleCambiarMalla}
                             >
@@ -909,12 +910,12 @@ export default function PerfilPage() {
                   {activeTab === "security" && (
                     <div className="p-5 sm:p-7">
 
-                      <div className="mb-7">
+                      <div className="mb-6 sm:mb-7">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-300/60">
                           Account security
                         </p>
 
-                        <h2 className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                        <h2 className="mt-2 text-lg font-semibold tracking-[-0.035em] text-white sm:text-xl">
                           Seguridad
                         </h2>
 
@@ -926,7 +927,7 @@ export default function PerfilPage() {
                       {/* Controles actuales de seguridad */}
                       <div className="space-y-3">
 
-                        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] p-5">
+                        <div className="min-w-0 rounded-2xl border border-white/[0.06] bg-white/[0.018] p-4 sm:p-5">
                           {perfil?.has_password === true ? (
                             <CambiarPasswordForm />
                           ) : (
@@ -940,7 +941,7 @@ export default function PerfilPage() {
 
                         {/* BYOK: la clave de IA del estudiante vive solo en su navegador;
                             aquí solo se abre el modal global de gestión. */}
-                        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] p-5">
+                        <div className="min-w-0 rounded-2xl border border-white/[0.06] bg-white/[0.018] p-4 sm:p-5">
                           <div className="flex items-start gap-3">
                             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/15">
                               <KeyRound className="h-4 w-4 text-accent" aria-hidden="true" />
@@ -956,8 +957,8 @@ export default function PerfilPage() {
                                 encriptada y el servidor la descarta al instante.
                               </p>
                               <div className="mt-3 flex flex-wrap items-center gap-3">
-                                <Button variant="brand" size="sm" onClick={abrirModalByok}>
-                                  <ShieldCheck className="mr-2 h-4 w-4" />
+                                <Button variant="brand" size="sm" className="h-auto min-h-9 w-full whitespace-normal py-2 text-center sm:w-auto" onClick={abrirModalByok}>
+                                  <ShieldCheck className="mr-2 h-4 w-4 shrink-0" />
                                   Gestionar mi clave de IA privada
                                 </Button>
                                 {modoByok && (
@@ -983,12 +984,12 @@ export default function PerfilPage() {
                   {activeTab === "preferences" && (
                     <div className="p-5 sm:p-7">
 
-                      <div className="mb-7">
+                      <div className="mb-6 sm:mb-7">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-300/60">
                           Experience
                         </p>
 
-                        <h2 className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                        <h2 className="mt-2 text-lg font-semibold tracking-[-0.035em] text-white sm:text-xl">
                           Preferencias
                         </h2>
 
@@ -1000,7 +1001,7 @@ export default function PerfilPage() {
                       {/* Controles actuales de preferencias */}
                       <div className="space-y-3">
 
-                        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] p-5">
+                        <div className="min-w-0 rounded-2xl border border-white/[0.06] bg-white/[0.018] p-4 sm:p-5">
                           <PreferenciasCard />
                         </div>
 
@@ -1015,11 +1016,11 @@ export default function PerfilPage() {
           </div>
 
           {/* Cerrar sesión */}
-          <div className="mt-8">
+          <div className="mt-6 sm:mt-8">
             <Button
               variant="outline"
               onClick={() => signOut()}
-              className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+              className="w-full sm:w-auto text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
             >
               <LogOut className="mr-2 h-4 w-4" />
               Cerrar sesión

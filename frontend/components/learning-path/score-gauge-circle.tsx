@@ -21,12 +21,12 @@ export const ScoreGaugeCircle: React.FC<ScoreGaugeCircleProps> = ({
 
   return (
     <div className="flex flex-col items-center text-center space-y-6">
-      <div className="relative inline-flex items-center justify-center">
+      <div className="relative inline-flex items-center justify-center w-40 h-40 sm:w-[200px] sm:h-[200px]">
         <svg
           width="200"
           height="200"
           viewBox="0 0 120 120"
-          className="transform -rotate-90"
+          className="w-full h-full transform -rotate-90"
         >
           <defs>
             <linearGradient
@@ -66,7 +66,7 @@ export const ScoreGaugeCircle: React.FC<ScoreGaugeCircleProps> = ({
         </svg>
 
         <div className="absolute inset-0 flex flex-col items-center justify-center transform rotate-0">
-          <span className="text-5xl font-extrabold text-white tracking-tight">
+          <span className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight">
             {score}
           </span>
           <span className="text-sm text-gray-400 mt-0.5">
@@ -75,8 +75,8 @@ export const ScoreGaugeCircle: React.FC<ScoreGaugeCircleProps> = ({
         </div>
       </div>
 
-      <div className="space-y-1">
-        <h2 className="text-2xl font-bold text-white">{title}</h2>
+      <div className="space-y-1 px-2">
+        <h2 className="text-xl sm:text-2xl font-bold text-white break-words">{title}</h2>
         <p className="text-gray-400 text-sm">{subtitle}</p>
       </div>
     </div>

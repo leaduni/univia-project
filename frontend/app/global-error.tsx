@@ -30,10 +30,11 @@ export default function GlobalError({
           color: "#e5e7eb",
           fontFamily:
             "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-          padding: "24px",
+          padding: "24px 16px",
+          boxSizing: "border-box",
         }}
       >
-        <div style={{ maxWidth: "440px", textAlign: "center" }}>
+        <div style={{ width: "100%", maxWidth: "440px", textAlign: "center" }}>
           <div
             style={{
               width: "64px",
@@ -88,6 +89,10 @@ export default function GlobalError({
               onClick={() => reset()}
               style={{
                 padding: "10px 22px",
+                minHeight: "44px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
                 borderRadius: "10px",
                 border: "none",
                 cursor: "pointer",
@@ -105,6 +110,10 @@ export default function GlobalError({
               href="/"
               style={{
                 padding: "10px 22px",
+                minHeight: "44px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
                 borderRadius: "10px",
                 cursor: "pointer",
                 fontSize: "14px",
@@ -119,7 +128,7 @@ export default function GlobalError({
           </div>
 
           {error.digest && (
-            <p style={{ marginTop: "28px", fontSize: "12px", color: "#6b7280" }}>
+            <p style={{ marginTop: "28px", fontSize: "12px", color: "#6b7280", wordBreak: "break-all" }}>
               Código de referencia:{" "}
               <code style={{ fontFamily: "ui-monospace, monospace" }}>
                 {error.digest}

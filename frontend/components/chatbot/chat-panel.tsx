@@ -85,12 +85,12 @@ export function ChatPanel({
       role="dialog"
       aria-label="Asistente de Venus"
       className={`${expandido
-        ? "w-[min(94vw,940px)] h-[min(88vh,820px)]"
-        : "w-[min(92vw,380px)] h-[min(70vh,560px)]"
+        ? "w-[calc(100vw-1rem)] h-[calc(100dvh-1rem)] sm:w-[min(94vw,940px)] sm:h-[min(88dvh,820px)]"
+        : "w-[calc(100vw-2.5rem)] h-[calc(100dvh-7.5rem)] sm:w-[min(92vw,380px)] sm:h-[min(70dvh,560px)]"
       } flex flex-col rounded-3xl bg-[#0d0e1b]/95 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/40 overflow-hidden anim-up`}
     >
       {/* Cabecera */}
-      <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10 gradient-ai-neon shrink-0">
+      <div className="flex items-center justify-between gap-2 px-3 py-2.5 sm:px-4 sm:py-3 border-b border-white/10 gradient-ai-neon shrink-0">
 <div className="flex items-center gap-2 min-w-0">
           <Sparkles className="w-4 h-4 text-white shrink-0" aria-hidden="true" />
           <div className="min-w-0">
@@ -119,20 +119,20 @@ export function ChatPanel({
             onClick={onAbrirByok}
             aria-label="Configurar tu propia clave de IA"
             title="Configurar tu propia clave de IA"
-            className={`h-7 rounded-full flex items-center gap-1.5 px-2.5 text-[11px] font-semibold transition-colors ${
+            className={`h-10 min-w-10 justify-center sm:h-7 sm:min-w-0 rounded-full flex items-center gap-1.5 px-2.5 text-[11px] font-semibold transition-colors ${
               modoByok
                 ? "bg-emerald-400/20 text-emerald-200 hover:bg-emerald-400/30"
                 : "text-white/90 hover:bg-white/15"
             }`}
           >
             <KeyRound className="w-4 h-4" aria-hidden="true" />
-            {modoByok ? "Clave activa" : "Mi clave IA"}
+            <span className="hidden sm:inline">{modoByok ? "Clave activa" : "Mi clave IA"}</span>
           </button>
           <button
             type="button"
             onClick={onAlternarExpandido}
             aria-label={expandido ? "Reducir el asistente" : "Expandir el asistente"}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-white/90 hover:bg-white/15 transition-colors"
+            className="w-10 h-10 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-white/90 hover:bg-white/15 transition-colors"
           >
             {expandido ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
@@ -140,7 +140,7 @@ export function ChatPanel({
             type="button"
             onClick={onCerrar}
             aria-label="Cerrar el asistente"
-            className="w-7 h-7 rounded-full flex items-center justify-center text-white/90 hover:bg-white/15 transition-colors"
+            className="w-10 h-10 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-white/90 hover:bg-white/15 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>

@@ -203,7 +203,7 @@ export default function SignupPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+      <div className="min-h-dvh flex items-center justify-center bg-background px-4 py-8 sm:p-6">
         <div className="max-w-md w-full text-center animate-in fade-in zoom-in-95 duration-500">
           <div className="mb-8 flex justify-center">
             <div className="relative">
@@ -213,8 +213,8 @@ export default function SignupPage() {
               </div>
             </div>
           </div>
-          <h1 className="font-heading text-4xl font-bold text-foreground mb-3">¡Cuenta Creada!</h1>
-          <p className="text-muted-foreground mb-8 leading-relaxed text-lg">
+          <h1 className="font-heading text-3xl sm:text-4xl font-bold text-foreground mb-3">¡Cuenta Creada!</h1>
+          <p className="text-muted-foreground mb-8 leading-relaxed text-base sm:text-lg">
             Bienvenido a la comunidad de <span className="font-bold text-foreground">LEAD UNI</span>. Tu expediente académico está listo.
           </p>
           <div className="space-y-3">
@@ -229,14 +229,14 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-background text-foreground font-sans selection:bg-accent/30 selection:text-foreground">
+    <div className="relative overflow-x-hidden min-h-dvh w-full bg-background text-foreground font-sans selection:bg-accent/30 selection:text-foreground">
       <div className="pointer-events-none absolute -left-24 -top-10 h-80 w-80 rounded-full bg-[#d93340]/10 blur-3xl" aria-hidden="true" />
       <div className="pointer-events-none absolute -right-16 bottom-0 h-96 w-96 rounded-full bg-[#7957f1]/10 blur-3xl" aria-hidden="true" />
 
-      <div className="min-h-screen w-full flex flex-col justify-center bg-background p-6 sm:p-8">
+      <div className="min-h-dvh w-full flex flex-col justify-center bg-background px-4 py-8 sm:p-8">
         <div className="max-w-5xl mx-auto w-full">
           <div className="mb-8 text-center">
-            <div className="font-heading text-xl font-bold tracking-tight text-foreground/90">
+<div className="font-heading text-lg sm:text-xl font-bold tracking-tight text-foreground/90 text-balance">
               Venus - Plataforma académica · LEAD UNI
             </div>
           </div>
@@ -244,16 +244,16 @@ export default function SignupPage() {
           {error && <AuthErrorBanner message={error} />}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-            <section className="relative rounded-3xl border border-[#7957f1]/70 bg-card p-8 shadow-[0_0_30px_rgba(121,87,241,0.45)] shadow-black/20">
+            <section className="relative rounded-3xl border border-[#7957f1]/70 bg-card p-5 sm:p-8 shadow-[0_0_30px_rgba(121,87,241,0.45)] shadow-black/20">
               <div className="absolute top-0 left-0 h-1 w-full rounded-t-3xl bg-gradient-to-r from-[#d93340] via-[#7957f1] to-[#4ade80]" />
               <div className="flex items-center justify-between">
-                <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-accent">
+                <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-accent">
                   <span className="h-2 w-2 rounded-full bg-gradient-to-r from-[#d93340] to-[#7957f1] shadow-[0_0_8px_#7957f1]" />
                   Estudiante UNI
                 </span>
               </div>
               <div className="mt-6">
-                <h1 className="font-heading text-3xl font-bold tracking-tight text-foreground">
+                <h1 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
                   Registrarse con Correo Institucional UNI
                 </h1>
                 <p className="mt-4 text-sm text-muted-foreground leading-relaxed">
@@ -265,9 +265,9 @@ export default function SignupPage() {
                   type="button"
                   disabled={isLoading}
                   onClick={handleGoogleSignup}
-                  className="w-full py-4 px-4 gradient-login-btn text-primary-foreground font-semibold rounded-xl text-sm transition-all duration-200 shadow-lg shadow-accent/20 active:scale-[0.99] h-auto"
+                  className="w-full whitespace-normal text-center leading-snug py-4 px-4 gradient-login-btn text-primary-foreground font-semibold rounded-xl text-sm transition-all duration-200 shadow-lg shadow-accent/20 active:scale-[0.99] h-auto"
                 >
-                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" aria-hidden="true">
+                  <svg className="w-5 h-5 mr-2 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
                     <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z" />
@@ -278,12 +278,12 @@ export default function SignupPage() {
               </div>
             </section>
 
-            <section className="rounded-3xl border border-white/[0.09] bg-white/[0.04] backdrop-blur-xl p-8 shadow-2xl shadow-black/30">
+            <section className="rounded-3xl border border-white/[0.09] bg-white/[0.04] backdrop-blur-xl p-5 sm:p-8 shadow-2xl shadow-black/30">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-[0.2em] text-accent">Invitado / Desarrollador</span>
+                <span className="text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-accent">Invitado / Desarrollador</span>
               </div>
               <div className="mt-6">
-                <h2 className="font-heading text-3xl font-bold tracking-tight text-foreground">
+                <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
                   Solicitar acceso como invitado
                 </h2>
                 <p className="mt-4 text-sm text-muted-foreground leading-relaxed">
@@ -291,14 +291,14 @@ export default function SignupPage() {
                 </p>
               </div>
               <details className="mt-8 rounded-2xl border border-white/[0.09] bg-background/60 p-4">
-                <summary className="cursor-pointer list-none text-sm font-medium text-foreground">
+                <summary className="cursor-pointer list-none text-sm font-medium text-foreground min-h-10 flex items-center">
                   Enviar solicitud
                 </summary>
                 <form className="mt-4 space-y-4" onSubmit={enviarSolicitudInvitado}>
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider">Nombre Completo</label>
                     <Input
-                      className="mt-2 w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.10] rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:border-[#7957f1] focus:ring-[#7957f1]/50"
+                      className="mt-2 w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.10] rounded-xl text-base sm:text-sm text-foreground placeholder:text-muted-foreground focus:border-[#7957f1] focus:ring-[#7957f1]/50"
                       placeholder="Nombre Completo"
                       value={invitado.nombreCompleto}
                       onChange={(e) => setInvitado({ ...invitado, nombreCompleto: e.target.value })}
@@ -307,7 +307,7 @@ export default function SignupPage() {
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider">Correo de Contacto</label>
                     <Input
-                      className="mt-2 w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.10] rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:border-[#7957f1] focus:ring-[#7957f1]/50"
+                      className="mt-2 w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.10] rounded-xl text-base sm:text-sm text-foreground placeholder:text-muted-foreground focus:border-[#7957f1] focus:ring-[#7957f1]/50"
                       placeholder="correo@ejemplo.com"
                       value={invitado.emailContacto}
                       onChange={(e) => setInvitado({ ...invitado, emailContacto: e.target.value })}
@@ -316,7 +316,7 @@ export default function SignupPage() {
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider">Universidad/Empresa</label>
                     <Input
-                      className="mt-2 w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.10] rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:border-[#7957f1] focus:ring-[#7957f1]/50"
+                      className="mt-2 w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.10] rounded-xl text-base sm:text-sm text-foreground placeholder:text-muted-foreground focus:border-[#7957f1] focus:ring-[#7957f1]/50"
                       placeholder="Universidad/Empresa"
                       value={invitado.universidadEmpresa}
                       onChange={(e) => setInvitado({ ...invitado, universidadEmpresa: e.target.value })}
@@ -325,7 +325,7 @@ export default function SignupPage() {
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider">Motivo de Solicitud</label>
                     <Input
-                      className="mt-2 w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.10] rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:border-[#7957f1] focus:ring-[#7957f1]/50"
+                      className="mt-2 w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.10] rounded-xl text-base sm:text-sm text-foreground placeholder:text-muted-foreground focus:border-[#7957f1] focus:ring-[#7957f1]/50"
                       placeholder="Motivo de Solicitud"
                       value={invitado.motivoSolicitud}
                       onChange={(e) => setInvitado({ ...invitado, motivoSolicitud: e.target.value })}

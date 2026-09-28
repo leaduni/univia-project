@@ -27,14 +27,14 @@ export function CourseLegend() {
         <CardTitle className="text-lg text-foreground">Leyenda de Estados</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {(Object.keys(COURSE_STATUS_MAP) as Array<keyof typeof COURSE_STATUS_MAP>).map((key) => {
             const config = COURSE_STATUS_MAP[key]
             const Icon = legendIcons[key]
             return (
               <div
                 key={key}
-                className={cn("p-4 rounded-lg border border-border flex items-start gap-3", config.card)}
+                className={cn("p-3 sm:p-4 rounded-lg border border-border flex items-start gap-3 min-w-0", config.card)}
               >
                 {Icon ? (
                   <Icon className={cn("w-5 h-5 flex-shrink-0 mt-0.5", legendIconColors[key] || "text-foreground")} />

@@ -55,7 +55,7 @@ export function PostCard({ publicacion, indice = 0, onVotar, onAlternarGuardado 
     <article
       className={cn(
         "group relative overflow-hidden rounded-[20px] border border-white/[0.08]",
-        "bg-white/[0.025] p-5 shadow-xl shadow-black/15 backdrop-blur-2xl anim-up",
+        "bg-white/[0.025] p-4 sm:p-5 shadow-xl shadow-black/15 backdrop-blur-2xl anim-up",
         "transition-all duration-300 hover:-translate-y-0.5 hover:border-white/[0.14]",
         "hover:bg-white/[0.035] hover:shadow-2xl hover:shadow-black/25",
       )}
@@ -121,10 +121,10 @@ export function PostCard({ publicacion, indice = 0, onVotar, onAlternarGuardado 
               href={href}
               className="mt-2 block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/50"
             >
-              <h3 className="text-base font-semibold tracking-[-0.025em] text-white/90 line-clamp-2 transition-colors group-hover:text-white">
+              <h3 className="text-[15px] sm:text-base font-semibold tracking-[-0.025em] text-white/90 line-clamp-2 break-words transition-colors group-hover:text-white">
                 {publicacion.titulo}
               </h3>
-              <p className="mt-1 text-sm leading-6 text-white/45 line-clamp-3 whitespace-pre-line">
+              <p className="mt-1 text-sm leading-6 text-white/45 line-clamp-3 whitespace-pre-line break-words">
                 {publicacion.cuerpo}
               </p>
             </Link>
@@ -133,7 +133,7 @@ export function PostCard({ publicacion, indice = 0, onVotar, onAlternarGuardado 
             {url_portada && (
               <Link
                 href={href}
-                className="relative mt-3 block h-56 overflow-hidden rounded-xl border border-white/[0.08]"
+                className="relative mt-3 block h-40 overflow-hidden sm:h-56 rounded-xl border border-white/[0.08]"
               >
                 <Image
                   src={url_portada}
@@ -162,8 +162,8 @@ export function PostCard({ publicacion, indice = 0, onVotar, onAlternarGuardado 
         </div>
 
         {/* ACTIONS */}
-        <div className="mt-5 flex items-center justify-between border-t border-white/[0.06] pt-3">
-          <div className="flex items-center gap-1">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-white/[0.06] pt-3 sm:mt-5">
+          <div className="flex min-w-0 flex-wrap items-center gap-0.5 sm:gap-1">
             {/* Upvote */}
             <button
               type="button"
@@ -171,7 +171,7 @@ export function PostCard({ publicacion, indice = 0, onVotar, onAlternarGuardado 
               aria-pressed={publicacion.mi_voto === 1}
               onClick={() => onVotar(publicacion.id, 1)}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] text-white/35 transition hover:bg-emerald-400/[0.07] hover:text-emerald-400",
+                "inline-flex min-h-10 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] sm:min-h-0 text-white/35 transition hover:bg-emerald-400/[0.07] hover:text-emerald-400",
                 publicacion.mi_voto === 1 && "text-emerald-400",
               )}
             >
@@ -197,7 +197,7 @@ export function PostCard({ publicacion, indice = 0, onVotar, onAlternarGuardado 
               aria-pressed={publicacion.mi_voto === -1}
               onClick={() => onVotar(publicacion.id, -1)}
               className={cn(
-                "rounded-lg p-1.5 text-white/25 transition hover:bg-white/[0.04] hover:text-white/60",
+                "inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg p-1.5 text-white/25 sm:min-h-0 sm:min-w-0 transition hover:bg-white/[0.04] hover:text-white/60",
                 publicacion.mi_voto === -1 && "text-rose-400",
               )}
             >
@@ -209,7 +209,7 @@ export function PostCard({ publicacion, indice = 0, onVotar, onAlternarGuardado 
             {/* Comments */}
             <Link
               href={href}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] text-white/35 transition hover:bg-white/[0.04] hover:text-white/70"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] sm:min-h-0 text-white/35 transition hover:bg-white/[0.04] hover:text-white/70"
             >
               <MessageSquare className="h-3.5 w-3.5" />
               <span className="tabular-nums">{publicacion.num_comentarios}</span>
@@ -217,7 +217,7 @@ export function PostCard({ publicacion, indice = 0, onVotar, onAlternarGuardado 
             </Link>
 
             {/* Views */}
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] text-white/25">
+            <span className="inline-flex items-center gap-1.5 px-2 py-1.5 text-[11px] text-white/25 sm:px-2.5">
               <Eye className="h-3.5 w-3.5" />
               <span className="tabular-nums">{publicacion.num_vistas}</span>
             </span>
@@ -230,7 +230,7 @@ export function PostCard({ publicacion, indice = 0, onVotar, onAlternarGuardado 
             aria-pressed={publicacion.guardado}
             onClick={() => onAlternarGuardado(publicacion.id)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] text-white/35 transition hover:bg-white/[0.04] hover:text-white/75",
+              "inline-flex min-h-10 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] sm:min-h-0 text-white/35 transition hover:bg-white/[0.04] hover:text-white/75",
               publicacion.guardado && "text-violet-300",
             )}
           >

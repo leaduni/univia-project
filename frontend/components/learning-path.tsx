@@ -101,8 +101,8 @@ export function LearningPath({ courseId }: LearningPathProps) {
 
   if (accessDenied) {
     return (
-      <div className="p-8 text-center max-w-2xl mx-auto space-y-4">
-        <div className="bg-amber-500/10 text-amber-200 p-6 rounded-2xl border border-amber-500/30">
+      <div className="p-4 sm:p-8 text-center max-w-2xl mx-auto space-y-4">
+        <div className="bg-amber-500/10 text-amber-200 p-6 rounded-2xl border border-amber-500/30 break-words">
           <Lock className="h-10 w-10 mx-auto mb-3 text-amber-400" />
           <h2 className="text-lg font-bold mb-2 text-white">Curso Bloqueado</h2>
           <p className="text-sm text-amber-300/80">
@@ -118,7 +118,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
 
   if (completeSuccess) {
     return (
-      <div className="p-8 text-center max-w-2xl mx-auto space-y-4">
+      <div className="p-4 sm:p-8 text-center max-w-2xl mx-auto space-y-4">
         <div className="bg-emerald-500/10 text-emerald-200 p-6 rounded-2xl border border-emerald-500/30">
           <CheckCircle2 className="h-10 w-10 mx-auto mb-3 text-emerald-400" />
           <h2 className="text-lg font-bold mb-2 text-white">Curso completado exitosamente</h2>
@@ -135,7 +135,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
 
   if (error || !data) {
     return (
-      <div className="p-8 text-center max-w-2xl mx-auto space-y-4">
+      <div className="p-4 sm:p-8 text-center max-w-2xl mx-auto space-y-4">
         <div className="bg-rose-500/10 text-rose-200 p-4 rounded-2xl border border-rose-500/20 font-semibold">
           {error || "No se encontraron datos para este curso."}
         </div>
@@ -194,12 +194,12 @@ export function LearningPath({ courseId }: LearningPathProps) {
   }
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6">
+    <div className="w-full min-w-0 p-4 md:p-8 max-w-6xl mx-auto space-y-5 sm:space-y-6">
 
       {/* Hero Banner */}
-      {!showingEvaluationResults && <div className="bg-gradient-to-r from-[#17112c] via-[#0f0e21] to-[#0b0a16] rounded-2xl border border-[#27244a] p-6 md:p-8">
+      {!showingEvaluationResults && <div className="bg-gradient-to-r from-[#17112c] via-[#0f0e21] to-[#0b0a16] rounded-2xl border border-[#27244a] p-4 sm:p-6 md:p-8">
         {/* Breadcrumbs */}
-        <p className="text-xs text-slate-500 mb-4">
+        <p className="text-xs text-slate-500 mb-4 break-words">
           <Link href="/dashboard" className="hover:text-slate-300 transition-colors">Inicio</Link>
           <span className="mx-1.5">/</span>
           <Link href="/malla" className="hover:text-slate-300 transition-colors">Mi malla</Link>
@@ -223,7 +223,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
           {(progress ?? 0) < 100 && (
             <button
               onClick={() => setShowCompleteModal(true)}
-              className="ml-auto px-4 py-1.5 rounded-xl text-xs font-semibold text-slate-300 bg-[#1d1a3b] border border-[#3b3475] hover:bg-[#282452] transition-all"
+              className="ml-auto min-h-[40px] sm:min-h-0 px-4 py-1.5 rounded-xl text-xs font-semibold text-slate-300 bg-[#1d1a3b] border border-[#3b3475] hover:bg-[#282452] transition-all"
             >
               Marcar como completado
             </button>
@@ -231,32 +231,32 @@ export function LearningPath({ courseId }: LearningPathProps) {
         </div>
 
         {/* Title & Description */}
-        <h1 className="text-3xl font-black text-white tracking-tight mb-2">
+        <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-2 break-words">
           {curso.name}
         </h1>
         {curso.professor && (
           <p className="text-sm text-slate-400 mb-3">{curso.professor}</p>
         )}
         {curso.description && (
-          <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
+          <p className="text-sm text-slate-300 max-w-2xl leading-relaxed break-words">
             {curso.description}
           </p>
         )}
 
         {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-3 mt-6">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 mt-5 sm:mt-6">
           <button
             onClick={() => setActiveTab("evaluacion")}
             disabled={totalWeeks === 0}
             title={totalWeeks === 0 ? "El curso no tiene temario configurado." : undefined}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-[#ec4899] to-[#8b5cf6] hover:opacity-90 transition-all shadow-lg shadow-pink-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex w-full sm:w-auto items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-[#ec4899] to-[#8b5cf6] hover:opacity-90 transition-all shadow-lg shadow-pink-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Sparkles className="w-4 h-4" />
             Generar evaluación con IA
           </button>
           <button
             onClick={() => setActiveTab("exams")}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-300 bg-[#1a1735]/80 border border-[#2b2654] hover:bg-[#231f47] transition-all"
+            className="flex w-full sm:w-auto items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-300 bg-[#1a1735]/80 border border-[#2b2654] hover:bg-[#231f47] transition-all"
           >
             <FileText className="w-4 h-4" />
             Ver banco de exámenes
@@ -265,31 +265,31 @@ export function LearningPath({ courseId }: LearningPathProps) {
       </div>}
 
       {/* Metrics Grid */}
-      {!showingEvaluationResults && <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-4 rounded-2xl bg-[#121124]/60 border border-[#232045] flex items-center gap-3">
-          <GraduationCap className="w-5 h-5 text-indigo-400" />
-          <div>
+      {!showingEvaluationResults && <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <div className="p-3 sm:p-4 rounded-2xl bg-[#121124]/60 border border-[#232045] flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <GraduationCap className="w-5 h-5 text-indigo-400 shrink-0" />
+          <div className="min-w-0 break-words">
             <p className="text-sm font-bold text-white">{curso.credits || 4} créditos</p>
             <p className="text-xs text-slate-400">Obligatorio &middot; FIIS</p>
           </div>
         </div>
-        <div className="p-4 rounded-2xl bg-[#121124]/60 border border-[#232045] flex items-center gap-3">
-          <Calendar className="w-5 h-5 text-indigo-400" />
-          <div>
+        <div className="p-3 sm:p-4 rounded-2xl bg-[#121124]/60 border border-[#232045] flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <Calendar className="w-5 h-5 text-indigo-400 shrink-0" />
+          <div className="min-w-0 break-words">
             <p className="text-sm font-bold text-white">{totalWeeks || 8} semanas</p>
             <p className="text-xs text-slate-400">Alineado al sílabo 2026-1</p>
           </div>
         </div>
-        <div className="p-4 rounded-2xl bg-[#121124]/60 border border-[#232045] flex items-center gap-3">
-          <FileText className="w-5 h-5 text-indigo-400" />
-          <div>
+        <div className="p-3 sm:p-4 rounded-2xl bg-[#121124]/60 border border-[#232045] flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <FileText className="w-5 h-5 text-indigo-400 shrink-0" />
+          <div className="min-w-0 break-words">
             <p className="text-sm font-bold text-white">{examCount || 15} recursos</p>
             <p className="text-xs text-slate-400">Exámenes, prácticas y clases</p>
           </div>
         </div>
-        <div className="p-4 rounded-2xl bg-[#121124]/60 border border-[#232045] flex items-center gap-3">
-          <Target className="w-5 h-5 text-indigo-400" />
-          <div>
+        <div className="p-3 sm:p-4 rounded-2xl bg-[#121124]/60 border border-[#232045] flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <Target className="w-5 h-5 text-indigo-400 shrink-0" />
+          <div className="min-w-0 break-words">
             <p className="text-sm font-bold text-white">Nivel exigente</p>
             <p className="text-xs text-slate-400">Estilo examen real UNI</p>
           </div>
@@ -297,17 +297,17 @@ export function LearningPath({ courseId }: LearningPathProps) {
       </div>}
 
       {/* 2-Column Layout */}
-      <div className={`grid grid-cols-1 gap-8 ${showingEvaluationResults ? "" : "lg:grid-cols-12"}`}>
+      <div className={`grid grid-cols-1 gap-6 lg:gap-8 ${showingEvaluationResults ? "" : "lg:grid-cols-12"}`}>
 
         {/* Left Column — Tabs + Content */}
-        <div className={showingEvaluationResults ? "space-y-6" : "lg:col-span-8 space-y-6"}>
+        <div className={showingEvaluationResults ? "min-w-0 space-y-6" : "min-w-0 lg:col-span-8 space-y-6"}>
           {/* Inline Tab Buttons */}
-          <div className="flex items-center gap-1 border-b border-[#232045]">
+          <div className="flex items-center gap-1 border-b border-[#232045] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`px-4 py-3 text-sm font-semibold transition-all border-b-2 -mb-[1px] ${
+                className={`shrink-0 whitespace-nowrap px-3 sm:px-4 py-3 text-sm font-semibold transition-all border-b-2 -mb-[1px] ${
                   activeTab === tab.key
                     ? "text-[#ec4899] border-[#ec4899]"
                     : "text-slate-500 border-transparent hover:text-slate-300"
@@ -356,7 +356,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
         </div>
 
         {/* Right Column — Widgets */}
-        {!showingEvaluationResults && <div className="lg:col-span-4 space-y-6">
+        {!showingEvaluationResults && <div className="min-w-0 lg:col-span-4 space-y-6">
 
           {/* AI Analysis Widget */}
           <div className="p-5 rounded-2xl bg-[#121124]/80 border border-[#232045] space-y-4">
@@ -366,7 +366,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
               </div>
               <h3 className="text-sm font-bold text-white">Análisis de tu asistente IA</h3>
             </div>
-            <p className="text-xs text-slate-400 leading-relaxed">
+            <p className="text-xs text-slate-400 leading-relaxed break-words">
               {aiText}
             </p>
             <button
@@ -382,7 +382,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
           <div className="p-5 rounded-2xl bg-[#121124]/80 border border-[#232045] space-y-4">
             <h3 className="text-sm font-bold text-white">Progreso del Curso</h3>
             <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-black text-white">{weeksCompleted} de {totalWeeks}</span>
+              <span className="text-xl sm:text-2xl font-black text-white">{weeksCompleted} de {totalWeeks}</span>
               <span className="text-sm font-bold text-[#ec4899]">{Math.round(progress)}%</span>
             </div>
             <div className="h-2 bg-[#232045] rounded-full overflow-hidden">
@@ -421,13 +421,13 @@ export function LearningPath({ courseId }: LearningPathProps) {
           {/* Professor Widget */}
           <div className="p-5 rounded-2xl bg-[#121124]/80 border border-[#232045] space-y-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#a855f7] to-[#ec4899] p-0.5 flex items-center justify-center">
+              <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-tr from-[#a855f7] to-[#ec4899] p-0.5 flex items-center justify-center">
                 <div className="w-full h-full bg-[#121124] rounded-full flex items-center justify-center text-sm font-black text-white">
                   {curso.professor ? curso.professor.charAt(0) : "M"}
                 </div>
               </div>
-              <div>
-                <p className="text-sm font-bold text-white">{curso.professor || "Docente"}</p>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-white break-words">{curso.professor || "Docente"}</p>
                 <p className="text-xs text-slate-400">Profesor del curso</p>
               </div>
             </div>
@@ -441,13 +441,13 @@ export function LearningPath({ courseId }: LearningPathProps) {
       {/* Complete Modal */}
       {showCompleteModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-[#14132a] border border-[#27244a] rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+          <div className="bg-[#14132a] border border-[#27244a] rounded-2xl p-5 sm:p-6 w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[90dvh] overflow-y-auto shadow-2xl space-y-4">
             <h3 className="text-lg font-bold text-white">¿Marcar curso como completado?</h3>
             <p className="text-sm text-slate-400">
               Esta acción registrará el curso al 100% de progreso.
               Los cursos correlativos dependientes en tu malla curricular se desbloquearán.
             </p>
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
               <button
                 onClick={() => setShowCompleteModal(false)}
                 className="px-5 py-2.5 rounded-xl border border-[#3b3475] bg-[#1d1a3b] text-sm font-semibold text-white hover:bg-[#282452] transition-all"

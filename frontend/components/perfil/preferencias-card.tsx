@@ -17,9 +17,9 @@ interface FilaProps {
 
 function Fila({ titulo, descripcion, activo, onCambio, pendiente }: FilaProps) {
   return (
-    <div className="flex items-start justify-between gap-4">
+    <div className="flex items-start justify-between gap-3 sm:gap-4">
       <div className="min-w-0">
-        <p className="text-sm font-medium text-foreground flex items-center gap-2">
+        <p className="text-sm font-medium text-foreground flex flex-wrap items-center gap-x-2 gap-y-1">
           {titulo}
           {pendiente && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground/70 shrink-0">
@@ -56,7 +56,7 @@ export function PreferenciasCard() {
 
   return (
     <div className="border-t border-border pt-6">
-      <h2 className="font-heading text-lg font-bold text-foreground mb-1">Preferencias</h2>
+      <h2 className="font-heading text-base sm:text-lg font-bold text-foreground mb-1">Preferencias</h2>
       <p className="text-xs text-muted-foreground mb-4">
         Se guardan en este navegador.
       </p>

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 
 export function RecursosEmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-20 text-center max-w-md mx-auto">
+<div className="flex flex-col items-center justify-center gap-3 py-12 sm:py-20 text-center max-w-md mx-auto">
       {/* Luni 'explaining' en lugar del icono genérico: el vacío deja de ser un
           callejón sin salida y pasa a ser la mascota ofreciendo el paso
           siguiente (generar un examen con IA). */}

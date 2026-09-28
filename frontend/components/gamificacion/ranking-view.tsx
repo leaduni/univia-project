@@ -37,26 +37,26 @@ function FilaPodio({ entrada, destacado, className }: FilaPodioProps) {
   return (
     <div
       className={cn(
-        "flex flex-col items-center gap-2 rounded-2xl border bg-white/[0.04] px-4 py-5 text-center",
+        "flex min-w-0 flex-col items-center gap-2 rounded-2xl border bg-white/[0.04] px-2 py-4 text-center sm:px-4 sm:py-5",
         podio && `bg-gradient-to-b ${podio.gradiente} bg-opacity-10`,
         destacado && "ring-2 ring-[#7957f1]/60 shadow-[0_0_20px_rgba(121,87,241,0.25)]",
         className,
       )}
     >
-      <span className="text-3xl" aria-hidden="true">{podio?.medalla ?? entrada.puesto}</span>
-      <Avatar className="size-14 ring-2 ring-white/[0.12]">
+      <span className="text-2xl sm:text-3xl" aria-hidden="true">{podio?.medalla ?? entrada.puesto}</span>
+      <Avatar className="size-11 ring-2 ring-white/[0.12] sm:size-14">
         <AvatarImage src={entrada.avatar_url ?? undefined} alt={entrada.alias_publico} />
         <AvatarFallback className="gradient-brand-br text-primary-foreground font-semibold">
           {iniciales(entrada.alias_publico)}
         </AvatarFallback>
       </Avatar>
-      <div className="min-w-0">
-        <p className="truncate font-semibold text-foreground text-sm" title={entrada.alias_publico}>
+      <div className="w-full min-w-0">
+        <p className="truncate font-semibold text-foreground text-xs sm:text-sm" title={entrada.alias_publico}>
           {entrada.alias_publico}
         </p>
         <p className="text-xs text-muted-foreground">Nivel {entrada.nivel}</p>
       </div>
-      <p className="flex items-center gap-1 text-sm font-bold tabular-nums text-foreground">
+      <p className="flex items-center gap-1 text-xs font-bold tabular-nums text-foreground sm:text-sm">
         <Zap className="w-3.5 h-3.5 text-[#7957f1]" aria-hidden="true" />
         {formatearXp(entrada.xp_total)} XP
       </p>
@@ -66,7 +66,7 @@ function FilaPodio({ entrada, destacado, className }: FilaPodioProps) {
 
 function EsqueletoFila() {
   return (
-    <div className="flex items-center gap-4 py-3 animate-pulse" aria-hidden="true">
+    <div className="flex items-center gap-3 py-3 animate-pulse sm:gap-4" aria-hidden="true">
       <div className="h-5 w-8 rounded bg-white/[0.08]" />
       <div className="h-8 w-8 rounded-full bg-white/[0.08]" />
       <div className="flex-1 space-y-2">
@@ -130,10 +130,10 @@ export function RankingView() {
   const resto = items.slice(3)
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 space-y-8">
+    <div className="mx-auto max-w-5xl px-0 py-4 space-y-6 sm:px-4 sm:py-8 sm:space-y-8">
       <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="flex items-center gap-2 font-heading text-2xl font-bold text-foreground">
+          <h1 className="flex items-center gap-2 font-heading text-xl sm:text-2xl font-bold text-foreground">
             <Trophy className="w-6 h-6 text-amber-400" aria-hidden="true" />
             Ranking Venus
           </h1>
@@ -141,7 +141,7 @@ export function RankingView() {
             Compite por XP acumulando rachas, check-ins y evaluaciones.
           </p>
         </div>
-        <div className="flex items-center gap-1 rounded-full border border-white/[0.1] bg-white/[0.05] p-1" role="tablist" aria-label="Periodo del ranking">
+        <div className="flex w-full items-center gap-1 rounded-full border border-white/[0.1] bg-white/[0.05] p-1 sm:w-auto" role="tablist" aria-label="Periodo del ranking">
           {PERIODOS.map((p) => (
             <button
               key={p.valor}
@@ -149,7 +149,7 @@ export function RankingView() {
               aria-selected={periodo === p.valor}
               onClick={() => setPeriodo(p.valor)}
               className={cn(
-                "rounded-full px-4 py-1.5 text-sm font-semibold transition-all duration-200",
+                "min-h-10 flex-1 rounded-full px-4 py-1.5 text-sm font-semibold transition-all duration-200 sm:min-h-0 sm:flex-none",
                 periodo === p.valor
                   ? "bg-gradient-to-r from-[#7957f1] to-[#a6249d] text-white shadow-[0_0_14px_rgba(121,87,241,0.35)]"
                   : "text-muted-foreground hover:text-foreground",
@@ -175,16 +175,16 @@ export function RankingView() {
           {cargandoInicial ? (
             <div className="h-10 animate-pulse rounded-xl bg-white/[0.06]" aria-hidden="true" />
           ) : miPosicion ? (
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-              <div className="flex items-center gap-3">
-                <Avatar className="size-10 ring-2 ring-[#7957f1]/40">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-3 sm:gap-x-6">
+              <div className="flex min-w-0 items-center gap-3">
+                <Avatar className="size-10 shrink-0 ring-2 ring-[#7957f1]/40">
                   <AvatarImage src={miPosicion.avatar_url ?? undefined} alt={miPosicion.alias_publico ?? undefined} />
                   <AvatarFallback className="gradient-brand-br text-primary-foreground font-semibold">
                     {iniciales(miPosicion.alias_publico)}
                   </AvatarFallback>
                 </Avatar>
-                <div>
-                  <p className="font-semibold text-foreground">{miPosicion.alias_publico ?? "Tú"}</p>
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-foreground">{miPosicion.alias_publico ?? "Tú"}</p>
                   <p className="text-xs text-muted-foreground">Nivel {miPosicion.nivel}</p>
                 </div>
               </div>
@@ -215,7 +215,7 @@ export function RankingView() {
       {/* Podio Top 3 */}
       <section aria-label="Los tres primeros puestos">
         {cargandoInicial ? (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
             {[0, 1, 2].map((i) => (
               <div key={i} className="h-48 animate-pulse rounded-2xl bg-white/[0.06]" aria-hidden="true" />
             ))}
@@ -228,7 +228,7 @@ export function RankingView() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-3 gap-3 sm:gap-4 items-end">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4 items-end">
             {/* 2º a la izquierda, algo más bajo */}
             <FilaPodio entrada={podio[1]} className="order-1 sm:-translate-y-1" />
             {/* 1º en el centro, destacado y más alto */}
@@ -247,7 +247,7 @@ export function RankingView() {
             {periodo === "global" ? "Todos los tiempos" : "Solo el avance de esta semana"}.
           </CardDescription>
         </CardHeader>
-        <CardContent className="px-4 sm:px-6">
+        <CardContent className="px-3 sm:px-6">
           {cargandoInicial ? (
             <div className="divide-y divide-white/[0.07] px-2">
               {[0, 1, 2, 3, 4].map((i) => (
@@ -261,11 +261,11 @@ export function RankingView() {
           ) : (
             <ul className="divide-y divide-white/[0.07]">
               {resto.map((entrada) => (
-                <li key={`${entrada.puesto}-${entrada.alias_publico}`} className="flex items-center gap-4 py-3">
-                  <span className="w-8 text-center font-heading font-bold tabular-nums text-muted-foreground">
+                <li key={`${entrada.puesto}-${entrada.alias_publico}`} className="flex items-center gap-3 py-3 sm:gap-4">
+                  <span className="w-6 shrink-0 text-center font-heading sm:w-8 font-bold tabular-nums text-muted-foreground">
                     {entrada.puesto}
                   </span>
-                  <Avatar className="size-8 ring-1 ring-white/[0.1]">
+                  <Avatar className="size-8 shrink-0 ring-1 ring-white/[0.1]">
                     <AvatarImage src={entrada.avatar_url ?? undefined} alt={entrada.alias_publico} />
                     <AvatarFallback className="bg-white/[0.08] text-foreground text-xs font-semibold">
                       {iniciales(entrada.alias_publico)}
@@ -280,7 +280,7 @@ export function RankingView() {
                       Nivel {entrada.nivel}
                     </p>
                   </div>
-                  <span className="flex items-center gap-1 font-semibold tabular-nums text-foreground">
+                  <span className="flex shrink-0 items-center gap-1 font-semibold tabular-nums text-foreground">
                     <Zap className="w-3.5 h-3.5 text-[#7957f1]" aria-hidden="true" />
                     {formatearXp(entrada.xp_total)} XP
                   </span>

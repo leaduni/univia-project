@@ -19,10 +19,10 @@ export function CourseDetailsPanel({ course, post, onClose, onMarkCompleted }: C
   const fechaValida = fecha && !Number.isNaN(fecha.getTime()) ? fecha.toLocaleDateString("es-PE") : null
 
   return (
-    <div className="absolute right-0 top-0 bottom-0 z-10 flex w-60 flex-col gap-2 overflow-y-auto border-l border-border bg-card/95 p-4 backdrop-blur">
+    <div className="absolute inset-x-0 bottom-0 z-10 flex max-h-[60%] w-full flex-col gap-2 overflow-y-auto rounded-t-2xl border-t border-border bg-card/95 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.35)] backdrop-blur sm:inset-x-auto sm:right-0 sm:top-0 sm:max-h-none sm:w-60 sm:rounded-none sm:border-t-0 sm:border-l sm:pb-4 sm:shadow-none">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="text-sm leading-snug font-bold text-foreground">{course.name}</h3>
+          <h3 className="text-sm leading-snug font-bold text-foreground break-words">{course.name}</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             {course.code} · {course.credits} CR · Ciclo {course.ciclo}
           </p>
@@ -31,7 +31,7 @@ export function CourseDetailsPanel({ course, post, onClose, onMarkCompleted }: C
           type="button"
           onClick={onClose}
           aria-label="Cerrar panel"
-          className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted"
+          className="shrink-0 rounded-md p-2.5 -m-1.5 text-muted-foreground sm:m-0 sm:p-1 transition-colors hover:bg-muted"
         >
           <X className="h-4 w-4" />
         </button>
@@ -86,12 +86,12 @@ export function CourseDetailsPanel({ course, post, onClose, onMarkCompleted }: C
         )}
       </div>
 
-      <div className="mt-auto flex flex-col gap-2">
+      <div className="mt-auto flex flex-col gap-2 pt-2 sm:pt-0">
         {(course.status === "in_progress" || course.status === "available") && onMarkCompleted && (
           <button
             type="button"
             onClick={() => onMarkCompleted(course.id)}
-            className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1.5 text-[11px] font-semibold text-emerald-400 transition-colors hover:bg-emerald-500/20 hover:text-emerald-300"
+            className="rounded-md border border-emerald-500/30 bg-emerald-500/10 min-h-10 px-2 py-1.5 text-[11px] font-semibold text-emerald-400 sm:min-h-0 transition-colors hover:bg-emerald-500/20 hover:text-emerald-300"
           >
             Marcar como Aprobado
           </button>
@@ -99,7 +99,7 @@ export function CourseDetailsPanel({ course, post, onClose, onMarkCompleted }: C
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md border border-border px-2 py-1.5 text-[11px] text-muted-foreground transition-colors hover:border-foreground/50 hover:text-foreground"
+          className="min-h-10 rounded-md border border-border px-2 py-1.5 text-[11px] text-muted-foreground sm:min-h-0 transition-colors hover:border-foreground/50 hover:text-foreground"
         >
           Cerrar
         </button>

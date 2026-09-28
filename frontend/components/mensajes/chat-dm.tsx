@@ -94,12 +94,12 @@ export function ChatDM({ conversacion, onVolver }: ChatDMProps) {
     // Caja transparente: hereda la ventana glass de BandejaMensajes.
     <div className="relative z-10 flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {/* Cabecera */}
-      <div className="flex h-[64px] shrink-0 items-center gap-3 border-b border-white/[0.06] px-5">
+      <div className="flex h-[64px] shrink-0 items-center gap-2 border-b border-white/[0.06] px-3 sm:gap-3 sm:px-5">
         <button
           type="button"
           onClick={onVolver}
           aria-label="Volver a la bandeja"
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.02] text-white/40 transition-colors hover:border-white/[0.12] hover:text-white/80"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border md:h-8 md:w-8 border-white/[0.06] bg-white/[0.02] text-white/40 transition-colors hover:border-white/[0.12] hover:text-white/80"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
@@ -118,7 +118,7 @@ export function ChatDM({ conversacion, onVolver }: ChatDMProps) {
       </div>
 
       {/* Mensajes */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2 sm:p-4">
         {error && (
           <p className="text-xs text-red-300 bg-red-400/[0.06] border border-red-400/20 rounded-lg px-3 py-2">
             {error}
@@ -143,7 +143,7 @@ export function ChatDM({ conversacion, onVolver }: ChatDMProps) {
       </div>
 
       {/* Input */}
-      <form onSubmit={enviar} className="border-t border-white/[0.06] p-4">
+      <form onSubmit={enviar} className="border-t border-white/[0.06] p-3 sm:p-4">
         {envError && (
           <p className="mb-2 text-xs text-red-400">{envError}</p>
         )}
@@ -154,11 +154,11 @@ export function ChatDM({ conversacion, onVolver }: ChatDMProps) {
             placeholder="Escribe un mensaje…"
             maxLength={5000}
             aria-label="Mensaje"
-            className="min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-2.5 text-sm text-white placeholder:text-white/25 focus:border-cyan-400/30 focus:outline-none focus:ring-4 focus:ring-cyan-500/10"
+            className="min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-sm text-white sm:px-4 placeholder:text-white/25 focus:border-cyan-400/30 focus:outline-none focus:ring-4 focus:ring-cyan-500/10"
           />
-          <Button type="submit" disabled={!texto.trim() || enviando} className="gap-1.5 shrink-0">
+          <Button type="submit" disabled={!texto.trim() || enviando} className="h-10 gap-1.5 shrink-0 sm:h-9">
             {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            Enviar
+            <span className="sr-only sm:not-sr-only">Enviar</span>
           </Button>
         </div>
       </form>
@@ -171,7 +171,7 @@ function MensajeBurbuja({ mensaje }: { mensaje: MensajeDM }) {
     <div className={cn("flex", mensaje.propio ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "max-w-[75%] rounded-2xl px-3 py-2 text-sm",
+          "max-w-[85%] min-w-0 rounded-2xl px-3 py-2 text-sm sm:max-w-[75%]",
           mensaje.propio
             ? "bg-gradient-to-br from-[#7957f1] to-[#a6249d] text-white rounded-br-md"
             : "bg-secondary/60 text-foreground border border-border/60 rounded-bl-md",

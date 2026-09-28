@@ -218,7 +218,7 @@ export function ChatPanel({
 
       {/* Cabecera glassmorphism */}
       <header
-        className={`${PANEL_BG} ${CHAT_TOKENS.PANEL_BLUR} relative overflow-hidden flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10 shrink-0`}
+        className={`${PANEL_BG} ${CHAT_TOKENS.PANEL_BLUR} relative overflow-hidden flex items-center justify-between gap-2 px-3 py-2.5 sm:px-4 sm:py-3 border-b border-white/10 shrink-0`}
       >
         {/* Halo OLED: resplandor radial violeta que "respira" sin bloquear. */}
         <div
@@ -273,28 +273,28 @@ export function ChatPanel({
             </p>
           </div>
         </div>
-        <div className="relative flex items-center gap-1 shrink-0">
+        <div className="relative flex items-center gap-0.5 sm:gap-1 shrink-0">
           {onAbrirByok && (
             <button
               type="button"
               onClick={onAbrirByok}
               aria-label="Configurar tu propia clave de IA"
               title="Configurar tu propia clave de IA"
-              className={`h-8 rounded-full flex items-center gap-1.5 px-2.5 text-[11px] font-semibold transition-all active:scale-[0.90] ${
+              className={`h-10 min-w-10 justify-center sm:h-8 sm:min-w-0 rounded-full flex items-center gap-1.5 px-2.5 text-[11px] font-semibold transition-all active:scale-[0.90] ${
                 modoByok
                   ? "bg-emerald-400/15 text-emerald-300 hover:bg-emerald-400/25"
                   : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
               }`}
             >
               <KeyRound className="w-4 h-4" aria-hidden="true" />
-              {modoByok ? "Clave activa" : "Mi clave IA"}
+              <span className="hidden sm:inline">{modoByok ? "Clave activa" : "Mi clave IA"}</span>
             </button>
           )}
           <button
             type="button"
             onClick={onToggleExpand}
             aria-label={isExpanded ? "Restaurar tamaño de chat" : "Maximizar chat"}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-all active:scale-[0.90]"
+            className="w-10 h-10 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-all active:scale-[0.90]"
           >
             {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
@@ -302,7 +302,7 @@ export function ChatPanel({
             type="button"
             onClick={onClear}
             aria-label="Limpiar conversación"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-all active:scale-[0.90]"
+            className="w-10 h-10 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-all active:scale-[0.90]"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -310,7 +310,7 @@ export function ChatPanel({
             type="button"
             onClick={onClose}
             aria-label="Cerrar el asistente"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-all active:scale-[0.90]"
+            className="w-10 h-10 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-all active:scale-[0.90]"
           >
             <X className="w-4 h-4" />
           </button>
@@ -322,7 +322,7 @@ export function ChatPanel({
         role="log"
         aria-live="polite"
         aria-label="Conversación con el asistente"
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar px-3 py-4 space-y-3"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar px-2.5 py-3 sm:px-3 sm:py-4 space-y-3"
       >
         {isLoading && messages.length === 0 ? (
           <ChatSkeleton count={4} />
@@ -377,7 +377,7 @@ export function ChatPanel({
       )}
 
       {/* Input */}
-      <div className="border-t border-white/10 p-3 shrink-0">
+      <div className="border-t border-white/10 p-2.5 sm:p-3 shrink-0">
         <div
           className="relative flex items-center gap-2 rounded-2xl border border-border/60 bg-muted/30 dark:bg-card/60 backdrop-blur-xl px-3 py-2 focus-within:border-primary/60 focus-within:ring-1 focus-within:ring-primary/30 transition-all"
         >
@@ -397,7 +397,7 @@ export function ChatPanel({
               type="button"
               onClick={onAbort}
               aria-label="Detener respuesta"
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-destructive hover:bg-destructive/10 transition-transform active:scale-[0.88] shrink-0"
+              className="w-10 h-10 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-destructive hover:bg-destructive/10 transition-transform active:scale-[0.88] shrink-0"
             >
               <Square className="w-4 h-4" />
             </button>
@@ -407,7 +407,7 @@ export function ChatPanel({
               onClick={enviar}
               disabled={!inputListo || !isOnline}
               aria-label="Enviar mensaje"
-              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-transform active:scale-[0.88] shrink-0 ${
+              className={`w-10 h-10 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-transform active:scale-[0.88] shrink-0 ${
                 inputListo && isOnline
                   ? "bg-primary text-primary-foreground"
                   : "bg-muted text-muted-foreground"

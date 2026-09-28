@@ -35,7 +35,7 @@ const METALES = {
 export function TopDonantes({ donantes, cargando }: TopDonantesProps) {
   if (cargando) {
     return (
-      <section className="rounded-3xl border border-white/[0.08] bg-card/60 p-6 sm:p-8">
+      <section className="rounded-3xl border border-white/[0.08] bg-card/60 p-4 sm:p-8">
         <div className="h-6 w-44 animate-pulse rounded bg-muted" />
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           {[0, 1, 2].map((i) => (
@@ -54,16 +54,16 @@ export function TopDonantes({ donantes, cargando }: TopDonantesProps) {
   const ordenPodio = [podio[1], podio[0], podio[2]]
 
   return (
-    <section className="rounded-3xl border border-white/[0.08] bg-card/60 backdrop-blur-md p-6 sm:p-8">
+    <section className="rounded-3xl border border-white/[0.08] bg-card/60 backdrop-blur-md p-4 sm:p-8">
       <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="font-heading text-2xl font-bold text-foreground">Cuadro de honor</h2>
+        <h2 className="font-heading text-xl font-bold text-foreground sm:text-2xl">Cuadro de honor</h2>
         <p className="text-xs text-muted-foreground">
           Quienes sostienen Venus, por aporte acumulado
         </p>
       </header>
 
       {donantes.length === 0 ? (
-        <p className="mt-6 rounded-2xl border border-dashed border-white/[0.12] p-8 text-center text-sm text-muted-foreground">
+        <p className="mt-6 rounded-2xl border border-dashed border-white/[0.12] p-6 text-center sm:p-8 text-sm text-muted-foreground">
           Todavía no hay aportes. El primero que done abre el cuadro de honor.
         </p>
       ) : (
@@ -94,9 +94,9 @@ export function TopDonantes({ donantes, cargando }: TopDonantesProps) {
               {resto.map((donante) => (
                 <li
                   key={`fila-${donante.puesto}`}
-                  className="flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-3.5 transition-colors hover:bg-white/[0.04] sm:gap-4 sm:px-5"
+                  className="flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3 py-3.5 transition-colors hover:bg-white/[0.04] sm:gap-4 sm:px-5"
                 >
-                  <span className="w-8 shrink-0 font-heading text-lg font-bold tabular-nums text-muted-foreground/80">
+                  <span className="w-6 shrink-0 font-heading text-lg sm:w-8 font-bold tabular-nums text-muted-foreground/80">
                     {donante.puesto}
                   </span>
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl gradient-brand-br font-heading text-base font-bold text-white">
@@ -130,7 +130,7 @@ function TarjetaPodio({ donante }: { donante: DonanteTop }) {
 
   return (
     <div
-      className={`relative flex flex-col items-center rounded-2xl border border-white/[0.08] bg-gradient-to-b ${metal.fondo} px-4 text-center ${
+      className={`relative flex flex-col items-center rounded-2xl border border-white/[0.08] bg-gradient-to-b ${metal.fondo} min-w-0 px-4 text-center ${
         esPrimero ? "py-7 sm:py-9" : "py-6 sm:py-7"
       }`}
     >
@@ -148,7 +148,7 @@ function TarjetaPodio({ donante }: { donante: DonanteTop }) {
       </span>
 
       <p
-        className={`mt-3 line-clamp-2 font-heading font-bold text-foreground ${
+        className={`mt-3 line-clamp-2 break-words font-heading font-bold text-foreground ${
           esPrimero ? "text-lg" : "text-base"
         }`}
       >

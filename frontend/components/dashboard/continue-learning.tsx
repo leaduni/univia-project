@@ -3,7 +3,8 @@
 
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Atom, BarChart3, BookOpen, Code, GraduationCap, Sigma } from "lucide-react"
+import { Atom, BarChart3, Code, GraduationCap, Sigma } from "lucide-react"
+import { LuniMascot } from "@/components/ui/LuniMascot"
 import { aRomano } from "@/lib/ciclos"
 
 export interface CursoActivo {
@@ -151,14 +152,14 @@ export function ContinueLearning({ cursos, isLoading }: ContinueLearningProps) {
 
   if (!cursos?.length) {
     return (
-      <div className="p-8 text-center bg-[#232532] rounded-2xl border border-dashed border-[#3f424d]">
-        <div className="p-3 rounded-xl bg-gradient-to-br from-[#a6249d] to-[#7957f1] inline-flex mb-3 shadow-md">
-          <BookOpen className="w-6 h-6 text-white" />
-        </div>
-        <p className="text-[#e9e9ed] font-poppins font-semibold text-base">
+      // Colores por token (antes hex suelto): el estado vacío del dashboard
+      // tiene que poder reutilizarse sin arrastrar la paleta vieja.
+      <div className="p-8 text-center bg-card rounded-2xl border border-dashed border-border">
+        <LuniMascot variant="explaining" size={96} animated shadow alt={null} />
+        <p className="text-foreground font-poppins font-semibold text-base mt-4">
           No tienes cursos activos en este momento.
         </p>
-        <p className="text-xs text-[#e9e9ed]/60 mt-1">
+        <p className="text-xs text-muted-foreground mt-1">
           Aparecerán aquí cuando registres los cursos de tu ciclo.
         </p>
       </div>

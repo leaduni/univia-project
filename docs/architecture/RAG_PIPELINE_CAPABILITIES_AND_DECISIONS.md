@@ -9,7 +9,7 @@
 
 ## 1. Resumen Ejecutivo
 
-El pipeline RAG de UniVia transforma documentos PDF académicos (sílabos, exámenes, compendios) en vectores semánticos almacenados en Supabase (`resource_chunks`), permitiendo búsqueda por similitud coseno vía `pgvector` + índice HNSW.
+El pipeline RAG de Venus transforma documentos PDF académicos (sílabos, exámenes, compendios) en vectores semánticos almacenados en Supabase (`resource_chunks`), permitiendo búsqueda por similitud coseno vía `pgvector` + índice HNSW.
 
 La optimización en 3 fases redujo el tiempo de procesamiento de ~5 min a ~45s para un PDF de 20 páginas, y habilitó extracción nativa sin costo ($0) para páginas con texto digital.
 

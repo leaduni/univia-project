@@ -1058,7 +1058,7 @@ export function AgendaInteligente() {
   const [examWeekMode, setExamWeekMode] = useState(false)
 
   const openAIPanel = (context: string) => {
-    window.dispatchEvent(new CustomEvent("open-univia-chat", { detail: { initialContext: context } }))
+    window.dispatchEvent(new CustomEvent("open-venus-chat", { detail: { initialContext: context } }))
   }
 
   const filtrosEfectivos = useMemo(() => {

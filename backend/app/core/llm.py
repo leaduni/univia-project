@@ -1,4 +1,4 @@
-"""Cliente único de generación de texto en UniVia, multi-proveedor.
+"""Cliente único de generación de texto en Venus, multi-proveedor.
 
 Separación de proveedores del proyecto (estado actual, todo pagado con la
 misma cuenta de OpenAI salvo lo señalado):
@@ -1346,7 +1346,7 @@ def chatear_gemini_con_clave(
     """Llamada de chat a Gemini con la clave del usuario (BYOK).
 
     La clave abre su propio cupo: es el Nivel 0 de la cascada, anterior a la
-    cuota compartida de UniVia. El cliente es EFÍMERO (se construye por turno y
+    cuota compartida de Venus. El cliente es EFÍMERO (se construye por turno y
     no se cachea) y la clave jamás se registra en logs ni se persiste.
 
     Args:

@@ -31,7 +31,7 @@ export function prefetchRuta(href: string): void {
     return
   }
 
-  // PAUSADO POR ALIANZA SACU: /recursos ahora muestra la landing UniVia x
+  // PAUSADO POR ALIANZA SACU: /recursos ahora muestra la landing Venus x
   // SACU (repositorio externo), así que calentar la caché del banco local
   // sería una llamada innecesaria. Restaurar junto con RecursosBiblioteca.
   // if (href.startsWith("/recursos")) {

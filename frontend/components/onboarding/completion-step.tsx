@@ -1,6 +1,7 @@
 "use client"
 
-import { AlertCircle, ArrowRight, CheckCircle2, ChevronLeft, Loader2 } from "lucide-react"
+import { AlertCircle, ArrowRight, ChevronLeft, Loader2 } from "lucide-react"
+import { LuniMascot } from "@/components/ui/LuniMascot"
 import type { OnboardingData } from "@/types/onboarding"
 import { aRomano } from "@/lib/ciclos"
 
@@ -44,11 +45,10 @@ export function CompletionStep({
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
       <div className="text-center space-y-3 mb-8">
-        <div className="w-16 h-16 mx-auto rounded-full gradient-brand-br p-0.5 shadow-lg shadow-accent/30">
-          <div className="w-full h-full bg-background rounded-full flex items-center justify-center">
-            <CheckCircle2 className="w-8 h-8 text-accent" />
-          </div>
-        </div>
+        {/* Luni en 'success' cierra el flujo: la pose de celebración dice lo
+            mismo que un check genérico y además da cara al asistente justo
+            antes de que el estudiante entre a la app. */}
+        <LuniMascot variant="success" size={128} animated shadow alt={null} />
         <h1 className="font-heading text-3xl md:text-4xl font-bold tracking-tight text-foreground">
           ¡Todo listo!
         </h1>

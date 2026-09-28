@@ -113,7 +113,7 @@ def _validar_facultad_activa(supabase, carrera: dict) -> None:
     if isinstance(facultad, dict) and facultad.get("activa") is False:
         raise_field_error(
             "carrera_id",
-            "Esa facultad aún no está habilitada en UniVia. Pronto podrás elegirla.",
+            "Esa facultad aún no está habilitada en Venus. Pronto podrás elegirla.",
             status_code=400,
         )
 

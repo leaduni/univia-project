@@ -5,7 +5,7 @@ import { Github, Linkedin } from "lucide-react";
 import { Hoverable, PhotoSlot } from "./hoverable";
 import { AUTH_ROUTES, EQUIPO } from "./landing-data";
 
-export function WhyUniviaSection() {
+export function WhyVenusSection() {
   return (
     <section
       id="nosotros"
@@ -42,7 +42,7 @@ export function WhyUniviaSection() {
               textWrap: "balance",
             }}
           >
-            ¿Por qué Univia?
+            ¿Por qué Venus?
           </h2>
           <p
             data-reveal="up"
@@ -60,7 +60,7 @@ export function WhyUniviaSection() {
             empeñados en seguir aprendiendo y creciendo profesionalmente. Pasamos noches buscando planchas perdidas, exámenes sueltos en
             grupos de WhatsApp y cursos sin material.{" "}
             <b style={{ color: "#ffffff", fontWeight: 600 }}>
-              Nosotros ya cruzamos esas dificultades — Univia existe para que tú no tengas que hacerlo.
+              Nosotros ya cruzamos esas dificultades — Venus existe para que tú no tengas que hacerlo.
             </b>
           </p>
           <div
@@ -154,14 +154,14 @@ export function TeamSection() {
               textWrap: "balance",
             }}
           >
-            Conoce al equipo detrás de UniVia
+            Conoce al equipo detrás de Venus
           </h2>
         </div>
-        <div className="univia-team-grid">
+        <div className="venus-team-grid">
           {EQUIPO.map((p) => (
             <Hoverable
               key={p.id}
-              className="univia-team-card"
+              className="venus-team-card"
               data-reveal="up"
               style={{
                 display: "flex",
@@ -178,16 +178,16 @@ export function TeamSection() {
                 <PhotoSlot src={p.src} alt={`Retrato de ${p.nombre}`} label="Foto del equipo" />
               </div>
               <span aria-hidden="true" style={{ display: "block", height: 4, backgroundImage: "linear-gradient(90deg, #d93340, #a6249d 55%, #7957f1)" }} />
-              <div className="univia-team-card-body">
+              <div className="venus-team-card-body">
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <span style={{ fontSize: "clamp(19px, 2vw, 23px)", fontWeight: 700, color: "#ffffff" }}>{p.nombre}</span>
                   {"rol" in p && <span style={{ fontSize: 13, fontWeight: 600, color: "#ef5b66" }}>{p.rol}</span>}
                 </div>
-                <div className="univia-team-socials">
-                  <a href={p.linkedin} target="_blank" rel="noopener noreferrer" aria-label={`LinkedIn de ${p.nombre}`} className="univia-team-social">
+                <div className="venus-team-socials">
+                  <a href={p.linkedin} target="_blank" rel="noopener noreferrer" aria-label={`LinkedIn de ${p.nombre}`} className="venus-team-social">
                     <Linkedin size={20} aria-hidden="true" />
                   </a>
-                  <a href={p.github} target="_blank" rel="noopener noreferrer" aria-label={`GitHub de ${p.nombre}`} className="univia-team-social">
+                  <a href={p.github} target="_blank" rel="noopener noreferrer" aria-label={`GitHub de ${p.nombre}`} className="venus-team-social">
                     <Github size={20} aria-hidden="true" />
                   </a>
                 </div>

@@ -433,4 +433,4 @@ Lila:        #d7cef7 / RGB(215, 206, 247)
 **Versión:** 1.0  
 **Última actualización:** Junio 2026  
 **Basado en:** Manual de Marca LEAD UNI oficial (23 páginas)  
-**Extraído por:** Plan de rebranding UniVia → LEAD UNI
+**Extraído por:** Plan de rebranding Venus → LEAD UNI

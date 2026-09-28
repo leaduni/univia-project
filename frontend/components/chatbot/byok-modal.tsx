@@ -107,7 +107,7 @@ export function ByokModal({ abierto, token, claveGuardada, onCerrar, onCambio }:
             <p className="flex items-start gap-2">
               <Sparkles className="w-4 h-4 mt-0.5 text-[#c4b5fd] shrink-0" aria-hidden="true" />
               <span>
-                Cuando muchos estudiantes usan UniVia a la vez, la cuota compartida se satura.
+                Cuando muchos estudiantes usan Venus a la vez, la cuota compartida se satura.
                 Con tu propia clave gratuita de Google AI Studio, el asistente te responde
                 al instante, sin fila.
               </span>

@@ -83,7 +83,7 @@ export function ChatPanel({
   return (
     <div
       role="dialog"
-      aria-label="Asistente de UniVia"
+      aria-label="Asistente de Venus"
       className={`${expandido
         ? "w-[min(94vw,940px)] h-[min(88vh,820px)]"
         : "w-[min(92vw,380px)] h-[min(70vh,560px)]"
@@ -94,7 +94,7 @@ export function ChatPanel({
 <div className="flex items-center gap-2 min-w-0">
           <Sparkles className="w-4 h-4 text-white shrink-0" aria-hidden="true" />
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-white truncate">Asistente UniVia</p>
+            <p className="text-sm font-semibold text-white truncate">Asistente Venus</p>
             <div className="flex items-center gap-1 min-w-0">
               <p className="text-[11px] text-white/80 truncate">Recursos, dudas y tu avance académico</p>
               <button
@@ -108,7 +108,7 @@ export function ChatPanel({
                 title={modoByok ? "Usando tu clave personal (clic para gestionarla)" : "Usando la cuota compartida (clic para usar tu propia clave)"}
               >
                 {modoByok && <span className="w-1.5 h-1.5 rounded-full bg-emerald-300" aria-hidden="true" />}
-                {modoByok ? "Tu clave personal" : "Cuota compartida UniVia"}
+                {modoByok ? "Tu clave personal" : "Cuota compartida Venus"}
               </button>
             </div>
           </div>

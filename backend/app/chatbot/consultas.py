@@ -109,7 +109,7 @@ def _sin_resultados_multicapa(detalle: str) -> Contexto:
         system_extra=(
             f"La consulta relacional {detalle} y la búsqueda de respaldo en documentos RAG "
             "no devolvieron resultados. Informa esta ausencia con precisión, sin afirmar que "
-            "la entidad no existe fuera de los datos actualmente registrados en UniVia, y "
+            "la entidad no existe fuera de los datos actualmente registrados en Venus, y "
             "sugiere verificar la escritura o aportar un filtro más específico."
         )
     )
@@ -217,7 +217,7 @@ def _contexto_docente_identificado(profesor_id: int, supabase) -> Contexto:
     if not cursos:
         return Contexto(
             system_extra=(
-                f"{nombre} está registrado como docente en la base de datos de UniVia, "
+                f"{nombre} está registrado como docente en la base de datos de Venus, "
                 "pero aún no tiene cursos vinculados en el sistema. Dilo así, sin "
                 "inventar asignaturas, y sugiere consultar a soporte."
             ),

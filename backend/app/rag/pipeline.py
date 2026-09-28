@@ -59,7 +59,7 @@ from app.rag.pipeline_config import (
 
 logger = logging.getLogger(__name__)
 
-DOWNLOAD_DIR = Path(tempfile.gettempdir()) / "univia_rag_drive"
+DOWNLOAD_DIR = Path(tempfile.gettempdir()) / "venus_rag_drive"
 
 
 # ---------------------------------------------------------------------------

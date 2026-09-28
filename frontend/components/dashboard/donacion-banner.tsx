@@ -32,7 +32,7 @@ export function DonacionBanner() {
           </div>
           <div className="space-y-1">
             <h4 className="font-heading font-semibold ai-glow-text">
-              Ayuda a crecer a UniVia
+              Ayuda a crecer a Venus
             </h4>
             <p className="text-sm text-muted-foreground leading-relaxed">
               Con tu apoyo llevamos este proyecto a más estudiantes UNI, para que puedan

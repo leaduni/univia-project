@@ -31,7 +31,7 @@ export function BarraIA({ onImportSchedule }: { onImportSchedule: (file: File) =
     if (!text.trim()) return
     
     // Emitir evento para abrir el panel de IA
-    window.dispatchEvent(new CustomEvent("open-univia-chat", { detail: { initialContext: text } }))
+    window.dispatchEvent(new CustomEvent("open-venus-chat", { detail: { initialContext: text } }))
     
     setPrompt("")
     inputRef.current?.blur()
@@ -87,12 +87,12 @@ export function BarraIA({ onImportSchedule }: { onImportSchedule: (file: File) =
               onChange={e => setPrompt(e.target.value)} 
               onFocus={() => setIsFocused(true)}
               onBlur={() => setTimeout(() => setIsFocused(false), 200)}
-              placeholder="Pregúntale a UniVia..." 
+              placeholder="Pregúntale a Venus..."
               className="min-w-0 w-full bg-transparent border-none py-3 text-sm text-slate-100 placeholder:text-slate-300 focus:ring-0 focus:outline-none"
               aria-label="Paleta de comandos de IA"
             />
             
-            <button type="submit" disabled={!prompt.trim()} aria-label="Enviar pregunta a UniVia" className="size-11 shrink-0 flex items-center justify-center text-violet-200 hover:bg-white/10 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300">
+            <button type="submit" disabled={!prompt.trim()} aria-label="Enviar pregunta a Venus" className="size-11 shrink-0 flex items-center justify-center text-violet-200 hover:bg-white/10 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300">
               <ArrowUp className="size-4" />
             </button>
           </div>

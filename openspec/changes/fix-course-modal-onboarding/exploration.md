@@ -2,7 +2,7 @@
 
 ### Current State
 
-Two independent bugs exist in the frontend and backend of the UniVia platform. Bug A manifests as unreadable text in the course completion modal button (and several other labels in the learning-path view). Bug B manifests as a 400 Bad Request when the onboarding wizard submits to `/onboarding/complete`.
+Two independent bugs exist in the frontend and backend of the Venus platform. Bug A manifests as unreadable text in the course completion modal button (and several other labels in the learning-path view). Bug B manifests as a 400 Bad Request when the onboarding wizard submits to `/onboarding/complete`.
 
 ### Affected Areas
 

@@ -207,7 +207,7 @@ export function FeedbackPanel() {
           </h1>
 
           <p className="mt-3 max-w-2xl text-sm leading-6 text-white/45 sm:text-[15px]">
-            Cuéntanos qué mejorar, qué falla o qué te gustaría ver en UniVia.
+            Cuéntanos qué mejorar, qué falla o qué te gustaría ver en Venus.
             Tu reporte llega directamente al equipo de desarrollo.
           </p>
         </header>
@@ -351,7 +351,7 @@ export function FeedbackPanel() {
                 {/* Footer formulario */}
                 <div className="flex items-center justify-between gap-4 border-t border-white/[0.06] pt-5">
                   <span className="hidden text-xs text-white/25 sm:block">
-                    Tu feedback nos ayuda a mejorar UniVia.
+                    Tu feedback nos ayuda a mejorar Venus.
                   </span>
 
                   <button

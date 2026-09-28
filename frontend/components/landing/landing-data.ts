@@ -1,4 +1,4 @@
-// Datos estáticos de la landing (mockup: template/Univia Landing.html).
+// Datos estáticos de la landing (mockup: template/Venus Landing.html).
 
 export const AUTH_ROUTES = {
   login: "/auth/login",
@@ -92,7 +92,7 @@ export const FOTOS = [
   { id: "lead-foto-3", src: "", cap: "LEAD Talks", desc: "Egresados UNI volviendo al campus a contar cómo llegaron a donde están." },
   { id: "lead-foto-4", src: "", cap: "Mentorías entre ciclos", desc: "Los de ciclos mayores explican lo que a ellos nadie les explicó a tiempo." },
   { id: "lead-foto-5", src: "", cap: "Hackathon interno", desc: "Dos días construyendo, discutiendo y aprendiendo a fallar rápido." },
-  { id: "lead-foto-6", src: "", cap: "El equipo detrás de Univia", desc: "Estudiantes que vivieron el problema y decidieron resolverlo para todos." },
+  { id: "lead-foto-6", src: "", cap: "El equipo detrás de Venus", desc: "Estudiantes que vivieron el problema y decidieron resolverlo para todos." },
 ];
 
 export const EQUIPO = [

@@ -3,7 +3,7 @@
 **Fecha:** 2026-09-19 · **Estado:** ✅ Ejecutado (Paso 4 aplicado)
 
 Documento de auditoría UX + privacidad del flujo "Bring Your Own Key" (BYOK) de
-UniVia y registro de los cambios aplicados. Alcance: `frontend/lib/byok.ts`,
+Venus y registro de los cambios aplicados. Alcance: `frontend/lib/byok.ts`,
 `frontend/components/chatbot/{byok-modal,chat-panel,chat-bubble}.tsx`,
 `frontend/lib/chatbot-service.ts`, `backend/app/core/llm.py`,
 `backend/app/routers/chatbot.py`.
@@ -17,7 +17,7 @@ UniVia y registro de los cambios aplicados. Alcance: `frontend/lib/byok.ts`,
 - **El acceso BYOK era críptico:** solo un botón circular 7×7 con el icono
   `KeyRound` en la cabecera del chat (`chat-panel.tsx`), sin texto. Un
   estudiante no técnico no reconocía una "llave" como configuración de cuota.
-- **El estado sí se comunicaba:** badge "Cuota compartida UniVia" (gris) vs
+- **El estado sí se comunicaba:** badge "Cuota compartida Venus" (gris) vs
   "Cuota propia (Gemini)" (verde), pero **no era clickeable**.
 - **El modal ya explicaba el motivo** (horas pico) e incluía una guía de 4
   pasos colapsada por defecto, pero **no mencionaba las garantías técnicas
@@ -44,7 +44,7 @@ UniVia y registro de los cambios aplicados. Alcance: `frontend/lib/byok.ts`,
 1. **Píldora con texto en la cabecera del chat** (reemplaza al botón de solo
    icono): "Mi clave IA" cuando no hay clave; "Clave activa" en verde cuando
    hay BYOK.
-2. **Badge de cuota clickeable**: "Cuota compartida UniVia" / "Tu clave
+2. **Badge de cuota clickeable**: "Cuota compartida Venus" / "Tu clave
    personal" (con punto verde) abre el modal al hacer clic.
 
 ### Copy del modal (aplicado)
@@ -52,7 +52,7 @@ UniVia y registro de los cambios aplicados. Alcance: `frontend/lib/byok.ts`,
 **Título:** "Trae tu propia clave de IA"
 
 **Para qué sirve:**
-> Cuando muchos estudiantes usan UniVia a la vez, la cuota compartida se
+> Cuando muchos estudiantes usan Venus a la vez, la cuota compartida se
 > satura. Con tu propia clave gratuita de Google AI Studio, el asistente te
 > responde al instante, sin fila.
 

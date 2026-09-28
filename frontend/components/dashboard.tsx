@@ -266,7 +266,7 @@ const skeletonAvance = isLoadingAvance && !hasLoadedOnce.current
 
         <footer className="border-t border-border pt-6 mt-16 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-muted-foreground">
-            UniVia · Un proyecto de LEAD UNI para la comunidad UNI
+            Venus · Un proyecto de LEAD UNI para la comunidad UNI
           </p>
           <p className="text-xs text-muted-foreground/70 uppercase tracking-widest">
             Learn. Explore. Aspire. Discover.

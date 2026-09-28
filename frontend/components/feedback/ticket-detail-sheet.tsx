@@ -137,7 +137,7 @@ export function TicketDetailSheet({ abierto, onOpenChange, ticket, esDev }: Tick
         <SheetHeader>
           <SheetTitle>{ticket ? `Ticket #${ticket.id}` : "Detalle del ticket"}</SheetTitle>
           <SheetDescription>
-            Conversación con el equipo de desarrollo de UniVia.
+            Conversación con el equipo de desarrollo de Venus.
           </SheetDescription>
         </SheetHeader>
 

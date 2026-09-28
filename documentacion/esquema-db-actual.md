@@ -1,5 +1,34 @@
 # Esquema de Base de Datos Actual
 
+> **Snapshot del esquema `public`:** 2026-09-27, consultado mediante Supabase
+> MCP. Se encontraron **52 tablas base**, **52 claves primarias** y **84
+> claves foráneas**. Este inventario refleja la base consultada y puede divergir
+> de migraciones locales o de otros entornos.
+>
+> **Discrepancia detectada:** no existe una tabla `embedding_cache` en ningún
+> esquema consultado. El backend contiene un cliente que intenta acceder a esa
+> tabla, pero la caché persistida no está respaldada por el esquema actual.
+
+## Inventario de las 52 tablas
+
+```text
+agenda_configuracion, agenda_etiquetas, agenda_eventos, agenda_tareas,
+carga_horaria, carreras, chat_conversaciones, chat_mensajes,
+codigos_referido, conversaciones_dm, curso_carrera, curso_prerrequisitos,
+curso_profesores, cursos, donaciones, donaciones_config, donaciones_gastos,
+evaluacion_intentos, evaluacion_sesiones, evaluaciones_publicadas,
+eventos_actividad, eventos_compartir, facultades, feedback_adjuntos,
+feedback_devs, feedback_mensajes, feedback_tickets, foro_comentarios,
+foro_guardados, foro_moderadores, foro_publicaciones, foro_secciones,
+foro_vistas, foro_votos, gamificacion_usuarios, learning_path_steps, logros,
+logros_usuarios, malla_curso_prerrequisitos, malla_cursos, mallas, mensajes_dm,
+perfiles, profesores, progreso_cursos, progreso_unidades, recursos, referidos,
+registro_puntos, resource_chunks, sesiones_estudio, solicitudes_silabos
+```
+
+Este inventario añade las **33 tablas** que faltaban respecto de la versión
+anterior del documento.
+
 ## Estructura de Tablas
 
 | tabla                      | orden | columna                      | tipo_dato                | permite_null | valor_defecto                                          | tipo_clave | tabla_destino       | columna_destino |
@@ -118,13 +147,38 @@
 | recursos                   | 13    | drive_file_id                | text                     | YES          | N/A                                                    |            | -                   | -               |
 | recursos                   | 14    | nombre_curso                 | text                     | YES          | N/A                                                    |            | -                   | -               |
 | recursos                   | 15    | codigo_curso                 | text                     | YES          | N/A                                                    |            | -                   | -               |
+| recursos                   | 16    | profesor_id                  | integer                  | YES          | N/A                                                    |            | -                   | -               |
+| recursos                   | 17    | drive_path                   | text                     | YES          | N/A                                                    |            | -                   | -               |
+| recursos                   | 18    | drive_modified_time          | timestamp with time zone | YES          | N/A                                                    |            | -                   | -               |
+| recursos                   | 19    | rag_status                   | text                     | NO           | 'pending'::text                                        |            | -                   | -               |
+| recursos                   | 20    | rag_processed_modified_time  | timestamp with time zone | YES          | N/A                                                    |            | -                   | -               |
+| recursos                   | 21    | rag_processed_at             | timestamp with time zone | YES          | N/A                                                    |            | -                   | -               |
+| recursos                   | 22    | rag_error                    | text                     | YES          | N/A                                                    |            | -                   | -               |
 | resource_chunks            | 1     | id                           | uuid                     | NO           | gen_random_uuid()                                      | PK         | -                   | -               |
 | resource_chunks            | 2     | recurso_id                   | integer                  | NO           | N/A                                                    | FK         | recursos            | id              |
 | resource_chunks            | 3     | curso_id                     | integer                  | NO           | N/A                                                    | FK         | cursos              | id              |
 | resource_chunks            | 4     | contenido                    | text                     | NO           | N/A                                                    |            | -                   | -               |
-| resource_chunks            | 5     | embedding                    | USER-DEFINED             | NO           | N/A                                                    |            | -                   | -               |
+| resource_chunks            | 5     | embedding                    | vector(1536)             | NO           | N/A                                                    |            | -                   | -               |
 | resource_chunks            | 7     | created_at                   | timestamp with time zone | NO           | now()                                                  |            | -                   | -               |
+| resource_chunks            | 8     | chunk_index                  | integer                  | NO           | N/A                                                    |            | -                   | -               |
 ---
+
+La lista anterior contiene las definiciones detalladas del subconjunto de
+tablas que ya tenía documentado el archivo; el inventario completo de 52 tablas
+se encuentra al inicio. Las posiciones reflejan `ordinal_position` reportado
+por PostgreSQL, por lo que pueden existir huecos tras cambios históricos del
+esquema.
+
+El campo `resource_chunks.embedding` usa la extensión `vector` de pgvector y
+está declarado con dimensión 1536. La tabla `resource_chunks` tiene dos
+relaciones foráneas: a `recursos` y `cursos`.
+
+## Relaciones y llaves foráneas
+
+La auditoría del snapshot contabilizó **84 llaves foráneas** en el esquema
+`public`. La matriz que sigue conserva únicamente las relaciones del subconjunto
+que este documento detallaba anteriormente; no es el listado exhaustivo de las
+84 restricciones.
 
 | tabla_origen               | columna_origen               | tabla_destino       | columna_destino | nombre_restriccion                                           |
 | -------------------------- | ---------------------------- | ------------------- | --------------- | ------------------------------------------------------------ |
@@ -155,3 +209,8 @@
 | recursos                   | curso_id                     | cursos              | id              | recursos_curso_id_fkey                                       |
 | resource_chunks            | curso_id                     | cursos              | id              | fk_curso                                                     |
 | resource_chunks            | recurso_id                   | recursos            | id              | fk_recurso                                                   |
+
+La auditoría confirmó **52 tablas base**, **52 llaves primarias** y **84 llaves
+foráneas** en `public`. No existe una tabla `embedding_cache` en los esquemas
+consultados; aunque el backend intenta acceder a ella, no hay caché persistida
+respaldada por la base de datos de este snapshot.

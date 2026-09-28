@@ -993,7 +993,7 @@ export default function PerfilPage() {
                         </h2>
 
                         <p className="mt-1.5 text-sm text-white/35">
-                          Personaliza cómo utilizas UniVia.
+                          Personaliza cómo utilizas Venus.
                         </p>
                       </div>
 

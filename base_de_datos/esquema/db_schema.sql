@@ -1,5 +1,5 @@
 -- SCHEMA UNI_VIA
--- Proyecto: UniviaProject
+-- Proyecto: Venus
 -- Versión: 2.0 (Basada en Frontend Mock)
 
 -- 1. Tablas Maestras

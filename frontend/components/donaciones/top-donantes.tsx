@@ -58,7 +58,7 @@ export function TopDonantes({ donantes, cargando }: TopDonantesProps) {
       <header className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="font-heading text-2xl font-bold text-foreground">Cuadro de honor</h2>
         <p className="text-xs text-muted-foreground">
-          Quienes sostienen UniVia, por aporte acumulado
+          Quienes sostienen Venus, por aporte acumulado
         </p>
       </header>
 

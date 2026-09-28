@@ -47,7 +47,7 @@ export function CoursesSection() {
         }}
       />
       <div
-        className="univia-split"
+        className="venus-split"
         style={{
           position: "relative",
           maxWidth: 1240,

@@ -1,4 +1,4 @@
-# Arquitectura del sistema RAG de UniVia
+# Arquitectura del sistema RAG de Venus
 
 **Fecha de auditoría/actualización:** 2026-09-19  
 **Alcance:** ingesta de documentos, extracción/OCR, chunking, embeddings,
@@ -8,6 +8,9 @@ recuperación semántica, chatbot, evaluaciones y wrappers CLI.
 > `backend/app/rag/cache.py`, pero ese archivo no existe en el repositorio.
 > La implementación equivalente y utilizada por el pipeline es
 > [`backend/app/rag/embedding_cache.py`](../backend/app/rag/embedding_cache.py).
+> Sin embargo, el snapshot Supabase consultado el 2026-09-27 no contiene una
+> tabla `embedding_cache`: el backend intenta usarla, pero no debe asumirse que
+> hay caché persistida operativa.
 
 ## Tabla de contenidos
 
@@ -24,7 +27,7 @@ recuperación semántica, chatbot, evaluaciones y wrappers CLI.
 
 ## 1. Resumen ejecutivo de la arquitectura RAG
 
-UniVia implementa dos caminos sobre el mismo corpus:
+Venus implementa dos caminos sobre el mismo corpus:
 
 - **Ingesta:** recibe un PDF desde Google Drive, disco local o un upload futuro;
   extrae Markdown mediante texto nativo/OCR Vision; divide el resultado en
@@ -80,7 +83,7 @@ búsqueda semántica RAG para comprender el contenido profundo de los documentos
 | [`rag/adaptive_semaphore.py`](../backend/app/rag/adaptive_semaphore.py) | Control de concurrencia adaptativo | límites y señales de proveedor | semáforo para llamadas concurrentes |
 | [`rag/chunker.py`](../backend/app/rag/chunker.py) | Segmentación jerárquica Markdown | Markdown extraído | lista de `{contenido}` |
 | [`rag/embedder.py`](../backend/app/rag/embedder.py) | Embeddings de documentos y consultas | textos, proveedor y modelo | vectores de 1536 dimensiones |
-| [`rag/embedding_cache.py`](../backend/app/rag/embedding_cache.py) | Caché persistente de embeddings | hash SHA-256 y vector | hit/miss en `embedding_cache` |
+| [`rag/embedding_cache.py`](../backend/app/rag/embedding_cache.py) | Adaptador de caché de embeddings | hash SHA-256 y vector | intenta consultar `embedding_cache` (tabla ausente en Supabase auditado) |
 | `rag/cache.py` | **No existe** | — | usar `embedding_cache.py` |
 | [`rag/ingest.py`](../backend/app/rag/ingest.py) | Persistencia de chunks | chunks con embeddings | `resource_chunks`, RPCs de estado |
 | [`rag/retriever.py`](../backend/app/rag/retriever.py) | Recuperación semántica | pregunta y filtros | fragmentos ordenados por similitud |
@@ -140,15 +143,15 @@ defaults que aparecen en el código son:
 | Etapa | Modelo/librería | Proveedor | Fallback |
 |---|---|---|---|
 | Texto nativo PDF | `pypdf` vía `HybridRouter` | local, sin IA | Vision si la página no tiene texto suficiente |
-| OCR de sílabos | `gemini-3.6-flash` (`GEMINI_VISION_MODEL`) | Google Gemini | `gpt-4.1-mini` de OpenAI |
+| OCR de sílabos | `gemini-3.6-flash` (`GEMINI_VISION_MODEL`, default) | Google Gemini | `gpt-4.1-mini` de OpenAI |
 | OCR de exámenes | mismo modelo Vision con `PROMPT_EXAMENES` | Google Gemini | OpenAI Vision |
 | OCR de rescate | `PROMPT_SALVAGE` | proveedor Vision activo | página marcada como fallida/ilegible |
 | Etiquetado/transcripción OpenAI | `gpt-4.1-mini` (`OPENAI_INGEST_MODEL`) | OpenAI | errores reintentables y/o fallback de OCR |
-| Embeddings | `gemini-embedding-001`, dimensión 1536 | Google Gemini | OpenAI `text-embedding-3-small` si se selecciona explícitamente |
-| Embeddings alternativos | `text-embedding-3-small`, dimensión 1536 | OpenAI | `EmbeddingQuotaExhausted` en modo estricto; `[]` en chatbot |
+| Embeddings | `text-embedding-3-small`, dimensión 1536 (default) | OpenAI | No se debe cambiar proveedor sin revectorizar el corpus |
+| Embeddings alternativos | `gemini-embedding-001`, dimensión 1536 | Google Gemini | Se selecciona mediante configuración |
 | Clasificación de intención | `GROQ_MODEL_CLASIFICADOR` | Groq | regex y categoría `general` |
-| Chatbot | `openai/gpt-oss-120b` (`GROQ_MODEL`/`MODELO_CHATBOT`) | Groq, API compatible con OpenAI | Gemini BYOK; después cascada Gemini -> OpenAI |
-| Generación general/evaluaciones | `gemini-3.6-flash` (`GEMINI_GEN_MODEL`) | Google Gemini | Groq `openai/gpt-oss-120b` -> OpenAI pagado |
+| Chatbot | `llama-3.3-70b-versatile` (`GROQ_MODEL`, default) | Groq, API compatible con OpenAI | Gemini BYOK y fallbacks según `LLM_PROVIDER`/`LLM_FALLBACKS` |
+| Generación general/evaluaciones | `gemini-2.5-flash` (default de `LLM_PROVIDER`) | Google Gemini | Groq según `LLM_FALLBACKS` |
 | Evaluaciones con BYOK | modelo Gemini configurado (`GEMINI_GEN_MODEL`) | Google Gemini, clave enviada por el usuario | evita el pool compartido y usa el cupo propio |
 | Chatbot con BYOK | modelo Gemini configurado (`GEMINI_GEN_MODEL`) | Google Gemini, `X-User-LLM-Key` | evita el pool compartido y usa el cupo propio |
 
@@ -163,13 +166,12 @@ individual durante 60 segundos; las demás claves continúan disponibles. Si
 todo el pool se agota, la cascada intenta el siguiente proveedor:
 
 ```text
-Gemini / gemini-3.6-flash
-        -> Groq / openai/gpt-oss-120b
-                -> OpenAI GPT pagado (último recurso)
+Gemini / modelo configurado
+        -> proveedores habilitados en LLM_FALLBACKS
 ```
 
-La selección es configurable con `LLM_PROVIDER` y `LLM_FALLBACKS`, pero el
-orden operativo por defecto prioriza cuota gratuita. El soporte **BYOK**
+La selección es configurable con `LLM_PROVIDER` y `LLM_FALLBACKS`; no se debe
+inferir una cascada fija que no esté configurada. El soporte **BYOK**
 (`X-User-LLM-Key`) constituye un nivel anterior a la cascada compartida:
 chatbot y evaluaciones pueden ejecutar Gemini con la clave efímera del usuario,
 sin registrarla ni persistirla.
@@ -203,7 +205,7 @@ sin registrarla ni persistirla.
 
 3. **Descarga**
    - `descargar_pdf` guarda temporalmente el archivo en
-     `tempfile.gettempdir()/univia_rag_drive`.
+     `tempfile.gettempdir()/venus_rag_drive`.
    - `drive_downloader` traduce problemas de acceso a
      `RecursoInaccesible` y problemas de red a `NetworkDownloadError`.
 
@@ -236,8 +238,12 @@ sin registrarla ni persistirla.
 
 8. **Vectorización**
    - `SyllabusEmbedder` procesa lotes de 20 por defecto.
-   - `EmbeddingCache` busca por hash antes de llamar a la API.
-   - Los misses se vectorizan y se guardan en caché.
+   - `EmbeddingCache` intenta buscar y guardar por hash en
+     `embedding_cache`; esa tabla no existe en el snapshot Supabase auditado.
+   - Al fallar el acceso, el backend registra el problema y continúa sin un hit
+     persistido confirmado; no se atribuye ahorro recurrente a esa caché.
+   - Modelo por defecto: OpenAI `text-embedding-3-small`; Gemini
+     `gemini-embedding-001` es seleccionable por configuración.
    - Una corrida estricta no se marca completa si falta algún lote o embedding.
    - Sin vectores: causa `no_embeddings`; cantidad incompleta:
      `embeddings_incomplete`.
@@ -283,8 +289,8 @@ IngestionPipeline.procesar_documento()
         |           + RecursiveCharacterTextSplitter
         |
         +--> SyllabusEmbedder (lotes)
-        |       +--> EmbeddingCache -> embedding_cache
-        |       \--> Gemini/OpenAI embeddings (1536)
+        |       +--> intento de caché -> embedding_cache (tabla ausente)
+        |       \--> proveedor de embeddings configurado (1536)
         |
         \--> SyllabusIngestor
                 +--> replace_resource_chunks / inserts
@@ -314,9 +320,9 @@ La ruta HTTP principal es `POST /api/chatbot/mensajes`, registrada bajo
    - llama `search_resource_chunks` o una búsqueda equivalente por nombre;
    - aplica umbral aproximado `0.40`, límites de fragmentos y máximo de
      caracteres de contexto.
-6. `app/core/llm.py::chatear` usa `openai/gpt-oss-120b` en Groq mediante el
-   pool de claves; si el usuario envía `X-User-LLM-Key`, el turno usa Gemini
-   BYOK antes del pool.
+6. `app/core/llm.py::chatear` usa Groq con `llama-3.3-70b-versatile` por
+   defecto (`GROQ_MODEL` configurable) mediante el pool de claves; si el usuario
+   envía `X-User-LLM-Key`, el turno usa Gemini BYOK antes del pool.
 7. `StreamingResponse` entrega SSE; se persiste el mensaje en
    `chat_mensajes` y se actualiza la conversación.
 8. Si falla la vectorización en modo no estricto, `health.py` registra el
@@ -338,9 +344,10 @@ lazy y autenticado cuando recibe token:
 4. Conserva siempre el resultado de mayor similitud y muestrea hasta cuatro
    fragmentos adicionales.
 5. El contexto recuperado se incorpora al prompt de generación de preguntas.
-6. La cascada Gemini -> Groq -> OpenAI devuelve la evaluación estructurada;
-   el router valida y normaliza preguntas, explicaciones y LaTeX. Si se envía
-   una clave BYOK, Gemini usa directamente el cupo del usuario.
+6. La generación usa Gemini por defecto (`gemini-2.5-flash`) y los fallbacks
+   definidos en `LLM_FALLBACKS`; devuelve la evaluación estructurada y el router
+   valida y normaliza preguntas, explicaciones y LaTeX. Si se envía una clave
+   BYOK, Gemini usa directamente el cupo del usuario.
 7. Si se agota la cuota de embeddings, se propaga
    `EmbeddingQuotaExhausted` en lugar de generar una evaluación sin evidencia.
 
@@ -415,23 +422,24 @@ intents.clasificar          validar ConfiguracionEvaluacion
 
 - Normaliza trim, casing y whitespace.
 - Calcula SHA-256 estable del contenido.
-- Usa `embedding_cache.chunk_hash` como clave de upsert.
+- Intenta usar `embedding_cache.chunk_hash` como clave de consulta/upsert.
+- La auditoría de Supabase del 2026-09-27 no encontró `embedding_cache` en
+  ningún esquema. Los errores se degradan a misses/no guardado; no hay evidencia
+  de hits persistidos en la base auditada.
 - Convierte vectores pgvector serializados como string a `list[float]`.
-- Un fallo de cache solo genera warning y fuerza una llamada normal; no
+- Un fallo de caché se registra y fuerza el camino normal de vectorización; no
   convierte un hit/miss en un falso éxito.
-- En conjunto con `MultiKeyPool`, la caché evita repetir embeddings ya
-  calculados y el pool rota claves gratuitas para que la generación opere con
-  cuota compartida de **$0 para UniVia** mientras haya claves disponibles. El
-  ahorro de costo aplica a dos superficies distintas: `EmbeddingCache` reduce
-  llamadas de vectorización y `MultiKeyPool` distribuye la generación entre
-  cuotas gratuitas.
+- No se debe presupuestar ahorro por deduplicación persistente hasta que la
+  tabla o un mecanismo alternativo de caché estén desplegados y verificados.
+- `MultiKeyPool` puede rotar claves configuradas; esto no garantiza costo cero,
+  pues depende de proveedor, cuotas y configuración.
 
 ### 6.3 Generación resiliente y blindaje de tokens
 
 - `MultiKeyPool` rota claves Gemini/Groq en round-robin y aplica cooldown
   individual de 60 segundos ante 429/5xx.
-- `ProveedorPoolExhausted` activa la cascada Gemini -> Groq -> OpenAI pagado,
-  sin exigir cambios en los consumidores.
+- `ProveedorPoolExhausted` activa los proveedores habilitados y ordenados en la
+  configuración de fallback, sin exigir cambios en los consumidores.
 - `_llamar_gemini` captura `ValueError` al leer `respuesta.text` cuando Gemini
   devuelve una respuesta bloqueada, truncada o sin texto utilizable. Registra
   un warning y devuelve cadena vacía, evitando que un corte de tokens derribe
@@ -509,10 +517,10 @@ sequenceDiagram
     participant E as SyllabusExtractor
     participant C as SyllabusChunker
     participant V as SyllabusEmbedder
-    participant K as EmbeddingCache
     participant I as SyllabusIngestor
     participant DB as Supabase
     participant G as Gemini/OpenAI Vision
+    participant M as OpenAI/Gemini Embeddings
 
     CLI->>P: procesar_documento(FuenteDocumento, ConfigIngesta)
     P->>DB: registrar/reclamar recursos
@@ -530,14 +538,11 @@ sequenceDiagram
     P->>C: chunk_text(markdown)
     C-->>P: chunks Markdown
     P->>V: generar_embeddings(chunks, estricto=True)
-    V->>K: lookup(hash_chunk)
-    alt cache miss
-        V->>G: embeddings por lote
-        G-->>V: vectores de 1536 dimensiones
-        V->>K: store(hash, embedding)
-    else cache hit
-        K-->>V: vector cacheado
-    end
+    V->>DB: intento de lookup embedding_cache
+    DB-->>V: tabla ausente en snapshot auditado
+    Note over V: Continúa sin caché persistida confirmada
+    V->>M: embeddings por lote
+    M-->>V: vectores de 1536 dimensiones
     V-->>P: chunks con embedding
     P->>I: replace/ingest(chunks)
     I->>DB: replace_resource_chunks / insert
@@ -571,7 +576,7 @@ flowchart TD
     Q --> S{Generación}
     R --> S
     S -->|Chatbot| T[MultiKeyPool: Groq / Gemini BYOK]
-    S -->|Evaluación| U[Gemini -> Groq -> OpenAI / Gemini BYOK]
+    S -->|Evaluación| U[Gemini default -> fallbacks configurados / Gemini BYOK]
     T --> V[StreamingResponse SSE]
     V --> W[Persistir chat_mensajes]
     U --> X[Evaluación validada]
@@ -599,31 +604,29 @@ Además, `pdf2image` necesita Poppler disponible; la ruta se configura con
 
 ### 8.2 Tablas y RPCs Supabase
 
-**RAG:** `recursos`, `resource_chunks`, `embedding_cache`.  
+**RAG:** `recursos`, `resource_chunks`. `embedding_cache` no existe en el
+snapshot auditado, aunque el backend intenta consultarla.
 **Catálogo:** `cursos`, `facultades`, `carreras`, `mallas`, `malla_cursos`,
 `malla_curso_prerrequisitos`.  
 **Docentes:** `profesores`, `curso_profesores`.  
 **Usuario:** `perfiles`, `progreso_cursos`.  
-**Chat:** `conversaciones`, `chat_mensajes`.
+**Chat:** `chat_conversaciones`, `chat_mensajes`.
 
 **RPC de ingesta:** `replace_resource_chunks`, `mark_rag_complete`.  
 **RPC de recuperación:** `search_resource_chunks`,
-`search_resource_chunks_by_nombre`.
+`search_resource_chunks_by_nombre` y `search_chatbot_resource_chunks`.
 
 ### 8.3 Contrato resumido de datos
 
 ```text
 recursos
   id, curso_id, titulo, tipo, drive_file_id,
-  rag_status, rag_error, drive_modified_time,
-  rag_processed_modified_time, profesor_id
+  profesor_id, drive_path, drive_modified_time,
+  rag_status, rag_processed_modified_time, rag_processed_at, rag_error
 
 resource_chunks
   recurso_id, curso_id, chunk_index, contenido,
   embedding vector(1536), created_at
-
-embedding_cache
-  chunk_hash único, embedding vector
 ```
 
 La recuperación por nombre de curso permite que un mismo material ingestado
@@ -632,10 +635,15 @@ para una materia se comparta entre variantes de carrera. El filtro opcional de
 
 ### 8.4 Conclusión
 
-El diseño actual es un pipeline RAG con persistencia pgvector, OCR en cascada y
-consumidores separados por intención. Sus defensas más importantes son la
-reanudación por página, la caché de embeddings, el uso coherente del proveedor
-vectorial, el modo estricto para flujos críticos y la degradación controlada
-del chatbot. Las principales obligaciones operativas son mantener homogéneo el
-modelo de embeddings, monitorizar los fallos por proceso y preferir
-`replace_resource_chunks` cuando se requiera consistencia transaccional.
+El diseño actual es un pipeline RAG con persistencia pgvector, extracción
+híbrida de texto nativo local (`pypdf`) y OCR de visión en cascada (Gemini por
+defecto y OpenAI como fallback), además de consumidores separados por
+intención. Esto no equivale todavía a un OCR local: reemplazar la visión de pago
+por procesamiento local híbrido es una optimización futura que requiere
+validación de calidad y rendimiento. Las defensas actuales incluyen reanudación
+por página, coherencia del proveedor vectorial, modo estricto para flujos
+críticos y degradación controlada del chatbot. No se debe contar con caché
+persistida de embeddings en Supabase hasta resolver la ausencia de
+`embedding_cache`. Las obligaciones operativas son mantener homogéneo el modelo
+de embeddings, monitorizar los fallos y preferir `replace_resource_chunks`
+cuando se requiera consistencia transaccional.

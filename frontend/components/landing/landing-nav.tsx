@@ -44,7 +44,7 @@ export function LandingNav() {
       </a>
       <div style={{ display: "flex", alignItems: "center", gap: "clamp(24px, 5vw, 56px)" }}>
         <nav
-          className="univia-nav-links"
+          className="venus-nav-links"
           style={{ display: "flex", alignItems: "center", gap: "clamp(14px, 1.8vw, 30px)", flexWrap: "nowrap" }}
         >
           {SECCIONES.map((n) => {

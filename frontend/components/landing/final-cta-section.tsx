@@ -208,7 +208,7 @@ export function LandingFooter() {
       }}
     >
       <div
-        className="univia-split"
+        className="venus-split"
         style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr", gap: "clamp(32px, 6vw, 88px)", maxWidth: 1240, margin: "0 auto" }}
       >
         <div data-reveal="up" style={{ display: "flex", flexDirection: "column", gap: 18 }}>

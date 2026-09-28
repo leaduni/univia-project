@@ -31,9 +31,28 @@ const anton = Anton({
 })
 
 export const metadata: Metadata = {
-  title: "UniVia - Academic Orientation Dashboard",
-  description: "Personalized learning paths based on university curriculum",
+  title: {
+    default: "Venus | Orientación académica universitaria",
+    template: "%s | Venus",
+  },
+  description:
+    "Organiza tus cursos de la UNI, sigue tu avance y aprende a tu ritmo con Venus.",
+  applicationName: "Venus",
   generator: "v0.app",
+  openGraph: {
+    title: "Venus | Orientación académica universitaria",
+    description:
+      "Organiza tus cursos de la UNI, sigue tu avance y aprende a tu ritmo con Venus.",
+    siteName: "Venus",
+    locale: "es_PE",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Venus | Orientación académica universitaria",
+    description:
+      "Organiza tus cursos de la UNI, sigue tu avance y aprende a tu ritmo con Venus.",
+  },
 
   icons: {
     icon: "/Logo_LEAD_UNI.png",

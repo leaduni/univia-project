@@ -1,4 +1,4 @@
-# Contrato de avance y perfil del estudiante — Backend UniVia
+# Contrato de avance y perfil del estudiante — Backend Venus
 
 Entregable de la **Fase 3 (Malla curricular, dashboard y perfil)**.
 

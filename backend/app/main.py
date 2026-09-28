@@ -57,7 +57,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="UniVia API",
+    title="Venus API",
     description="Backend para la plataforma de orientación académica personalizada",
     version="2.0.0",
     lifespan=lifespan,
@@ -79,7 +79,7 @@ if IS_PRODUCTION:
     if not trusted_hosts_raw or trusted_hosts_raw.strip() in {"", "*"}:
         raise RuntimeError(
             "TRUSTED_HOSTS (o su alias ALLOWED_HOSTS) es obligatorio en producción "
-            "y no puede ser '*'. Ejemplo: TRUSTED_HOSTS=univia.pe,api.univia.pe"
+            "y no puede ser '*'. Ejemplo: TRUSTED_HOSTS=venus.pe,api.venus.pe"
         )
     trusted_hosts = [host.strip() for host in trusted_hosts_raw.split(",") if host.strip()]
 else:
@@ -171,7 +171,7 @@ async def unhandled_exception_handler(request, exc: Exception):
 
 @app.get("/")
 async def root():
-    return {"message": "UniVia API v2.0 - Online", "status": "healthy"}
+    return {"message": "Venus API v2.0 - Online", "status": "healthy"}
 
 
 @app.get("/api/health")

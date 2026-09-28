@@ -35,7 +35,7 @@ beforeEach(() => {
   mocks.fetchWithAuth.mockImplementation(async () => response([]))
 })
 
-describe("PDF adjunto desde Pregúntale a UniVia", () => {
+describe("PDF adjunto desde Pregúntale a Venus", () => {
   it("envía el archivo al lector y añade los bloques una vez como eventos ya persistidos", async () => {
     mocks.fetchWithAuth.mockImplementation(async (url: string) => response(url.includes("parse-matricula")
       ? { eventos_creados: [event], cursos_detectados: [], message: "Se creó 1 bloque horario." }

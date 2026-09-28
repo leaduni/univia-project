@@ -240,7 +240,7 @@ export function RecursosAlianza({
                 </div>
 
                 <h2 className="max-w-[15rem] text-4xl font-black tracking-[-0.04em] text-white sm:text-5xl">
-                  UniVia
+                  Venus
                   <span className="mx-2 text-white/20">×</span>
                   <span className="bg-gradient-to-r from-cyan-300 via-emerald-300 to-cyan-300 bg-clip-text text-transparent">
                     SACU
@@ -561,7 +561,7 @@ export function RecursosAlianza({
         <div className="mt-5 flex flex-col gap-3 px-1 text-[11px] text-slate-600 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <Check className="h-3.5 w-3.5 text-emerald-400/80" />
-            <span>Repositorio conectado a tu experiencia UniVia</span>
+            <span>Repositorio conectado a tu experiencia Venus</span>
           </div>
 
           <button

@@ -16,7 +16,7 @@ interface SugerenciaIAProps {
 }
 
 /**
- * Bloque destacado "Sugerencia UniVia Bot" que se muestra en hilos de duda con
+ * Bloque destacado "Sugerencia Venus Bot" que se muestra en hilos de duda con
  * sugerencia generada por el RAG. Permite al autor aceptarla como solución.
  */
 export function SugerenciaIA({ publicacionId, sugerencia, esAutor, onAceptada }: SugerenciaIAProps) {
@@ -53,7 +53,7 @@ export function SugerenciaIA({ publicacionId, sugerencia, esAutor, onAceptada }:
         </span>
         <span className="font-poppins font-semibold text-xs text-primary flex items-center gap-1">
           <Sparkles className="w-3.5 h-3.5" />
-          Sugerencia UniVia Bot
+          Sugerencia Venus Bot
         </span>
         {aceptada && (
           <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-300 bg-emerald-950/60 border border-emerald-800/40 px-2 py-0.5 rounded-lg">

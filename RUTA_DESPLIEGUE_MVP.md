@@ -1,6 +1,6 @@
 # Ruta de Despliegue MVP — Limpieza de Hardcode y Mocks
 
-> **Objetivo:** llevar UniVia a producción sin hardcoding de red, sin datos falsos de
+> **Objetivo:** llevar Venus a producción sin hardcoding de red, sin datos falsos de
 > producción y sin fugas de depuración, **sin romper el flujo actual de la aplicación**.
 >
 > **Premisa encontrada en la investigación:** el codebase ya migró casi todas las pantallas
@@ -130,7 +130,7 @@ Referencias actuales:
 ```env
 # --- Despliegue (CORS, hosts y URL del frontend) ---
 CORS_ORIGINS=https://univia.pe,https://www.univia.pe
-TRUSTED_HOSTS=univia.pe,www.univia.pe,api.univia.pe
+TRUSTED_HOSTS=venus.pe,www.venus.pe,api.venus.pe
 FRONTEND_URL=https://univia.pe
 ```
 
@@ -169,7 +169,7 @@ FRONTEND_URL=https://univia.pe
 
 ### 2.1 Estado de la base de datos verificada (MCP — proyecto `pggpscrbpcasbgjhjigw`)
 
-- Nombre: `UniviaProject` · Región: `us-east-1` · Postgres 17.6 · Estado: `ACTIVE_HEALTHY`.
+- Nombre: `VenusProject` · Región: `us-east-1` · Postgres 17.6 · Estado: `ACTIVE_HEALTHY`.
 - RLS **habilitado** en todas las tablas consultadas (las peticiones viajan con el token
   del usuario; el backend usa `get_supabase(token)`).
 
@@ -294,7 +294,7 @@ Verificado leyendo cada página: las pantallas ya **no** usan mock como fuente p
 
 ## Resumen del trabajo de investigación (ya realizado)
 
-- **Supabase (MCP):** proyecto `UniviaProject` (`pggpscrbpcasbgjhjigw`, `ACTIVE_HEALTHY`,
+- **Supabase (MCP):** proyecto `VenusProject` (`pggpscrbpcasbgjhjigw`, `ACTIVE_HEALTHY`,
   Postgres 17.6). 38 tablas públicas inspeccionadas con columnas reales; RLS activado.
 - **Esquema real = shape de los mocks:** las columnas de `recursos`, `malla_cursos`,
   `learning_path_steps`, `logros`, etc. coinciden con los tipos del frontend

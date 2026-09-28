@@ -7,7 +7,8 @@
 import { useEffect, useRef, type KeyboardEvent } from "react"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
-import { ChevronDown, KeyRound, Maximize2, Minimize2, Send, Sparkles, Square, Trash2, X } from "lucide-react"
+import { ChevronDown, KeyRound, Maximize2, Minimize2, Send, Square, Trash2, X } from "lucide-react"
+import { LuniMascot, type LuniVariant } from "@/components/ui/LuniMascot"
 import { MessageBubble } from "./message-bubble"
 import type { MensajeChat, RecursoAdjuntoChat } from "@/types/chatbot"
 import { CHAT_TOKENS } from "./chat-tokens"
@@ -101,6 +102,21 @@ export function ChatPanel({
   const mostrarSugerencias = messages.length === 0 && !isLoading
   const inputListo = inputValue.trim().length > 0
 
+  // Variante narrativa de Luni. Se deriva aquí, en el componente que ya conoce
+  // inputValue e isStreaming, para no propagar estado nuevo desde el
+  // contenedor: escucha mientras el estudiante escribe, piensa mientras la IA
+  // responde, explica cuando ya hay conversación y saluda en el primer
+  // contacto. La MISMA variante alimenta la cabecera y el estado vacío: ver
+  // dos caras distintas de Luni dentro del mismo panel se lee como un fallo.
+  const varianteLuni: LuniVariant = isStreaming
+    ? "thinking"
+    : inputListo
+      ? "listening"
+      : messages.length > 0
+        ? "explaining"
+        : "wave"
+  const luniAnimada = varianteLuni === "thinking" || varianteLuni === "listening"
+
   // Scroll inteligente: pegado al fondo salvo que el usuario haya subido a
   // leer mensajes anteriores (>80px); el pill "Ver mensajes nuevos" lo
   // devuelve al fondo de forma forzada.
@@ -186,7 +202,7 @@ export function ChatPanel({
     <div
       ref={panelRef}
       role="dialog"
-      aria-label="Asistente de UniVia"
+      aria-label="Asistente de Venus"
       className={`${PANEL_BG} ${CHAT_TOKENS.PANEL_BLUR} ${CHAT_TOKENS.BORDER} ${CHAT_TOKENS.SHADOW} ${CHAT_TOKENS.RADIUS_PANEL} ${PANEL_DIMENSIONES} relative flex flex-col overflow-hidden`}
     >
       {/* Banner de sin conexión */}
@@ -216,12 +232,20 @@ export function ChatPanel({
           }}
         />
         <div className="relative flex items-center gap-2 min-w-0">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#d93340] via-[#a6249d] to-[#7957f1] flex items-center justify-center shrink-0 shadow-sm">
-            <Sparkles className="w-3.5 h-3.5 text-white" />
-          </div>
+          {/* Luni reemplaza al avatar genérico y refleja el estado del turno.
+              Ancho fijo: las variantes tienen relación de aspecto distinta, así
+              que sin esto el título de la cabecera saltaría al alternar entre
+              reposo y escuchando. */}
+          <LuniMascot
+            variant={varianteLuni}
+            size={28}
+            animated={luniAnimada}
+            alt={null}
+            className="w-8"
+          />
           <div className="min-w-0">
             <p className="font-wordmark text-sm font-semibold text-foreground truncate">
-              Asistente UniVia
+              Asistente Venus
             </p>
             <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate">
               <span
@@ -303,8 +327,8 @@ export function ChatPanel({
         {isLoading && messages.length === 0 ? (
           <ChatSkeleton count={4} />
         ) : mostrarSugerencias ? (
-          <div className="h-full flex flex-col items-center justify-center gap-4 px-4 text-center">
-            <Sparkles className="w-8 h-8 text-primary/80" aria-hidden="true" />
+          <div className="h-full flex flex-col items-center justify-center gap-3 px-4 text-center">
+            <LuniMascot variant={varianteLuni} size="md" shadow animated alt={null} />
             <div>
               <p className="text-sm font-medium text-foreground">¿En qué te ayudo?</p>
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed">

@@ -62,7 +62,7 @@ export const EvaluationResultsView: React.FC<EvaluationResultsViewProps> = ({
         </div>
 
         <footer className="flex justify-between items-center text-xs text-gray-500 pt-8 border-t border-[#1E2030]">
-          <span>UniVia &middot; un proyecto de LEAD UNI para la comunidad UNI</span>
+          <span>Venus &middot; un proyecto de LEAD UNI para la comunidad UNI</span>
           <span className="uppercase tracking-widest">LEARN. EXPLORE. ASPIRE. DISCOVER.</span>
         </footer>
       </div>

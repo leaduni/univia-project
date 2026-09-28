@@ -69,6 +69,8 @@ describe("parseMatricula", () => {
 
     const [, options] = mocks.fetchWithAuth.mock.calls[0];
     expect(options.headers?.["X-User-LLM-Key"]).toBe("AIzaSyClaveDePrueba123");
+    expect(localStorage.getItem("venus_byok_gemini")).toBe("  AIzaSyClaveDePrueba123  ");
+    expect(localStorage.getItem("univia_byok_gemini")).toBeNull();
   });
 
   it("no envía X-User-LLM-Key cuando no hay clave BYOK guardada", async () => {

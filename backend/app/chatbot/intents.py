@@ -92,12 +92,12 @@ TURNOS_DE_CONTEXTO = 4
 # free tier de Groq limita por tokens por minuto (8.000 TPM al escribir esto).
 # Una versión con cuatro ejemplos por categoría pesaba ~700 tokens y dejaba al
 # clasificador en ~11 mensajes por minuto para toda la plataforma.
-PROMPT_CLASIFICADOR = """Clasifica el mensaje del estudiante de UniVia. Responde SOLO la etiqueta.
+PROMPT_CLASIFICADOR = """Clasifica el mensaje del estudiante de Venus. Responde SOLO la etiqueta.
 
 recurso: pide un archivo CONCRETO para descargar o dice "descargar"/"bajar" (examen, plancha, práctica, sílabo, libro, solucionario).
 duda_academica: pregunta por contenido, teoría, ejercicios o prácticas de un curso, o qué entra en un examen (incluye pedir ejemplos, ejercicios o problemas aunque no nombre el curso exacto).
 estado_academico: pregunta por SUS datos (sus notas, avance, créditos, si puede llevar un curso).
-navegacion_ayuda: cómo usar la web de UniVia o dónde encontrar una sección.
+navegacion_ayuda: cómo usar la web de Venus o dónde encontrar una sección.
 catalogo: pregunta qué facultades, carreras, cursos o elementos del catálogo existen o están registrados en la plataforma.
 general: cultura general, saludos, charla.
 soporte_humano: algo falla, un dato está mal, o pide hablar con una persona.
@@ -112,7 +112,7 @@ Desempate:
 - Pedir un archivo gana sobre explicar.
 - "mi/me/llevo/aprobé" indica estado_academico, SALVO que diga que el dato está mal o algo falla: eso es soporte_humano.
 - "cómo hago/genero/veo X" dentro de la plataforma es navegacion_ayuda, aunque mencione un examen o material.
-- Si pregunta qué facultades, carreras o catálogo existen o están registradas en UniVia (p. ej. "¿qué facultades tiene UniVia?"), es catalogo. Trigger seguro: contiene "facultades", "carreras" o "catálogo".
+- Si pregunta qué facultades, carreras o catálogo existen o están registradas en Venus (p. ej. "¿qué facultades tiene Venus?"), es catalogo. Trigger seguro: contiene "facultades", "carreras" o "catálogo".
 - Si pide explícitamente tarjetas, cuestionario o cronograma, usa respectivamente flashcards, quiz o cronograma, aunque mencione un curso.
 - Si pregunta por quién dicta/enseña o los docentes de un curso, es consulta_docentes, aunque mencione exámenes o material.
 - Pedir un ejercicio, problema o ejemplo (aunque empiece con "dame un ejercicio...") es duda_academica, SALVO que pida un archivo exacto para descargar.

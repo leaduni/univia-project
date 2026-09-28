@@ -32,7 +32,7 @@ export function HeroSection({ ctaLabel = "Empieza a aprender" }: { ctaLabel?: st
           inset: -40,
           zIndex: 0,
           pointerEvents: "none",
-          animation: "univiaTwinkleA 5.5s ease-in-out infinite, univiaDrift 34s linear infinite alternate",
+          animation: "venusTwinkleA 5.5s ease-in-out infinite, venusDrift 34s linear infinite alternate",
           backgroundImage: STARS_A,
         }}
       />
@@ -42,7 +42,7 @@ export function HeroSection({ ctaLabel = "Empieza a aprender" }: { ctaLabel?: st
           inset: -40,
           zIndex: 0,
           pointerEvents: "none",
-          animation: "univiaTwinkleB 7.5s ease-in-out infinite, univiaDrift 46s linear infinite alternate-reverse",
+          animation: "venusTwinkleB 7.5s ease-in-out infinite, venusDrift 46s linear infinite alternate-reverse",
           backgroundImage: STARS_B,
         }}
       />
@@ -142,7 +142,7 @@ export function HeroSection({ ctaLabel = "Empieza a aprender" }: { ctaLabel?: st
             filter: "drop-shadow(0 6px 34px rgba(121, 87, 241, 0.35))",
           }}
         >
-          UNIVIA
+          VENUS
         </h1>
         <p
           data-reveal="up"

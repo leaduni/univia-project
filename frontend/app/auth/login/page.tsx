@@ -161,7 +161,7 @@ function LoginPageContent() {
             </span>
           </h1>
           <p className="text-muted-foreground text-sm xl:text-base 2xl:text-lg leading-relaxed">
-            Tu malla, tus cursos, exámenes pasados y evaluaciones de práctica generadas con IA. UniVia ordena tu camino académico para que tú solo te ocupes de aprender.
+            Tu malla, tus cursos, exámenes pasados y evaluaciones de práctica generadas con IA. Venus ordena tu camino académico para que tú solo te ocupes de aprender.
           </p>
           <div className="flex items-center gap-3 text-xs text-muted-foreground tracking-widest uppercase font-medium pt-2">
             <span className="h-0.5 w-8 gradient-brand inline-block rounded-full" />
@@ -179,7 +179,7 @@ function LoginPageContent() {
         <div className="w-full max-w-md xl:max-w-lg 2xl:max-w-xl space-y-6 2xl:space-y-8">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <h2 className="font-heading text-2xl xl:text-3xl 2xl:text-4xl font-bold tracking-tight text-foreground">UniVia</h2>
+              <h2 className="font-heading text-2xl xl:text-3xl 2xl:text-4xl font-bold tracking-tight text-foreground">Venus</h2>
               <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20 uppercase tracking-wider">
                 Portal
               </span>
@@ -279,7 +279,7 @@ function LoginPageContent() {
                 {isLoading ? (
                   <><Loader2 className="w-4 h-4 animate-spin mr-2" />Validando...</>
                 ) : (
-                  <>Ingresar a UniVia <ChevronRight className="w-4 h-4 ml-1" /></>
+                  <>Ingresar a Venus <ChevronRight className="w-4 h-4 ml-1" /></>
                 )}
               </Button>
             </form>

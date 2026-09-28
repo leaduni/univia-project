@@ -15,7 +15,7 @@ export function Logo({ compact = false }: { compact?: boolean }) {
       />
       {!compact && (
         <span className="font-heading text-xl font-bold bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent tracking-tight">
-          UniVia
+          Venus
         </span>
       )}
     </div>

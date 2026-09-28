@@ -31,7 +31,7 @@ const DESTINOS = [
   {
     icono: Megaphone,
     titulo: "Cero publicidad",
-    texto: "UniVia no vende anuncios ni datos de nadie.",
+    texto: "Venus no vende anuncios ni datos de nadie.",
   },
 ]
 
@@ -73,10 +73,10 @@ export function DonacionesView() {
             Financiamiento comunitario
           </p>
           <h1 className="mt-1.5 font-heading text-3xl font-bold text-foreground sm:text-4xl">
-            Ayuda a crecer a UniVia
+            Ayuda a crecer a Venus
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            UniVia es independiente y sin publicidad, hecha por y para la comunidad UNI.
+            Venus es independiente y sin publicidad, hecha por y para la comunidad UNI.
             Cada aporte mantiene la plataforma en pie y gratuita.
           </p>
         </header>

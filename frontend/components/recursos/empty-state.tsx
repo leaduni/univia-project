@@ -1,15 +1,17 @@
 // Empty state for resource library with AI suggestion card
 "use client"
 
-import { Search, Sparkles } from "lucide-react"
+import { Sparkles } from "lucide-react"
+import { LuniMascot } from "@/components/ui/LuniMascot"
 import { Button } from "@/components/ui/button"
 
 export function RecursosEmptyState() {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-20 text-center max-w-md mx-auto">
-      <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-md">
-        <Search className="w-8 h-8 text-primary" />
-      </div>
+      {/* Luni 'explaining' en lugar del icono genérico: el vacío deja de ser un
+          callejón sin salida y pasa a ser la mascota ofreciendo el paso
+          siguiente (generar un examen con IA). */}
+      <LuniMascot variant="explaining" size={112} animated shadow alt={null} />
 
       <h3 className="font-poppins font-semibold text-lg text-foreground mt-2">No se encontraron resultados</h3>
       <p className="text-sm text-muted-foreground max-w-sm">Intenta ajustar tus filtros o busca con otros términos para encontrar materiales académicos.</p>

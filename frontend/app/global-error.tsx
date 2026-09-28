@@ -60,7 +60,7 @@ export default function GlobalError({
               color: "#f9fafb",
             }}
           >
-            UniVia no pudo cargarse
+            Venus no pudo cargarse
           </h1>
 
           <p

@@ -334,7 +334,7 @@ def _notificar_solicitud_invitado(data: RegistroInvitado) -> bool:
         from email.message import EmailMessage
 
         msg = EmailMessage()
-        msg["Subject"] = "[UniVia] Solicitud de acceso como invitado"
+        msg["Subject"] = "[Venus] Solicitud de acceso como invitado"
         msg["From"] = os.getenv("SMTP_FROM", "no-reply@univiap.pe")
         msg["To"] = ", ".join(destinos)
         msg.set_content(

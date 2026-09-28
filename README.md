@@ -1,6 +1,6 @@
-# UniVia - Plataforma de Orientación Académica
+# Venus - Plataforma de Orientación Académica
 
-UniVia es una solución integral diseñada para guiar a los estudiantes en su trayectoria académica, proporcionando herramientas visuales, recursos de aprendizaje y análisis inteligente mediante IA.
+Venus es una solución integral diseñada para guiar a los estudiantes en su trayectoria académica, proporcionando herramientas visuales, recursos de aprendizaje y análisis inteligente mediante IA.
 
 ---
 
@@ -41,7 +41,7 @@ El proyecto está dividido en los siguientes componentes principales:
 ## 📂 Estructura del Proyecto
 
 ```text
-univia-project/
+venus-project/
 ├── frontend/               # Aplicación Next.js (Dashboard, Malla, Onboarding)
 ├── backend/                # API REST con FastAPI (paquete app/: core, routers, rag)
 ├── base_de_datos/          # Esquemas SQL, semillas y SQL del RAG

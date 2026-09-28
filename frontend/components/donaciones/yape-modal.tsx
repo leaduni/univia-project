@@ -97,7 +97,7 @@ export function YapeModal({ intencion, enviando, onConfirmar, onCerrar }: YapeMo
           <div className="rounded-2xl bg-white p-2.5 shadow-[0_8px_28px_rgba(0,0,0,0.45)]">
             <Image
               src="/QR-YAPE.jpeg"
-              alt="Código QR de Yape de UniVia"
+              alt="Código QR de Yape de Venus"
               width={320}
               height={480}
               className="w-auto h-auto max-h-[34vh] max-w-full object-contain rounded-lg"

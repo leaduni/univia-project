@@ -1,8 +1,8 @@
-# Chatbot de UniVia: funcionamiento completo de extremo a extremo
+# Chatbot de Venus: funcionamiento completo de extremo a extremo
 
 ## 1. Propósito de este documento
 
-Este documento explica cómo funciona el chatbot de UniVia desde que la aplicación
+Este documento explica cómo funciona el chatbot de Venus desde que la aplicación
 se carga hasta que el asistente responde, incluyendo qué ocurre cuando el usuario
 envía un segundo mensaje relacionado con el anterior.
 
@@ -162,6 +162,9 @@ Usuario autenticado
 - `backend/app/core/llm.py`
   - Crea el cliente de Groq y llama al modelo de chat.
   - El chatbot usa la interfaz compatible con OpenAI de Groq.
+  - El modelo predeterminado actual es `llama-3.3-70b-versatile`
+    (`GROQ_MODEL`); el proveedor/modelo pueden depender de la configuración y
+    de los fallbacks habilitados.
 
 - `backend/app/chatbot/prompts/system.md`
   - Prompt base del asistente.
@@ -176,16 +179,23 @@ Usuario autenticado
 
 - `backend/app/rag/embedder.py`
   - Genera el embedding de la pregunta con el proveedor configurado.
-  - Debe usar el mismo espacio vectorial que se usó para ingerir documentos.
+  - OpenAI `text-embedding-3-small` es el proveedor/modelo predeterminado; debe
+    coincidir con el espacio vectorial usado para ingerir los documentos.
 
 - `base_de_datos/rag/rag_search_chatbot_hybrid.sql`
   - Define `search_chatbot_resource_chunks`.
   - Fusiona búsqueda semántica y búsqueda de texto completo.
   - Filtra por curso o profesor cuando corresponde.
+  - Recupera filas ya almacenadas en `resource_chunks`; el turno del chatbot no
+    ejecuta descarga, OCR ni ingesta del PDF.
 
 - `base_de_datos/esquema/migracion_fase8_chatbot.sql`
   - Define `chat_conversaciones` y `chat_mensajes`.
   - Añade índices, RLS y retención de 30 días.
+
+La ruta local con `pypdf` y OCR Vision híbrido pertenece a la ingesta del corpus,
+no a la consulta en tiempo real del chatbot. La extracción local de OCR todavía
+no forma parte del flujo descrito como implementado.
 
 ## 4. Qué ocurre al abrir la aplicación
 
@@ -218,7 +228,7 @@ cuando todavía falta esa configuración.
 Cuando existe `user.id`, el componente busca en `localStorage` la clave:
 
 ```text
-univia_chat_conversacion_<userId>
+venus_chat_conversacion_<userId>
 ```
 
 El valor guardado es el número de la conversación activa.
@@ -802,9 +812,12 @@ contra datos inventados y no exposición de información de otros estudiantes.
 1. `get_groq()` lee `GROQ_API_KEY`.
 2. Crea un cliente OpenAI-compatible con base URL de Groq.
 3. Lo guarda en caché para reutilizarlo.
-4. `chatear()` llama a `client.chat.completions.create()`.
-5. El chatbot usa `stream=True`.
-6. El límite de salida es `MAX_TOKENS_RESPUESTA = 1024`.
+4. El modelo predeterminado de chat es `llama-3.3-70b-versatile`
+   (`GROQ_MODEL`), salvo que la configuración o una ruta BYOK elijan otro
+   proveedor/modelo.
+5. `chatear()` llama a `client.chat.completions.create()`.
+6. El chatbot usa `stream=True`.
+7. El límite de salida es `MAX_TOKENS_RESPUESTA = 1024`.
 
 ### 15.2. No bloquear FastAPI
 
@@ -978,7 +991,7 @@ El prompt impide:
 - inventar cursos, horarios, contactos o requisitos;
 - prometer cambios administrativos;
 - resolver por cuenta propia casos sensibles;
-- hacerse pasar por personal de UniVia.
+- hacerse pasar por personal de Venus.
 
 ## 21. Retención y limpieza
 
@@ -1104,4 +1117,3 @@ mensaje actual
   -> handler específico
   -> consulta correcta sobre la entidad anterior
 ```
-

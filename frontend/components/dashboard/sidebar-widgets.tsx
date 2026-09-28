@@ -218,7 +218,7 @@ function SugerenciasCard() {
     <div className="p-5 rounded-2xl bg-[var(--glass-base)] backdrop-blur-md border border-[var(--glass-border)] shadow-[var(--glow-subtle)] transition-all duration-300 hover:shadow-[var(--glow-violet)] anim-right mt-4">
       <h3 className="font-poppins text-[14.5px] font-semibold text-[#e9e9ed] mb-2">Sugerencias / Feedback</h3>
       <p className="text-xs text-[#e9e9ed]/55 leading-relaxed mb-3">
-        ¿Encontraste un error o tienes una idea? Cuéntanoslo para mejorar UniVia.
+        ¿Encontraste un error o tienes una idea? Cuéntanoslo para mejorar Venus.
       </p>
       <Link
         href="/dashboard/feedback"

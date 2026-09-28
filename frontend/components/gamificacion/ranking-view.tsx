@@ -135,7 +135,7 @@ export function RankingView() {
         <div>
           <h1 className="flex items-center gap-2 font-heading text-2xl font-bold text-foreground">
             <Trophy className="w-6 h-6 text-amber-400" aria-hidden="true" />
-            Ranking UniVia
+            Ranking Venus
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Compite por XP acumulando rachas, check-ins y evaluaciones.

@@ -1,4 +1,4 @@
-/* Landing UniVia - estilos del mockup (template/Univia Landing.html).
+/* Landing Venus - estilos del mockup (template/Venus Landing.html).
    Iconos Phosphor recortados a los usados en la landing. */
 
 @font-face {
@@ -52,23 +52,23 @@
 .ph.ph-youtube-logo::before { content: "\e4fc"; }
 
 /* --- Landing shell --- */
-.univia-landing { background: #0b0c16; color: #f8fafc; min-height: 100dvh; font-family: var(--font-heading); }
-.univia-landing a { color: #d7cef7; text-decoration: none; }
-.univia-landing a:hover { color: #ffffff; }
-.univia-landing section[id] { scroll-margin-top: 76px; }
-.univia-landing ::selection { background: rgba(121, 87, 241, 0.35); }
+.venus-landing { background: #0b0c16; color: #f8fafc; min-height: 100dvh; font-family: var(--font-heading); }
+.venus-landing a { color: #d7cef7; text-decoration: none; }
+.venus-landing a:hover { color: #ffffff; }
+.venus-landing section[id] { scroll-margin-top: 76px; }
+.venus-landing ::selection { background: rgba(121, 87, 241, 0.35); }
 
-.univia-team-grid {
+.venus-team-grid {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 24px;
 }
-.univia-team-card {
+.venus-team-card {
   flex: 0 1 calc((100% - 48px) / 3);
   min-width: 0;
 }
-.univia-team-card-body {
+.venus-team-card-body {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -76,8 +76,8 @@
   min-height: 94px;
   padding: 18px 20px;
 }
-.univia-team-socials { display: flex; flex-shrink: 0; gap: 6px; }
-.univia-landing .univia-team-social {
+.venus-team-socials { display: flex; flex-shrink: 0; gap: 6px; }
+.venus-landing .venus-team-social {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -88,18 +88,18 @@
   color: #d7cef7;
   transition: background 200ms ease, color 200ms ease;
 }
-.univia-landing .univia-team-social:hover,
-.univia-landing .univia-team-social:focus-visible { background: #7957f1; color: #ffffff; }
-.univia-landing .univia-team-social:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+.venus-landing .venus-team-social:hover,
+.venus-landing .venus-team-social:focus-visible { background: #7957f1; color: #ffffff; }
+.venus-landing .venus-team-social:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
 
 /* --- Animaciones --- */
-@keyframes univiaTwinkleA { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.9; } }
-@keyframes univiaTwinkleB { 0%, 100% { opacity: 0.8; } 45% { opacity: 0.25; } }
-@keyframes univiaDrift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-28px, -22px, 0); } }
-@keyframes univiaPulseDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-@keyframes univiaSheen { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
-@keyframes univiaSpin { to { transform: rotate(360deg); } }
-@keyframes univiaFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes venusTwinkleA { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.9; } }
+@keyframes venusTwinkleB { 0%, 100% { opacity: 0.8; } 45% { opacity: 0.25; } }
+@keyframes venusDrift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-28px, -22px, 0); } }
+@keyframes venusPulseDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes venusSheen { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
+@keyframes venusSpin { to { transform: rotate(360deg); } }
+@keyframes venusFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
 /* --- Reveal on scroll --- */
 [data-reveal] {
@@ -119,26 +119,26 @@
 
 /* --- Responsive de las secciones a dos columnas --- */
 @media (max-width: 900px) {
-  .univia-split { grid-template-columns: 1fr !important; }
-  .univia-split > * { grid-column: 1 !important; grid-row: auto !important; text-align: left !important; }
-  .univia-split h2 { margin-left: 0 !important; text-align: left !important; }
-  .univia-team-card { flex-basis: calc((100% - 24px) / 2); }
-  .univia-nav-links { display: none !important; }
+  .venus-split { grid-template-columns: 1fr !important; }
+  .venus-split > * { grid-column: 1 !important; grid-row: auto !important; text-align: left !important; }
+  .venus-split h2 { margin-left: 0 !important; text-align: left !important; }
+  .venus-team-card { flex-basis: calc((100% - 24px) / 2); }
+  .venus-nav-links { display: none !important; }
 }
 
 @media (max-width: 700px) {
-  .univia-team-card { flex-basis: 100%; max-width: 460px; }
+  .venus-team-card { flex-basis: 100%; max-width: 460px; }
 }
 
 @media (max-width: 390px) {
-  .univia-landing header {
+  .venus-landing header {
     gap: 12px !important;
   }
-  .univia-landing header > div:last-child {
+  .venus-landing header > div:last-child {
     gap: 8px !important;
   }
-  .univia-landing header a[href="/auth/login"],
-  .univia-landing header a[href="/auth/signup"] {
+  .venus-landing header a[href="/auth/login"],
+  .venus-landing header a[href="/auth/signup"] {
     padding-left: 12px !important;
     padding-right: 12px !important;
   }

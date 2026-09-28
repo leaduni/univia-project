@@ -128,7 +128,7 @@ export function FacultyStep({ data, onNext, facultades, careers }: FacultyStepPr
                 </div>
                 <p className="text-xs text-muted-foreground leading-snug">
                   {inactiva
-                    ? "Aún no disponible en UniVia"
+                    ? "Aún no disponible en Venus"
                     : sinCarreras
                       ? "Todavía sin carreras disponibles"
                       : `${totalCarreras} ${totalCarreras === 1 ? "carrera" : "carreras"}`}

@@ -1,4 +1,4 @@
-# Optimización UniVia
+# Optimización Venus
 
 ## Alcance y criterio de verificación
 
@@ -183,8 +183,8 @@ remota que cubra cuota real del proveedor.
 Desde la raíz del repositorio:
 
 ```powershell
-docker build -t univia-backend .\backend
-docker run --rm -p 8000:8000 --env-file .\backend\.env univia-backend
+docker build -t venus-backend .\backend
+docker run --rm -p 8000:8000 --env-file .\backend\.env venus-backend
 ```
 
 Para producción:

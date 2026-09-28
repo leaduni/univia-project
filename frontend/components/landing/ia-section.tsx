@@ -60,7 +60,7 @@ export function IaSection() {
         }}
       />
       <div
-        className="univia-split"
+        className="venus-split"
         style={{
           position: "relative",
           maxWidth: 1240,
@@ -255,7 +255,7 @@ export function IaSection() {
               {phase === "gen" && (
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 11 }}>
                   <span style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12, color: "#ffffff" }}>
-                    <i className="ph ph-circle-notch" style={{ fontSize: 15, color: "#b5abfc", animation: "univiaSpin 1s linear infinite" }} />
+                    <i className="ph ph-circle-notch" style={{ fontSize: 15, color: "#b5abfc", animation: "venusSpin 1s linear infinite" }} />
                     La IA está redactando tus 10 preguntas…
                   </span>
                   {[
@@ -272,7 +272,7 @@ export function IaSection() {
                         width: w,
                         backgroundImage: `linear-gradient(100deg, rgba(35,37,50,0.9) 20%, ${c} 45%, rgba(35,37,50,0.9) 70%)`,
                         backgroundSize: "260% 100%",
-                        animation: `univiaSheen 1.4s linear infinite ${d}`,
+                        animation: `venusSheen 1.4s linear infinite ${d}`,
                       }}
                     />
                   ))}
@@ -288,7 +288,7 @@ export function IaSection() {
                     justifyContent: "center",
                     gap: 12,
                     minHeight: 0,
-                    animation: "univiaFadeUp 420ms ease both",
+                    animation: "venusFadeUp 420ms ease both",
                   }}
                 >
                   <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 10, color: "rgba(233, 233, 237, 0.45)" }}>
@@ -373,13 +373,13 @@ export function IaSection() {
                     alignItems: "center",
                     gap: 18,
                     minHeight: 0,
-                    animation: "univiaFadeUp 420ms ease both",
+                    animation: "venusFadeUp 420ms ease both",
                   }}
                 >
                   <span style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", width: 116, height: 116 }}>
                     <svg width="116" height="116" viewBox="0 0 120 120" style={{ transform: "rotate(-90deg)" }}>
                       <defs>
-                        <linearGradient id="univiaScoreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <linearGradient id="venusScoreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                           <stop offset="0%" stopColor="#d93340" />
                           <stop offset="55%" stopColor="#a6249d" />
                           <stop offset="100%" stopColor="#7957f1" />
@@ -391,7 +391,7 @@ export function IaSection() {
                         cy="60"
                         r="52"
                         fill="none"
-                        stroke="url(#univiaScoreGrad)"
+                        stroke="url(#venusScoreGrad)"
                         strokeWidth="10"
                         strokeLinecap="round"
                         strokeDasharray={CIRC.toFixed(1)}

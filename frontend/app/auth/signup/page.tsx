@@ -237,7 +237,7 @@ export default function SignupPage() {
         <div className="max-w-5xl mx-auto w-full">
           <div className="mb-8 text-center">
             <div className="font-heading text-xl font-bold tracking-tight text-foreground/90">
-              UniVia - Plataforma académica · LEAD UNI
+              Venus - Plataforma académica · LEAD UNI
             </div>
           </div>
 

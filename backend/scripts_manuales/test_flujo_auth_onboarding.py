@@ -21,9 +21,9 @@ API = "http://localhost:8000/api"
 
 # Correo y código irrepetibles para poder ejecutar el script varias veces.
 SUFIJO = random.randint(10_000_000, 99_999_999)
-EMAIL = f"prueba.univia{SUFIJO}@uni.pe"
+EMAIL = f"prueba.venus{SUFIJO}@uni.pe"
 CODIGO = f"{SUFIJO}K"
-PASSWORD = "univia2026"
+PASSWORD = "venus2026"
 
 ok_total = 0
 fallos = []

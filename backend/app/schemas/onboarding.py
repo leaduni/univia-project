@@ -102,7 +102,7 @@ class FacultadItem(BaseModel):
     codigo: str
     nombre: str
     # Bandera administrativa del catálogo: `false` significa que la facultad
-    # todavía no está habilitada en UniVia. Viaja al cliente para que el wizard
+    # todavía no está habilitada en Venus. Viaja al cliente para que el wizard
     # la pinte bloqueada ("Próximamente") en vez de ocultarla, y el backend la
     # vuelve a exigir en /onboarding/complete.
     activa: bool = False

@@ -13,7 +13,7 @@ import { useAuth } from "./providers/auth-context"
 import { apiService } from "@/lib/api-service"
 import { gamificacionService } from "@/lib/gamificacion-service"
 import { tomarCodigoReferido } from "@/lib/gamificacion-utils"
-import { Loader2 } from "lucide-react"
+import { LuniMascot } from "@/components/ui/LuniMascot"
 import { BrandLogo } from "@/app/auth/brand-logo"
 import { OnboardingProgress } from "./onboarding/onboarding-progress"
 
@@ -222,6 +222,17 @@ export function OnboardingWizard() {
       <div className="relative z-10 max-w-4xl mx-auto w-full pt-8 pb-6 px-4">
         <div className="flex items-center justify-between gap-4 mb-8">
           <BrandLogo className="py-0" />
+          {/* Luni saluda en el onboarding: es el primer contacto real con el
+              asistente, que todavía no se puede abrir (el chat solo se monta
+              con el onboarding completado). En móvil se oculta para no apretar
+              la cabecera. */}
+          <LuniMascot
+            variant="wave"
+            size={56}
+            animated
+            alt={null}
+            className="hidden sm:inline-flex"
+          />
           <button
             type="button"
             onClick={handleOmitir}
@@ -239,7 +250,7 @@ export function OnboardingWizard() {
         <div className="w-full max-w-4xl">
           {loading ? (
             <div className="flex flex-col items-center justify-center space-y-5 py-16">
-              <Loader2 className="w-10 h-10 animate-spin text-accent" />
+              <LuniMascot variant="thinking" size="md" shadow animated alt={null} />
               <div className="text-center space-y-1">
                 <p className="font-heading text-lg font-bold text-foreground">
                   Cargando tu malla académica...

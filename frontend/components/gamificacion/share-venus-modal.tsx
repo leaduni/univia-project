@@ -1,4 +1,4 @@
-// Modal para compartir UniVia e invitar referidos. Copia el enlace con `?ref=`
+// Modal para compartir Venus e invitar referidos. Copia el enlace con `?ref=`
 // y registra la telemetría de compartición (POST /compartir/evento), una por día.
 "use client"
 
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 
-interface ShareUniviaModalProps {
+interface ShareVenusModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
@@ -28,7 +28,7 @@ function buildUrl(codigo: string): string {
   return `${window.location.origin}/auth/signup?ref=${encodeURIComponent(codigo)}`
 }
 
-export function ShareUniviaModal({ open, onOpenChange }: ShareUniviaModalProps) {
+export function ShareVenusModal({ open, onOpenChange }: ShareVenusModalProps) {
   const [resumen, setResumen] = useState<ResumenGamificacion | null>(null)
   const [copiado, setCopiado] = useState(false)
   const [registrando, setRegistrando] = useState(false)
@@ -75,8 +75,8 @@ export function ShareUniviaModal({ open, onOpenChange }: ShareUniviaModalProps) 
     if (!url) return
     const target =
       destino === "whatsapp"
-        ? `https://wa.me/?text=${encodeURIComponent(`¡Únete a UniVia y aprende conmigo! ${url}`)}`
-        : `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent("¡Únete a UniVia y aprende conmigo!")}`
+        ? `https://wa.me/?text=${encodeURIComponent(`¡Únete a Venus y aprende conmigo! ${url}`)}`
+        : `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent("¡Únete a Venus y aprende conmigo!")}`
     window.open(target, "_blank", "noopener,noreferrer")
     void registrarEvento(destino)
   }
@@ -87,7 +87,7 @@ export function ShareUniviaModal({ open, onOpenChange }: ShareUniviaModalProps) 
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2 text-lg">
             <Share2 className="w-5 h-5 text-[#7957f1]" aria-hidden="true" />
-            Compartir UniVia
+            Compartir Venus
           </SheetTitle>
           <SheetDescription>
             Invita a tus compañeros y gana XP cuando completen su registro.

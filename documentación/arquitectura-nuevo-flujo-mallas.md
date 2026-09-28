@@ -1,7 +1,7 @@
 # Arquitectura del Nuevo Flujo de Mallas Curriculares
 
-> **Documento de arquitectura** — Auditoría de lectura del proyecto *Lead UNI / UNIVIA*.
-> Ruta del deliverable: `univia-project/documentación/arquitectura-nuevo-flujo-mallas.md`
+> **Documento de arquitectura** — Auditoría de lectura del proyecto *Lead UNI / VENUS*.
+> Ruta del deliverable: `venus-project/documentación/arquitectura-nuevo-flujo-mallas.md`
 >
 > **Fuentes consultadas (solo lectura):**
 > - `documentacion/esquema-db-actual.md`

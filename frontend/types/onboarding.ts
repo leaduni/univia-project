@@ -29,7 +29,7 @@ export interface Facultad {
   codigo: string
   nombre: string
   /**
-   * Facultad habilitada en UniVia. Cuando es `false` la tarjeta se muestra
+   * Facultad habilitada en Venus. Cuando es `false` la tarjeta se muestra
    * bloqueada con "Próximamente" y no se puede elegir; el backend además
    * rechaza la matrícula en `/onboarding/complete`.
    */

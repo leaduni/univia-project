@@ -52,7 +52,7 @@ describe("restricción de facultades en el onboarding", () => {
     expect(civil).toBeDisabled()
     expect(civil).toHaveAttribute("aria-disabled", "true")
     expect(screen.getByText("Próximamente")).toBeInTheDocument()
-    expect(screen.getByText(/aún no disponible en univia/i)).toBeInTheDocument()
+    expect(screen.getByText(/aún no disponible en venus/i)).toBeInTheDocument()
   })
 
   test("hacer clic en una facultad inactiva no la selecciona ni avanza", () => {

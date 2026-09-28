@@ -3,7 +3,7 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { AgendaInteligente } from "@/components/agenda/agenda-inteligente"
 
 export const metadata = {
-  title: "Agenda Inteligente | UniVia",
+  title: "Agenda Inteligente | Venus",
   description: "Organiza tu semana universitaria con inteligencia artificial. Bloques de estudio, clases, evaluaciones y deporte en un solo lugar.",
 }
 

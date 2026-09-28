@@ -26,12 +26,26 @@ function idTemporal(): string {
 
 /** Clave de localStorage donde vive el `conversacion_id` activo de un usuario. */
 function claveConversacion(userId: string): string {
+  return `venus_chat_conversacion_${userId}`
+}
+
+function claveConversacionAnterior(userId: string): string {
   return `univia_chat_conversacion_${userId}`
 }
 
 function leerConversacionGuardada(userId: string): number | null {
   try {
-    const crudo = localStorage.getItem(claveConversacion(userId))
+    const clave = claveConversacion(userId)
+    const crudoActual = localStorage.getItem(clave)
+    const crudo = crudoActual ?? localStorage.getItem(claveConversacionAnterior(userId))
+    if (crudoActual === null && crudo !== null) {
+      try {
+        localStorage.setItem(clave, crudo)
+        localStorage.removeItem(claveConversacionAnterior(userId))
+      } catch {
+        // El hilo anterior sigue disponible si falla la migración.
+      }
+    }
     const id = crudo ? Number(crudo) : NaN
     return Number.isFinite(id) ? id : null
   } catch {
@@ -44,6 +58,7 @@ function leerConversacionGuardada(userId: string): number | null {
 function guardarConversacion(userId: string, conversacionId: number): void {
   try {
     localStorage.setItem(claveConversacion(userId), String(conversacionId))
+    localStorage.removeItem(claveConversacionAnterior(userId))
   } catch {
     /* nada que hacer si no se puede persistir */
   }
@@ -52,6 +67,7 @@ function guardarConversacion(userId: string, conversacionId: number): void {
 function olvidarConversacion(userId: string): void {
   try {
     localStorage.removeItem(claveConversacion(userId))
+    localStorage.removeItem(claveConversacionAnterior(userId))
   } catch {
     /* idem */
   }

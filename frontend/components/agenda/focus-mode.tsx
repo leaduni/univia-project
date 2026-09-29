@@ -1,15 +1,19 @@
 import { useState, useEffect, useRef } from "react"
-import { Play, Pause, X, CheckCircle2, Settings, Coffee, Brain, RotateCcw, Pencil, Check } from "lucide-react"
-import { CalendarioEvento } from "./calendar-grid"
+import { Play, Pause, X, CheckCircle2, Settings, Coffee, Brain, RotateCcw, Pencil, Check, BookOpen, Zap, Maximize2, Minus } from "lucide-react"
+import { CalendarioEvento, Etiqueta } from "./calendar-grid"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface FocusModeProps {
-  evento: CalendarioEvento
+  evento?: CalendarioEvento
+  eventos?: CalendarioEvento[]
+  etiquetas?: Etiqueta[]
   onClose: () => void
-  onComplete: (minutosEstudiados: number, isFinishedEarly: boolean) => void
+  onComplete: (minutosEstudiados: number, isFinishedEarly: boolean, asignadoA?: string, createBlock?: boolean) => void
 }
 
-export function FocusMode({ evento, onClose, onComplete }: FocusModeProps) {
+export function FocusMode({ evento, eventos, etiquetas, onClose, onComplete }: FocusModeProps) {
   const [isConfiguring, setIsConfiguring] = useState(true)
+  const [isMinimized, setIsMinimized] = useState(false)
   const [focusMinutes, setFocusMinutes] = useState(50)
   const [focusSeconds, setFocusSeconds] = useState(0)
   const [breakMinutes, setBreakMinutes] = useState(10)
@@ -24,6 +28,9 @@ export function FocusMode({ evento, onClose, onComplete }: FocusModeProps) {
   const [isEditingTime, setIsEditingTime] = useState(false)
   const [editMins, setEditMins] = useState(0)
   const [editSecs, setEditSecs] = useState(0)
+  
+  const [asignadoA, setAsignadoA] = useState<string>("libre")
+  const [createBlock, setCreateBlock] = useState(true)
 
   // Segundos totales originales para el progreso circular
   const currentTotalSeconds = phase === "focus" 
@@ -73,7 +80,7 @@ export function FocusMode({ evento, onClose, onComplete }: FocusModeProps) {
     if (phase === "focus") {
       studied += Math.floor((currentTotalSeconds - timeLeft) / 60)
     }
-    onComplete(studied, true)
+    onComplete(studied, true, asignadoA, !asignadoA.startsWith("bloque_") ? createBlock : false)
   }
 
   const handleComplete = () => {
@@ -81,7 +88,7 @@ export function FocusMode({ evento, onClose, onComplete }: FocusModeProps) {
     if (phase === "focus") {
       studied += Math.floor((currentTotalSeconds - timeLeft) / 60)
     }
-    onComplete(Math.max(studied, focusMinutes), false) // Al menos el tiempo objetivo si completó
+    onComplete(Math.max(studied, focusMinutes), false, asignadoA, !asignadoA.startsWith("bloque_") ? createBlock : false)
   }
 
   const startEditing = () => {
@@ -97,48 +104,187 @@ export function FocusMode({ evento, onClose, onComplete }: FocusModeProps) {
     setIsEditingTime(false)
   }
 
-  // Componente reutilizable para inputs numéricos de tiempo
-  const TimeInput = ({ val, setVal, max, label }: { val: number, setVal: (v: number) => void, max: number, label: string }) => (
-    <div className="flex flex-col items-center">
-      <input 
-        type="number" min="0" max={max} value={val || ""} placeholder="00"
-        onChange={e => {
-          let v = parseInt(e.target.value) || 0
-          if (v > max) v = max
-          setVal(v)
-        }}
-        className="w-14 h-11 sm:w-16 sm:h-12 text-center text-lg sm:text-xl font-bold bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all placeholder:text-white/20"
-      />
-      <span className="text-[10px] text-slate-400 font-medium uppercase mt-1 tracking-wider">{label}</span>
-    </div>
-  )
+  const TimeInput = ({ val, setVal, max, label }: { val: number, setVal: (v: number) => void, max: number, label: string }) => {
+    const [localVal, setLocalVal] = useState(val.toString().padStart(2, '0'))
+    useEffect(() => { setLocalVal(val.toString().padStart(2, '0')) }, [val])
+
+    return (
+      <div className="flex flex-col items-center">
+        <input 
+          type="number" value={localVal} onFocus={e=>e.target.select()}
+          onChange={e => {
+            setLocalVal(e.target.value)
+            let v = parseInt(e.target.value)
+            if (!isNaN(v)) {
+              if (v < 0) v = 0
+              if (v > max) v = max
+              setVal(v)
+            }
+          }}
+          onBlur={() => {
+            let v = parseInt(localVal)
+            if (isNaN(v) || v < 0) v = 0
+            if (v > max) v = max
+            setVal(v)
+            setLocalVal(v.toString().padStart(2, '0'))
+          }}
+          className="w-16 h-12 text-center text-xl font-bold bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all placeholder:text-white/20"
+        />
+        <span className="text-[10px] text-slate-400 font-medium uppercase mt-1 tracking-wider">{label}</span>
+      </div>
+    )
+  }
+
+  if (isMinimized) {
+    return (
+      <div className="fixed bottom-6 right-6 z-[200] bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.5)] w-80 p-5 animate-in slide-in-from-bottom-5">
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center gap-2">
+            {phase === "focus" ? <Brain className="w-4 h-4 text-purple-400" /> : <Coffee className="w-4 h-4 text-emerald-400" />}
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+              {phase === "focus" ? "Concentración" : "Descanso"}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setIsMinimized(false)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-slate-400 transition-colors"><Maximize2 className="w-3.5 h-3.5" /></button>
+            <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-500/20 hover:text-red-400 text-slate-400 transition-colors"><X className="w-3.5 h-3.5" /></button>
+          </div>
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="text-4xl font-black tracking-tighter tabular-nums text-white">
+            {timeStr}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setIsRunning(!isRunning)} className="w-12 h-12 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white transition-all">
+              {isRunning ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-1" />}
+            </button>
+            <button onClick={handleComplete} className="w-12 h-12 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 flex items-center justify-center text-white shadow-lg transition-transform hover:scale-105 active:scale-95">
+              <CheckCircle2 className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const BigTimeEditor = ({ mins, secs, setMins, setSecs, onSave }: any) => {
+    const [localMins, setLocalMins] = useState(mins.toString().padStart(2, '0'))
+    const [localSecs, setLocalSecs] = useState(secs.toString().padStart(2, '0'))
+
+    return (
+      <div className="flex items-center justify-center gap-2 mb-2 bg-black/40 p-4 rounded-3xl backdrop-blur-md border border-white/10">
+        <input 
+          type="text" value={localMins} onFocus={e=>e.target.select()} 
+          onChange={e => {
+            setLocalMins(e.target.value)
+            let str = e.target.value.replace(/\D/g, '')
+            let v = parseInt(str)
+            if (!isNaN(v) && v >= 0) setMins(v)
+          }} 
+          onBlur={() => {
+            let v = parseInt(localMins.replace(/\D/g, ''))
+            if (isNaN(v) || v < 0) v = 0
+            setMins(v); setLocalMins(v.toString().padStart(2, '0'))
+          }}
+          className="w-24 h-16 text-center text-5xl font-black bg-transparent text-white focus:outline-none border-b-2 border-purple-500" 
+        />
+        <span className="text-5xl font-black text-white/50">:</span>
+        <input 
+          type="text" value={localSecs} onFocus={e=>e.target.select()} 
+          onChange={e => {
+            setLocalSecs(e.target.value)
+            let str = e.target.value.replace(/\D/g, '')
+            let v = parseInt(str)
+            if (!isNaN(v)) {
+              if (v > 59) v = 59
+              if (v < 0) v = 0
+              setSecs(v)
+            }
+          }} 
+          onBlur={() => {
+            let v = parseInt(localSecs.replace(/\D/g, ''))
+            if (isNaN(v) || v < 0) v = 0
+            if (v > 59) v = 59
+            setSecs(v); setLocalSecs(v.toString().padStart(2, '0'))
+          }}
+          className="w-24 h-16 text-center text-5xl font-black bg-transparent text-white focus:outline-none border-b-2 border-purple-500" 
+        />
+        <button onClick={onSave} className="ml-2 w-12 h-12 rounded-full bg-purple-500 hover:bg-purple-400 text-white flex items-center justify-center shadow-lg transition-transform hover:scale-110 active:scale-95">
+          <Check className="w-6 h-6" />
+        </button>
+      </div>
+    )
+  }
 
   return (
-    <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex flex-col items-center justify-center-safe overflow-y-auto px-4 pt-20 pb-8 sm:py-8 animate-in fade-in duration-500">
-      <div className="absolute top-4 right-4 sm:top-8 sm:right-8">
-        <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 transition-colors">
+    <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex flex-col items-center justify-center animate-in fade-in duration-500">
+      <div className="absolute top-8 right-8 flex gap-4">
+        {!isConfiguring && (
+          <button onClick={() => setIsMinimized(true)} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 transition-colors" title="Minimizar">
+            <Minus className="w-5 h-5" />
+          </button>
+        )}
+        <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 transition-colors" title="Cerrar">
           <X className="w-5 h-5" />
         </button>
       </div>
       
-      <div className="text-center mb-6 sm:mb-8 w-full max-w-2xl min-w-0">
-        <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2 break-words">{evento.titulo}</h2>
-        {evento.subtitulo && <p className="text-slate-400 break-words">{evento.subtitulo}</p>}
+      <div className="text-center mb-8">
+        {evento ? (
+          <>
+            <h2 className="text-3xl font-bold text-white mb-2">{evento.titulo}</h2>
+            {evento.subtitulo && <p className="text-slate-400">{evento.subtitulo}</p>}
+          </>
+        ) : (
+          <>
+            <h2 className="text-3xl font-bold text-white mb-2 flex items-center justify-center gap-3">
+              <Zap className="w-8 h-8 text-yellow-400" /> Sesión de Enfoque
+            </h2>
+            <p className="text-slate-400">Pomodoro rápido</p>
+          </>
+        )}
       </div>
 
       {isConfiguring ? (
-        <div className="bg-[#151522]/40 border border-white/10 p-5 sm:p-8 rounded-3xl w-full max-w-sm shrink-0 backdrop-blur-2xl shadow-[0_30px_60px_rgba(0,0,0,0.5)] animate-in zoom-in-95">
+        <div className="bg-[#151522]/40 border border-white/10 p-8 rounded-3xl w-full max-w-lg backdrop-blur-2xl shadow-[0_30px_60px_rgba(0,0,0,0.5)] animate-in zoom-in-95">
           <div className="flex items-center justify-center gap-2 mb-6">
             <Settings className="w-5 h-5 text-purple-400" />
-            <h3 className="text-lg sm:text-xl font-bold text-white">Configurar Pomodoro</h3>
+            <h3 className="text-xl font-bold text-white">Configurar Pomodoro</h3>
           </div>
+
+          {!evento && (
+            <div className="bg-white/5 p-4 rounded-2xl border border-white/5 mb-6 text-left">
+              <label className="flex items-center gap-2 text-sm font-bold text-white mb-3">
+                <BookOpen className="w-4 h-4 text-blue-400" /> Asignar sesión a:
+              </label>
+              <Select value={asignadoA} onValueChange={setAsignadoA}>
+                <SelectTrigger className="w-full bg-black/40 border border-white/10 rounded-xl text-white py-6">
+                  <SelectValue placeholder="Selecciona una actividad" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#151522] border-white/10 text-white shadow-xl">
+                  <SelectItem value="libre">Estudio Libre</SelectItem>
+                  <SelectGroup>
+                    <SelectLabel className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mt-2">Cursos y Etiquetas</SelectLabel>
+                    {etiquetas?.filter(e => !["Evaluaciones", "Bloques de Estudio", "Deporte"].includes(e.nombre)).map(e => (
+                      <SelectItem key={`tag_${e.id}`} value={`tag_${e.id}`}>{e.nombre}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              
+              <label className="flex items-center gap-2 mt-4 text-xs text-slate-300 cursor-pointer hover:text-white transition-colors">
+                <input type="checkbox" checked={createBlock} onChange={e => setCreateBlock(e.target.checked)} className="rounded border-white/20 bg-black/40 accent-purple-500 w-4 h-4 cursor-pointer" />
+                Registrar este bloque en mi calendario de hoy
+              </label>
+            </div>
+          )}
           
-          <div className="space-y-4 sm:space-y-6 mb-6 sm:mb-8">
+          <div className="grid grid-cols-2 gap-4 mb-8">
             <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
               <label className="flex items-center justify-center gap-2 text-sm font-bold text-white mb-4">
                 <Brain className="w-4 h-4 text-purple-400" /> Concentración
               </label>
-              <div className="flex items-center justify-center gap-3 sm:gap-4">
+              <div className="flex items-center justify-center gap-4">
                 <TimeInput val={focusMinutes} setVal={setFocusMinutes} max={120} label="Min" />
                 <span className="text-2xl font-bold text-white/30 pb-4">:</span>
                 <TimeInput val={focusSeconds} setVal={setFocusSeconds} max={59} label="Seg" />
@@ -149,7 +295,7 @@ export function FocusMode({ evento, onClose, onComplete }: FocusModeProps) {
               <label className="flex items-center justify-center gap-2 text-sm font-bold text-white mb-4">
                 <Coffee className="w-4 h-4 text-pink-400" /> Descanso
               </label>
-              <div className="flex items-center justify-center gap-3 sm:gap-4">
+              <div className="flex items-center justify-center gap-4">
                 <TimeInput val={breakMinutes} setVal={setBreakMinutes} max={60} label="Min" />
                 <span className="text-2xl font-bold text-white/30 pb-4">:</span>
                 <TimeInput val={breakSeconds} setVal={setBreakSeconds} max={59} label="Seg" />
@@ -157,13 +303,13 @@ export function FocusMode({ evento, onClose, onComplete }: FocusModeProps) {
             </div>
           </div>
 
-          <button onClick={handleStart} className="w-full py-3.5 sm:py-4 rounded-xl bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white font-bold text-base sm:text-lg shadow-[0_0_25px_rgba(217,70,239,0.4)] transition-all hover:scale-105 active:scale-95 border border-white/10">
+          <button onClick={handleStart} className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white font-bold text-lg shadow-[0_0_25px_rgba(217,70,239,0.4)] transition-all hover:scale-105 active:scale-95 border border-white/10">
             ¡Comenzar Sesión!
           </button>
         </div>
       ) : (
         <>
-          <div className="relative w-[min(24rem,calc(100vw-2rem))] aspect-square sm:w-96 sm:h-96 mb-8 sm:mb-12 shrink-0 flex items-center justify-center">
+          <div className="relative w-96 h-96 mb-12 flex items-center justify-center">
             {/* Glow de fondo para el círculo dependiendo de la fase */}
             <div className={`absolute inset-0 rounded-full blur-3xl animate-pulse ${phase === "focus" ? "bg-indigo-500/10" : "bg-emerald-500/10"}`} />
             
@@ -189,27 +335,24 @@ export function FocusMode({ evento, onClose, onComplete }: FocusModeProps) {
             </svg>
             <div className="relative z-10 flex flex-col items-center justify-center w-full">
               {isEditingTime ? (
-                <div className="flex items-center justify-center gap-1 sm:gap-2 mb-2 bg-black/40 p-3 sm:p-4 rounded-3xl backdrop-blur-md border border-white/10">
-                  <input type="number" min="0" max="999" value={editMins || ""} onChange={e => setEditMins(parseInt(e.target.value) || 0)} className="w-16 h-12 sm:w-24 sm:h-16 text-center text-4xl sm:text-5xl font-black bg-transparent text-white focus:outline-none border-b-2 border-purple-500" placeholder="00" />
-                  <span className="text-4xl sm:text-5xl font-black text-white/50">:</span>
-                  <input type="number" min="0" max="59" value={editSecs || ""} onChange={e => { let v = parseInt(e.target.value) || 0; if(v>59) v=59; setEditSecs(v)}} className="w-16 h-12 sm:w-24 sm:h-16 text-center text-4xl sm:text-5xl font-black bg-transparent text-white focus:outline-none border-b-2 border-purple-500" placeholder="00" />
-                  <button onClick={saveEditing} className="ml-1 sm:ml-2 w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full bg-purple-500 hover:bg-purple-400 text-white flex items-center justify-center shadow-lg transition-transform hover:scale-110 active:scale-95">
-                    <Check className="w-6 h-6" />
-                  </button>
-                </div>
+                <BigTimeEditor 
+                  mins={editMins} secs={editSecs} 
+                  setMins={setEditMins} setSecs={setEditSecs} 
+                  onSave={saveEditing} 
+                />
               ) : (
                 <div className="group relative flex items-center justify-center cursor-pointer" onClick={startEditing}>
-                  <span className="text-6xl sm:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-white/70 tracking-tighter tabular-nums drop-shadow-md transition-transform group-hover:scale-105">
+                  <span className="text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-white/70 tracking-tighter tabular-nums drop-shadow-md transition-transform group-hover:scale-105">
                     {timeStr}
                   </span>
-                  <div className="absolute -right-8 opacity-0 group-hover:opacity-100 [@media(hover:none)]:hidden transition-opacity bg-white/10 p-2 rounded-full backdrop-blur-md">
+                  <div className="absolute -right-8 opacity-0 group-hover:opacity-100 transition-opacity bg-white/10 p-2 rounded-full backdrop-blur-md">
                     <Pencil className="w-5 h-5 text-white" />
                   </div>
                 </div>
               )}
               
               {!isEditingTime && (
-                <span className={`font-medium tracking-widest uppercase text-xs sm:text-sm mt-3 sm:mt-4 flex items-center gap-1.5 ${phase === "focus" ? "text-indigo-300/80" : "text-emerald-300/80"}`}>
+                <span className={`font-medium tracking-widest uppercase text-sm mt-4 flex items-center gap-1.5 ${phase === "focus" ? "text-indigo-300/80" : "text-emerald-300/80"}`}>
                   {phase === "focus" ? <Brain className="w-4 h-4" /> : <Coffee className="w-4 h-4" />}
                   {phase === "focus" ? "Concentración" : "Descanso"}
                 </span>
@@ -218,16 +361,16 @@ export function FocusMode({ evento, onClose, onComplete }: FocusModeProps) {
           </div>
 
           <div className="flex flex-col gap-4 items-center">
-            <div className="flex flex-wrap justify-center gap-2 sm:gap-4">
-              <button onClick={() => setIsRunning(!isRunning)} className="px-5 sm:px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-white transition-all hover:scale-105 active:scale-95 font-semibold">
+            <div className="flex flex-wrap justify-center gap-4">
+              <button onClick={() => setIsRunning(!isRunning)} className="px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-white transition-all hover:scale-105 active:scale-95 font-semibold">
                 {isRunning ? <><Pause className="w-5 h-5 mr-2" /> Pausar</> : <><Play className="w-5 h-5 mr-2" /> Reanudar</>}
               </button>
               
-              <button onClick={handleFinishEarly} className="px-5 sm:px-6 py-3 rounded-xl bg-transparent hover:bg-white/5 text-slate-400 hover:text-slate-300 transition-all font-semibold border border-transparent hover:border-white/10">
+              <button onClick={handleFinishEarly} className="px-6 py-3 rounded-xl bg-transparent hover:bg-white/5 text-slate-400 hover:text-slate-300 transition-all font-semibold border border-transparent hover:border-white/10">
                 Terminar antes
               </button>
 
-              <button onClick={handleGoBack} className="px-5 sm:px-6 py-3 rounded-xl bg-transparent hover:bg-white/5 text-slate-400 hover:text-slate-300 transition-all font-semibold flex items-center gap-2 border border-transparent hover:border-white/10">
+              <button onClick={handleGoBack} className="px-6 py-3 rounded-xl bg-transparent hover:bg-white/5 text-slate-400 hover:text-slate-300 transition-all font-semibold flex items-center gap-2 border border-transparent hover:border-white/10">
                 <RotateCcw className="w-4 h-4" /> Configuración
               </button>
             </div>

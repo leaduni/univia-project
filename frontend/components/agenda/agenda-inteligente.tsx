@@ -23,6 +23,7 @@ import { useSemesterRecurrence } from "@/lib/hooks/use-semester"
 import { FocusMode } from "./focus-mode"
 import { BarraIA } from "./barra-ia"
 import { AddCourseSectionModal } from "./AddCourseSectionModal"
+import { EvaluacionesExtendedModal } from "./EvaluacionesExtendedModal"
 import {
   fetchEventos, crearEvento, editarEvento, eliminarEvento,
   fetchEtiquetas, crearEtiqueta as crearEtiquetaAPI,
@@ -407,6 +408,7 @@ interface ModalEventoProps {
   prefill?: OpenModalParams | null
   etiquetas: Etiqueta[]
   onOpenCrearEtiqueta: () => void
+  disableOutsideClick?: boolean
 }
 
 function ComboBox({ value, onChange, options, placeholder }: { value: string, onChange: (v: string) => void, options: string[], placeholder?: string }) {
@@ -448,7 +450,7 @@ function ComboBox({ value, onChange, options, placeholder }: { value: string, on
   )
 }
 
-function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearEtiqueta }: ModalEventoProps) {
+function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearEtiqueta, disableOutsideClick }: ModalEventoProps) {
   const [tipoNuevo, setTipoNuevo] = useState<TipoNuevo>(prefill?.evento?.tipo === 'tarea' ? "Tarea" : "Evento")
   
   const [titulo, setTitulo] = useState(() => prefill?.evento?.titulo || "")
@@ -590,11 +592,14 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
   const modalRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
+      if (disableOutsideClick) return
+      // Ignorar si el click viene de un modal superpuesto (z-[110] o mayor)
+      if ((e.target as Element)?.closest('.safe-modal-padding.z-\\[110\\]')) return
       if (modalRef.current && !modalRef.current.contains(e.target as Node)) onClose()
     }
     document.addEventListener("mousedown", handleClick)
     return () => document.removeEventListener("mousedown", handleClick)
-  }, [onClose])
+  }, [disableOutsideClick, onClose])
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center safe-modal-padding">
@@ -798,7 +803,7 @@ function ModalCrearEtiqueta({ onClose, onCrear }: { onClose: () => void, onCrear
       <div className="relative z-10 w-full max-w-sm bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
         <div className="px-5 py-4 border-b border-white/[0.08] flex justify-between items-center">
           <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Tag className="w-4 h-4 text-indigo-400" /> Nueva Etiqueta</h2>
-          <button onClick={onClose} className="w-7 h-7 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"><X className="w-4 h-4 text-slate-400" /></button>
+          <button type="button" onClick={onClose} className="w-7 h-7 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"><X className="w-4 h-4 text-slate-400" /></button>
         </div>
         <div className="p-5 space-y-5">
           <div>
@@ -832,8 +837,8 @@ function ModalCrearEtiqueta({ onClose, onCrear }: { onClose: () => void, onCrear
           </label>
         </div>
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-white/[0.05] bg-[#11121d]">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-all">Cancelar</button>
-          <button onClick={handleCrear} disabled={!nombre.trim() || creando} className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 transition-all flex items-center gap-1.5">
+          <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }} className="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-all">Cancelar</button>
+          <button type="button" onClick={(e) => { e.preventDefault(); handleCrear(); }} disabled={!nombre.trim() || creando} className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 transition-all flex items-center gap-1.5">
             {creando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Crear Etiqueta"}
           </button>
         </div>
@@ -1189,13 +1194,10 @@ export function AgendaInteligente() {
     return [...normales, ...generados]
   }, [eventos, semDates])
 
-  const examenesProximos = useMemo(() => {
+  const todasLasEvaluaciones = useMemo(() => {
     const isEval = (ev: CalendarioEvento) => {
-      // 1. Explicitly tagged as exam type
       if (ev.tipo === 'examen') return true
-      // 2. The tag was explicitly marked as Evaluation by the user (checkbox)
       if (ev.etiquetaId && customEvalTags.includes(ev.etiquetaId.toString())) return true
-      // 3. The event has an evaluation subcategory
       if (ev.subtitulo) {
         const match = ev.subtitulo.match(/^\[Subcategoría:\s*(.*?)\]/)
         if (match) {
@@ -1205,7 +1207,6 @@ export function AgendaInteligente() {
       }
       return false
     }
-    const now = new Date()
     return eventosConRecurrencia
       .filter(ev => isEval(ev))
       .map(ev => {
@@ -1213,12 +1214,25 @@ export function AgendaInteligente() {
         const m = Math.round((ev.horaInicio - h) * 60)
         const timeStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`
         const fechaTarget = new Date(`${ev.fechaISO}T${timeStr}`)
-        return { id: ev.id, nombre: ev.titulo, fechaTarget }
+        
+        const hF = Math.floor(ev.horaInicio + ev.duracion)
+        const mF = Math.round(((ev.horaInicio + ev.duracion) - hF) * 60)
+        const timeStrF = `${String(hF).padStart(2, "0")}:${String(mF).padStart(2, "0")}:00`
+        const fechaFin = new Date(`${ev.fechaISO}T${timeStrF}`)
+
+        return { id: ev.id, nombre: ev.titulo, fechaTarget, fechaFin, eventoOrig: ev }
       })
-      .filter(ex => ex.fechaTarget.getTime() >= now.getTime() - 86400000)
       .sort((a, b) => a.fechaTarget.getTime() - b.fechaTarget.getTime())
-      .slice(0, 5)
   }, [eventosConRecurrencia, customEvalTags])
+
+  const examenesProximos = useMemo(() => {
+    const now = new Date()
+    return todasLasEvaluaciones
+      .filter(ex => ex.fechaFin.getTime() > now.getTime()) // Filtro estricto: solo si no ha pasado la fecha de fin
+      .slice(0, 5)
+  }, [todasLasEvaluaciones])
+  
+  const [evalModalOpen, setEvalModalOpen] = useState(false)
   
   // Modo Semana de Exámenes
   const [examWeekMode, setExamWeekMode] = useState(false)
@@ -1326,6 +1340,7 @@ export function AgendaInteligente() {
           prefill={modalPrefill}
           etiquetas={etiquetas}
           onOpenCrearEtiqueta={() => setIsTagModalOpen(true)}
+          disableOutsideClick={isTagModalOpen}
         />
       )}
 
@@ -1527,7 +1542,7 @@ export function AgendaInteligente() {
             </div>
 
             <div className="flex items-center gap-2.5 w-full sm:w-auto">
-              <BarraIA />
+              <BarraIA examenesProximos={examenesProximos.map(e => ({ nombre: e.nombre, fechaTarget: e.fechaTarget }))} />
               
               <div className="flex items-center gap-2">
                 {/* Botón de Integraciones */}
@@ -1643,14 +1658,37 @@ export function AgendaInteligente() {
               </div>
 
               {/* Evaluaciones Próximas */}
-              <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg">
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><AlertTriangle className="w-3.5 h-3.5 text-rose-500" /> Evaluaciones Próximas</p>
+              <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg group relative">
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-500" /> Evaluaciones Próximas
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <button 
+                      title="Aquí ves tus exámenes y prácticas pendientes con cuenta regresiva. Al cumplirse la fecha, pasan al historial para registrar tu nota. La IA utiliza estas fechas para armar tus sesiones de repaso."
+                      className="w-5 h-5 rounded flex items-center justify-center hover:bg-white/10 transition-colors text-slate-500 hover:text-slate-300"
+                    >
+                      <Info className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => { 
+                      const evalTag = etiquetas.find(e => {
+                        const n = e.nombre.toLowerCase()
+                        return n.includes("evalua") || n.includes("examen") || n.includes("parcial") || n.includes("final") || n.includes("práctica") || n.includes("practica") || n.includes("pc") || n.includes("expo") || n.includes("presentaci") || n.includes("monograf") || n.includes("proyecto") || n.includes("tarea") || n.includes("entrega")
+                      })
+                      setModalPrefill(evalTag ? { evento: { etiquetaId: evalTag.id.toString(), tipo: "examen" } as any } as OpenModalParams : { evento: { tipo: "examen" } as any } as OpenModalParams); 
+                      setIsCreateModalOpen(true); 
+                    }} className="w-5 h-5 rounded flex items-center justify-center hover:bg-white/10 transition-colors text-slate-500 hover:text-slate-300">
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+                
                 <div className="space-y-2.5">
                   {examenesProximos.length > 0 ? (
                     examenesProximos.map(ex => {
                       const { txt, urgente } = countdown(ex.fechaTarget.getTime() - new Date().getTime())
                       return (
-                        <div key={ex.id} onClick={() => openAIPanel(ex.nombre)} className={`cursor-pointer rounded-xl p-3 transition-all hover:scale-[1.02] ${urgente ? "bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20" : "bg-white/5 border border-white/5 hover:bg-white/10"}`}>
+                        <div key={ex.id} onClick={() => setEvalModalOpen(true)} className={`cursor-pointer rounded-xl p-3 transition-all hover:scale-[1.02] ${urgente ? "bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20" : "bg-white/5 border border-white/5 hover:bg-white/10"}`}>
                           <p className="text-xs font-semibold text-slate-200 truncate">{ex.nombre}</p>
                           <p className={`text-[10px] font-mono font-bold mt-1 ${urgente ? "text-rose-400" : "text-indigo-400"}`}>Faltan {txt}</p>
                         </div>
@@ -1659,6 +1697,12 @@ export function AgendaInteligente() {
                   ) : (
                     <p className="text-xs text-slate-500 italic py-1 text-center">Sin evaluaciones próximas</p>
                   )}
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-white/5 flex justify-center">
+                  <button onClick={() => setEvalModalOpen(true)} className="text-[10px] font-semibold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest">
+                    Ver todas / Notas →
+                  </button>
                 </div>
               </div>
 
@@ -1785,6 +1829,15 @@ export function AgendaInteligente() {
               </div>
             </div>
           </div>
+        )}
+        
+        {evalModalOpen && (
+          <EvaluacionesExtendedModal 
+            isOpen={evalModalOpen} 
+            onClose={() => setEvalModalOpen(false)} 
+            evaluaciones={todasLasEvaluaciones}
+            onOpenChat={openAIPanel}
+          />
         )}
         </div>
       </div>

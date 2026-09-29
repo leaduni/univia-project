@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, useEffect } from "react"
 import {
   Search, X, ChevronRight, ChevronLeft, BookOpen, Clock,
   MapPin, User, Check, Loader2, GraduationCap, Beaker, FlaskConical, UploadCloud, FileText,
-  RefreshCw, ExternalLink, CalendarDays
+  RefreshCw, ExternalLink, CalendarDays, AlertTriangle, Zap, Brain, CheckCircle2, XCircle
 } from "lucide-react"
 import {
   timeToDecimal,
@@ -29,6 +29,7 @@ interface AddCourseSectionModalProps {
 
 type Tab = "manual" | "pdf"
 type Step = "search" | "sections" | "detail"
+type PdfPhase = "idle" | "reading" | "analyzing" | "saving" | "done" | "error"
 
 const TIPO_LABELS: Record<string, string> = { T: "Teoría", P: "Práctica", LAB: "Laboratorio" }
 const TIPO_ICONS: Record<string, typeof BookOpen> = { T: BookOpen, P: Beaker, LAB: FlaskConical }
@@ -92,15 +93,21 @@ export function AddCourseSectionModal({
 
   // Tab PDF
   const [isDragActive, setIsDragActive] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [pdfResult, setPdfResult] = useState<string | null>(null)
+  const [pdfPhase, setPdfPhase] = useState<PdfPhase>("idle")
+  const [pdfError, setPdfError] = useState<string | null>(null)
+  const [pdfSuccessMsg, setPdfSuccessMsg] = useState<string | null>(null)
+  const [pdfCursosCount, setPdfCursosCount] = useState(0)
+  const [pdfBloquesCount, setPdfBloquesCount] = useState(0)
+  const [pdfMetodo, setPdfMetodo] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  
+
   const [isFullSemester, setIsFullSemester] = useState(true)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const modalRef = useRef<HTMLDivElement>(null)
+
+  const isUploading = pdfPhase === "reading" || pdfPhase === "analyzing" || pdfPhase === "saving"
 
   useEffect(() => {
     async function loadData() {
@@ -206,18 +213,49 @@ export function AddCourseSectionModal({
     onClose()
   }
 
+  // ── PDF handlers ───────────────────────────────────────────────────────
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) setSelectedFile(e.target.files[0])
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0])
+      setPdfPhase("idle")
+      setPdfError(null)
+      setPdfSuccessMsg(null)
+    }
   }
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault(); setIsDragActive(false)
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) setSelectedFile(e.dataTransfer.files[0])
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setSelectedFile(e.dataTransfer.files[0])
+      setPdfPhase("idle")
+      setPdfError(null)
+      setPdfSuccessMsg(null)
+    }
   }
+
+  const resetPdfState = () => {
+    setSelectedFile(null)
+    setPdfPhase("idle")
+    setPdfError(null)
+    setPdfSuccessMsg(null)
+    setPdfCursosCount(0)
+    setPdfBloquesCount(0)
+    setPdfMetodo(null)
+  }
+
   const startUpload = async () => {
     if (!selectedFile) return
-    setIsUploading(true)
+    setPdfError(null)
+    setPdfPhase("reading")
+
     try {
+      // Simular progresión de fases para UX
+      await new Promise(r => setTimeout(r, 400))
+      setPdfPhase("analyzing")
+
       const res = await parseMatricula(selectedFile)
+
+      setPdfPhase("saving")
+      await new Promise(r => setTimeout(r, 300))
 
       const newEvents: CalendarioEvento[] = res.eventos_creados.map(ev => ({
         id: ev.id?.toString() || `ev_${Date.now()}_${Math.random()}`,
@@ -233,17 +271,30 @@ export function AddCourseSectionModal({
       }))
 
       onAddEvents(newEvents)
-      setPdfResult(`Éxito: ${res.message}`)
-      setTimeout(() => onClose(), 2500)
+      setPdfCursosCount(res.cursos_detectados?.length || 0)
+      setPdfBloquesCount(newEvents.length)
+      setPdfMetodo((res as any).metodo || null)
+      setPdfSuccessMsg(res.message)
+      setPdfPhase("done")
+      setTimeout(() => onClose(), 3000)
     } catch (err: any) {
-      alert(`Error al procesar PDF: ${err.message}`)
-      setIsUploading(false)
+      setPdfError(err.message || "Error desconocido al procesar el PDF.")
+      setPdfPhase("error")
     }
   }
 
   const selectedBloques = selectedCourse && selectedSection ? selectedCourse.secciones[selectedSection]?.bloques || [] : []
 
   const hayMisCursos = myCourseCodes.length > 0
+
+  // ── Progress steps for PDF analysis ────────────────────────────────────
+  const pdfProgressSteps = [
+    { key: "reading", icon: FileText, label: "Leyendo PDF" },
+    { key: "analyzing", icon: Brain, label: "Analizando cursos" },
+    { key: "saving", icon: CalendarDays, label: "Creando horario" },
+  ]
+  const phaseOrder = ["reading", "analyzing", "saving", "done"]
+  const currentPhaseIdx = phaseOrder.indexOf(pdfPhase)
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -262,7 +313,7 @@ export function AddCourseSectionModal({
                 </>
               ) : "Inscribir Cursos 2026-II"}
             </h2>
-            <button onClick={onClose} disabled={isUploading} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors">
+            <button onClick={onClose} disabled={isUploading} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors disabled:opacity-40">
               <X className="w-4 h-4 text-slate-400" />
             </button>
           </div>
@@ -306,7 +357,7 @@ export function AddCourseSectionModal({
           <div className="flex flex-col">
             {/* Toggle Mis cursos / Todos + buscador */}
             <div className="px-6 py-3 border-b border-white/5 space-y-3">
-              {/* Toggle de vista - AHORA SIEMPRE SE MUESTRA */}
+              {/* Toggle de vista */}
               <div className="flex items-center gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/[0.08]">
                 <button
                   onClick={() => setShowOnlyMine(true)}
@@ -336,7 +387,7 @@ export function AddCourseSectionModal({
                 <input ref={inputRef} type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por código o nombre de curso..." className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all" />
               </div>
 
-              {/* Banner informativo: cómo cambiar los cursos */}
+              {/* Banner informativo */}
               {showOnlyMine && (
                 <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-indigo-500/8 border border-indigo-500/15">
                   <RefreshCw className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
@@ -467,22 +518,22 @@ export function AddCourseSectionModal({
                   </div>
                 )
               })}
-              <div 
-                className="bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-3.5 mt-2 flex items-center justify-between gap-4 cursor-pointer hover:bg-indigo-500/10 transition-colors" 
+              <div
+                className="bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-3.5 mt-2 flex items-center justify-between gap-4 cursor-pointer hover:bg-indigo-500/10 transition-colors"
                 onClick={() => setIsFullSemester(!isFullSemester)}
               >
                 <div className="flex flex-col gap-0.5">
                   <span className="text-xs font-semibold text-indigo-200">Repetir todo el semestre</span>
                   <span className="text-[10px] text-indigo-300/70">
-                    {isFullSemester 
-                      ? "Se programará semanalmente hasta el fin del semestre." 
+                    {isFullSemester
+                      ? "Se programará semanalmente hasta el fin del semestre."
                       : "Solo se agregará a la semana actual. Útil para clases puntuales o de recuperación."}
                   </span>
                 </div>
                 <div className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${isFullSemester ? 'bg-indigo-500' : 'bg-slate-600'}`}>
-                  <span 
-                    className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform" 
-                    style={{ transform: isFullSemester ? 'translateX(18px)' : 'translateX(4px)' }} 
+                  <span
+                    className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform"
+                    style={{ transform: isFullSemester ? 'translateX(18px)' : 'translateX(4px)' }}
                   />
                 </div>
               </div>
@@ -496,36 +547,141 @@ export function AddCourseSectionModal({
           </>
         )}
 
-        {/* CONTENIDO PDF */}
+        {/* ═══════════════ CONTENIDO PDF ═══════════════ */}
         {tab === "pdf" && (
           <div className="p-8 flex flex-col items-center justify-center">
             <input type="file" accept=".pdf" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
-            {isUploading ? (
-              <div className="flex flex-col items-center gap-4 py-8">
+
+            {/* ── Estado: Procesando (reading / analyzing / saving) ── */}
+            {isUploading && (
+              <div className="w-full flex flex-col items-center gap-6 py-6">
+                {/* Spinner central */}
                 <div className="relative w-16 h-16 flex items-center justify-center">
-                  <FileText className="w-10 h-10 text-indigo-400 opacity-50" />
-                  <div className="absolute inset-0 border-t-2 border-indigo-400 rounded-full animate-spin" />
+                  <FileText className="w-8 h-8 text-indigo-400 opacity-60" />
+                  <div className="absolute inset-0 border-2 border-transparent border-t-indigo-400 rounded-full animate-spin" />
                 </div>
-                <p className="text-sm text-slate-300 animate-pulse">Analizando cursos y horarios con Gemini...</p>
-              </div>
-            ) : pdfResult ? (
-              <div className="flex flex-col items-center gap-4 py-8 text-center">
-                <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center">
-                  <Check className="w-8 h-8 text-emerald-400" />
+
+                {/* Progress steps */}
+                <div className="w-full max-w-xs space-y-3">
+                  {pdfProgressSteps.map((s, i) => {
+                    const StepIcon = s.icon
+                    const isActive = s.key === pdfPhase
+                    const isDone = currentPhaseIdx > i
+                    return (
+                      <div key={s.key} className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-300 ${isActive ? "bg-indigo-500/10 border border-indigo-500/20" : isDone ? "opacity-60" : "opacity-30"}`}>
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${isDone ? "bg-emerald-500/20" : isActive ? "bg-indigo-500/20" : "bg-white/5"}`}>
+                          {isDone ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                          ) : isActive ? (
+                            <Loader2 className="w-4 h-4 text-indigo-400 animate-spin" />
+                          ) : (
+                            <StepIcon className="w-3.5 h-3.5 text-slate-500" />
+                          )}
+                        </div>
+                        <span className={`text-xs font-medium ${isActive ? "text-indigo-300" : isDone ? "text-emerald-300" : "text-slate-500"}`}>
+                          {s.label}
+                        </span>
+                      </div>
+                    )
+                  })}
                 </div>
-                <p className="text-sm text-emerald-300">{pdfResult}</p>
               </div>
-            ) : selectedFile ? (
-              <div className="w-full border-2 border-indigo-500/30 bg-indigo-500/10 rounded-xl flex flex-col items-center justify-center p-6 transition-all">
-                <FileText className="w-10 h-10 text-indigo-400 mb-3" />
-                <p className="text-sm font-semibold text-white truncate max-w-full mb-1">{selectedFile.name}</p>
-                <button onClick={startUpload} className="w-full py-2.5 mt-4 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md">Analizar e Inscribir</button>
-                <button onClick={() => fileInputRef.current?.click()} className="mt-3 text-[11px] text-slate-400 hover:text-white">Cambiar archivo</button>
+            )}
+
+            {/* ── Estado: Éxito ── */}
+            {pdfPhase === "done" && (
+              <div className="w-full flex flex-col items-center gap-4 py-6 animate-in fade-in zoom-in-95 duration-300">
+                <div className="w-16 h-16 bg-emerald-500/15 rounded-full flex items-center justify-center border border-emerald-500/20">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+                </div>
+                <div className="text-center space-y-1.5">
+                  <p className="text-sm font-semibold text-emerald-300">{pdfSuccessMsg}</p>
+                  <div className="flex items-center justify-center gap-3 text-[11px] text-slate-400">
+                    {pdfCursosCount > 0 && (
+                      <span className="flex items-center gap-1">
+                        <GraduationCap className="w-3 h-3" /> {pdfCursosCount} cursos
+                      </span>
+                    )}
+                    {pdfBloquesCount > 0 && (
+                      <span className="flex items-center gap-1">
+                        <CalendarDays className="w-3 h-3" /> {pdfBloquesCount} bloques
+                      </span>
+                    )}
+                    {pdfMetodo && (
+                      <span className="flex items-center gap-1">
+                        <Zap className="w-3 h-3" /> {pdfMetodo === "determinista" ? "Lectura directa" : "Procesado con IA"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-500 animate-pulse">Cerrando automáticamente…</p>
               </div>
-            ) : (
-              <div onDragOver={e => { e.preventDefault(); setIsDragActive(true) }} onDragLeave={() => setIsDragActive(false)} onDrop={handleDrop} onClick={() => fileInputRef.current?.click()} className={`w-full py-10 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 cursor-pointer transition-all ${isDragActive ? "border-indigo-400 bg-indigo-500/10" : "border-white/20 bg-white/5 hover:border-indigo-400 hover:bg-white/10"}`}>
+            )}
+
+            {/* ── Estado: Error ── */}
+            {pdfPhase === "error" && (
+              <div className="w-full flex flex-col items-center gap-5 py-6 animate-in fade-in zoom-in-95 duration-300">
+                <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center border border-red-500/15">
+                  <XCircle className="w-8 h-8 text-red-400" />
+                </div>
+                <div className="w-full max-w-sm">
+                  <div className="bg-red-500/8 border border-red-500/15 rounded-xl px-4 py-3 space-y-2">
+                    <div className="flex items-start gap-2.5">
+                      <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold text-red-300">No se pudo procesar el PDF</p>
+                        <p className="text-[11px] text-red-300/70 leading-relaxed">{pdfError}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => { setPdfPhase("idle"); setPdfError(null) }}
+                    className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 flex items-center gap-1.5 transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Reintentar
+                  </button>
+                  <button
+                    onClick={resetPdfState}
+                    className="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+                  >
+                    Cambiar archivo
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── Estado: Archivo seleccionado (listo para analizar) ── */}
+            {pdfPhase === "idle" && selectedFile && (
+              <div className="w-full border-2 border-indigo-500/30 bg-indigo-500/5 rounded-xl flex flex-col items-center justify-center p-6 transition-all animate-in fade-in zoom-in-95 duration-200">
+                <div className="w-12 h-12 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center mb-3">
+                  <FileText className="w-6 h-6 text-indigo-400" />
+                </div>
+                <p className="text-sm font-semibold text-white truncate max-w-full mb-0.5">{selectedFile.name}</p>
+                <p className="text-[10px] text-slate-500 mb-4">{(selectedFile.size / 1024).toFixed(0)} KB</p>
+                <button
+                  onClick={startUpload}
+                  className="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Zap className="w-3.5 h-3.5" /> Analizar e Inscribir
+                </button>
+                <button onClick={() => fileInputRef.current?.click()} className="mt-3 text-[11px] text-slate-400 hover:text-white transition-colors">Cambiar archivo</button>
+              </div>
+            )}
+
+            {/* ── Estado: Sin archivo (drag & drop) ── */}
+            {pdfPhase === "idle" && !selectedFile && (
+              <div
+                onDragOver={e => { e.preventDefault(); setIsDragActive(true) }}
+                onDragLeave={() => setIsDragActive(false)}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={`w-full py-10 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 cursor-pointer transition-all ${isDragActive ? "border-indigo-400 bg-indigo-500/10" : "border-white/20 bg-white/5 hover:border-indigo-400 hover:bg-white/10"}`}
+              >
                 <UploadCloud className={`w-8 h-8 ${isDragActive ? "text-indigo-400" : "text-slate-400"}`} />
                 <p className="text-sm font-medium text-white">Arrastra tu Ficha de Matrícula aquí (PDF)</p>
+                <p className="text-[10px] text-slate-500">Boleta de matrícula oficial de la UNI</p>
               </div>
             )}
           </div>

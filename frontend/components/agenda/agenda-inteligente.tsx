@@ -20,10 +20,10 @@ import {
   getEstiloColor
 } from "./calendar-grid"
 import { useSemesterRecurrence } from "@/lib/hooks/use-semester"
-import { FocusMode } from "./focus-mode"
 import { BarraIA } from "./barra-ia"
 import { AddCourseSectionModal } from "./AddCourseSectionModal"
-import { EvaluacionesExtendedModal } from "./EvaluacionesExtendedModal"
+import { usePomodoro } from "../providers/pomodoro-context"
+import { EvaluacionesExtendedModal } from "./evaluaciones-extended-modal"
 import {
   fetchEventos, crearEvento, editarEvento, eliminarEvento,
   fetchEtiquetas, crearEtiqueta as crearEtiquetaAPI,
@@ -116,14 +116,23 @@ function Toggle({ checked, onChange, label, dot }: { checked: boolean; onChange:
 }
 
 function WidgetProductividadSemanal({ 
-  eventos, etiquetas 
+  eventos, etiquetas, metaHoras = 20
 }: { 
   eventos: CalendarioEvento[]
   etiquetas: Etiqueta[]
+  metaHoras?: number
 }) {
   const [horasEstudio, setHorasEstudio] = useState(0)
   const [pct, setPct] = useState(0)
-  const GOAL_HORAS = 20
+  const [extraHoras, setExtraHoras] = useState(0)
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      if (e.detail && e.detail.minutos) setExtraHoras(prev => prev + e.detail.minutos / 60)
+    }
+    window.addEventListener("sesionEstudioCompletada", handler)
+    return () => window.removeEventListener("sesionEstudioCompletada", handler)
+  }, [])
 
   useEffect(() => {
     const d = new Date()
@@ -144,9 +153,10 @@ function WidgetProductividadSemanal({
       }
     }
     
+    total += extraHoras
     setHorasEstudio(total)
-    setPct(Math.min(100, (total / GOAL_HORAS) * 100))
-  }, [eventos, etiquetas])
+    setPct(Math.min(100, (total / metaHoras) * 100))
+  }, [eventos, etiquetas, metaHoras, extraHoras])
 
   const circ = 2 * Math.PI * 30
   return (
@@ -166,7 +176,7 @@ function WidgetProductividadSemanal({
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold text-white leading-tight mb-1">Horas de estudio enfocado esta semana</p>
-        <p className="text-xs text-slate-400">Meta: {GOAL_HORAS} hrs</p>
+        <p className="text-xs text-slate-400">Meta: {metaHoras} hrs</p>
       </div>
     </div>
   )
@@ -963,12 +973,15 @@ function EventDetailPopover({ evento, etiqueta, onClose, onEdit, onDelete, onSta
 function ModalAjustesGeneral({ 
   sleepSettings, onSaveSleep,
   semesterSettings, onSaveSemester,
+  metaHoras, onSaveMetaHoras,
   onClose
 }: { 
   sleepSettings: { start: string, end: string }, 
   onSaveSleep: (s: { start: string, end: string }) => void,
   semesterSettings: { start: string, end: string },
   onSaveSemester: (s: { start: string, end: string }) => void,
+  metaHoras: number,
+  onSaveMetaHoras: (h: number) => void,
   onClose: () => void 
 }) {
   const to12h = (t24: string) => {
@@ -994,6 +1007,7 @@ function ModalAjustesGeneral({
   const [end12, setEnd12] = useState(() => to12h(sleepSettings.end))
   const [semStart, setSemStart] = useState(semesterSettings.start)
   const [semEnd, setSemEnd] = useState(semesterSettings.end)
+  const [metaEstudio, setMetaEstudio] = useState(metaHoras)
 
   const timeOptions = useMemo(() => {
     const opts = []
@@ -1029,12 +1043,29 @@ function ModalAjustesGeneral({
               <DropdownMenu value={end12} onChange={setEnd12} options={timeOptions} />
             </div>
           </div>
+          
+          {/* Meta de Estudio */}
+          <div className="space-y-4 pt-4 border-t border-white/5">
+            <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-emerald-400" /> Meta de Estudio Semanal</h3>
+            <div>
+              <label className="text-xs text-slate-400 mb-2 block font-medium">Horas objetivo por semana</label>
+              <input 
+                type="number"
+                min="1"
+                max="100"
+                value={metaEstudio}
+                onChange={e => setMetaEstudio(parseInt(e.target.value) || 20)}
+                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+          </div>
         </div>
 
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-white/[0.05] bg-[#11121d] rounded-b-2xl">
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-all">Cancelar</button>
           <button onClick={() => { 
             onSaveSleep({ start: to24h(start12), end: to24h(end12) }); 
+            onSaveMetaHoras(metaEstudio);
             onClose(); 
           }} className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-all">Guardar</button>
         </div>
@@ -1050,7 +1081,36 @@ const VISTA_ICONS: Record<CalendarioVista, any> = {
 }
 
 export function AgendaInteligente() {
+  const { state: pState, openFocusMode, maximize } = usePomodoro()
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  
+  const [widgetOrder, setWidgetOrder] = useState<string[]>(["examenes", "productividad", "evaluaciones", "etiquetas"])
+  const [draggedWidget, setDraggedWidget] = useState<string | null>(null)
+  
+  useEffect(() => {
+    const saved = localStorage.getItem("univia_sidebar_order")
+    if (saved) {
+      try { setWidgetOrder(JSON.parse(saved)) } catch(e){}
+    }
+  }, [])
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedWidget(id)
+    e.dataTransfer.effectAllowed = "move"
+  }
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault() }
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault()
+    if (!draggedWidget || draggedWidget === targetId) return
+    const newOrder = [...widgetOrder]
+    const fromIdx = newOrder.indexOf(draggedWidget)
+    const toIdx = newOrder.indexOf(targetId)
+    newOrder.splice(fromIdx, 1)
+    newOrder.splice(toIdx, 0, draggedWidget)
+    setWidgetOrder(newOrder)
+    localStorage.setItem("univia_sidebar_order", JSON.stringify(newOrder))
+    setDraggedWidget(null)
+  }
   const [currentView, setCurrentView] = useState<CalendarioVista>("Semana")
   const [baseDate, setBaseDate] = useState<Date>(new Date())
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
@@ -1061,9 +1121,6 @@ export function AgendaInteligente() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isTagModalOpen, setIsTagModalOpen] = useState(false)
   const [popoverEvent, setPopoverEvent] = useState<CalendarioEvento | null>(null)
-  const [isFocusModeOpen, setIsFocusModeOpen] = useState(false)
-  const [focusEvent, setFocusEvent] = useState<CalendarioEvento | null>(null)
-  const [pomodoroStartTime, setPomodoroStartTime] = useState<string | null>(null)
   const [moveConfirmData, setMoveConfirmData] = useState<{evento: CalendarioEvento, newFechaISO: string, newHoraInicio: number, newHoraFin: number} | null>(null)
 
   // -- Reprogramación Anti-culpa --
@@ -1113,6 +1170,7 @@ export function AgendaInteligente() {
   const [semesterSettings, setSemesterSettings] = useState(() => {
     return { start: "2026-08-17", end: "2026-12-19" }
   })
+  const [metaEstudioSemanal, setMetaEstudioSemanal] = useState(20)
   const [isSleepModalOpen, setIsSleepModalOpen] = useState(false)
   const [isCourseSectionModalOpen, setIsCourseSectionModalOpen] = useState(false)
   const [isIntegrationsDropdownOpen, setIsIntegrationsDropdownOpen] = useState(false)
@@ -1156,6 +1214,9 @@ export function AgendaInteligente() {
         setSleepSettings({ start: cfg.sleep_start, end: cfg.sleep_end })
         if (cfg.semester_start && cfg.semester_end) {
           setSemesterSettings({ start: cfg.semester_start, end: cfg.semester_end })
+        }
+        if (cfg.meta_horas_semanal !== undefined) {
+          setMetaEstudioSemanal(cfg.meta_horas_semanal)
         }
 
         setApiReady(true)
@@ -1392,6 +1453,11 @@ export function AgendaInteligente() {
             setSemesterSettings(s)
             guardarConfiguracion({ semester_start: s.start, semester_end: s.end }).catch(() => {})
           }}
+          metaHoras={metaEstudioSemanal}
+          onSaveMetaHoras={(h) => {
+            setMetaEstudioSemanal(h)
+            guardarConfiguracion({ meta_horas_semanal: h }).catch(() => {})
+          }}
           onClose={() => setIsSleepModalOpen(false)}
         />
       )}
@@ -1422,9 +1488,7 @@ export function AgendaInteligente() {
           }}
           onStartFocus={() => {
             setPopoverEvent(null)
-            setFocusEvent(popoverEvent)
-            setPomodoroStartTime(new Date().toISOString())
-            setIsFocusModeOpen(true)
+            openFocusMode(`bloque_${popoverEvent.id}_gen_${Date.now()}`, true)
             setIsSidebarOpen(true)
           }}
           onToggleCompleted={() => {
@@ -1437,19 +1501,7 @@ export function AgendaInteligente() {
         />
       )}
 
-      {isFocusModeOpen && focusEvent && (
-        <FocusMode
-          evento={focusEvent}
-          onClose={() => { setIsFocusModeOpen(false); setFocusEvent(null) }}
-          onComplete={(minutosEstudiados, isFinishedEarly) => {
-            if (!isFinishedEarly) {
-              setEventos(prev => prev.map(ev => ev.id === focusEvent.id ? { ...ev, completed: true } : ev))
-            }
-            setIsFocusModeOpen(false)
-            setFocusEvent(null)
-          }}
-        />
-      )}
+
 
       {isCourseSectionModalOpen && (
         <AddCourseSectionModal
@@ -1486,7 +1538,7 @@ export function AgendaInteligente() {
         />
       )}
 
-      <div className="flex flex-col gap-4" style={{ maxWidth: "1800px", margin: "0 auto", padding: "16px" }}>
+      <div className="flex flex-col gap-4 h-[calc(100vh-theme(spacing.16))] overflow-hidden w-full" style={{ maxWidth: "1800px", margin: "0 auto", padding: "16px" }}>
 
         {/* ── BARRA SUPERIOR ─────────────────────────────────────────────── */}
         <div className="bg-[#11121d] border border-white/10 rounded-2xl p-4 shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
@@ -1608,8 +1660,8 @@ export function AgendaInteligente() {
         </div>
 
         {/* ── ÁREA PRINCIPAL ─────────────────────────────────────────────── */}
-        <div className="flex gap-4 relative">
-          <div className={`flex-1 min-w-0 bg-[#090b1c] border rounded-3xl flex flex-col overflow-hidden h-[calc(100dvh-220px)] transition-all duration-500 ${examWeekMode ? 'border-purple-500/30 shadow-[inset_0_0_20px_rgba(168,85,247,0.05),0_12px_40px_rgba(0,0,0,0.4)]' : 'border-slate-800/60 shadow-[0_12px_40px_rgba(0,0,0,0.4)]'}`}>
+        <div className="flex-1 min-h-0 flex gap-4 relative">
+          <div className={`flex-1 min-w-0 bg-[#090b1c] border rounded-3xl flex flex-col overflow-hidden h-full transition-all duration-500 ${examWeekMode ? 'border-purple-500/30 shadow-[inset_0_0_20px_rgba(168,85,247,0.05),0_12px_40px_rgba(0,0,0,0.4)]' : 'border-slate-800/60 shadow-[0_12px_40px_rgba(0,0,0,0.4)]'}`}>
             <CalendarioGrid
               vista={currentView}
               eventos={eventosConRecurrencia}
@@ -1637,137 +1689,147 @@ export function AgendaInteligente() {
           </div>
 
           <div className={`flex flex-col gap-4 overflow-hidden transition-all duration-300 shrink-0 relative`} style={{ width: isSidebarOpen ? "280px" : "0px", opacity: isSidebarOpen ? 1 : 0 }}>
-            <div className="flex flex-col gap-4 overflow-y-auto custom-scrollbar h-full relative" style={{ width: "280px" }}>
-              
-              {/* Modo Semana de Exámenes (Toggle reubicado) */}
-              <div className={`p-4 rounded-2xl border transition-all duration-300 shadow-lg ${examWeekMode ? 'bg-purple-900/20 border-purple-500/30' : 'bg-[#11121d] border-white/10'}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[11px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-300">
-                    <AlertTriangle className={`w-3.5 h-3.5 ${examWeekMode ? 'text-purple-400' : 'text-slate-500'}`} /> Modo Exámenes
-                  </p>
-                  <button 
-                    onClick={() => setExamWeekMode(!examWeekMode)}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${examWeekMode ? 'bg-purple-600' : 'bg-slate-700'}`}
-                  >
-                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${examWeekMode ? 'translate-x-5' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-                <p className="text-[10px] text-slate-400 leading-tight">
-                  Oculta las clases y muestra solo Evaluaciones para máxima concentración.
-                </p>
-              </div>
+            <div className="flex flex-col gap-4 overflow-y-auto h-full relative [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ width: "280px" }}>
+              {widgetOrder.map(widgetId => (
+                <div 
+                  key={widgetId}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, widgetId)}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, widgetId)}
+                  className={`cursor-grab active:cursor-grabbing transition-transform ${draggedWidget === widgetId ? 'opacity-50 scale-95' : 'opacity-100'}`}
+                >
+                  {widgetId === "examenes" && (
+                    <div className={`p-4 rounded-2xl border transition-all duration-300 shadow-lg ${examWeekMode ? 'bg-purple-900/20 border-purple-500/30' : 'bg-[#11121d] border-white/10'}`}>
+                      <div className="flex items-center justify-between mb-2 pointer-events-none">
+                        <p className="text-[11px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-300">
+                          <AlertTriangle className={`w-3.5 h-3.5 ${examWeekMode ? 'text-purple-400' : 'text-slate-500'}`} /> Modo Exámenes
+                        </p>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setExamWeekMode(!examWeekMode) }}
+                          className={`pointer-events-auto relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${examWeekMode ? 'bg-purple-600' : 'bg-slate-700'}`}
+                        >
+                          <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${examWeekMode ? 'translate-x-5' : 'translate-x-1'}`} />
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-slate-400 leading-tight pointer-events-none">
+                        Oculta las clases y muestra solo Evaluaciones para máxima concentración.
+                      </p>
+                    </div>
+                  )}
 
-              {/* Evaluaciones Próximas */}
-              <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg group relative">
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <AlertTriangle className="w-3.5 h-3.5 text-rose-500" /> Evaluaciones Próximas
-                  </p>
-                  <div className="flex items-center gap-1">
-                    <button 
-                      title="Aquí ves tus exámenes y prácticas pendientes con cuenta regresiva. Al cumplirse la fecha, pasan al historial para registrar tu nota. La IA utiliza estas fechas para armar tus sesiones de repaso."
-                      className="w-5 h-5 rounded flex items-center justify-center hover:bg-white/10 transition-colors text-slate-500 hover:text-slate-300"
-                    >
-                      <Info className="w-3.5 h-3.5" />
-                    </button>
-                    <button onClick={() => { 
-                      const evalTag = etiquetas.find(e => {
-                        const n = e.nombre.toLowerCase()
-                        return n.includes("evalua") || n.includes("examen") || n.includes("parcial") || n.includes("final") || n.includes("práctica") || n.includes("practica") || n.includes("pc") || n.includes("expo") || n.includes("presentaci") || n.includes("monograf") || n.includes("proyecto") || n.includes("tarea") || n.includes("entrega")
-                      })
-                      setModalPrefill(evalTag ? { evento: { etiquetaId: evalTag.id.toString(), tipo: "examen" } as any } as OpenModalParams : { evento: { tipo: "examen" } as any } as OpenModalParams); 
-                      setIsCreateModalOpen(true); 
-                    }} className="w-5 h-5 rounded flex items-center justify-center hover:bg-white/10 transition-colors text-slate-500 hover:text-slate-300">
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="space-y-2.5">
-                  {examenesProximos.length > 0 ? (
-                    examenesProximos.map(ex => {
-                      const { txt, urgente } = countdown(ex.fechaTarget.getTime() - new Date().getTime())
-                      return (
-                        <div key={ex.id} onClick={() => setEvalModalOpen(true)} className={`cursor-pointer rounded-xl p-3 transition-all hover:scale-[1.02] ${urgente ? "bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20" : "bg-white/5 border border-white/5 hover:bg-white/10"}`}>
-                          <p className="text-xs font-semibold text-slate-200 truncate">{ex.nombre}</p>
-                          <p className={`text-[10px] font-mono font-bold mt-1 ${urgente ? "text-rose-400" : "text-indigo-400"}`}>Faltan {txt}</p>
+                  {widgetId === "productividad" && (
+                    <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg relative">
+                      <div className="flex justify-between items-center mb-4 pointer-events-none">
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-emerald-400" /> Productividad</p>
+                        <button onClick={(e) => { e.stopPropagation(); setIsSleepModalOpen(true) }} className="pointer-events-auto p-1 hover:bg-white/10 rounded-full transition-colors">
+                          <Settings className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" />
+                        </button>
+                      </div>
+                      <div className="pointer-events-auto">
+                        <WidgetProductividadSemanal eventos={eventos} etiquetas={etiquetas} metaHoras={metaEstudioSemanal} />
+                        {pState.isRunning ? (
+                          <div className="w-full mt-4 p-4 rounded-xl bg-gradient-to-br from-violet-900/40 to-fuchsia-900/40 border border-violet-500/30 shadow-[inset_0_0_20px_rgba(139,92,246,0.15)] flex flex-col items-center justify-center animate-in fade-in zoom-in-95">
+                            <p className="text-center text-[10px] font-bold text-violet-300 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Brain className="w-3 h-3" /> En Curso</p>
+                            <div className="text-3xl font-black text-center text-white tabular-nums tracking-tight mb-3 drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+                              {Math.floor(pState.timeLeft / 60).toString().padStart(2, '0')}:{(pState.timeLeft % 60).toString().padStart(2, '0')}
+                            </div>
+                            <button 
+                              onClick={() => maximize()}
+                              className="w-full py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+                            >
+                              <Maximize2 className="w-3.5 h-3.5" /> Abrir Controlador
+                            </button>
+                          </div>
+                        ) : (
+                          <button 
+                            onClick={() => openFocusMode("libre", true)}
+                            className="w-full mt-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white font-bold text-sm shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all flex items-center justify-center gap-2 hover:scale-105 active:scale-95 border border-white/10"
+                          >
+                            <Zap className="w-4 h-4 text-yellow-300" /> Concentrarme Ahora
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {widgetId === "evaluaciones" && (
+                    <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg group relative">
+                      <div className="flex items-center justify-between mb-4 pointer-events-none">
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-500" /> Evaluaciones Próximas
+                        </p>
+                        <div className="flex items-center gap-1 pointer-events-auto">
+                          <button 
+                            title="Aquí ves tus exámenes y prácticas pendientes con cuenta regresiva. Al cumplirse la fecha, pasan al historial para registrar tu nota. La IA utiliza estas fechas para armar tus sesiones de repaso."
+                            className="w-5 h-5 rounded flex items-center justify-center hover:bg-white/10 transition-colors text-slate-500 hover:text-slate-300"
+                          >
+                            <Info className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={(e) => { 
+                            e.stopPropagation();
+                            const evalTag = etiquetas.find(et => {
+                              const n = et.nombre.toLowerCase()
+                              return n.includes("evalua") || n.includes("examen") || n.includes("parcial") || n.includes("final") || n.includes("práctica") || n.includes("practica") || n.includes("pc") || n.includes("expo") || n.includes("presentaci") || n.includes("monograf") || n.includes("proyecto") || n.includes("tarea") || n.includes("entrega")
+                            })
+                            setModalPrefill(evalTag ? { evento: { etiquetaId: evalTag.id.toString(), tipo: "examen" } as any } as OpenModalParams : { evento: { tipo: "examen" } as any } as OpenModalParams); 
+                            setIsCreateModalOpen(true); 
+                          }} className="w-5 h-5 rounded flex items-center justify-center hover:bg-white/10 transition-colors text-slate-500 hover:text-slate-300">
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                      )
-                    })
-                  ) : (
-                    <p className="text-xs text-slate-500 italic py-1 text-center">Sin evaluaciones próximas</p>
+                      </div>
+                      
+                      <div className="space-y-2.5 pointer-events-auto">
+                        {examenesProximos.length > 0 ? (
+                          examenesProximos.slice(0, 5).map(ex => {
+                            const { txt, urgente } = countdown(ex.fechaTarget.getTime() - new Date().getTime())
+                            return (
+                              <div key={ex.id} onClick={() => setEvalModalOpen(true)} className={`cursor-pointer rounded-xl p-3 transition-all hover:scale-[1.02] ${urgente ? "bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20" : "bg-white/5 border border-white/5 hover:bg-white/10"}`}>
+                                <p className="text-xs font-semibold text-slate-200 truncate">{ex.nombre}</p>
+                                <p className={`text-[10px] font-mono font-bold mt-1 ${urgente ? "text-rose-400" : "text-indigo-400"}`}>Faltan {txt}</p>
+                              </div>
+                            )
+                          })
+                        ) : (
+                          <p className="text-xs text-slate-500 italic py-1 text-center">Sin evaluaciones próximas</p>
+                        )}
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-white/5 flex justify-center pointer-events-auto">
+                        <button onClick={() => setEvalModalOpen(true)} className="text-[10px] font-semibold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest">
+                          Ver todas / Notas →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {widgetId === "etiquetas" && (
+                    <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg">
+                      <div className="flex items-center justify-between mb-4 pointer-events-none">
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><Layers className="w-3.5 h-3.5 text-indigo-400" /> Etiquetas</p>
+                        <button onClick={(e) => { e.stopPropagation(); setIsTagModalOpen(true) }} className="pointer-events-auto w-5 h-5 rounded hover:bg-white/10 flex items-center justify-center transition-colors">
+                          <Plus className="w-3.5 h-3.5 text-slate-400" />
+                        </button>
+                      </div>
+                      <div className="space-y-1 pointer-events-auto">
+                        {(isTagsExpanded ? etiquetas : etiquetas.slice(0, 4)).map(etq => (
+                          <Toggle key={etq.id} checked={filtrosEfectivos[etq.id] || false} onChange={() => toggleFiltro(etq.id)} label={etq.nombre} dot={getEstiloColor(etq.color).dot} />
+                        ))}
+                        {etiquetas.length > 4 && (
+                          <button 
+                            onClick={() => setIsTagsExpanded(!isTagsExpanded)}
+                            className="w-full text-[10px] text-slate-500 hover:text-slate-300 font-semibold uppercase tracking-wider py-2 mt-1 transition-colors text-center"
+                          >
+                            {isTagsExpanded ? 'Ocultar' : `Ver todas (${etiquetas.length})`}
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
+              ))}
 
-                <div className="mt-4 pt-3 border-t border-white/5 flex justify-center">
-                  <button onClick={() => setEvalModalOpen(true)} className="text-[10px] font-semibold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest">
-                    Ver todas / Notas →
-                  </button>
-                </div>
-              </div>
-
-              {/* Etiquetas Sidebar */}
-              <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg">
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><Layers className="w-3.5 h-3.5 text-indigo-400" /> Etiquetas</p>
-                  <button onClick={() => setIsTagModalOpen(true)} className="w-5 h-5 rounded hover:bg-white/10 flex items-center justify-center transition-colors">
-                    <Plus className="w-3.5 h-3.5 text-slate-400" />
-                  </button>
-                </div>
-                <div className="space-y-1">
-                  {(isTagsExpanded ? etiquetas : etiquetas.slice(0, 4)).map(etq => (
-                    <Toggle key={etq.id} checked={filtrosEfectivos[etq.id] || false} onChange={() => toggleFiltro(etq.id)} label={etq.nombre} dot={getEstiloColor(etq.color).dot} />
-                  ))}
-                  {etiquetas.length > 4 && (
-                    <button 
-                      onClick={() => setIsTagsExpanded(!isTagsExpanded)}
-                      className="w-full text-[10px] text-slate-500 hover:text-slate-300 font-semibold uppercase tracking-wider py-2 mt-1 transition-colors text-center"
-                    >
-                      {isTagsExpanded ? 'Ocultar' : `Ver todas (${etiquetas.length})`}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Pomodoro o Widget Productividad */}
-              {isFocusModeOpen && focusEvent ? (
-                <SidebarPomodoro 
-                  evento={focusEvent} 
-                  onClose={() => { setIsFocusModeOpen(false); setFocusEvent(null); setPomodoroStartTime(null) }} 
-                  onComplete={async (minutosEstudiados, isFinishedEarly) => {
-                    if (!isFinishedEarly) {
-                      setEventos(prev => prev.map(ev => ev.id === focusEvent.id ? { ...ev, completed: true } : ev))
-                    }
-                    // Registrar sesión en backend
-                    try {
-                      const numId = parseInt(focusEvent.id)
-                      await registrarSesion({
-                        evento_id: !isNaN(numId) ? numId : undefined,
-                        minutos_configurados: minutosEstudiados,
-                        minutos_reales: minutosEstudiados,
-                        finalizado_temprano: isFinishedEarly,
-                        started_at: pomodoroStartTime || new Date().toISOString(),
-                        ended_at: new Date().toISOString(),
-                      })
-                    } catch (err) {
-                      console.warn("[Agenda] No se pudo registrar sesión:", err)
-                    }
-                    setIsFocusModeOpen(false)
-                    setFocusEvent(null)
-                    setPomodoroStartTime(null)
-                  }}
-                />
-              ) : (
-                <div className="bg-[#11121d] border border-white/10 rounded-2xl p-5 shadow-lg relative">
-                  <div className="flex justify-between items-center mb-4">
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-emerald-400" /> Productividad</p>
-                    <button onClick={() => setIsSleepModalOpen(true)} className="p-1 hover:bg-white/10 rounded-full transition-colors">
-                      <Settings className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" />
-                    </button>
-                  </div>
-                  <WidgetProductividadSemanal eventos={eventos} etiquetas={etiquetas} />
-                </div>
-              )}
             </div>
           </div>
         {/* Modal de Confirmación de Movimiento */}

@@ -3,7 +3,7 @@
 // calendar-grid.tsx — Grid del calendario con click-to-create, línea de tiempo,
 // etiquetas personalizadas (Google Calendar style) y navegación dinámica
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import {  Moon, Clock, Flame, AlertTriangle, User,
   Users, Briefcase, Tag, CheckCircle2, Sparkles, Check
 } from "lucide-react"
@@ -560,6 +560,7 @@ function VistaSemana({
 }: Omit<CalendarioGridProps, "vista" | "baseDate"> & { fechasSemana: Date[], onCeldaClick: (p: OpenModalParams) => void }) {
   const totalHorasPx = TOTAL_H * PX_POR_HORA
   const hoyStr = formatearISO(new Date())
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // Find the earliest event in the current week view
@@ -568,12 +569,13 @@ function VistaSemana({
       earliestHour = Math.min(...eventos.map(e => e.horaInicio))
     }
     const targetHour = Math.max(0, Math.floor(earliestHour) - 1) // 1 hour above to give breathing room
-    const el = document.getElementById(`hour-${targetHour}`)
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = targetHour * PX_POR_HORA
+    }
   }, [eventos])
 
   return (
-    <div className="flex-1 overflow-auto custom-scrollbar">
+    <div ref={scrollRef} className="flex-1 overflow-auto custom-scrollbar">
       <div className="flex pb-20" style={{ minWidth: "768px" }}>
         <EjeHoras totalHorasPx={totalHorasPx} />
         {fechasSemana.map((fecha) => {
@@ -607,6 +609,7 @@ function VistaDia({
   const isoDate = formatearISO(baseDate)
   const evsDia = eventos.filter(e => e.fechaISO === isoDate)
   const esHoy = formatearISO(new Date()) === isoDate
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // Find the earliest event in the current day view
@@ -615,12 +618,13 @@ function VistaDia({
       earliestHour = Math.min(...evsDia.map(e => e.horaInicio))
     }
     const targetHour = Math.max(0, Math.floor(earliestHour) - 1)
-    const el = document.getElementById(`hour-${targetHour}`)
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = targetHour * PX_POR_HORA
+    }
   }, [evsDia])
 
   return (
-    <div className="flex-1 overflow-auto custom-scrollbar flex">
+    <div ref={scrollRef} className="flex-1 overflow-auto custom-scrollbar flex">
       <div className="flex w-full border-x border-slate-800/50 shadow-2xl pb-20">
         <EjeHoras totalHorasPx={totalHorasPx} />
         <ColumnaDia

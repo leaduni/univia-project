@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react"
+import React, { useState, useMemo } from "react" // Force TS refresh
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Sparkles, CheckCircle2, History, Calendar, Check, AlertTriangle, RotateCcw } from "lucide-react"
 
@@ -114,7 +114,7 @@ export function EvaluacionesExtendedModal({ isOpen, onClose, evaluaciones, onOpe
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl bg-[#151522]/95 backdrop-blur-xl border-white/10 text-white p-0 overflow-hidden shadow-2xl">
+      <DialogContent className="max-w-3xl bg-[#151522]/95 backdrop-blur-xl border-white/10 text-white p-0 overflow-hidden shadow-2xl">
         <DialogHeader className="px-6 py-4 border-b border-white/[0.08] bg-[#11121d]">
           <DialogTitle className="flex items-center gap-2 text-lg font-bold">
             <AlertTriangle className="w-5 h-5 text-rose-500" />
@@ -149,7 +149,7 @@ export function EvaluacionesExtendedModal({ isOpen, onClose, evaluaciones, onOpe
                       <h3 className="font-semibold text-slate-200 text-base">{ex.nombre}</h3>
                       <p className="text-xs text-slate-400 mt-1 capitalize">{formatFecha(ex.fechaTarget)}</p>
                     </div>
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
                       {renderGradeInput(ex)}
                       <button 
                         onClick={() => handleMarcarRendida(ex.id)}

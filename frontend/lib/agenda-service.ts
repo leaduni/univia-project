@@ -9,8 +9,7 @@ import { fetchWithAuth } from './api-service';
 import type { CalendarioEvento } from "@/components/agenda/calendar-grid";
 import { mockFacultySchedules, type FacultyScheduleRow } from "@/lib/mockData";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const API = BASE_URL.endsWith('/api') ? BASE_URL : `${BASE_URL}/api`;
+import { API_URL as API } from './env';
 
 // ── Tipos ────────────────────────────────────────────────────────────────
 

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react"
-import { ArrowUp, Paperclip } from "lucide-react"
+import { Sparkles, Loader2, Paperclip, X, Image as ImageIcon, FileText, Command } from "lucide-react"
 
 const SUGGESTIONS = [
   "✨ Crear plan de repaso para mi próximo examen",
@@ -7,10 +7,10 @@ const SUGGESTIONS = [
   "🧠 Resumen de mis horas de estudio enfocadas"
 ]
 
-export function BarraIA({ onImportSchedule }: { onImportSchedule: (file: File) => void }) {
+export function BarraIA() {
   const [prompt, setPrompt] = useState("")
   const [isFocused, setIsFocused] = useState(false)
-  const [fileError, setFileError] = useState<string | null>(null)
+  const [attachedFile, setAttachedFile] = useState<File | null>(null)
   
   const inputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -28,12 +28,13 @@ export function BarraIA({ onImportSchedule }: { onImportSchedule: (file: File) =
   }, [])
 
   const handleSubmit = (text: string) => {
-    if (!text.trim()) return
+    if (!text.trim() && !attachedFile) return
     
     // Emitir evento para abrir el panel de IA
-    window.dispatchEvent(new CustomEvent("open-venus-chat", { detail: { initialContext: text } }))
+    window.dispatchEvent(new CustomEvent("open-univia-chat", { detail: { initialContext: text } }))
     
     setPrompt("")
+    setAttachedFile(null)
     inputRef.current?.blur()
     setIsFocused(false)
   }
@@ -44,38 +45,40 @@ export function BarraIA({ onImportSchedule }: { onImportSchedule: (file: File) =
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    e.target.value = ""
-    if (!file) return
-    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-      setFileError("Selecciona un PDF de tu horario o matrícula.")
-      return
+    if (e.target.files && e.target.files[0]) {
+      setAttachedFile(e.target.files[0])
     }
-    setFileError(null)
-    setIsFocused(false)
-    onImportSchedule(file)
   }
 
   return (
-    <div className="relative min-w-0 flex-1 sm:w-96 flex flex-col z-50">
+    <div className="relative flex-1 sm:w-96 flex flex-col z-50">
+      {/* Píldora Flotante Arriba */}
+      {attachedFile && (
+        <div className="absolute -top-7 left-2 z-10 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 text-[10px] font-medium backdrop-blur-md animate-in slide-in-from-bottom-2 fade-in duration-200 shadow-lg">
+          {attachedFile.type.includes("image") ? <ImageIcon className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
+          <span className="truncate max-w-[120px]">{attachedFile.name}</span>
+          <button type="button" onClick={() => setAttachedFile(null)} className="ml-0.5 hover:bg-white/10 rounded-full p-0.5 transition-colors">
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+
       <form onSubmit={handleFormSubmit} className="relative w-full">
-        {/* Borde visible también cuando el campo no tiene foco. */}
-        <div className="relative rounded-xl border border-violet-300/50 bg-[#1c1d2e] shadow-sm transition-shadow focus-within:border-violet-300 focus-within:ring-2 focus-within:ring-violet-400/30">
-          <div className="relative w-full flex items-center rounded-xl overflow-hidden">
+        {/* Contenedor del gradiente dinámico */}
+        <div className={`relative rounded-xl p-[1px] transition-all duration-300 ${isFocused ? 'bg-gradient-to-r from-pink-500 to-purple-500 shadow-[0_0_15px_rgba(217,70,239,0.4)]' : 'bg-transparent'}`}>
+          <div className="relative w-full flex items-center bg-[#11121d] rounded-xl overflow-hidden">
             <input 
               type="file" 
               ref={fileInputRef} 
               hidden 
-              accept=".pdf,application/pdf"
-              aria-label="Adjuntar horario en PDF"
+              accept="image/*,.pdf" 
               onChange={handleFileChange} 
             />
             <button 
               type="button" 
               onClick={() => fileInputRef.current?.click()}
-              className="size-11 shrink-0 flex items-center justify-center rounded-lg hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300 transition-colors text-slate-300 hover:text-white"
-              title="Importar horario desde PDF"
-              aria-label="Importar horario desde PDF"
+              className="absolute left-1.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors text-slate-400 hover:text-indigo-400"
+              title="Adjuntar archivo o imagen"
             >
               <Paperclip className="w-4 h-4" />
             </button>
@@ -87,14 +90,14 @@ export function BarraIA({ onImportSchedule }: { onImportSchedule: (file: File) =
               onChange={e => setPrompt(e.target.value)} 
               onFocus={() => setIsFocused(true)}
               onBlur={() => setTimeout(() => setIsFocused(false), 200)}
-              placeholder="Pregúntale a Venus..."
-              className="min-w-0 w-full bg-transparent border-none py-3 text-sm text-slate-100 placeholder:text-slate-300 focus:ring-0 focus:outline-none"
+              placeholder="Pregúntale a UniVia..." 
+              className={`w-full bg-transparent border-none pl-9 pr-14 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:ring-0 focus:outline-none transition-all ${!isFocused ? 'border border-white/10 shadow-inner rounded-xl' : ''}`} 
               aria-label="Paleta de comandos de IA"
             />
             
-            <button type="submit" disabled={!prompt.trim()} aria-label="Enviar pregunta a Venus" className="size-11 shrink-0 flex items-center justify-center text-violet-200 hover:bg-white/10 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300">
-              <ArrowUp className="size-4" />
-            </button>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pointer-events-none">
+              <Sparkles className={`w-4 h-4 transition-colors duration-300 ${isFocused ? 'text-pink-400' : 'text-indigo-400'}`} />
+            </div>
           </div>
         </div>
 
@@ -123,7 +126,6 @@ export function BarraIA({ onImportSchedule }: { onImportSchedule: (file: File) =
           </div>
         )}
       </form>
-      {fileError && <p role="alert" className="mt-2 text-xs text-rose-300">{fileError}</p>}
     </div>
   )
 }

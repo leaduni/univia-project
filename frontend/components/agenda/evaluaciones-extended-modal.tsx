@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react" // Force TS refresh
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Sparkles, CheckCircle2, History, Calendar, Check, AlertTriangle, RotateCcw } from "lucide-react"
+import { Sparkles, CheckCircle2, History, Calendar, Check, AlertTriangle, RotateCcw, Search } from "lucide-react"
 
 interface Evaluacion {
   id: string
@@ -149,25 +149,38 @@ export function EvaluacionesExtendedModal({ isOpen, onClose, evaluaciones, onOpe
                       <h3 className="font-semibold text-slate-200 text-base">{ex.nombre}</h3>
                       <p className="text-xs text-slate-400 mt-1 capitalize">{formatFecha(ex.fechaTarget)}</p>
                     </div>
-                    <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
-                      {renderGradeInput(ex)}
-                      <button 
-                        onClick={() => handleMarcarRendida(ex.id)}
-                        className="flex-1 sm:flex-none px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium text-slate-300 transition-colors flex items-center justify-center gap-1.5"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Ya rendida
-                      </button>
-                      <button 
-                        onClick={() => {
-                          const ms = ex.fechaTarget.getTime() - now.getTime()
-                          const days = Math.max(0, Math.ceil(ms / 86400000))
-                          onOpenChat(`Quiero crear un plan de repaso para mi próxima evaluación de ${ex.nombre} programada en ${days} días. Ayúdame a organizar mis bloques de estudio.`)
-                          onClose()
-                        }}
-                        className="flex-1 sm:flex-none px-3 py-2 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-300 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Repasar con IA
-                      </button>
+                    <div className="flex flex-col items-end gap-2 w-full sm:w-auto mt-3 sm:mt-0">
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        {renderGradeInput(ex)}
+                        <button 
+                          onClick={() => handleMarcarRendida(ex.id)}
+                          className="flex-1 sm:flex-none px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium text-slate-300 transition-colors flex items-center justify-center gap-1.5"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Ya rendida
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <button 
+                          onClick={() => {
+                            const ms = ex.fechaTarget.getTime() - now.getTime()
+                            const days = Math.max(0, Math.ceil(ms / 86400000))
+                            onOpenChat(`Quiero crear un plan de repaso para mi próxima evaluación de ${ex.nombre} programada en ${days} días. Ayúdame a organizar mis bloques de estudio.`)
+                            onClose()
+                          }}
+                          className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-300 text-[11px] font-semibold transition-colors flex items-center justify-center gap-1.5"
+                        >
+                          <Sparkles className="w-3 h-3 text-indigo-400" /> Repasar
+                        </button>
+                        <button 
+                          onClick={() => {
+                            onOpenChat(`Necesito material de estudio, planchas o recursos pasados para prepararme para: ${ex.nombre}. ¿Qué tienes disponible en la base de conocimientos?`)
+                            onClose()
+                          }}
+                          className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 text-[11px] font-semibold transition-colors flex items-center justify-center gap-1.5"
+                        >
+                          <Search className="w-3 h-3 text-emerald-400" /> Planchas
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))

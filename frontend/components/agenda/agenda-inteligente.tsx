@@ -7,7 +7,7 @@ import {
   ChevronRight, Plus, Loader2, X, CheckSquare, AlignLeft, RefreshCw, Zap,
   PanelRightClose, PanelRightOpen, CalendarDays, CalendarRange, List,
   Check, LayoutGrid, Layers, Tag, MapPin, Repeat, Video, Bell, Users, ChevronDown, Pencil, Trash2, Settings, UploadCloud, FileText,
-  Play, Pause, RotateCcw, CheckCircle2, Brain, Coffee, Send, Info, Maximize2, Minimize2, GraduationCap
+  Play, Pause, RotateCcw, CheckCircle2, Brain, Coffee, Send, Info, Maximize2, Minimize2, GraduationCap, Search
 } from "lucide-react"
 
 import {
@@ -421,35 +421,106 @@ interface ModalEventoProps {
   disableOutsideClick?: boolean
 }
 
-function ComboBox({ value, onChange, options, placeholder }: { value: string, onChange: (v: string) => void, options: string[], placeholder?: string }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [filteredOptions, setFilteredOptions] = useState(options)
+const DIAS_SEMANA = ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"];
 
-  useEffect(() => {
-    setFilteredOptions(options.filter(o => o.toLowerCase().includes(value.toLowerCase()) && o !== value))
-  }, [value, options])
+function DatePickerInput({ value, onChange }: { value: string, onChange: (v: string) => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const d = value ? new Date(value + "T12:00:00") : new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const handleDayClick = (d: number) => {
+    const y = year;
+    const m = String(month + 1).padStart(2, '0');
+    const dd = String(d).padStart(2, '0');
+    onChange(`${y}-${m}-${dd}`);
+    setIsOpen(false);
+  };
+
+  const displayDate = value ? new Date(value + "T12:00:00") : new Date();
+  const dStr = String(displayDate.getDate()).padStart(2, '0');
+  const mStr = String(displayDate.getMonth() + 1).padStart(2, '0');
+  const yStr = displayDate.getFullYear();
+  const displayStr = `${dStr}/${mStr}/${yStr}`;
 
   return (
-    <div className="relative w-full">
+    <div className="relative">
+      <button type="button" onClick={() => setIsOpen(!isOpen)} className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-sm font-medium text-slate-200 transition-colors focus:outline-none focus:border-indigo-500 min-w-[140px] justify-between">
+        <span className="truncate">{displayStr}</span>
+        <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+      </button>
+      
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <div className="absolute top-full left-0 mt-2 bg-[#1c1d2e] border border-white/10 rounded-xl shadow-2xl z-50 p-3 w-64 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center mb-3">
+              <button type="button" onClick={() => setCurrentMonth(new Date(year, month - 1, 1))} className="p-1 hover:bg-white/10 rounded-md transition-colors">
+                <ChevronLeft className="w-4 h-4 text-slate-400" />
+              </button>
+              <span className="text-sm font-semibold text-slate-200">{MESES[month]} {year}</span>
+              <button type="button" onClick={() => setCurrentMonth(new Date(year, month + 1, 1))} className="p-1 hover:bg-white/10 rounded-md transition-colors">
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </button>
+            </div>
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {DIAS_SEMANA.map(d => (
+                <div key={d} className="text-center text-[10px] font-bold text-slate-500 uppercase">{d}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} />)}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const d = i + 1;
+                const isSelected = value === `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const isToday = new Date().toDateString() === new Date(year, month, d).toDateString();
+                return (
+                  <button key={d} type="button" onClick={() => handleDayClick(d)}
+                    className={`w-7 h-7 flex items-center justify-center rounded-md text-xs font-medium transition-colors mx-auto
+                      ${isSelected ? "bg-indigo-600 text-white shadow-md" : isToday ? "bg-white/10 text-indigo-300" : "text-slate-300 hover:bg-white/5 hover:text-white"}
+                    `}>
+                    {d}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function ComboBox({ value, onChange, options, placeholder, className = "w-full" }: { value: string, onChange: (v: string) => void, options: string[], placeholder?: string, className?: string }) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <div className={`relative ${className}`}>
       <input 
         type="text" 
         value={value}
         onChange={e => { onChange(e.target.value); setIsOpen(true); }}
         onFocus={() => setIsOpen(true)}
         placeholder={placeholder}
-        className="w-full bg-white/5 border border-white/10 rounded-lg text-sm font-medium text-slate-200 px-3 py-2 focus:outline-none focus:border-indigo-500 transition-all"
+        className="w-full bg-white/5 border border-white/10 rounded-lg text-sm font-medium text-slate-200 px-3 py-2 focus:outline-none focus:border-indigo-500 transition-all hover:bg-white/10"
       />
       <button type="button" onClick={() => setIsOpen(!isOpen)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded-md transition-colors">
          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {isOpen && (filteredOptions.length > 0 || !value) && (
+      {isOpen && options.length > 0 && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           <div className="absolute top-full left-0 right-0 mt-1 bg-[#1c1d2e] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden max-h-48 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150">
-            {(filteredOptions.length > 0 ? filteredOptions : options).map(opt => (
+            {options.map(opt => (
               <button key={opt} type="button" onClick={() => { onChange(opt); setIsOpen(false); }}
-                className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-colors">
+                className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors ${value === opt ? 'bg-indigo-600/50 text-white' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}>
                 {opt}
               </button>
             ))}
@@ -459,6 +530,14 @@ function ComboBox({ value, onChange, options, placeholder }: { value: string, on
     </div>
   )
 }
+
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+  const hr24 = Math.floor(i / 2)
+  const m = i % 2 === 0 ? '00' : '30'
+  const ampm = hr24 >= 12 ? 'PM' : 'AM'
+  const hr12 = hr24 % 12 || 12
+  return `${String(hr12).padStart(2, '0')}:${m} ${ampm}`
+})
 
 function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearEtiqueta, disableOutsideClick }: ModalEventoProps) {
   const [tipoNuevo, setTipoNuevo] = useState<TipoNuevo>(prefill?.evento?.tipo === 'tarea' ? "Tarea" : "Evento")
@@ -556,8 +635,20 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
       let ini = 0, dur = 24
       
       if (!todoElDia) {
-        const [h, m] = horaIni.split(":").map(Number)
-        const [hf, mf] = horaFin.split(":").map(Number)
+        const parseTime = (t: string) => {
+          if (t.toLowerCase().includes('pm') || t.toLowerCase().includes('am')) {
+            const isPM = t.toLowerCase().includes('pm');
+            const parts = t.replace(/am|pm/i, '').trim().split(':');
+            let h = Number(parts[0]);
+            const m = Number(parts[1] || 0);
+            if (isPM && h < 12) h += 12;
+            if (!isPM && h === 12) h = 0;
+            return [h, m];
+          }
+          return t.split(":").map(Number);
+        };
+        const [h, m] = parseTime(horaIni)
+        const [hf, mf] = parseTime(horaFin)
         ini = h + m / 60 - HORA_INI
         dur = Math.max(0.5, (hf + mf / 60) - (h + m / 60))
       }
@@ -614,10 +705,10 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center safe-modal-padding">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" />
-      <div ref={modalRef} className="relative z-10 w-full max-w-lg bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+      <div ref={modalRef} className="relative z-10 w-full max-w-lg bg-[#151522]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header & Tabs */}
-        <div className="px-6 py-4 border-b border-white/[0.08]">
+        <div className="px-6 py-4 border-b border-white/[0.08] rounded-t-2xl">
           <div className="flex justify-between items-center mb-4">
             <div className="flex gap-1.5 p-1 bg-white/5 rounded-xl border border-white/5">
               {(["Evento", "Tarea"] as TipoNuevo[]).map(t => (
@@ -645,19 +736,19 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
           <div className="flex gap-4 items-start">
             <Clock className="w-5 h-5 text-slate-400 mt-2 shrink-0" />
             <div className="flex-1 space-y-3">
-              <div className="flex items-center flex-wrap gap-2 text-sm text-slate-200">
-                <input type="date" value={fechaIni} onChange={e => setFechaIni(e.target.value)} className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500 [color-scheme:dark]" />
+              <div className="flex items-center flex-wrap gap-2 text-sm text-slate-200 relative z-50">
+                <DatePickerInput value={fechaIni} onChange={setFechaIni} />
                 
                 {!todoElDia && (
                   <>
-                    <input type="time" value={horaIni} onChange={e => setHoraIni(e.target.value)} className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500 [color-scheme:dark] w-24" />
+                    <ComboBox value={horaIni} onChange={setHoraIni} options={TIME_OPTIONS} className="w-28" />
                     <span className="text-slate-500">-</span>
-                    <input type="time" value={horaFin} onChange={e => setHoraFin(e.target.value)} className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500 [color-scheme:dark] w-24" />
+                    <ComboBox value={horaFin} onChange={setHoraFin} options={TIME_OPTIONS} className="w-28" />
                   </>
                 )}
                 
                 {(!todoElDia || fechaFin !== fechaIni) && (
-                  <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500 [color-scheme:dark]" />
+                  <DatePickerInput value={fechaFin} onChange={setFechaFin} />
                 )}
               </div>
               
@@ -729,7 +820,7 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
                 placeholder={isTagEvaluacion ? "Ej: Parcial, Control de Lectura..." : "Ej: Reunión, Asesoría, Avance..."}
                 options={Array.from(new Set([
                   ...(isTagEvaluacion 
-                    ? ["Parcial", "Final", "Práctica", "Exposición", "Monografía", "Presentación Final", "Control de Lectura"] 
+                    ? ["Práctica 1", "Práctica 2", "Práctica 3", "Práctica 4", "Práctica 5", "Parcial", "Final", "Exposición", "Monografía", "Presentación Final", "Control de Lectura"] 
                     : ["Reunión", "Investigación", "Asesoría", "Taller", "Clase Extra"]),
                   ...(customSubtagsMap[etiquetaSel.toString()] || [])
                 ]))}
@@ -778,14 +869,40 @@ function ModalCrearEvento({ onClose, onGuardar, prefill, etiquetas, onOpenCrearE
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 px-6 py-4 bg-[#11121d] border-t border-white/5">
-          <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-all">
-            Cancelar
-          </button>
-          <button onClick={handleGuardar} disabled={!titulo.trim() || guardando}
-            className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40 bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2">
-            {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar"}
-          </button>
+        <div className="flex items-center justify-between px-6 py-4 bg-[#11121d] border-t border-white/5 rounded-b-2xl">
+          <div className="flex items-center gap-2">
+            {prefill?.evento?.tipo === 'examen' && (
+              <>
+                <button 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    alert(`[Módulo de IA] Preparando sesión de repaso para ${titulo}...`);
+                  }}
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-indigo-600/80 to-blue-600/80 hover:from-indigo-500 hover:to-blue-500 shadow-md border border-white/20 transition-all flex items-center gap-2 hover:scale-[1.02]"
+                >
+                  <Sparkles className="w-4 h-4" /> Repasar
+                </button>
+                <button 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    alert(`[Módulo de IA] Buscando recursos y planchas para ${titulo}...`);
+                  }}
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold text-emerald-300 bg-emerald-600/20 hover:bg-emerald-600/30 shadow-md border border-emerald-500/30 transition-all flex items-center gap-2 hover:scale-[1.02]"
+                >
+                  <Search className="w-4 h-4" /> Planchas
+                </button>
+              </>
+            )}
+          </div>
+          <div className="flex justify-end gap-3">
+            <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-all">
+              Cancelar
+            </button>
+            <button onClick={handleGuardar} disabled={!titulo.trim() || guardando}
+              className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40 bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2">
+              {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1638,7 +1755,7 @@ export function AgendaInteligente() {
                           </div>
                           Nuevo Evento
                         </button>
-                        <button onClick={() => { setIsCreateDropdownOpen(false); setModalPrefill(null); setIsCreateModalOpen(true) }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-slate-200 hover:bg-white/5 border-t border-white/5">
+                        <button onClick={() => { setIsCreateDropdownOpen(false); setModalPrefill({ evento: { tipo: 'tarea' } } as any); setIsCreateModalOpen(true) }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-slate-200 hover:bg-white/5 border-t border-white/5">
                           <div className="w-6 h-6 rounded-md bg-rose-500/20 flex items-center justify-center shrink-0">
                             <CheckSquare className="w-3.5 h-3.5 text-rose-400" /> 
                           </div>

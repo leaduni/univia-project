@@ -24,3 +24,4 @@ Pillow>=10.0.0
 rapidfuzz>=3.5.0
 pdfplumber
 PyJWT>=2.8.0
+pandas>=2.0.0

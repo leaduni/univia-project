@@ -1,0 +1,20 @@
+services:
+  rag-postgres:
+    image: pgvector/pgvector:pg16
+    container_name: univia-rag-postgres
+    environment:
+      POSTGRES_DB: univia_rag
+      POSTGRES_USER: univia_rag
+      POSTGRES_PASSWORD: ${RAG_POSTGRES_PASSWORD}
+    ports:
+      - "5433:5432"
+    volumes:
+      - univia_rag_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U univia_rag -d univia_rag"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  univia_rag_pgdata:

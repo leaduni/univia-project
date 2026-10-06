@@ -356,8 +356,10 @@ def _handler_consulta_docentes(
     token: str,
     profesor_id_forzado: Optional[int] = None,
     curso_id_forzado: Optional[int] = None,
+    rag_fallback=None,
 ) -> Contexto:
     """Quién dicta un curso: lectura de curso_profesores + profesores."""
+    fallback = rag_fallback or _fallback_rag
     try:
         cursos = _consultar_catalogo_global(supabase)
     except Exception as e:
@@ -380,7 +382,7 @@ def _handler_consulta_docentes(
         profesor_id = profesor_id_forzado or _resolver_profesor(mensaje, supabase)
         if profesor_id:
             relacional = _contexto_docente_identificado(profesor_id, supabase)
-            rag = _fallback_rag(
+            rag = fallback(
                 mensaje,
                 supabase,
                 user,
@@ -400,7 +402,7 @@ def _handler_consulta_docentes(
         from app.chatbot import intents
 
         if intents._es_busqueda_contenido_abierta(mensaje):
-            rag = _fallback_rag(mensaje, supabase, user, token)
+            rag = fallback(mensaje, supabase, user, token)
             if rag.bloque:
                 return rag
             return _sin_resultados_multicapa("no identificó al docente o curso solicitado")
@@ -437,7 +439,7 @@ def _handler_consulta_docentes(
     docentes = [d for d in docentes if d.get("nombre")]
 
     if not docentes:
-        rag = _fallback_rag(
+        rag = fallback(
             mensaje,
             supabase,
             user,
@@ -467,7 +469,7 @@ def _handler_consulta_docentes(
         bloque=f"Docentes de {etiqueta}:\n{listado}",
         adjuntos={"docentes": docentes, "curso": curso},
     )
-    rag = _fallback_rag(
+    rag = fallback(
         mensaje,
         supabase,
         user,

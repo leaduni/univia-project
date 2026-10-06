@@ -1124,7 +1124,7 @@ def _es_duda_academica(tags: list, titulo: str, cuerpo: str) -> bool:
         return False
 
 
-def _generar_sugerencia_ia(publicacion_id: int, token: str) -> None:
+async def _generar_sugerencia_ia(publicacion_id: int, token: str) -> None:
     """Triaje IA en background: recupera contexto RAG y genera una sugerencia.
 
     Nunca lanza: un fallo (modelo, red, RLS) solo se registra. La respuesta
@@ -1133,26 +1133,34 @@ def _generar_sugerencia_ia(publicacion_id: int, token: str) -> None:
     try:
         supabase = get_supabase(token)
 
-        publicacion = (
-            supabase.table("foro_publicaciones")
-            .select("id, titulo, cuerpo, tags")
-            .eq("id", publicacion_id)
-            .maybe_single()
-            .execute()
+        publicacion = await asyncio.to_thread(
+            lambda: (
+                supabase.table("foro_publicaciones")
+                .select("id, titulo, cuerpo, tags")
+                .eq("id", publicacion_id)
+                .maybe_single()
+                .execute()
+            )
         )
         fila = getattr(publicacion, "data", None) if publicacion else None
         if not fila:
             logger.info("Triaje IA: publicación %s ya no existe.", publicacion_id)
             return
 
-        if not _es_duda_academica(fila.get("tags") or [], fila.get("titulo") or "", fila.get("cuerpo") or ""):
+        es_duda = await asyncio.to_thread(
+            _es_duda_academica,
+            fila.get("tags") or [],
+            fila.get("titulo") or "",
+            fila.get("cuerpo") or "",
+        )
+        if not es_duda:
             logger.info("Triaje IA: publicación %s no es una duda académica; se omite.", publicacion_id)
             return
 
         from app.rag.retriever import SyllabusRetriever
 
         pregunta = f"{fila.get('titulo', '')} {fila.get('cuerpo', '')}".strip()
-        fragmentos = SyllabusRetriever(token=token).buscar_contexto(
+        fragmentos = await SyllabusRetriever(token=token).buscar_contexto_async(
             pregunta,
             limit=FORO_TOP_K_IA,
             umbral_similitud=FORO_UMBRAL_IA,
@@ -1177,19 +1185,23 @@ def _generar_sugerencia_ia(publicacion_id: int, token: str) -> None:
             "No inventes datos que no estén en el material; si falta contexto, dilo."
         )
         mensaje = f"Pregunta del estudiante:\n{pregunta}\n\nMaterial del curso:\n{contenido}"
-        respuesta = chatear([{"role": "user", "content": mensaje}], system=system, max_tokens=700)
+        respuesta = await asyncio.to_thread(
+            chatear, [{"role": "user", "content": mensaje}], system=system, max_tokens=700
+        )
 
         if not respuesta or not respuesta.strip():
             logger.info("Triaje IA: modelo no devolvió respuesta para %s.", publicacion_id)
             return
 
-        supabase.table("foro_publicaciones").update({
-            "sugerencia_ia": {
-                "respuesta": respuesta.strip(),
-                "fuentes": fuentes,
-                "aceptada": False,
-            }
-        }).eq("id", publicacion_id).execute()
+        await asyncio.to_thread(
+            lambda: supabase.table("foro_publicaciones").update({
+                "sugerencia_ia": {
+                    "respuesta": respuesta.strip(),
+                    "fuentes": fuentes,
+                    "aceptada": False,
+                }
+            }).eq("id", publicacion_id).execute()
+        )
 
         logger.info("Triaje IA: sugerencia guardada para publicación %s.", publicacion_id)
     except Exception as e:

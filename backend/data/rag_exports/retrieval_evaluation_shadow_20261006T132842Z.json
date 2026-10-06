@@ -1,0 +1,105 @@
+{
+  "generated_at": "2026-10-06T13:29:01.874022+00:00",
+  "label_quality": "provisional_ai_approved",
+  "embedding": {
+    "provider": "openai",
+    "model": "text-embedding-3-small",
+    "dimensions": 1536,
+    "api_batches": 1,
+    "cases_embedded": 16,
+    "identifiable_case_excluded": 1
+  },
+  "cases_evaluated": 16,
+  "supabase_rpc": {
+    "successes": 16,
+    "errors": 0,
+    "error_codes": {}
+  },
+  "vector": {
+    "at_3": {
+      "cases": 16,
+      "positive_cases": 16,
+      "unanswerable_cases": 0,
+      "k": 3,
+      "recall_at_k": 0.375,
+      "precision_at_k": 0.12499999999999999,
+      "mrr_at_k": 0.33333333333333337,
+      "ndcg_at_k": 0.34375,
+      "resource_hit_rate": 0.5,
+      "unanswerable_false_positive_rate": 0.0,
+      "mean_top_similarity": 0.6789554008428307
+    },
+    "at_5": {
+      "cases": 16,
+      "positive_cases": 16,
+      "unanswerable_cases": 0,
+      "k": 5,
+      "recall_at_k": 0.5625,
+      "precision_at_k": 0.11249999999999999,
+      "mrr_at_k": 0.3770833333333333,
+      "ndcg_at_k": 0.42176287021133296,
+      "resource_hit_rate": 0.6875,
+      "unanswerable_false_positive_rate": 0.0,
+      "mean_top_similarity": 0.6789554008428307
+    },
+    "at_10": {
+      "cases": 16,
+      "positive_cases": 16,
+      "unanswerable_cases": 0,
+      "k": 10,
+      "recall_at_k": 0.5625,
+      "precision_at_k": 0.056249999999999994,
+      "mrr_at_k": 0.3770833333333333,
+      "ndcg_at_k": 0.42176287021133296,
+      "resource_hit_rate": 0.6875,
+      "unanswerable_false_positive_rate": 0.0,
+      "mean_top_similarity": 0.6789554008428307
+    }
+  },
+  "lexical_rerank": {
+    "at_3": {
+      "cases": 16,
+      "positive_cases": 16,
+      "unanswerable_cases": 0,
+      "k": 3,
+      "recall_at_k": 0.5,
+      "precision_at_k": 0.16666666666666666,
+      "mrr_at_k": 0.4583333333333333,
+      "ndcg_at_k": 0.46875,
+      "resource_hit_rate": 0.625,
+      "unanswerable_false_positive_rate": 0.0,
+      "mean_top_similarity": 0.669763582754576
+    },
+    "at_5": {
+      "cases": 16,
+      "positive_cases": 16,
+      "unanswerable_cases": 0,
+      "k": 5,
+      "recall_at_k": 0.5,
+      "precision_at_k": 0.09999999999999999,
+      "mrr_at_k": 0.4583333333333333,
+      "ndcg_at_k": 0.46875,
+      "resource_hit_rate": 0.625,
+      "unanswerable_false_positive_rate": 0.0,
+      "mean_top_similarity": 0.669763582754576
+    },
+    "at_10": {
+      "cases": 16,
+      "positive_cases": 16,
+      "unanswerable_cases": 0,
+      "k": 10,
+      "recall_at_k": 0.625,
+      "precision_at_k": 0.06249999999999999,
+      "mrr_at_k": 0.47309027777777773,
+      "ndcg_at_k": 0.5072809295281069,
+      "resource_hit_rate": 0.6875,
+      "unanswerable_false_positive_rate": 0.0,
+      "mean_top_similarity": 0.669763582754576
+    }
+  },
+  "local_retrieval_latency_ms": {
+    "p50": 11.878850000357488,
+    "p95": 55.4446000023745
+  },
+  "shadow_log": "logs\\rag-shadow-benchmark-20261006T132842Z.log"
+}

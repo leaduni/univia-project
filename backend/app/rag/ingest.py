@@ -1,11 +1,53 @@
 # Ingesta de datos
+import hashlib
 import logging
 import os
 from dotenv import load_dotenv
 from supabase import Client, create_client
 
+from app.rag.storage.factory import get_chunk_store
+from app.rag.storage.models import EmbeddedChunk, ResourceSnapshot
+
 load_dotenv()
 logger = logging.getLogger(__name__)
+
+
+def resource_snapshot_from_remote(
+    recurso: dict,
+    curso: dict | None,
+    profesor: dict | None,
+    chunks: list,
+    *,
+    embedding_provider: str,
+    embedding_model: str,
+    embedding_dimensions: int,
+    embedding_version: str,
+) -> ResourceSnapshot:
+    """Convierte metadatos de Supabase al snapshot desnormalizado del store local."""
+    recurso_id = recurso.get("id")
+    curso_id = recurso.get("curso_id")
+    if recurso_id is None or curso_id is None:
+        raise ValueError("El recurso local requiere id y curso_id.")
+    digest = hashlib.sha256()
+    for chunk in chunks:
+        digest.update((chunk.get("contenido") or "").encode("utf-8"))
+        digest.update(b"\x1e")
+    return ResourceSnapshot(
+        recurso_id=int(recurso_id),
+        curso_id=int(curso_id),
+        content_hash=digest.hexdigest(),
+        embedding_provider=embedding_provider,
+        embedding_model=embedding_model,
+        embedding_dimensions=embedding_dimensions,
+        embedding_version=embedding_version,
+        curso_nombre=(curso or {}).get("name"),
+        titulo_recurso=recurso.get("titulo"),
+        tipo_recurso=recurso.get("tipo"),
+        profesor_id=recurso.get("profesor_id"),
+        profesor_nombre=(profesor or {}).get("nombre_completo"),
+        ciclo_recurso=recurso.get("ciclo"),
+        year_recurso=recurso.get("year"),
+    )
 
 
 def _validar_embeddings(chunks: list, expected_dims: int | None = None) -> None:
@@ -119,6 +161,42 @@ class SyllabusIngestor:
         ).execute()
 
         return total_insertados
+
+    async def replace_local(
+        self,
+        chunks: list,
+        resource: ResourceSnapshot,
+        expected_dims: int | None = None,
+    ) -> int:
+        """Reemplaza un recurso en el ChunkStore local de forma transaccional.
+
+        La fila de `recursos` y sus catálogos siguen viviendo en Supabase. Este
+        método recibe el snapshot ya desnormalizado para que PostgreSQL local no
+        dependa de joins remotos durante la recuperación.
+        """
+        if not chunks:
+            raise ValueError("No se encontraron chunks para reemplazar.")
+        _validar_embeddings(chunks, expected_dims or resource.embedding_dimensions)
+        if resource.embedding_dimensions != (expected_dims or resource.embedding_dimensions):
+            raise ValueError("Las dimensiones del recurso no coinciden con la ingesta.")
+
+        embedded_chunks = [
+            EmbeddedChunk(
+                chunk_index=index,
+                contenido=chunk["contenido"],
+                embedding=chunk["embedding"],
+                metadata=chunk.get("metadata") or {},
+            )
+            for index, chunk in enumerate(chunks)
+        ]
+        store = await get_chunk_store()
+        inserted = await store.replace_resource_chunks(resource, embedded_chunks)
+        if inserted != len(embedded_chunks):
+            raise RuntimeError(
+                f"Se insertaron {inserted}/{len(embedded_chunks)} chunks del recurso "
+                f"{resource.recurso_id}."
+            )
+        return inserted
 
     def ingest(
         self,

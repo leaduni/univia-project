@@ -528,7 +528,7 @@ async def enviar_mensaje(
 
     # El handler consulta la fuente que corresponda (biblioteca, RAG, expediente)
     # y devuelve el contexto con el que se generará. Tampoco lanza.
-    contexto = handlers.construir_contexto(
+    contexto = await handlers.construir_contexto_async(
         intent,
         mensaje_rag,
         supabase,

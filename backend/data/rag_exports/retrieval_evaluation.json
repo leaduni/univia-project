@@ -1,0 +1,89 @@
+{
+  "vector": {
+    "at_3": {
+      "cases": 17,
+      "positive_cases": 17,
+      "unanswerable_cases": 0,
+      "k": 3,
+      "recall_at_k": 0.4117647058823529,
+      "precision_at_k": 0.1372549019607843,
+      "mrr_at_k": 0.37254901960784315,
+      "ndcg_at_k": 0.38235294117647056,
+      "resource_hit_rate": 0.5294117647058824,
+      "unanswerable_false_positive_rate": 0.0,
+      "mean_top_similarity": 0.6738263844290033
+    },
+    "at_5": {
+      "cases": 17,
+      "positive_cases": 17,
+      "unanswerable_cases": 0,
+      "k": 5,
+      "recall_at_k": 0.5882352941176471,
+      "precision_at_k": 0.1176470588235294,
+      "mrr_at_k": 0.4137254901960784,
+      "ndcg_at_k": 0.455776819022431,
+      "resource_hit_rate": 0.7058823529411765,
+      "unanswerable_false_positive_rate": 0.0,
+      "mean_top_similarity": 0.6738263844290033
+    },
+    "at_10": {
+      "cases": 17,
+      "positive_cases": 17,
+      "unanswerable_cases": 0,
+      "k": 10,
+      "recall_at_k": 0.5882352941176471,
+      "precision_at_k": 0.0588235294117647,
+      "mrr_at_k": 0.4137254901960784,
+      "ndcg_at_k": 0.455776819022431,
+      "resource_hit_rate": 0.7058823529411765,
+      "unanswerable_false_positive_rate": 0.0,
+      "mean_top_similarity": 0.6738263844290033
+    }
+  },
+  "lexical_rerank": {
+    "at_3": {
+      "cases": 17,
+      "positive_cases": 17,
+      "unanswerable_cases": 0,
+      "k": 3,
+      "recall_at_k": 0.5294117647058824,
+      "precision_at_k": 0.17647058823529413,
+      "mrr_at_k": 0.4901960784313726,
+      "ndcg_at_k": 0.5,
+      "resource_hit_rate": 0.6470588235294118,
+      "unanswerable_false_positive_rate": 0.0,
+      "mean_top_similarity": 0.665177060070844
+    },
+    "at_5": {
+      "cases": 17,
+      "positive_cases": 17,
+      "unanswerable_cases": 0,
+      "k": 5,
+      "recall_at_k": 0.5294117647058824,
+      "precision_at_k": 0.10588235294117646,
+      "mrr_at_k": 0.4901960784313726,
+      "ndcg_at_k": 0.5,
+      "resource_hit_rate": 0.6470588235294118,
+      "unanswerable_false_positive_rate": 0.0,
+      "mean_top_similarity": 0.665177060070844
+    },
+    "at_10": {
+      "cases": 17,
+      "positive_cases": 17,
+      "unanswerable_cases": 0,
+      "k": 10,
+      "recall_at_k": 0.6470588235294118,
+      "precision_at_k": 0.06470588235294117,
+      "mrr_at_k": 0.5040849673202614,
+      "ndcg_at_k": 0.5362644042617477,
+      "resource_hit_rate": 0.7058823529411765,
+      "unanswerable_false_positive_rate": 0.0,
+      "mean_top_similarity": 0.665177060070844
+    }
+  },
+  "latency_ms": {
+    "p50": 402.9956000013044,
+    "p95": 475.6587000010768
+  },
+  "label_quality": "provisional_ai_reviewed"
+}

@@ -29,6 +29,7 @@ from typing import Optional
 from app.rag.cost_tracker import cost_tracker
 from app.rag import health as rag_health
 from app.core.llm import get_gemini_vision
+from app.rag.embedding_settings import EmbeddingSettings
 
 load_dotenv()
 
@@ -69,7 +70,7 @@ class SyllabusEmbedder:
     def __init__(
         self,
         model_name: str = None,
-        expected_dimensions: int = 1536,
+        expected_dimensions: int | None = None,
         batch_size: int = 20,
         max_retries: int = 5,
         base_delay: float = 1.0,
@@ -96,23 +97,26 @@ class SyllabusEmbedder:
                 Gemini y las consultas con OpenAI sin que nadie lo decidiera
                 a propósito. Ahora es una decisión explícita y única.
         """
-        self.proveedor = proveedor or os.getenv("EMBEDDINGS_PROVIDER", "openai")
+        settings = EmbeddingSettings.from_env()
+        self.proveedor = (proveedor or settings.provider).lower()
+        configured_model = settings.model if self.proveedor == settings.provider else None
 
         if self.proveedor == "gemini":
             self.client = get_gemini_vision()
             if self.client is None:
                 raise RuntimeError("GEMINI_VISION_API_KEY no configurada.")
-            self.model_name = model_name or GEMINI_EMBED_MODEL
+            self.model_name = model_name or configured_model or GEMINI_EMBED_MODEL
         else:
             api_key = os.getenv("OPEN_AI_INGEST_API_KEY")
             if not api_key:
                 logger.error("OPEN_AI_INGEST_API_KEY no configurada.")
             self.client = OpenAI(api_key=api_key)
-            self.model_name = model_name or os.getenv(
+            self.model_name = model_name or configured_model or os.getenv(
                 "OPENAI_EMBED_MODEL", "text-embedding-3-small"
             )
 
-        self.expected_dimensions = expected_dimensions
+        self.expected_dimensions = expected_dimensions or settings.dimensions
+        self.embedding_version = settings.version
         self.batch_size = batch_size
         self.max_retries = max_retries
         self.base_delay = base_delay
@@ -143,9 +147,18 @@ class SyllabusEmbedder:
                     task_type=task_type,
                 ),
             )
-            return [list(e.values) for e in resultado.embeddings]
+            vectors = [list(e.values) for e in resultado.embeddings]
+            self._validate_vectors(vectors)
+            return vectors
 
         extra = {"timeout": timeout_s} if timeout_s is not None else {}
+        if self.model_name.startswith("text-embedding-3-"):
+            extra["dimensions"] = self.expected_dimensions
+        elif self.expected_dimensions != 1536:
+            raise ValueError(
+                f"El modelo {self.model_name} no admite dimensiones configurables. "
+                "Usa un modelo text-embedding-3 o restaura 1536 dimensiones."
+            )
         resultado = self.client.embeddings.create(
             model=self.model_name,
             input=textos,
@@ -155,7 +168,9 @@ class SyllabusEmbedder:
         # La API devuelve los vectores en el mismo orden que la entrada, pero
         # trae `index` explícito; se ordena por él para no depender de eso.
         datos = sorted(resultado.data, key=lambda d: d.index)
-        return [d.embedding[: self.expected_dimensions] for d in datos]
+        vectors = [list(d.embedding) for d in datos]
+        self._validate_vectors(vectors)
+        return vectors
 
     def vectorizar_consulta(self, pregunta: str, estricto: bool = False) -> list:
         """Vectoriza una pregunta para buscar en el corpus.
@@ -197,7 +212,20 @@ class SyllabusEmbedder:
                     "El proveedor de embeddings devolvió una respuesta vacía."
                 )
             return []
-        return vectores[0][: self.expected_dimensions]
+        self._validate_vectors(vectores)
+        return vectores[0]
+
+    def _validate_vectors(self, vectors: list[list[float]]) -> None:
+        import math
+
+        for index, vector in enumerate(vectors):
+            if len(vector) != self.expected_dimensions:
+                raise ValueError(
+                    f"Embedding {index} tiene {len(vector)} dimensiones; "
+                    f"se esperaban {self.expected_dimensions} dimensiones."
+                )
+            if not all(math.isfinite(value) for value in vector):
+                raise ValueError(f"Embedding {index} contiene valores no finitos.")
 
     def _procesar_lote_con_cache(self, lote: list, estricto: bool = False) -> list:
         """
@@ -213,7 +241,7 @@ class SyllabusEmbedder:
             que el lote de entrada. Chunks sin embedding (fallo definitivo)
             se omiten.
         """
-        from app.rag.embedding_cache import hash_chunk
+        from app.rag.embedding_cache import embedding_cache_key
 
         resultados = [None] * len(lote)
         textos_miss = []
@@ -222,15 +250,23 @@ class SyllabusEmbedder:
 
         # 1. Consultar caché para cada chunk
         for j, chunk in enumerate(lote):
-            h = hash_chunk(chunk["contenido"])
+            h = embedding_cache_key(
+                chunk["contenido"], self.proveedor, self.model_name,
+                self.expected_dimensions, "RETRIEVAL_DOCUMENT",
+            )
             if self.cache:
                 cached = self.cache.lookup(h)
                 if cached is not None:
-                    resultado = chunk.copy()
-                    resultado["embedding"] = cached
-                    resultados[j] = resultado
-                    hits_cache += 1
-                    continue
+                    try:
+                        self._validate_vectors([cached])
+                    except ValueError:
+                        logger.warning("Entrada de caché incompatible; se regenerará el embedding.")
+                    else:
+                        resultado = chunk.copy()
+                        resultado["embedding"] = cached
+                        resultados[j] = resultado
+                        hits_cache += 1
+                        continue
             # MISS: agregar a lista para API
             textos_miss.append(chunk["contenido"])
             indices_miss.append(j)
@@ -283,7 +319,10 @@ class SyllabusEmbedder:
             chunk["embedding"] = vector
             resultados[idx] = chunk
             if self.cache:
-                h = hash_chunk(chunk["contenido"])
+                h = embedding_cache_key(
+                    chunk["contenido"], self.proveedor, self.model_name,
+                    self.expected_dimensions, "RETRIEVAL_DOCUMENT",
+                )
                 self.cache.store(h, vector)
 
         return [r for r in resultados if r is not None]

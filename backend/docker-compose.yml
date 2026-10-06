@@ -27,13 +27,28 @@ services:
       - GROQ_API_KEY_2=${GROQ_API_KEY_2:-}
       - GROQ_API_KEY_3=${GROQ_API_KEY_3:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPEN_AI_INGEST_API_KEY=${OPEN_AI_INGEST_API_KEY:? OPEN_AI_INGEST_API_KEY es obligatoria para embeddings RAG}
+      - EMBEDDINGS_PROVIDER=${EMBEDDINGS_PROVIDER:-openai}
+      - OPENAI_EMBED_MODEL=${OPENAI_EMBED_MODEL:-text-embedding-3-small}
+      - EMBEDDINGS_DIMENSIONS=${EMBEDDINGS_DIMENSIONS:-1536}
+      - EMBEDDINGS_VERSION
+      - RAG_STORE=${RAG_STORE:-supabase}
+      - RAG_DATABASE_URL=${RAG_DATABASE_URL:-}
+      - RAG_DB_POOL_MIN_SIZE=${RAG_DB_POOL_MIN_SIZE:-1}
+      - RAG_DB_POOL_MAX_SIZE=${RAG_DB_POOL_MAX_SIZE:-5}
+      - RAG_DB_COMMAND_TIMEOUT_SECONDS=${RAG_DB_COMMAND_TIMEOUT_SECONDS:-30}
+      - RAG_SHADOW_READ_ENABLED=${RAG_SHADOW_READ_ENABLED:-false}
+      - RAG_SHADOW_READ_SAMPLE_RATE=${RAG_SHADOW_READ_SAMPLE_RATE:-0.01}
+      - RAG_SHADOW_READ_TIMEOUT_SECONDS=${RAG_SHADOW_READ_TIMEOUT_SECONDS:-6}
+      - RAG_RERANKER=${RAG_RERANKER:-lexical}
+      - RAG_RERANK_TIMEOUT_SECONDS=${RAG_RERANK_TIMEOUT_SECONDS:-1}
       - RAPIDAPI_KEY=${RAPIDAPI_KEY:-}
       - JUDGE0_URL=${JUDGE0_URL:-}
       - JUDGE0_AUTHN_TOKEN=${JUDGE0_AUTHN_TOKEN:-}
     # Sin bind-mount del código: la imagen lleva la versión construida. Para
     # desarrollo en caliente, usar un docker-compose.override.yml local.
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/', timeout=5).status == 200 else 1)"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health', timeout=5).status == 200 else 1)"]
       interval: 30s
       timeout: 10s
       retries: 5

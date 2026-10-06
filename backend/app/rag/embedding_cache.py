@@ -5,6 +5,7 @@ Cada chunk se identifica por un hash SHA-256 de su contenido normalizado.
 Los embeddings cacheados se persisten en la tabla 'embedding_cache' de Supabase.
 """
 import hashlib
+import json
 import re
 import logging
 from typing import Optional
@@ -31,6 +32,25 @@ def hash_chunk(contenido: str) -> str:
     """
     normalizado = normalizar(contenido)
     return hashlib.sha256(normalizado.encode("utf-8")).hexdigest()
+
+
+def embedding_cache_key(
+    contenido: str,
+    provider: str,
+    model: str,
+    dimensions: int,
+    task_type: str,
+) -> str:
+    """Clave que impide reutilizar vectores de otro espacio semántico."""
+    contract = {
+        "content_hash": hash_chunk(contenido),
+        "dimensions": dimensions,
+        "model": model,
+        "provider": provider,
+        "task_type": task_type,
+    }
+    encoded = json.dumps(contract, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 class EmbeddingCache:

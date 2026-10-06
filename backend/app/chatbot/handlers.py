@@ -11,6 +11,7 @@ normal, con el modelo avisado de que no pudo consultar el dato. Es preferible a
 romper el turno, porque el estudiante ya está esperando con la burbuja abierta.
 """
 
+import asyncio
 import logging
 import os
 import re
@@ -20,6 +21,7 @@ from typing import Optional
 
 from app.chatbot import intents
 from app.core.avance import cargar_avance, promedio_ponderado
+from app.core.rag_database import rag_store_name
 from app.core.tipos_recursos import normalizar_tipo
 
 logger = logging.getLogger(__name__)
@@ -386,8 +388,10 @@ def _handler_recurso(
     token: str,
     curso_id_forzado: Optional[int] = None,
     recurso_id_forzado: Optional[int] = None,
+    rag_fallback=None,
 ) -> Contexto:
     """Busca material descargable y lo devuelve como tarjetas."""
+    fallback = rag_fallback or _handler_duda_academica
     try:
         cursos = _cursos_de_la_facultad(supabase, user)
     except Exception as e:
@@ -413,7 +417,7 @@ def _handler_recurso(
         # ejercicio de la FIIS"): mejor probar el RAG en todo el corpus que
         # responder una negativa del catálogo.
         if intents._es_busqueda_contenido_abierta(mensaje):
-            return _handler_duda_academica(mensaje, supabase, user, token)
+            return fallback(mensaje, supabase, user, token)
         return Contexto(
             system_extra=(
                 "No identificaste de qué curso te habla. Pídele que lo diga con su nombre "
@@ -617,18 +621,205 @@ def _handler_duda_academica(
 
     return Contexto(
         system_extra=(
-            "Responde apoyándote en el material del curso que viene abajo. Aplica una guía "
-            "socrática: antes de revelar la solución completa, guía al estudiante con preguntas "
-            "y pasos intermedios; luego ofrece el procedimiento si lo necesita. Este material "
+            "Responde apoyándote en el material del curso que viene abajo. Si el estudiante pide "
+            "resolver un ejercicio o aprender un procedimiento, aplica una guía socrática; para "
+            "preguntas conceptuales concretas, responde directamente. Este material "
             "proviene del banco verificado del propio estudiante; puedes resolver sus ejercicios, "
             "mostrar procedimientos paso a paso y generar variantes, sin tratarlo como material "
             "restringido. Conserva la procedencia [F#] al mencionar profesores, fechas, ciclos "
-            "o datos documentales. Si no alcanza para responder del todo, complétalo con tu "
-            "conocimiento y dilo."
+            "o datos documentales. Responde primero con lo que la fuente respalda y no añadas "
+            "afirmaciones técnicas que el material no respalde. Si el material basta, no añadas "
+            "información externa, recomendaciones, remedios ni riesgos. Si el material no basta, "
+            "separa el conocimiento general necesario e indica que no proviene de la fuente. Para "
+            "una pregunta concreta respondida por una fuente, contesta en una o dos frases y termina "
+            "después de citarla. No ofrezcas recomendaciones, remedios, ejemplos ni preguntas de "
+            "seguimiento salvo que te los pidan."
         ),
         bloque=f"Fuentes recuperadas del curso:\n{contenidos}",
         adjuntos=adjuntos,
     )
+
+
+def _limitar_chunks_por_recurso(fragmentos: list, maximo_por_recurso: int) -> list:
+    """Conserva el orden de similitud y evita que un documento monopolice el prompt."""
+    conteos: dict[object, int] = {}
+    seleccionados: list = []
+    for fragmento in fragmentos:
+        recurso_id = fragmento.get("recurso_id")
+        if conteos.get(recurso_id, 0) >= maximo_por_recurso:
+            continue
+        conteos[recurso_id] = conteos.get(recurso_id, 0) + 1
+        seleccionados.append(fragmento)
+    return seleccionados
+
+
+def _contexto_desde_fragmentos_rag(
+    fragmentos: list, profesor_id: Optional[int], fallback_relacional: bool
+) -> Contexto:
+    """Construye el contrato del chatbot a partir de filas de cualquier adaptador RAG."""
+    if not fragmentos:
+        if fallback_relacional:
+            return Contexto(
+                system_extra=(
+                    "La búsqueda de respaldo en documentos RAG tampoco encontró referencias "
+                    "para esta consulta. No inventes entidades ni documentos."
+                ),
+                adjuntos={"fragmentos": 0},
+            )
+        return Contexto(
+            system_extra=(
+                "No se recuperaron fragmentos del banco para esta consulta. Respóndele igual: "
+                "identifica qué concepto o paso necesita trabajar el estudiante, aplica una guía "
+                "socrática y propón un primer paso antes de la respuesta directa. No digas que 'no "
+                "hay datos en la app' ni que solo tienes su perfil: son correctos solo para datos "
+                "estructurales. Si la consulta es abierta (sin curso o tema), pídele amablemente que "
+                "indique el curso o tema para buscarlo en su banco de datos, y aclara que tu respuesta "
+                "no proviene del material del curso."
+            )
+        )
+
+    contenidos = _armar_contexto_rag(fragmentos)
+    if not contenidos:
+        return Contexto(
+            system_extra=(
+                "La búsqueda encontró referencias sin contenido utilizable. Responde con tu "
+                "conocimiento general y aclara que no proviene del material del curso."
+            )
+        )
+    referencias = _referencias_rag(fragmentos)
+    adjuntos = {
+        "fragmentos": min(len(fragmentos), MAX_FRAGMENTOS_RAG),
+        "referencias": referencias,
+    }
+    if profesor_id:
+        adjuntos["profesor_id"] = profesor_id
+    if len(referencias) == 1:
+        adjuntos.update(referencias[0])
+    return Contexto(
+        system_extra=(
+            "Responde apoyándote en el material del curso que viene abajo. Si el estudiante pide "
+            "resolver un ejercicio o aprender un procedimiento, aplica una guía socrática; para "
+            "preguntas conceptuales concretas, responde directamente. Este material "
+            "proviene del banco verificado del propio estudiante; puedes resolver sus ejercicios, "
+            "mostrar procedimientos paso a paso y generar variantes, sin tratarlo como material "
+            "restringido. Conserva la procedencia [F#] al mencionar profesores, fechas, ciclos "
+            "o datos documentales. Responde primero con lo que la fuente respalda y no añadas "
+            "afirmaciones técnicas que el material no respalde. Si el material basta, no añadas "
+            "información externa, recomendaciones, remedios ni riesgos. Si el material no basta, "
+            "separa el conocimiento general necesario e indica que no proviene de la fuente. Para "
+            "una pregunta concreta respondida por una fuente, contesta en una o dos frases y termina "
+            "después de citarla. No ofrezcas recomendaciones, remedios, ejemplos ni preguntas de "
+            "seguimiento salvo que te los pidan."
+        ),
+        bloque=f"Fuentes recuperadas del curso:\n{contenidos}",
+        adjuntos=adjuntos,
+    )
+
+
+async def _handler_duda_academica_async(
+    mensaje: str,
+    supabase,
+    user,
+    token: str,
+    curso_id_forzado: Optional[int] = None,
+    profesor_id_forzado: Optional[int] = None,
+    recurso_id_forzado: Optional[int] = None,
+    fallback_relacional: bool = False,
+) -> Contexto:
+    """Recupera en el almacén primario y compara en segundo plano si aplica."""
+    profesor_id = None
+    try:
+        from app.rag.retriever import SyllabusRetriever
+
+        curso = {"id": curso_id_forzado} if curso_id_forzado is not None else None
+        if curso is None:
+            try:
+                cursos = await asyncio.to_thread(_cursos_de_la_facultad, supabase, user)
+                curso = await asyncio.to_thread(_detectar_curso, mensaje, cursos)
+            except Exception as e:
+                logger.warning("No se pudo acotar la duda a un curso: %s", e)
+
+        profesor_id = profesor_id_forzado or await asyncio.to_thread(
+            _resolver_profesor, mensaje, supabase
+        )
+        if recurso_id_forzado is not None:
+            retriever = SyllabusRetriever(token=token)
+            fragmentos = await retriever.buscar_contexto_async(
+                mensaje,
+                limit=MAX_CANDIDATOS_RAG,
+                umbral_similitud=0.0,
+                recurso_id=recurso_id_forzado,
+            )
+        else:
+            curso_contextual_confirmado = curso_id_forzado is not None
+            busqueda_global = profesor_id is not None or (
+                _detectar_tipo(mensaje) is not None and not curso_contextual_confirmado
+            )
+            sin_curso = curso is None or busqueda_global
+            maximo_por_recurso = (
+                MAX_CHUNKS_POR_RECURSO_SIN_CURSO
+                if sin_curso
+                else MAX_CHUNKS_POR_RECURSO_CON_CURSO
+            )
+            candidatos = (
+                MAX_CANDIDATOS_SIN_CURSO if sin_curso else MAX_CANDIDATOS_RAG
+            )
+            retriever = SyllabusRetriever(token=token)
+            curso_id = curso["id"] if curso and not busqueda_global else None
+            umbral = (
+                UMBRAL_SIMILITUD_SIN_CURSO if sin_curso else UMBRAL_SIMILITUD_RAG
+            )
+            if rag_store_name() == "postgres":
+                fragmentos = await retriever.buscar_contexto_async(
+                    mensaje,
+                    limit=candidatos * maximo_por_recurso,
+                    umbral_similitud=umbral,
+                    curso_id=curso_id,
+                    profesor_id=profesor_id,
+                )
+            else:
+                # Mantiene exactamente la RPC híbrida que usa el chatbot en
+                # Supabase, pero entrega el mismo vector al shadow-read local.
+                vector = await asyncio.to_thread(retriever.vectorizar_pregunta, mensaje)
+                fragmentos = []
+                if vector:
+                    params = {
+                        "query_text": mensaje,
+                        "query_embedding": vector,
+                        "match_threshold": umbral,
+                        "match_count": candidatos,
+                        "filter_curso_id": curso_id,
+                        "filter_profesor_id": profesor_id,
+                        "max_chunks_per_resource": maximo_por_recurso,
+                    }
+                    try:
+                        response = await asyncio.to_thread(
+                            lambda: retriever.supabase.rpc(
+                                "search_chatbot_resource_chunks", params
+                            ).execute()
+                        )
+                        fragmentos = getattr(response, "data", None) or []
+                        retriever.schedule_shadow_read(
+                            fragmentos,
+                            vector,
+                            mensaje,
+                            candidatos,
+                            umbral,
+                            curso_id=curso_id,
+                            profesor_id=profesor_id,
+                            max_chunks_per_resource=maximo_por_recurso,
+                        )
+                    except Exception as e:
+                        logger.error(
+                            "Falló la búsqueda RAG híbrida en Supabase (%s).",
+                            type(e).__name__,
+                        )
+            fragmentos = _limitar_chunks_por_recurso(fragmentos, maximo_por_recurso)
+    except Exception as e:
+        logger.error("Falló la búsqueda RAG local: %s", e)
+        fragmentos = []
+
+    return _contexto_desde_fragmentos_rag(fragmentos, profesor_id, fallback_relacional)
 
 
 def _handler_estado_academico(mensaje: str, supabase, user, token: str) -> Contexto:
@@ -1006,3 +1197,105 @@ def construir_contexto(
         return Contexto(
             system_extra="No pudiste consultar los datos necesarios. Dilo con honestidad."
         )
+
+
+async def construir_contexto_async(
+    intent: str,
+    mensaje: str,
+    supabase,
+    user,
+    token: str,
+    slots_contextuales: Optional[dict] = None,
+) -> Contexto:
+    """Despacha el RAG local sin bloquear el endpoint SSE del chatbot."""
+    if rag_store_name() != "postgres" and not (
+        intent == intents.DUDA_ACADEMICA
+        and not (slots_contextuales or {}).get("recurso_id")
+    ):
+        return await asyncio.to_thread(
+            construir_contexto, intent, mensaje, supabase, user, token, slots_contextuales
+        )
+
+    slots = slots_contextuales or {}
+    if slots.get("recurso_ambiguo"):
+        candidatos = [c for c in slots.get("candidatos", []) if c]
+        detalle = ", ".join(candidatos[:3])
+        sufijo = f" Opciones: {detalle}." if detalle else ""
+        return Contexto(
+            respuesta_fija="Encontré varios documentos posibles. ¿Cuál quieres ver?" + sufijo
+        )
+    if slots.get("seguimiento_docente"):
+        intent = intents.CONSULTA_DOCENTES
+    elif slots.get("profesor_id") and intent == intents.GENERAL:
+        intent = intents.CONSULTA_DOCENTES
+    if slots.get("recurso_id") and intent == intents.GENERAL:
+        intent = intents.RECURSO
+    if intent == intents.GENERAL and intents._es_consulta_catalogo(mensaje):
+        intent = intents.CATALOGO
+    if intent == intents.GENERAL and intents._es_busqueda_contenido_abierta(mensaje):
+        intent = intents.DUDA_ACADEMICA
+
+    if intent == intents.DUDA_ACADEMICA:
+        return await _handler_duda_academica_async(
+            mensaje,
+            supabase,
+            user,
+            token,
+            curso_id_forzado=slots.get("curso_id"),
+            profesor_id_forzado=slots.get("profesor_id"),
+            recurso_id_forzado=slots.get("recurso_id"),
+        )
+    if intent in (intents.CONSULTA_DOCENTES, intents.RECURSO):
+        loop = asyncio.get_running_loop()
+
+        def local_rag_fallback(texto, client, perfil, auth_token, **filtros):
+            # El handler relacional es síncrono y corre en un worker. La búsqueda
+            # vectorial debe ejecutarse en el loop dueño del pool asyncpg.
+            future = asyncio.run_coroutine_threadsafe(
+                _handler_duda_academica_async(
+                    texto,
+                    client,
+                    perfil,
+                    auth_token,
+                    fallback_relacional=True,
+                    curso_id_forzado=filtros.get("curso_id_forzado"),
+                    profesor_id_forzado=filtros.get("profesor_id_forzado"),
+                    recurso_id_forzado=filtros.get("recurso_id_forzado"),
+                ),
+                loop,
+            )
+            return future.result()
+
+        if intent == intents.CONSULTA_DOCENTES:
+            return await asyncio.to_thread(
+                _handler_consulta_docentes,
+                mensaje,
+                supabase,
+                user,
+                token,
+                profesor_id_forzado=slots.get("profesor_id"),
+                curso_id_forzado=slots.get("curso_id"),
+                rag_fallback=local_rag_fallback,
+            )
+        if not (slots.get("profesor_id") and not (
+            slots.get("recurso_id") or slots.get("curso_id")
+        )):
+            return await asyncio.to_thread(
+                _handler_recurso,
+                mensaje,
+                supabase,
+                user,
+                token,
+                curso_id_forzado=slots.get("curso_id"),
+                recurso_id_forzado=slots.get("recurso_id"),
+                rag_fallback=local_rag_fallback,
+            )
+    if intent == intents.RECURSO and slots.get("profesor_id") and not (
+        slots.get("recurso_id") or slots.get("curso_id")
+    ):
+        return await _handler_duda_academica_async(
+            mensaje, supabase, user, token, profesor_id_forzado=slots["profesor_id"]
+        )
+    return await asyncio.to_thread(
+        construir_contexto, intent, mensaje, supabase, user, token, slots_contextuales
+    )

@@ -5,7 +5,6 @@ import asyncio
 import logging
 import traceback
 import sys
-import random
 
 from fastapi import APIRouter, HTTPException, Depends, Header, Request
 from fastapi.responses import StreamingResponse
@@ -27,6 +26,20 @@ from app.core.llm import (
 )
 from app.rag.retriever import SyllabusRetriever
 from app.rag.embedder import EmbeddingQuotaExhausted
+from app.evaluations.prompt_builder import (
+    PROMPT_DIR,
+    EVALUATION_PROMPT_VERSION,
+    build_system_prompt,
+    difficulty_guidance,
+    format_source_context,
+    render_prompt_template,
+)
+from app.evaluations.course_profiles import classify_course_profile, focus_for_profile
+from app.evaluations.validator import (
+    question_key,
+    validate_evaluation_questions,
+    validate_generated_question,
+)
 from app.core.auth_utils import get_current_user
 from app.core.rate_limit import limiter
 from app.core.executor_llm import correr_en_hilo_llm, executor_llm
@@ -76,7 +89,7 @@ async def _liberar_cupo_usuario(user_id: str) -> None:
 REGLA_CONCISION_EXPLICACION = (
     "REGLA DE CONCISIÓN (CRÍTICA, evita truncar el JSON): el campo 'explicacion' "
     "debe ser directo, conciso y enfocado únicamente en el procedimiento correcto "
-    "(máximo 180 palabras, con los pasos y fórmulas imprescindibles). Queda ESTRICTAMENTE "
+    "(máximo 150 palabras, con los pasos y fórmulas imprescindibles). Queda ESTRICTAMENTE "
     "PROHIBIDO incluir debates internos, recálculos alternativos, tablas extensas "
     "ni textos explicativos innecesariamente largos que puedan truncar la respuesta. "
 )
@@ -284,7 +297,7 @@ def obtener_nombre_curso(curso_id: int, token: Optional[str] = None) -> Optional
         logger.warning("Error al obtener el nombre del curso %s: %s", curso_id, e)
     return None
 
-def recuperar_contexto_semantico(    tema_consulta: str, curso_id: int, profesor_id: Optional[int] = None, token: Optional[str] = None
+async def recuperar_contexto_semantico(    tema_consulta: str, curso_id: int, profesor_id: Optional[int] = None, token: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """Usa el SyllabusRetriever del módulo RAG para buscar los fragmentos más relevantes del curso.
 
@@ -304,28 +317,33 @@ def recuperar_contexto_semantico(    tema_consulta: str, curso_id: int, profesor
     if not retriever:
         return []
 
-    curso_nombre = obtener_nombre_curso(curso_id, token)
+    curso_nombre = await asyncio.to_thread(obtener_nombre_curso, curso_id, token)
     if not curso_nombre:
-        logger.warning("No se pudo resolver el nombre del curso %s; se omite el filtro por nombre.", curso_id)
+        logger.warning(
+            "No se pudo resolver el nombre del curso %s; se conserva el filtro por id.",
+            curso_id,
+        )
 
     try:
-        # Recuperar pool acotado (hasta 6, umbral 0.4) y muestrear: el fragmento
-        # de mayor similitud (rank #1, primero del resultado ordenado de la RPC)
-        # siempre se incluye; los otros 2 se sortean del resto del pool. El
-        # tope de 3 chunks queda recortado por presupuesto de caracteres
+        # Recuperar pool acotado (hasta 6, umbral 0.4) y mantener las tres
+        # fuentes mejor clasificadas. El tope queda recortado por presupuesto
+        # de caracteres
         # (EVAL_RAG_MAX_CHARS) para no reventar los TPM del free tier.
-        resultados = retriever.buscar_contexto_por_nombre(
-            tema_consulta,
-            curso_nombre=curso_nombre,
-            limit=6,
-            umbral_similitud=0.4,
-            profesor_id=profesor_id,
-            estricto=True,
-        )
-        if len(resultados) > 3:
-            mejor_fragmento = resultados[0]
-            resto = random.sample(resultados[1:], k=2)
-            resultados = [mejor_fragmento] + resto
+        parametros = {
+            "limit": 6,
+            "umbral_similitud": 0.4,
+            "profesor_id": profesor_id,
+            "estricto": True,
+        }
+        if curso_nombre:
+            resultados = await retriever.buscar_contexto_por_nombre_async(
+                tema_consulta, curso_nombre=curso_nombre, **parametros,
+            )
+        else:
+            resultados = await retriever.buscar_contexto_async(
+                tema_consulta, curso_id=curso_id, **parametros,
+            )
+        resultados = resultados[:3]
         resultados = _recortar_items_contexto(resultados)
         return resultados
 
@@ -355,7 +373,9 @@ def _enfoque_para_indice(idx: int) -> str:
     return ENFOQUES_PREGUNTA[idx % len(ENFOQUES_PREGUNTA)]
 
 
-def DIVERSIDAD_POR_INDICE_BLOQUE(num_preguntas: int, indice_inicial: int = 0) -> str:
+def DIVERSIDAD_POR_INDICE_BLOQUE(
+    num_preguntas: int, indice_inicial: int = 0, perfil: str = "mathematics"
+) -> str:
     """Bloque de prompt que asigna un enfoque obligatorio y distinto a cada
     pregunta por su número de orden, para el modo de una sola llamada JSON.
 
@@ -366,7 +386,7 @@ def DIVERSIDAD_POR_INDICE_BLOQUE(num_preguntas: int, indice_inicial: int = 0) ->
     construcción, no por sugerencia.
     """
     lineas = [
-        f"- Pregunta {indice_inicial + i + 1}: enfoque obligatorio = {_enfoque_para_indice(indice_inicial + i)}."
+        f"- Pregunta {indice_inicial + i + 1}: enfoque obligatorio = {focus_for_profile(perfil, indice_inicial + i)}."
         for i in range(num_preguntas)
     ]
     return (
@@ -382,8 +402,8 @@ DIRECTIVA_VARIABILIDAD_PREGUNTAS = (
     "DIRECTIVA DE VARIABILIDAD ENTRE PREGUNTAS: si varias preguntas de la "
     "evaluación versan sobre un mismo tema, DEBES variar los enfoques y "
     "profundizar en distintos aspectos del contexto recuperado. En ejercicios "
-    "prácticos, altera los datos/valores numéricos del material de referencia "
-    "y entre pregunta y pregunta, para evitar preguntas idénticas o repetitivas."
+    "prácticos, varía escenarios, restricciones y datos pertinentes entre "
+    "preguntas para evitar ejercicios idénticos o variantes triviales."
 )
 
 
@@ -392,198 +412,53 @@ def generar_prompt_teorico(
     contexto_recuperado: List[str] = None,
     indice_inicial: int = 0,
 ) -> str:
-    """Genera el prompt para un curso teórico."""
-
+    """Prepara las variables de la plantilla teórica versionada."""
     tipos_pregunta = {
         "multiple": "selección múltiple (varias respuestas correctas)",
         "unica": "única respuesta correcta",
         "verdadero_falso": "verdadero o falso",
-        "mixta": "combinación de selección múltiple, única respuesta y verdadero/falso"
+        "mixta": "combinación de selección múltiple, única respuesta y verdadero/falso",
     }
-
     tema_unico = config.temas[0] if len(config.temas) == 1 else None
-    temas_str = config.temas[0] if tema_unico else ', '.join(config.temas)
+    restriccion = (
+        f'Todas las preguntas deben tratar únicamente "{tema_unico}".'
+        if tema_unico else ""
+    )
+    return render_prompt_template(
+        PROMPT_DIR / "theory.md",
+        {
+            "CONTEXT": format_source_context(contexto_recuperado or []),
+            "TOPICS": ", ".join(config.temas),
+            "TOPIC_RESTRICTION": restriccion,
+            "COUNT": str(config.num_preguntas),
+            "TYPE": tipos_pregunta.get(config.tipo_evaluacion, "mixta"),
+            "DIFFICULTY": difficulty_guidance(config.modulo, config.temas),
+            "DIVERSITY": DIVERSIDAD_POR_INDICE_BLOQUE(
+                config.num_preguntas,
+                indice_inicial,
+                classify_course_profile(config.modulo, config.temas),
+            ),
+            "VARIABILITY": DIRECTIVA_VARIABILIDAD_PREGUNTAS,
+            "CONCISION": REGLA_CONCISION_EXPLICACION,
+        },
+    )
 
-    restriccion_tema = ""
-    if tema_unico:
-        restriccion_tema = f"""
-RESTRICCIÓN DE TEMA (OBLIGATORIA E INNEGOCIABLE):
-- TODAS las {config.num_preguntas} preguntas deben ser sobre: "{tema_unico}".
-- NINGUNA pregunta puede ser sobre otro tema diferente a "{tema_unico}", aunque esté relacionado.
-- Si tienes duda de si una pregunta pertenece a "{tema_unico}", descártala y genera otra sobre ese mismo tema.
-"""
-
-    contexto_bloque = ""
-    if contexto_recuperado and len(contexto_recuperado) > 0:
-        contenidos = [c.get("contenido", "") for c in contexto_recuperado]
-        contexto_str = "\n\n---\n".join(contenidos)
-        contexto_bloque = f"""
-### EJERCICIOS REALES DE EXAMENES UNI - REFERENCIA OBLIGATORIA ###
-{contexto_str}
-### FIN DE REFERENCIA ###
-
-INSTRUCCION CRITICA: Los ejercicios anteriores son examenes REALES de la UNI.
-Toma cada ejercicio y TRANSFORMALO: mantén exactamente la misma estructura lógica y cantidad de pasos,
-el mismo tipo de datos (coordenadas, vectores, razones, distancias), y cambia SOLO los valores numéricos.
-NUNCA generes algo más simple que el ejercicio más sencillo de la referencia.
-"""
-
-    prompt = rf"""Eres un profesor del Departamento de Ciencias Básicas de la UNI generando una Práctica Calificada REAL.
-{contexto_bloque}
-TEMA: {temas_str}
-{restriccion_tema}
-CANTIDAD: {config.num_preguntas} preguntas | TIPO: {tipos_pregunta.get(config.tipo_evaluacion, 'mixta')}
-
-### ESTANDAR DE DIFICULTAD - OBLIGATORIO SIN EXCEPCION ###
-Cada pregunta DEBE cumplir TODOS estos requisitos:
-1. LONGITUD: el enunciado debe tener al menos 4 datos numéricos concretos (coordenadas, vectores, razones, distancias, parámetros).
-2. CADENA DE CÁLCULO: resolver la pregunta requiere mínimo 4 pasos algebraicos encadenados donde cada resultado alimenta el siguiente.
-3. INCÓGNITAS MÚLTIPLES: se deben determinar al menos 2 valores desconocidos a partir de condiciones geométricas.
-4. CONTEXTO GEOMÉTRICO COMPLEJO: usar configuraciones como triángulos/cuadriláteros con puntos definidos por intersecciones, divisiones de segmentos en razón dada, proyecciones, ángulos entre rectas, distancias punto-recta.
-5. DISTRACTORES TRAMPA: las 4 opciones deben ser resultados numéricos donde los 3 incorrectos corresponden a errores de cálculo específicos (signo cambiado, componente equivocada, confusión de índice, error de sustitución).
-6. PROHIBIDO ABSOLUTAMENTE: "halla la pendiente de y=mx+b", "dados dos puntos halla la recta", definiciones, fórmulas directas. Si una pregunta se puede resolver en 1 paso, DESÉCHALA.
-7. Genera un conjunto de N preguntas estrictamente ÚNICAS y DISTINTAS entre sí. Está prohibido repetir el mismo ejercicio o generar variantes triviales del mismo problema dentro del mismo lote.
-{DIVERSIDAD_POR_INDICE_BLOQUE(config.num_preguntas, indice_inicial)}
-{DIRECTIVA_VARIABILIDAD_PREGUNTAS}
-
-FORMATO LaTeX — KaTeX COMPATIBLE ÚNICAMENTE:
-COMANDOS PERMITIDOS: \frac, \vec, \mathbf, \overline, \left(, \right), \mid, \mathbb, \sqrt, \cdot, \times, \alpha, \beta, \theta, \pi, \perp, \parallel, \in, \mathbb{{R}}, \leq, \geq, \neq, \pm
-COMANDOS PROHIBIDOS (rompen KaTeX): \begin, \end, \matrix, \Bmatrix, \bigg, \Big, \bigr, \bigl, \rfloor, \lfloor, \textbf, \bar, \dfrac, \text
-- Rectas vectoriales: "$L: (2,1) + t(3,n),\ t \in \mathbb{{R}}$" — SIN \begin{{Bmatrix}}, SIN \bigg, SIN \rfloor
-- Prosa FUERA de $...$: CORRECTO: "La recta $L_1$ pasa por $A=(2,3)$" / INCORRECTO: "$L_1 \text{{pasa por}} A$"
-- Segmentos: $\overline{{AC}}$ (no \bar{{AC}})
-- Vectores: $\vec{{v}}$ o $\mathbf{{v}}$ (no \textbf)
-- Fracciones: $\frac{{p}}{{q}}$ (no \dfrac). Queda estrictamente prohibido usar corchetes en lugar de llaves en fracciones (usa siempre \frac{{a}}{{b}}).
-- Módulos: $|\vec{{v}}| = 3$
-- Coordenadas: $A = (2, 1)$
-- Formatea toda expresión matemática en notación KaTeX válida delimitada ÚNICAMENTE por $ para expresiones inline (ej. $f(x) = \sin(x)$) o $$ para ecuaciones centradas en bloque.
-
-RESPONDE ÚNICAMENTE con este JSON:
-{{
-  "preguntas": [
-    {{
-      "id": 1,
-      "pregunta": "enunciado completo y largo con todos los datos",
-      "tipo": "unica|multiple|verdadero_falso",
-      "opciones": ["opción A", "opción B", "opción C", "opción D"],
-      "respuesta_correcta": 0,
-      "explicacion": "Aplica la fórmula o procedimiento indicado con los datos relevantes. El resultado obtenido corresponde a la opción correcta."
-    }}
-  ]
-}}
-
-REGLAS JSON: "unica" → respuesta_correcta es índice 0-3. "multiple" → lista [0,2]. "verdadero_falso" → opciones ["Verdadero","Falso"].
-REGLA DE AISLAMIENTO DE OPCIONES (CRÍTICO):
-1. Si el contexto RAG contiene una página con varios ejercicios, debes elegir ÚNICAMENTE UN ejercicio.
-2. El arreglo 'opciones' DEBE CONTENER EXACTAMENTE 4 ELEMENTOS.
-3. Queda ESTRICTAMENTE PROHIBIDO concatenar opciones de otros ejercicios vecinos.
-4. NO incluyas letras de prefijo como 'A)', 'a.', '1.' dentro del texto de la opción. Pon solo la expresión o respuesta directas.
-
-INSTRUCCIONES UNIVERSALES DE FORMATO Y ESTRUCTURA (MULTICURSO):
-
-1. SINTAXIS LATEX EN TODO EL EXAMEN:
-   - Cualquier fórmula matemática, expresión algebraica, ecuación, integral, matriz o vector en 'questionText', 'options' y 'explanation' DEBE IR DENTRO DE SIGNOS DE DÓLAR $...$.
-   - EJEMPLOS CORRECTOS: "Calcule $\int_0^1 x^2 dx$", "Determine el valor de $k$", "Ajuste el modelo $Y = \beta_0 + \beta_1 X$".
-   - PROHIBIDO escribir comandos LaTeX (\frac, \sqrt, \int, \vec, \matrix) sin delimitadores $...$.
-   - Usa estrictamente $...$ para matemáticas en línea y $$...$$ para bloques independientes.
-   - NUNCA uses triple dólar ($$$) ni pegues palabras de texto plano a comandos LaTeX (ejemplo correcto: "Halle $\vec{{QS}}$", incorrecto: "Halle\vec{{QS}}").
-   - Asegúrate de cerrar todos los delimitadores matemáticos abiertos antes de finalizar cada respuesta.
-
-2. COHERENCIA COMPLETA ENTRE PREGUNTA Y OPCIONES:
-   - Si la pregunta pide determinar $N$ variables, elementos o componentes, CADA opción en 'options' DEBE proporcionar la solución completa para los $N$ elementos solicitados.
-   - PROHIBIDO etiquetar problemas de cálculo complejo como "Verdadero o Falso".
-
-3. DIVERSIDAD ESTRICTA DE ENUNCIADOS Y PLANTILLAS (PROHIBIDO MONOTONÍA):
-   - Queda ESTRICTAMENTE PROHIBIDO repetir la misma plantilla, contexto o estructura narrativa en más de UNA pregunta del examen.
-   - Cada pregunta del examen DEBE explorar un subtema o aplicación distinta dentro del temario/curso solicitado.
-   - Alterna entre: problemas teóricos de demostración/concepto, problemas de aplicación directa, problemas numéricos y problemas de interpretación de modelos.
-
-INSTRUCCIÓN PARA EL CAMPO 'explicacion':
-El campo 'explicacion' DEBE seguir estrictamente esta estructura Markdown con doble salto de línea entre pasos:
-
-### Paso 1: Planteamiento e Identificación de Datos
-[Explicación con fórmulas en $...$]
-
-### Paso 2: Desarrollo algebraico detallado
-[Explicación paso a paso con fórmulas en $...$]
-
-### Paso 3: Conclusión
-[Respuesta final clara]
-
-REGLA ESTRICTA: Queda PROHIBIDO mencionar 'opción 0', 'opción 1', 'opción A', etc. Menciona únicamente el valor o vector solución final.
-
-""" + REGLA_CONCISION_EXPLICACION + """
-REGLA CRÍTICA PARA LA SOLUCIÓN (explicacion):
-CADA variable, fórmula o comando LaTeX (\vec, \sqrt, \frac, \text, etc.) DEBE estar estrictamente envuelto entre signos de dólar ($ ... $). Separa siempre con un espacio en blanco los delimitadores de las palabras en español. Ejemplo CORRECTO: "La recta $L_1$ pasa por $A=(2,3)$". Ejemplo INCORRECTO: "La recta$L_1$pasa por$A$". NUNCA generes comandos LaTeX sueltos sin delimitador $.
-"""
-    return prompt
-
-def generar_prompt_programacion(config: ConfiguracionEvaluacion, contexto_recuperado: List[str] = None) -> str:
-    """Genera el prompt para un curso de programación."""
-    
-    prompt = f"""Eres un Arquitecto de Software diseñando retos técnicos para evaluar candidatos. Tu tono es directo, técnico y sin ambigüedades.
-
-Genera {config.num_preguntas} retos de programación de nivel 'Senior Universitario' sobre los siguientes temas:
-{', '.join(config.temas)}
-
-"""
-    
-    if config.observaciones:
-        prompt += f"\nRequerimientos adicionales del cliente (lenguaje, etc.):\n{config.observaciones}\n"
-    
-    if contexto_recuperado and len(contexto_recuperado) > 0:
-        contenidos = [c.get("contenido", "") for c in contexto_recuperado]
-        contexto_str = "\n\n---\n".join(contenidos)
-        prompt += f"""
-Contexto (Ejemplos de problemas o material de referencia):
-A continuación tienes material de referencia para que el estilo, nivel de dificultad y tipo de reto se parezca al material del curso:
----
-{contexto_str}
----
-Utiliza este contexto como inspiración para formular el reto de código. No copies exactamente, pero mantén la misma temática y nivel.
-"""
-
-    prompt += f"\n{DIRECTIVA_VARIABILIDAD_PREGUNTAS}\n"
-
-    prompt += """
-IMPORTANTE: La respuesta debe ser un objeto JSON válido.
-NO generes preguntas teóricas. Solo retos de código con especificaciones técnicas rigurosas.
-
-{
-  "preguntas": [
-    {
-      "id": 1,
-      "contexto_markdown": "Breve descripción del problema de negocio o técnico a resolver. Ej: 'En un sistema de procesamiento de datos, necesitamos validar que los números de serie siguen un formato específico.'",
-      "input_markdown": "Descripción de los datos de entrada del programa. Ej: 'La función recibirá un único string.'",
-      "output_markdown": "Descripción exacta de lo que el programa debe imprimir o retornar. Ej: 'Debe retornar `True` si el string es válido, `False` en caso contrario.'",
-      "tipo": "codigo",
-      "opciones": [],
-      "caso_de_ejemplo": {
-          "input": "print(validar_serial('SN-123-A'))",
-          "output": "True"
-      },
-      "codigo_base": "def validar_serial(serial):\\n  # Tu código aquí\\n\\n# No modifiques la siguiente línea, es para tu validación",
-      "respuesta_correcta": "True",
-      "explicacion": "La solución más eficiente es usar una expresión regular para validar el formato del string de entrada."
-    }
-  ]
-}
-
-REGLAS ESTRICTAS PARA LA GENERACIÓN DEL JSON:
-- La respuesta DEBE ser un objeto JSON válido y nada más.
-- Para fórmulas matemáticas en explicaciones, usa $...$ para las de en línea y $$...$$ para las de bloque. NO uses `(...)` para las fórmulas.
-- DEBES proveer "contexto_markdown", "input_markdown" y "output_markdown" como campos de primer nivel (NO anidados).
-- DEBE existir un campo "caso_de_ejemplo" que sea un objeto con "input" y "output". El "input" del caso de ejemplo debe ser el código ejecutable que el estudiante usará para probar.
-- "tipo" DEBE ser siempre "codigo".
-- "opciones" DEBE ser siempre una lista vacía [].
-- "codigo_base" DEBE contener solo la definición de la función con un comentario '# Tu código aquí'. NO debe incluir la lógica de la solución ni el 'return' ni la llamada a la función.
-- "respuesta_correcta" DEBE ser el string EXACTO que resulta de la ejecución del "input" del "caso_de_ejemplo".
-- Los retos deben requerir lógica de programación real y no ser triviales.
-- Usa '\\n' para los saltos de línea dentro de los strings. No uses saltos de línea literales.
-""" + REGLA_CONCISION_EXPLICACION + """
-"""
-    
-    return prompt
+def generar_prompt_programacion(
+    config: ConfiguracionEvaluacion,
+    contexto_recuperado: List[str] = None,
+) -> str:
+    """Prepara las variables de la plantilla de programación versionada."""
+    return render_prompt_template(
+        PROMPT_DIR / "programming.md",
+        {
+            "COUNT": str(config.num_preguntas),
+            "TOPICS": ", ".join(config.temas),
+            "OBSERVATIONS": (config.observaciones or "").strip() or "ninguna",
+            "CONTEXT": format_source_context(contexto_recuperado or []),
+            "VARIABILITY": DIRECTIVA_VARIABILIDAD_PREGUNTAS,
+            "CONCISION": REGLA_CONCISION_EXPLICACION,
+        },
+    )
 
 def reparar_escapes_json_latex(raw_text: str) -> str:
     """Restaura comandos LaTeX dañados por interpretación de secuencias de escape JSON/Python.
@@ -942,7 +817,7 @@ def _tipo_valor(texto: str) -> str:
 
 
 def _limpiar_opciones(preguntas: List[Pregunta]) -> List[Pregunta]:
-    """Limpia y normaliza las opciones de cada pregunta."""
+    """Limpia prefijos sin cambiar posiciones ni la clave de respuesta."""
     resultado = []
     for p in preguntas:
         if not p.opciones or p.tipo == "codigo":
@@ -950,44 +825,17 @@ def _limpiar_opciones(preguntas: List[Pregunta]) -> List[Pregunta]:
             continue
 
         opciones = [_limpiar_prefijo_opcion(o) for o in p.opciones]
-        opciones = [o for o in opciones if o]
-
-        if len(opciones) == 4 or (p.tipo == "verdadero_falso" and len(opciones) == 2):
-            p.opciones = opciones
-            resultado.append(p)
+        esperadas = 2 if p.tipo == "verdadero_falso" else 4
+        # Quitar o reordenar opciones desplaza los índices de respuesta y
+        # puede convertir una pregunta inválida en una clave incorrecta.
+        # Los slots mal formados se regeneran; no se reparan por heurística.
+        if len(opciones) != esperadas or any(not opcion for opcion in opciones):
+            logger.warning(
+                "[OPCIONES] Pregunta %s descartada: se requieren %s opciones no vacías.",
+                p.id, esperadas,
+            )
             continue
-
-        if p.tipo == "verdadero_falso":
-            if len(opciones) >= 2:
-                p.opciones = opciones[:2]
-                resultado.append(p)
-            continue
-
-        if len(opciones) < 4:
-            logger.warning(f"[OPCIONES] Pregunta {p.id} descartada: solo {len(opciones)} opciones.")
-            continue
-
-        rc = p.respuesta_correcta
-        if isinstance(rc, list):
-            idx_correcta = rc[0] if rc else 0
-        else:
-            idx_correcta = int(rc) if rc is not None else 0
-
-        opcion_correcta = opciones[idx_correcta] if idx_correcta < len(opciones) else opciones[0]
-        tipo_correcta = _tipo_valor(opcion_correcta)
-
-        distractores = [o for i, o in enumerate(opciones) if i != idx_correcta]
-        if tipo_correcta != 'otro':
-            distractores_filtrados = [o for o in distractores if _tipo_valor(o) == tipo_correcta]
-            if len(distractores_filtrados) >= 3:
-                distractores = distractores_filtrados
-            elif len(distractores_filtrados) >= 2:
-                mezcla = distractores_filtrados + [o for o in distractores if _tipo_valor(o) != tipo_correcta]
-                distractores = mezcla[:3]
-
-        nuevas_opciones = [opcion_correcta] + distractores[:3]
-        p.opciones = nuevas_opciones
-        p.respuesta_correcta = 0
+        p.opciones = opciones
         resultado.append(p)
 
     return resultado
@@ -1039,85 +887,20 @@ def _sanitizar_contexto_rag(texto: str) -> str:
 
 
 def _asignar_origen(preguntas: List[Pregunta], contexto: List[Dict[str, Any]]) -> List[Pregunta]:
-    """Asigna origen y fuente_detalle a cada pregunta según disponibilidad de contexto RAG."""
-    if contexto and len(contexto) > 0:
-        fuente = "Material de referencia del curso"
-        for item in contexto:
-            if item.get("curso_nombre"):
-                fuente = f"Compendio de {item['curso_nombre']}"
-                break
-
-        n = len(preguntas)
-        num_sinteticas = min(2, max(1, n // 3))
-        for i, p in enumerate(preguntas):
-            if i < n - num_sinteticas:
-                p.origen = "compendio"
-                p.fuente_detalle = fuente
-            else:
-                p.origen = "ia"
-                p.fuente_detalle = "Generado sintéticamente por IA con nivel UNI"
-    else:
-        for p in preguntas:
-            p.origen = "ia"
-            p.fuente_detalle = "Generado sintéticamente por IA"
+    """Declara generación por IA sin inventar procedencia por pregunta."""
+    detalle = (
+        "Generada con material de referencia del curso"
+        if contexto else "Generada sin material recuperado"
+    )
+    for p in preguntas:
+        p.origen = "ia"
+        p.fuente_detalle = detalle
     return preguntas
 
 
 # ─── ENDPOINTS ────────────────────────────────────────────────────────
 
-SYSTEM_MSG_EVALUACION = (
-    "Eres un profesor de la UNI (Universidad Nacional de Ingeniería, Perú). "
-    "Tu única función es generar preguntas de examen IDÉNTICAS en complejidad a los ejercicios reales proporcionados. "
-    "NUNCA simplifiques. Transforma los ejercicios de referencia cambiando solo los valores numéricos. "
-    "LaTeX KaTeX ÚNICAMENTE: \\frac, \\vec, \\mathbf, \\overline, \\left(, \\right), \\mid, \\mathbb, \\sqrt, \\alpha, \\beta, \\theta, \\perp, \\in. "
-    "PROHIBIDO ABSOLUTO (rompen KaTeX): \\begin, \\end, \\matrix, \\Bmatrix, \\bigg, \\Big, \\rfloor, \\lfloor, \\textbf, \\bar, \\dfrac, \\text. "
-    "Rectas vectoriales: '$(2,1) + t(3,n),\\ t \\in \\mathbb{R}$' — NUNCA \\begin{Bmatrix}. "
-    "Prosa FUERA de $...$: escribe texto normal entre expresiones math. "
-    "Formatea toda expresión matemática en notación KaTeX válida delimitada ÚNICAMENTE por $ para expresiones inline "
-    "(ej. $f(x) = \\sin(x)$) o $$ para ecuaciones centradas en bloque. "
-    "Queda estrictamente prohibido usar corchetes en lugar de llaves en fracciones (usa siempre \\frac{a}{b}). "
-    "Genera un conjunto de N preguntas estrictamente ÚNICAS y DISTINTAS entre sí. "
-    "Está prohibido repetir el mismo ejercicio o generar variantes triviales del mismo problema dentro del mismo lote. "
-    "INSTRUCCIONES UNIVERSALES DE FORMATO Y ESTRUCTURA (MULTICURSO): "
-    "1. SINTAXIS LATEX EN TODO EL EXAMEN: Cualquier fórmula matemática, expresión algebraica, "
-    "ecuación, integral, matriz o vector DEBE IR DENTRO DE $...$. "
-    "CORRECTO: \"Calcule $\\int_0^1 x^2 dx$\" / \"Determine el valor de $k$\". "
-    "PROHIBIDO escribir \\frac, \\sqrt, \\int, \\vec, \\matrix sin $...$. "
-    "Usa estrictamente $...$ para matemáticas en línea y $$...$$ para bloques independientes. "
-    "NUNCA uses triple dólar ($$$) ni pegues palabras de texto plano a comandos LaTeX "
-    "(ejemplo correcto: 'Halle $\\vec{QS}$', incorrecto: 'Halle\\vec{QS}'). "
-    "Asegúrate de cerrar todos los delimitadores matemáticos abiertos antes de finalizar cada respuesta. "
-    "2. COHERENCIA COMPLETA ENTRE PREGUNTA Y OPCIONES: Si la pregunta pide N variables, "
-    "CADA opción DEBE dar la solución completa. "
-    "PROHIBIDO etiquetar problemas de cálculo complejo como verdadero/falso. "
-    "3. DIVERSIDAD ESTRICTA DE ENUNCIADOS Y PLANTILLAS: Queda PROHIBIDO repetir la misma "
-    "plantilla en más de UNA pregunta. Cada pregunta DEBE explorar un subtema distinto. "
-    "Alterna entre problemas teóricos, de aplicación directa, numéricos y de interpretación. "
-    "REGLA DE AISLAMIENTO DE OPCIONES (CRÍTICO): "
-    "1. Si el contexto RAG contiene una página con varios ejercicios, debes elegir ÚNICAMENTE UN ejercicio. "
-    "2. El arreglo 'opciones' DEBE CONTENER EXACTAMENTE 4 ELEMENTOS. "
-    "3. Queda ESTRICTAMENTE PROHIBIDO concatenar opciones de otros ejercicios vecinos. "
-    "4. NO incluyas letras de prefijo como 'A)', 'a.', '1.' dentro del texto de la opción. Pon solo la expresión o respuesta directas. "
-    "El campo 'explicacion' DEBE seguir estrictamente esta estructura Markdown con doble salto de línea entre pasos:\n"
-    "\n"
-    "### Paso 1: Planteamiento e Identificación de Datos\n"
-    "[Explicación con fórmulas en $...$]\n"
-    "\n"
-    "### Paso 2: Desarrollo algebraico detallado\n"
-    "[Explicación paso a paso con fórmulas en $...$]\n"
-    "\n"
-    "### Paso 3: Conclusión\n"
-    "[Respuesta final clara]\n"
-    "\n"
-    "REGLA CRÍTICA PARA LA SOLUCIÓN (explicacion): CADA variable, fórmula o comando LaTeX "
-    "(\\vec, \\sqrt, \\frac, \\text, etc.) DEBE estar estrictamente envuelto entre signos de dólar ($ ... $). "
-    "Separa siempre con un espacio en blanco los delimitadores de las palabras en español. "
-    "CORRECTO: 'La recta $L_1$ pasa por $A=(2,3)$'. INCORRECTO: 'La recta$L_1$pasa por$A$'. "
-    "NUNCA generes comandos LaTeX sueltos sin delimitador $. "
-    "REGLA ESTRICTA: Queda PROHIBIDO mencionar 'opción 0', 'opción 1', 'opción A', etc. Menciona únicamente el valor o vector solución final. "
-    + REGLA_CONCISION_EXPLICACION +
-    " Responde ÚNICAMENTE con JSON válido, sin texto adicional."
-)
+SYSTEM_MSG_EVALUACION = build_system_prompt("batch", REGLA_CONCISION_EXPLICACION)
 
 @router.post("/evaluaciones/generar", response_model=Evaluacion)
 @limiter.limit("10/minute")
@@ -1149,8 +932,8 @@ async def generar_evaluacion(
             tema_completo = config.temas[0]
         else:
             tema_completo = f"{config.modulo}: {', '.join(config.temas)}"
-        contexto = await asyncio.to_thread(
-            recuperar_contexto_semantico, tema_completo, config.curso_id, config.profesor_id, token
+        contexto = await recuperar_contexto_semantico(
+            tema_completo, config.curso_id, config.profesor_id, token
         )
 
         logger.info("RAG: Se recuperaron %d fragmentos del PDF.", len(contexto))
@@ -1198,7 +981,7 @@ async def generar_evaluacion(
                 "La siguiente respuesta debería ser un JSON válido con la clave "
                 "'preguntas' pero falló el parseo, probablemente por truncamiento. "
                 "Reconstruye un JSON COMPLETO y compacto; no continúes el texto "
-                "cortado. Cada 'explicacion' debe tener máximo 180 palabras. "
+                "cortado. Cada 'explicacion' debe tener máximo 150 palabras. "
                 "Devuélvelo como JSON puro, sin texto adicional:\n\n"
                 + (raw_content or "")[:12000]
             )
@@ -1238,6 +1021,11 @@ async def generar_evaluacion(
         
         if not preguntas:
             raise ValueError("No se generaron preguntas válidas tras la deduplicación.")
+
+        validate_evaluation_questions(
+            [pregunta.model_dump() for pregunta in preguntas],
+            expected_count=config.num_preguntas,
+        )
         
         tiempo_estimado = 0
         for p in preguntas:
@@ -1282,61 +1070,7 @@ async def generar_evaluacion(
     finally:
         await _liberar_cupo_usuario(user.id)
 
-SYSTEM_MSG_TEORICO = (
-    "Eres un profesor del Departamento de Ciencias Básicas de la UNI. "
-    "Genera EXACTAMENTE 1 pregunta de examen de nivel universitario avanzado. "
-    "NUNCA simplifiques. "
-    "REGLA CRÍTICA DE LaTeX: TODO símbolo matemático o lógico DEBE estar dentro de $...$. "
-    "NUNCA escribas \\neg, \\to, \\equiv, \\lor, \\land, \\Delta, \\leftrightarrow fuera de $...$. "
-    "CORRECTO: 'Sean $p \\equiv [\\neg q \\to r]$ y $M \\equiv [p \\lor q]$' "
-    "INCORRECTO: 'Sean p \\equiv [\\neg q \\to r] y M \\equiv [p \\lor q]' "
-    "LaTeX KaTeX ÚNICAMENTE: \\frac, \\vec, \\mathbf, \\overline, \\left(, \\right), \\mid, \\mathbb, \\sqrt, \\alpha, \\beta, \\theta, \\perp, \\in, \\neg, \\to, \\equiv, \\lor, \\land, \\leftrightarrow, \\Delta. "
-    "PROHIBIDO ABSOLUTO (rompen KaTeX): \\begin, \\end, \\matrix, \\Bmatrix, \\bigg, \\Big, \\rfloor, \\lfloor, \\textbf, \\bar, \\dfrac, \\text. "
-    "Rectas vectoriales: '$(2,1) + t(3,n),\\ t \\in \\mathbb{R}$' — NUNCA \\begin{Bmatrix}. "
-    "Prosa FUERA DE $...$: 'La recta $L_1$ pasa por $A=(2,3)$' — NUNCA '$L_1 \\text{pasa por} A$'. "
-    "Formatea toda expresión matemática en notación KaTeX válida delimitada ÚNICAMENTE por $ para expresiones inline "
-    "(ej. $f(x) = \\sin(x)$) o $$ para ecuaciones centradas en bloque. "
-    "Queda estrictamente prohibido usar corchetes en lugar de llaves en fracciones (usa siempre \\frac{a}{b}). "
-    "Genera un conjunto de N preguntas estrictamente ÚNICAS y DISTINTAS entre sí. "
-    "Está prohibido repetir el mismo ejercicio o generar variantes triviales del mismo problema dentro del mismo lote. "
-    "INSTRUCCIONES UNIVERSALES DE FORMATO Y ESTRUCTURA (MULTICURSO): "
-    "1. SINTAXIS LATEX EN TODO EL EXAMEN: Cualquier fórmula matemática, expresión algebraica, ecuación, "
-    "integral, matriz o vector DEBE IR DENTRO DE $...$. CORRECTO: \"Calcule $\\int_0^1 x^2 dx$\" / \"Determine el valor de $k$\". "
-    "PROHIBIDO escribir \\frac, \\sqrt, \\int, \\vec, \\matrix sin $...$. "
-    "Usa estrictamente $...$ para matemáticas en línea y $$...$$ para bloques independientes. "
-    "NUNCA uses triple dólar ($$$) ni pegues palabras de texto plano a comandos LaTeX "
-    "(ejemplo correcto: 'Halle $\\vec{QS}$', incorrecto: 'Halle\\vec{QS}'). "
-    "Asegúrate de cerrar todos los delimitadores matemáticos abiertos antes de finalizar cada respuesta. "
-    "2. COHERENCIA COMPLETA: Si la pregunta pide N variables, CADA opción DEBE dar la solución completa. "
-    "PROHIBIDO etiquetar problemas de cálculo complejo como verdadero/falso. "
-    "3. DIVERSIDAD ESTRICTA: Queda PROHIBIDO repetir la misma plantilla en más de UNA pregunta. "
-    "Cada pregunta DEBE explorar un subtema distinto. "
-    "Alterna entre problemas teóricos, de aplicación directa, numéricos y de interpretación. " 
-    "REGLA DE AISLAMIENTO DE OPCIONES (CRÍTICO): "
-    "1. Si el contexto RAG contiene una página con varios ejercicios, debes elegir ÚNICAMENTE UN ejercicio. "
-    "2. El arreglo 'opciones' DEBE CONTENER EXACTAMENTE 4 ELEMENTOS. "
-    "3. Queda ESTRICTAMENTE PROHIBIDO concatenar opciones de otros ejercicios vecinos. "
-    "4. NO incluyas letras de prefijo como 'A)', 'a.', '1.' dentro del texto de la opción. Pon solo la expresión o respuesta directas. "
-    "El campo 'explicacion' DEBE seguir estrictamente esta estructura Markdown con doble salto de línea entre pasos:\n"
-    "\n"
-    "### Paso 1: Planteamiento e Identificación de Datos\n"
-    "[Explicación con fórmulas en $...$]\n"
-    "\n"
-    "### Paso 2: Desarrollo algebraico detallado\n"
-    "[Explicación paso a paso con fórmulas en $...$]\n"
-    "\n"
-    "### Paso 3: Conclusión\n"
-    "[Respuesta final clara]\n"
-    "\n"
-    "REGLA CRÍTICA PARA LA SOLUCIÓN (explicacion): CADA variable, fórmula o comando LaTeX "
-    "(\\vec, \\sqrt, \\frac, \\text, etc.) DEBE estar estrictamente envuelto entre signos de dólar ($ ... $). "
-    "Separa siempre con un espacio en blanco los delimitadores de las palabras en español. "
-    "CORRECTO: 'La recta $L_1$ pasa por $A=(2,3)$'. INCORRECTO: 'La recta$L_1$pasa por$A$'. "
-    "NUNCA generes comandos LaTeX sueltos sin delimitador $. "
-    "REGLA ESTRICTA: Queda PROHIBIDO mencionar 'opción 0', 'opción 1', 'opción A', etc. Menciona únicamente el valor o vector solución final. "
-    + REGLA_CONCISION_EXPLICACION +
-    "Responde SIEMPRE en el formato de texto plano con marcadores @@...@@ que se te indica. NUNCA uses JSON."
-)
+SYSTEM_MSG_TEORICO = build_system_prompt("single", REGLA_CONCISION_EXPLICACION)
 
 def _prompt_una_pregunta_teorica(
     idx: int,
@@ -1600,7 +1334,8 @@ async def _generar_lote_estructurado(
             for slot, pregunta_llm in zip(slots, salida.preguntas):
                 pregunta = pregunta_llm.model_dump()
                 pregunta["id"] = slot + 1
-                preguntas.append(Pregunta(**_sanitize_latex_dict(pregunta)))
+                sanitized = _sanitize_latex_dict(pregunta)
+                preguntas.append(Pregunta(**sanitized))
             return preguntas
         except Exception as error:
             ultimo_error = error
@@ -1612,6 +1347,33 @@ async def _generar_lote_estructurado(
             )
 
     raise ultimo_error or ValueError("No se pudo generar un lote estructurado")
+
+
+def _clasificar_lote(
+    slots: List[int],
+    preguntas: List[Pregunta],
+    enunciados_generados: set[str],
+) -> tuple[List[tuple[int, Pregunta]], List[int]]:
+    """Conserva los slots válidos; solo los inválidos pasan al reintento aislado."""
+    validas: List[tuple[int, Pregunta]] = []
+    fallidos: List[int] = []
+    for slot, pregunta in zip(slots, preguntas):
+        try:
+            limpias = _limpiar_opciones([pregunta])
+            if len(limpias) != 1:
+                raise ValueError("opciones incompletas tras la limpieza")
+            pregunta = limpias[0]
+            validate_generated_question(pregunta.model_dump())
+            key = question_key(pregunta.pregunta or "")
+            if key in enunciados_generados:
+                raise ValueError("enunciado duplicado o variante numérica trivial")
+            enunciados_generados.add(key)
+            validas.append((slot, pregunta))
+        except ValueError as error:
+            logger.warning("Slot %d inválido: %s", slot + 1, error)
+            fallidos.append(slot)
+    fallidos.extend(slots[len(preguntas):])
+    return validas, fallidos
 
 
 async def _generar_lote_con_limite(
@@ -1670,7 +1432,7 @@ def _generar_json_con_reparacion_meta(prompt: str, system: str, max_tokens: int 
             "La siguiente respuesta debería ser un JSON válido con la clave "
             "'preguntas' pero falló el parseo (probablemente quedó TRUNCADO por "
             "exceso de longitud). Reconstruye el JSON válido COMPLETO, reduciendo "
-            "las 'explicacion' a máximo 180 palabras cada una. "
+            "las 'explicacion' a máximo 150 palabras cada una. "
             "No continúes el fragmento cortado: reconstruye un JSON completo "
             "(prohibidos debates internos, recálculos alternativos o tablas "
             "extensas), y devuélvelo como JSON puro, sin texto adicional ni "
@@ -1709,11 +1471,13 @@ def _tiene_campos_criticos_pregunta(pregunta: Any) -> bool:
 
 def _telemetria_log(prefijo: str, telemetria: Optional[dict] = None) -> dict:
     """Log obligatorio de consumo por evaluación (punto 6) y dict métrico."""
-    t = telemetria or obtener_ultima_telemetria() or {}
+    t = dict(telemetria or obtener_ultima_telemetria() or {})
+    t["prompt_version"] = EVALUATION_PROMPT_VERSION
     tokens = t.get("tokens", {})
     logger.info(
-        "%s GENERACIÓN COMPLETADA | Proveedor: %s (%s) | Tokens: In=%s Out=%s Total=%s | Costo est: $%.4f",
+        "%s GENERACIÓN COMPLETADA | Prompt: %s | Proveedor: %s (%s) | Tokens: In=%s Out=%s Total=%s | Costo est: $%.4f",
         prefijo,
+        EVALUATION_PROMPT_VERSION,
         t.get("proveedor", "?"),
         t.get("modelo", "?"),
         tokens.get("prompt", "?"),
@@ -1757,8 +1521,8 @@ async def generar_evaluacion_stream(
             raise HTTPException(status_code=422, detail="El curso no tiene módulos/temario para generar una evaluación.")
         tema_completo = config.temas[0] if len(config.temas) == 1 else f"{config.modulo}: {', '.join(config.temas)}"
         try:
-            contexto = await asyncio.to_thread(
-                recuperar_contexto_semantico, tema_completo, config.curso_id, config.profesor_id, token
+            contexto = await recuperar_contexto_semantico(
+                tema_completo, config.curso_id, config.profesor_id, token
             )
         except EmbeddingQuotaExhausted as e:
             # Modo estricto: sin embeddings no hay RAG real. El stream aún no
@@ -1845,10 +1609,16 @@ async def generar_evaluacion_stream(
                 preguntas = _asignar_origen(preguntas, contexto)
                 preguntas = _deduplicar_preguntas(preguntas)
                 preguntas = _limpiar_opciones(preguntas)
-
-                if preguntas:
+                try:
                     preguntas_dicts = [p.model_dump() for p in preguntas]
-                    data["preguntas"] = preguntas_dicts
+                    validate_evaluation_questions(
+                        preguntas_dicts, expected_count=config.num_preguntas
+                    )
+                except ValueError as error:
+                    logger.warning("Evaluación de programación inválida: %s", error)
+                    yield f"data: {json.dumps({'evento': 'error', 'mensaje': 'La IA devolvió preguntas incompletas o inválidas.', 'codigo': 'evaluacion_invalida'})}\n\n"
+                    return
+                data["preguntas"] = preguntas_dicts
 
                 metricas = _telemetria_log("PASO 5/6", telemetria_prog)
                 yield f"data: {json.dumps({'done': True, 'result': data, 'metricas': metricas})}\n\n"
@@ -1895,13 +1665,11 @@ async def generar_evaluacion_stream(
                     yield f"data: {json.dumps({'evento': 'advertencia', 'mensaje': 'Un lote se reintentará por pregunta.', 'codigo': 'reintento_slots'})}\n\n"
                     continue
 
-                for slot, pregunta in zip(slots_lote, preguntas_lote):
-                    enunciado = re.sub(r"\s+", " ", (pregunta.pregunta or "").strip().lower())
-                    if enunciado in enunciados_generados:
-                        logger.warning("Slot %d duplicado; se reintentará de forma aislada.", slot + 1)
-                        slots_fallidos.append(slot)
-                        continue
-                    enunciados_generados.add(enunciado)
+                validas, invalidos = _clasificar_lote(
+                    slots_lote, preguntas_lote, enunciados_generados
+                )
+                slots_fallidos.extend(invalidos)
+                for slot, pregunta in validas:
                     preguntas_por_slot[slot] = pregunta
                     logger.info("PASO 5 PROGRESO: Pregunta %d/%d validada.", slot + 1, config.num_preguntas)
                     yield f"data: {json.dumps({'pregunta': pregunta.model_dump(), 'total': config.num_preguntas})}\n\n"
@@ -1921,7 +1689,12 @@ async def generar_evaluacion_stream(
                             api_key_gemini,
                             estado_proveedores,
                         )
-                        enunciado = re.sub(r"\s+", " ", (pregunta.pregunta or "").strip().lower())
+                        limpias = _limpiar_opciones([pregunta])
+                        if len(limpias) != 1:
+                            raise ValueError("opciones incompletas tras la limpieza")
+                        pregunta = limpias[0]
+                        validate_generated_question(pregunta.model_dump())
+                        enunciado = question_key(pregunta.pregunta or "")
                         if enunciado in enunciados_generados:
                             raise ValueError("La pregunta regenerada duplica un slot ya válido")
                         enunciados_generados.add(enunciado)
@@ -1946,6 +1719,14 @@ async def generar_evaluacion_stream(
                 return
 
             preguntas_ok = [p.model_dump() for p in preguntas_obj]
+            try:
+                validate_evaluation_questions(
+                    preguntas_ok, expected_count=config.num_preguntas
+                )
+            except ValueError as error:
+                logger.warning("Evaluación teórica inválida: %s", error)
+                yield f"data: {json.dumps({'evento': 'error', 'mensaje': 'La IA devolvió preguntas incompletas o inválidas.', 'codigo': 'evaluacion_invalida'})}\n\n"
+                return
 
             logger.info("PASO 5 COMPLETADO: %d preguntas estructuradas generadas.", len(preguntas_ok))
             metricas = _telemetria_log("PASO 5")

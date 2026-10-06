@@ -25,8 +25,17 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Cierra los clientes httpx persistentes al apagar la app."""
+    """Gestiona los recursos persistentes de la aplicación."""
+    from app.core.rag_database import close_rag_database, init_rag_database
+    from app.rag.evaluation.shadow_read import configure_shadow_metrics_logging
+
+    configure_shadow_metrics_logging()
+    await init_rag_database()
     yield
+    try:
+        await close_rag_database()
+    except Exception as e:
+        logger.warning("No se pudo cerrar el pool PostgreSQL del RAG: %s", e)
     try:
         from app.routers import services, feedback, silabos_ruta
         await services._http.aclose()
@@ -160,7 +169,7 @@ async def root():
 
 @app.get("/api/health")
 async def health():
-    """Readiness real: confirma además que Supabase/PostgREST responde.
+    """Readiness: comprueba las bases que sirven el tráfico activo.
 
     Hace un ping ultra ligero (1 fila de un catálogo público) con la clave
     anónima y un try/except amplio: si la BD está caída o inalcanzable se
@@ -170,6 +179,7 @@ async def health():
     import asyncio
 
     from app.core.database import get_supabase
+    from app.core.rag_database import rag_database_healthcheck, rag_store_name
 
     try:
         await asyncio.to_thread(
@@ -181,6 +191,13 @@ async def health():
             status_code=503,
             content={"status": "unavailable", "detalle": "Base de datos no disponible."},
         )
+    if rag_store_name() == "postgres":
+        if not await rag_database_healthcheck():
+            return JSONResponse(
+                status_code=503,
+                content={"status": "unavailable", "detalle": "Base de datos RAG no disponible."},
+            )
+        return {"status": "ok", "supabase": "ok", "rag": "ok"}
     return {"status": "ok", "supabase": "ok"}
 
 # Importar Routers

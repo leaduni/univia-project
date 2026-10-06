@@ -44,7 +44,8 @@ from app.rag.drive_downloader import (
 from app.rag.embedder import EmbeddingQuotaExhausted, SyllabusEmbedder
 from app.rag.extraction_checkpoint import ExtractionCheckpoint
 from app.rag.extractor import SyllabusExtractor
-from app.rag.ingest import SyllabusIngestor
+from app.rag.ingest import SyllabusIngestor, resource_snapshot_from_remote
+from app.core.rag_database import rag_store_name
 from app.rag.pipeline_config import (
     ESTADO_COMPLETE,
     ESTADO_FAILED,
@@ -194,6 +195,45 @@ class IngestionPipeline:
             self._embedders[usar_cache] = SyllabusEmbedder(cache=cache)
         return self._embedders[usar_cache]
 
+    def _snapshot_local_del_recurso(self, recurso_id: int, chunks: list, embedder: SyllabusEmbedder):
+        """Lee los metadatos remotos una vez y los deja junto a los chunks locales."""
+        respuesta = (
+            self.sb.table("recursos")
+            .select("id,curso_id,titulo,tipo,profesor_id,ciclo,year")
+            .eq("id", recurso_id)
+            .maybe_single()
+            .execute()
+        )
+        recurso = getattr(respuesta, "data", None) or {}
+        if not recurso:
+            raise IngestionError(f"No existe el recurso {recurso_id} para la ingesta local.")
+
+        curso_respuesta = (
+            self.sb.table("cursos").select("name").eq("id", recurso["curso_id"]).maybe_single().execute()
+        )
+        curso = getattr(curso_respuesta, "data", None) or {}
+        profesor = {}
+        if recurso.get("profesor_id") is not None:
+            profesor_respuesta = (
+                self.sb.table("profesores")
+                .select("nombre_completo")
+                .eq("id", recurso["profesor_id"])
+                .maybe_single()
+                .execute()
+            )
+            profesor = getattr(profesor_respuesta, "data", None) or {}
+
+        return resource_snapshot_from_remote(
+            recurso,
+            curso,
+            profesor,
+            chunks,
+            embedding_provider=embedder.proveedor,
+            embedding_model=embedder.model_name,
+            embedding_dimensions=embedder.expected_dimensions,
+            embedding_version=embedder.embedding_version,
+        )
+
     # -- orquestación ------------------------------------------------------
 
     async def procesar_documento(
@@ -292,7 +332,14 @@ class IngestionPipeline:
 
             # 9. Ingesta (transaccional 'replace' o inserción simple 'insert')
             ingestor = SyllabusIngestor(client=self.sb)
-            if config.metodo_ingesta == "replace":
+            if rag_store_name() == "postgres":
+                snapshot = self._snapshot_local_del_recurso(recurso_id, embeddings, embedder)
+                insertados = await ingestor.replace_local(
+                    embeddings,
+                    snapshot,
+                    expected_dims=embedder.expected_dimensions,
+                )
+            elif config.metodo_ingesta == "replace":
                 insertados = ingestor.replace(
                     embeddings,
                     recurso_id=recurso_id,
@@ -324,7 +371,11 @@ class IngestionPipeline:
                 # 'replace' ya marca complete vía mark_rag_complete; en 'insert'
                 # histórico (compendio) el script no tocaba rag_status. Solo lo
                 # fijamos explícitamente cuando veníamos del flujo con reclamo.
-                if config.reclamar or config.metodo_ingesta == "insert":
+                if (
+                    rag_store_name() == "postgres"
+                    or config.reclamar
+                    or config.metodo_ingesta == "insert"
+                ):
                     actualizar_estado(self.sb, recurso_id, ESTADO_COMPLETE, rag_error=None)
             return resultado
 

@@ -17,6 +17,7 @@ yarn-error.log*
 .env*
 frontend/.env*
 backend/.env
+backend/logs/
 
 # TypeScript y Vercel
 *.tsbuildinfo

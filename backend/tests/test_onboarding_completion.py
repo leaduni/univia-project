@@ -105,10 +105,14 @@ def mock_get_supabase():
     active_patches = []
 
     def _patch(supabase_mock):
-        patcher = patch("app.routers.onboarding.get_supabase", return_value=supabase_mock)
-        patcher.start()
-        active_patches.append(patcher)
-        return patcher
+        for dependency in ("get_supabase", "get_admin_client"):
+            patcher = patch(
+                f"app.routers.onboarding.{dependency}",
+                return_value=supabase_mock,
+            )
+            patcher.start()
+            active_patches.append(patcher)
+        return active_patches[-1]
 
     yield _patch
     for p in active_patches:

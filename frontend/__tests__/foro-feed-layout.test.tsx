@@ -184,6 +184,6 @@ describe("ForoFeed · anclaje de las columnas laterales", () => {
 
   it("el wrapper del grid no crea su propio scrollport", () => {
     // Los laterales comparten el scrollport del dashboard.
-    expect(paginaForo).toContain('className="relative min-h-screen bg-[#090a12] text-white"')
+    expect(paginaForo).toContain('className="relative min-h-dvh bg-[#090a12] text-white"')
   })
 })

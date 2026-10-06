@@ -120,7 +120,10 @@ def estado_inicial():
 
 async def _actualizar(client, progreso_inicial, payload):
     supabase, progreso = _supabase(progreso_inicial)
-    with patch("app.routers.onboarding.get_supabase", return_value=supabase):
+    with (
+        patch("app.routers.onboarding.get_supabase", return_value=supabase),
+        patch("app.routers.onboarding.get_admin_client", return_value=supabase),
+    ):
         resp = await client.post("/api/onboarding/complete", json=payload)
     return resp, calcular_avance(CURSOS, progreso), progreso
 

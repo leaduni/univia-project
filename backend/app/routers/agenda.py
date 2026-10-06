@@ -10,11 +10,12 @@ import logging
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile, File, Form
 import pandas as pd
 import io
 from app.core.auth_utils import get_current_user
 from app.core.database import get_supabase, get_admin_client
+from app.core.llm import _redactar_claves, _status_http
 from app.schemas.agenda import (
     EventoCreate, EventoUpdate, EventoResponse,
     EtiquetaCreate, EtiquetaUpdate, EtiquetaResponse,
@@ -591,6 +592,126 @@ def _time_to_decimal(t: str) -> float:
 TIPO_LABELS = {"T": "Teoría", "P": "Práctica", "LAB": "Laboratorio"}
 
 
+def _valor_clave_header(x_user_llm_key) -> Optional[str]:
+    """Normaliza el header BYOK, incluyendo llamadas directas desde tests."""
+    if x_user_llm_key is None:
+        return None
+    if not isinstance(x_user_llm_key, str):
+        default = getattr(x_user_llm_key, "default", None)
+        x_user_llm_key = default if isinstance(default, str) else None
+    clave = x_user_llm_key.strip() if x_user_llm_key else ""
+    return clave or None
+
+
+async def _gemini_detectar_cursos(texto: str, api_key: Optional[str] = None) -> list:
+    """Extrae cursos con Gemini; prioriza la clave BYOK sobre la del servidor."""
+    import json
+    import os
+
+    try:
+        import google.generativeai as genai
+    except ImportError:
+        raise HTTPException(status_code=500, detail="google-generativeai no instalado.")
+
+    api_key = (api_key or "").strip() or os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(
+            status_code=500,
+            detail="No hay ninguna clave de Gemini configurada (ni clave propia del estudiante).",
+        )
+
+    genai.configure(api_key=api_key)
+    modelo = genai.GenerativeModel(
+        model_name=os.getenv("GEMINI_GEN_MODEL", "gemini-2.5-flash")
+    )
+    prompt = (
+        "Analiza el texto de una ficha de matrícula universitaria. Extrae SOLO los cursos "
+        "matriculados con código y sección. Responde exclusivamente como una lista JSON "
+        'de objetos con las claves "course_code" y "section".\n\n'
+        f"Texto:\n{texto[:8000]}"
+    )
+    try:
+        response = await asyncio.to_thread(
+            lambda: modelo.generate_content(
+                prompt,
+                generation_config={
+                    "max_output_tokens": 2048,
+                    "temperature": 0.1,
+                    "response_mime_type": "application/json",
+                },
+            )
+        )
+        raw = response.text or ""
+    except Exception as e:
+        status = _status_http(e)
+        logger.error(
+            "Error llamando a Gemini (HTTP %s): %s",
+            status,
+            _redactar_claves(str(e)),
+        )
+        if status in (400, 401, 403):
+            raise HTTPException(
+                status_code=400,
+                detail="Tu clave de Gemini no es válida. Revísala o quítala en 'Gestionar mi clave de IA' para usar la cuota compartida.",
+            )
+        if status == 429:
+            raise HTTPException(status_code=429, detail="La cuota de Gemini está agotada. Intenta más tarde.")
+        if status == 404:
+            raise HTTPException(status_code=503, detail="El modelo de Gemini no está disponible. Intenta más tarde.")
+        raise HTTPException(status_code=502, detail="Error al procesar con IA.")
+
+    try:
+        cursos = json.loads(raw)
+        if not isinstance(cursos, list):
+            raise ValueError("La respuesta no es una lista")
+    except (json.JSONDecodeError, ValueError):
+        logger.error("Gemini devolvió JSON inválido: %s", _redactar_claves(raw[:500]))
+        raise HTTPException(status_code=422, detail="IA devolvió formato inválido.")
+    if not cursos:
+        raise HTTPException(status_code=400, detail="No se detectaron cursos en el PDF.")
+    return cursos
+
+
+def _payloads_desde_bloques_uni(
+    perfil_id: str,
+    bloques_uni: list,
+    cursos_uni: dict,
+    etiqueta_id: Optional[int],
+    semester_start: str,
+) -> list:
+    """Construye eventos desde los bloques validados que ya trae la ficha UNI."""
+    payloads = []
+    for bloque in bloques_uni:
+        try:
+            code = bloque["codigo"]
+            hi = _time_to_decimal(bloque["hora_inicio"])
+            hf = _time_to_decimal(bloque["hora_fin"])
+            fecha = _first_date_for_day(semester_start, bloque["dia"])
+        except (KeyError, ValueError, IndexError):
+            continue
+        duracion = round(hf - hi, 2)
+        if not code or duracion <= 0:
+            continue
+        section = bloque.get("seccion") or ""
+        tipo = bloque.get("tipo", "T")
+        nombre = (cursos_uni.get(code) or {}).get("nombre", "") or code
+        aula = bloque.get("aula", "")
+        payloads.append({
+            "perfil_id": perfil_id,
+            "titulo": f"{code} - {TIPO_LABELS.get(tipo, tipo)}",
+            "subtitulo": f"{nombre} | Sección {section} | Aula: {aula} | {bloque.get('docente', '')}",
+            "tipo": "evento",
+            "etiqueta_id": etiqueta_id,
+            "fecha_iso": fecha,
+            "hora_inicio": hi,
+            "duracion": duracion,
+            "todo_el_dia": False,
+            "recurrencia": "weekly",
+            "ubicacion": aula,
+        })
+    return payloads
+
+
 @router.get("/carga-horaria")
 async def get_carga_horaria(
     ciclo: str = Query("2026-II", description="Ciclo académico, ej. 2026-II"),
@@ -613,177 +734,134 @@ async def get_carga_horaria(
         logger.error(f"Error cargando carga_horaria: {e}")
         raise HTTPException(status_code=500, detail="Error al cargar la carga horaria.")
 
+
+@router.get("/mis-cursos")
+async def get_mis_cursos(
+    ciclo: str = Query("2026-II", description="Ciclo académico, ej. 2026-II"),
+    auth=Depends(get_current_user)
+):
+    """Filtra la carga horaria del ciclo por cursos activos del onboarding."""
+    user, token = auth
+    sb = get_supabase(token)
+
+    try:
+        progreso = await _run(lambda: (
+            sb.table("progreso_cursos")
+            .select("curso_id, status")
+            .eq("perfil_id", user.id)
+            .eq("status", "in_progress")
+            .execute()
+        ))
+        curso_ids = [
+            row["curso_id"]
+            for row in (getattr(progreso, "data", None) or [])
+            if row.get("curso_id") is not None
+        ]
+        if not curso_ids:
+            return []
+
+        cursos = await _run(lambda: (
+            sb.table("cursos")
+            .select("id, code, name")
+            .in_("id", curso_ids)
+            .execute()
+        ))
+        codigos = [
+            row["code"]
+            for row in (getattr(cursos, "data", None) or [])
+            if row.get("code")
+        ]
+        if not codigos:
+            return []
+
+        carga = await _run(lambda: (
+            sb.table("carga_horaria")
+            .select("*")
+            .eq("ciclo", ciclo)
+            .in_("codigo", codigos)
+            .execute()
+        ))
+        return getattr(carga, "data", None) or []
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error cargando mis-cursos: %s", e)
+        raise HTTPException(status_code=500, detail="Error al cargar los cursos del alumno.")
+
+
 @router.post("/parse-matricula")
 async def parse_matricula(
     file: UploadFile = File(...),
     auth=Depends(get_current_user),
+    x_user_llm_key: Optional[str] = Header(None, alias="X-User-LLM-Key"),
 ):
-    """Recibe un PDF de matrícula, extrae cursos con parser determinista
-    (pdfplumber + regex) como opción primaria, con fallback a Gemini.
-    Luego busca bloques en carga_horaria y crea eventos semanales."""
-    import io
-    import json
-    import os
-    from app.utils.matricula_uni_parser import parse_ficha_uni
+    """Recibe un PDF de matrícula y crea eventos semanales en la agenda.
+
+    Estrategia híbrida:
+    1. Parser determinista local (firma estándar de la Boleta de Matrícula UNI).
+    2. Fallback a Gemini AI si el PDF no cumple la estructura esperada.
+
+    `X-User-LLM-Key` (BYOK) tiene prioridad sobre la cuota compartida para el
+    fallback IA, igual que en chat y evaluaciones. Nunca se persiste ni loguea.
+    """
+    from app.utils.matricula_uni_parser import parse_ficha_uni, extraer_texto
 
     user, token = auth
+    api_key_usuario = _valor_clave_header(x_user_llm_key)
     sb = get_supabase(token)
 
     # ── 1. Leer bytes del PDF ─────────────────────────────────────────────
-    try:
-        pdf_bytes = await file.read()
-    except Exception as e:
-        logger.error(f"Error leyendo PDF upload: {e}")
-        raise HTTPException(
-            status_code=400,
-            detail="No se pudo leer el archivo. Verifica que sea un PDF válido.",
-        )
-
+    pdf_bytes = await file.read()
     if not pdf_bytes:
-        raise HTTPException(status_code=400, detail="El archivo está vacío.")
+        raise HTTPException(status_code=400, detail="El archivo PDF está vacío.")
 
-    # ── 2. Parser determinista (rápido, sin costo de API) ─────────────────
-    resultado_parser = None
-    try:
-        resultado_parser = parse_ficha_uni(pdf_bytes)
-    except Exception as e:
-        logger.warning("Parser determinista lanzó excepción: %s", e)
-
+    metodo = "local"
+    bloques_uni: list = []
+    cursos_uni: dict = {}
     pares_cursos: list[tuple[str, str]] = []
-    cursos_detectados: list[dict] = []
-    cursos_info: dict[str, dict] = {}  # código → {nombre, seccion}
-    metodo_extraccion = "determinista"
+    cursos_detectados: list = []
 
-    if resultado_parser and resultado_parser.get("bloques"):
-        # Éxito con parser determinista
-        cursos_info = resultado_parser.get("cursos", {})
-        bloques_pdf = resultado_parser["bloques"]
+    # ── 2a. Intentar parser determinista local ────────────────────────────
+    try:
+        resultado_uni = parse_ficha_uni(pdf_bytes)
+    except Exception as e:
+        logger.warning(f"Parser local UNI lanzó excepción (fallback a Gemini): {e}")
+        resultado_uni = None
 
-        # Deducir pares (código, sección) de los bloques extraídos
-        pares_vistos = set()
-        for b in bloques_pdf:
-            par = (b["codigo"], b.get("seccion", ""))
-            if par not in pares_vistos and par[0] and par[1]:
-                pares_vistos.add(par)
-                pares_cursos.append(par)
-                cursos_detectados.append({
-                    "course_code": par[0],
-                    "section": par[1],
-                })
-
-        logger.info(
-            "Parser determinista extrajo %d cursos y %d bloques.",
-            len(pares_cursos), len(bloques_pdf),
-        )
+    if resultado_uni and resultado_uni.get("bloques"):
+        bloques_uni = resultado_uni["bloques"]
+        cursos_uni = resultado_uni.get("cursos", {})
+        pares_cursos = sorted({
+            (b["codigo"], b.get("seccion") or "") for b in bloques_uni
+        })
+        cursos_detectados = [
+            {"course_code": c, "section": s} for c, s in pares_cursos
+        ]
+        logger.info("Matrícula parseada localmente (UNI): %d bloques, %d cursos.",
+                    len(bloques_uni), len(pares_cursos))
     else:
-        # ── 3. Fallback: Gemini IA ────────────────────────────────────────
-        metodo_extraccion = "ia"
-        logger.info("Parser determinista no extrajo datos, usando fallback Gemini.")
-
-        # Extraer texto del PDF para Gemini
+        # ── 2b. Fallback a Gemini AI ──────────────────────────────────────
+        metodo = "gemini"
         try:
-            import pdfplumber
-        except ImportError:
-            raise HTTPException(status_code=500, detail="pdfplumber no está instalado en el servidor.")
-
-        texto = ""
-        try:
-            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-                for page in pdf.pages:
-                    texto += (page.extract_text() or "") + "\n"
+            texto = extraer_texto(pdf_bytes)
         except Exception as e:
-            logger.error(f"Error extrayendo texto del PDF: {e}")
-            raise HTTPException(
-                status_code=400,
-                detail="No se pudo extraer texto del PDF. ¿El archivo está dañado o protegido?",
-            )
+            logger.error(f"Error leyendo PDF: {e}")
+            raise HTTPException(status_code=400, detail="Error al leer el PDF.")
 
         if not texto.strip():
-            raise HTTPException(
-                status_code=400,
-                detail="El PDF no contiene texto extraíble. Asegúrate de subir la boleta de matrícula oficial.",
-            )
+            raise HTTPException(status_code=400, detail="El PDF no contiene texto extraíble.")
 
-        try:
-            import google.generativeai as genai  # type: ignore
-        except ImportError:
-            raise HTTPException(
-                status_code=500,
-                detail="El servicio de IA no está disponible. Contacta al administrador.",
-            )
+        cursos_detectados = await _gemini_detectar_cursos(texto, api_key_usuario)
 
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="La clave de IA no está configurada. Contacta al administrador.",
-            )
-
-        genai.configure(api_key=api_key)
-        modelo_nombre = os.getenv("GEMINI_GEN_MODEL", "gemini-2.0-flash")
-        modelo = genai.GenerativeModel(model_name=modelo_nombre)
-
-        prompt = (
-            "Analiza el siguiente texto extraído de una ficha de matrícula universitaria.\n"
-            "Extrae SOLO los cursos matriculados con su código y sección.\n"
-            "Responde EXCLUSIVAMENTE en formato JSON como una lista de objetos "
-            'con las claves "course_code" y "section".\n'
-            "No incluyas explicaciones, solo el JSON.\n\n"
-            f"Texto:\n{texto[:8000]}"
-        )
-
-        try:
-            resp_gemini = await asyncio.to_thread(
-                lambda: modelo.generate_content(
-                    prompt,
-                    generation_config={
-                        "max_output_tokens": 2048,
-                        "temperature": 0.1,
-                        "response_mime_type": "application/json",
-                    },
-                )
-            )
-            raw = resp_gemini.text or ""
-        except Exception as e:
-            logger.error(f"Error llamando a Gemini: {e}")
-            raise HTTPException(
-                status_code=502,
-                detail="El servicio de IA no respondió. Intenta de nuevo en unos segundos.",
-            )
-
-        try:
-            cursos_detectados = json.loads(raw)
-            if not isinstance(cursos_detectados, list):
-                raise ValueError("La respuesta no es una lista.")
-        except (json.JSONDecodeError, ValueError):
-            logger.error(f"Gemini devolvió JSON inválido: {raw[:500]}")
-            raise HTTPException(
-                status_code=422,
-                detail="La IA devolvió un formato inesperado. Intenta subir el PDF de nuevo.",
-            )
-
-        if not cursos_detectados:
-            raise HTTPException(
-                status_code=400,
-                detail="No se detectaron cursos en el PDF. Verifica que sea una boleta de matrícula válida.",
-            )
-
+        # Normalizar los pares (código, sección) que detectó Gemini.
         for item in cursos_detectados:
             code = (item.get("course_code") or "").strip().upper()
             section = (item.get("section") or "").strip().upper()
             if code and section:
                 pares_cursos.append((code, section))
 
-    if not pares_cursos:
-        return {
-            "eventos_creados": [],
-            "cursos_detectados": cursos_detectados,
-            "cursos_info": cursos_info,
-            "metodo": metodo_extraccion,
-            "message": "No se pudieron identificar cursos válidos en el PDF.",
-        }
-
-    # ── 4. Config semestre + etiquetas del usuario ────────────────────────
+    # ── 3. Contexto del usuario (semestre + etiqueta) ─────────────────────
+    # Obtener config de semestre del usuario
     resp_cfg = await _run(lambda: (
         sb.table("agenda_configuracion")
         .select("semester_start")
@@ -792,12 +870,9 @@ async def parse_matricula(
         .execute()
     ))
     cfg = getattr(resp_cfg, "data", None)
-    semester_start = (
-        str(cfg["semester_start"])
-        if cfg and cfg.get("semester_start")
-        else date.today().isoformat()
-    )
+    semester_start = str(cfg["semester_start"]) if cfg and cfg.get("semester_start") else date.today().isoformat()
 
+    # Obtener la etiqueta "Clases Univ." del usuario
     await _asegurar_etiquetas_defecto(sb, user.id)
     resp_etqs = await _run(lambda: (
         sb.table("agenda_etiquetas")
@@ -806,74 +881,87 @@ async def parse_matricula(
         .execute()
     ))
     etqs = getattr(resp_etqs, "data", []) or []
-    etq_clases = next(
-        (e for e in etqs if "clases" in e["nombre"].lower()),
-        etqs[0] if etqs else None,
-    )
+    etq_clases = next((e for e in etqs if "clases" in e["nombre"].lower()), etqs[0] if etqs else None)
     etiqueta_id = etq_clases["id"] if etq_clases else None
 
-    # ── 5. Buscar bloques en carga_horaria ────────────────────────────────
-    resp_bloques = await _run(lambda: (
-        sb.table("carga_horaria")
-        .select("*")
-        .in_("codigo", sorted({p[0] for p in pares_cursos}))
-        .in_("seccion", sorted({p[1] for p in pares_cursos}))
-        .execute()
-    ))
-    bloques = getattr(resp_bloques, "data", []) or []
+    if not pares_cursos:
+        return {
+            "eventos_creados": [],
+            "cursos_detectados": cursos_detectados,
+            "metodo": metodo,
+            "message": f"Se crearon 0 bloques horarios para {len(cursos_detectados)} cursos.",
+        }
 
-    pares_set = set(pares_cursos)
-    bloques_por_par: dict[tuple[str, str], list] = {}
-    for bloque in bloques:
-        bcode = (bloque.get("codigo") or "").strip().upper()
-        bsec = (bloque.get("seccion") or "").strip().upper()
-        if (bcode, bsec) in pares_set:
-            bloques_por_par.setdefault((bcode, bsec), []).append(bloque)
+    # ── 4. Construir payloads de eventos ──────────────────────────────────
+    if metodo == "local":
+        # Parser local: los bloques (día, horario, tipo, docente, aula) ya
+        # vienen del propio PDF — no se depende de carga_horaria.
+        payloads_eventos = _payloads_desde_bloques_uni(
+            user.id, bloques_uni, cursos_uni, etiqueta_id, semester_start,
+        )
+    else:
+        # Gemini (fallback): buscar bloques en carga_horaria.
+        # Una sola consulta para todos los pares detectados (evita N+1).
+        resp_bloques = await _run(lambda: (
+            sb.table("carga_horaria")
+            .select("*")
+            .in_("codigo", sorted({p[0] for p in pares_cursos}))
+            .in_("seccion", sorted({p[1] for p in pares_cursos}))
+            .execute()
+        ))
+        bloques = getattr(resp_bloques, "data", []) or []
 
-    # ── 6. Crear payloads de eventos ──────────────────────────────────────
-    payloads_eventos = []
-    for code, section in pares_cursos:
-        for bloque in bloques_por_par.get((code, section), []):
-            tipo = bloque.get("tipo_clase", "T")
-            label = TIPO_LABELS.get(tipo, tipo)
-            dia = bloque.get("dia", "LU")
-            hi = _time_to_decimal(str(bloque["hora_inicio"]))
-            hf = _time_to_decimal(str(bloque["hora_fin"]))
-            duracion = round(hf - hi, 2)
-            fecha = _first_date_for_day(semester_start, dia)
+        # El doble `.in_` es un producto de combinaciones: conservar en memoria
+        # solo los pares (código, sección) exactos solicitados.
+        pares_set = set(pares_cursos)
+        bloques_por_par = {}
+        for bloque in bloques:
+            bcode = (bloque.get("codigo") or "").strip().upper()
+            bsec = (bloque.get("seccion") or "").strip().upper()
+            if (bcode, bsec) in pares_set:
+                bloques_por_par.setdefault((bcode, bsec), []).append(bloque)
 
-            payloads_eventos.append({
-                "perfil_id": user.id,
-                "titulo": f"{code} - {label}",
-                "subtitulo": (
-                    f"{bloque.get('nombre_curso', '')} | Sección {section}"
-                    f" | Aula: {bloque.get('aula', '')}"
-                    f" | {bloque.get('docente', '')}"
-                ),
-                "tipo": "evento",
-                "etiqueta_id": etiqueta_id,
-                "fecha_iso": fecha,
-                "hora_inicio": hi,
-                "duracion": duracion,
-                "todo_el_dia": False,
-                "recurrencia": "weekly",
-                "ubicacion": bloque.get("aula", ""),
-            })
+        payloads_eventos = []
+        for code, section in pares_cursos:
+            for bloque in bloques_por_par.get((code, section), []):
+                if not bloque.get("hora_inicio") or not bloque.get("hora_fin"):
+                    continue
+                try:
+                    hi = _time_to_decimal(str(bloque["hora_inicio"]))
+                    hf = _time_to_decimal(str(bloque["hora_fin"]))
+                except (ValueError, IndexError):
+                    continue
+                duracion = round(hf - hi, 2)
+                if duracion <= 0:
+                    continue
+                tipo = bloque.get("tipo_clase", "T")
+                label = TIPO_LABELS.get(tipo, tipo)
+                dia = bloque.get("dia", "LU")
+                fecha = _first_date_for_day(semester_start, dia)
+
+                payloads_eventos.append({
+                    "perfil_id": user.id,
+                    "titulo": f"{code} - {label}",
+                    "subtitulo": f"{bloque.get('nombre_curso', '')} | Sección {section} | Aula: {bloque.get('aula', '')} | {bloque.get('docente', '')}",
+                    "tipo": "evento",
+                    "etiqueta_id": etiqueta_id,
+                    "fecha_iso": fecha,
+                    "hora_inicio": hi,
+                    "duracion": duracion,
+                    "todo_el_dia": False,
+                    "recurrencia": "weekly",
+                    "ubicacion": bloque.get("aula", ""),
+                })
 
     if not payloads_eventos:
         return {
             "eventos_creados": [],
             "cursos_detectados": cursos_detectados,
-            "cursos_info": cursos_info,
-            "metodo": metodo_extraccion,
-            "message": (
-                f"Se detectaron {len(pares_cursos)} cursos en el PDF, pero no "
-                f"se encontraron bloques horarios en la base de datos. "
-                f"Verifica que la carga horaria de tu facultad esté registrada."
-            ),
+            "metodo": metodo,
+            "message": f"Se crearon 0 bloques horarios para {len(cursos_detectados)} cursos.",
         }
 
-    # ── 7. Inserción en lote ──────────────────────────────────────────────
+    # Inserción en lote: una sola petición HTTP en lugar de una por evento.
     try:
         resp_ins = await _run(lambda: (
             sb.table("agenda_eventos")
@@ -882,10 +970,7 @@ async def parse_matricula(
         ))
     except Exception as e:
         logger.error("Error creando eventos de la matrícula: %s", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Los cursos se detectaron correctamente, pero hubo un error al guardarlos en tu agenda. Intenta de nuevo.",
-        )
+        raise HTTPException(status_code=500, detail="No se pudieron crear los eventos de la matrícula.")
 
     eventos_creados = []
     for ev in getattr(resp_ins, "data", None) or []:
@@ -898,13 +983,8 @@ async def parse_matricula(
     return {
         "eventos_creados": eventos_creados,
         "cursos_detectados": cursos_detectados,
-        "cursos_info": cursos_info,
-        "metodo": metodo_extraccion,
-        "message": (
-            f"Se crearon {len(eventos_creados)} bloques horarios "
-            f"para {len(pares_cursos)} cursos "
-            f"(método: {metodo_extraccion})."
-        ),
+        "metodo": metodo,
+        "message": f"Se crearon {len(eventos_creados)} bloques horarios para {len(cursos_detectados)} cursos.",
     }
 
 @router.post("/cargar-excel")

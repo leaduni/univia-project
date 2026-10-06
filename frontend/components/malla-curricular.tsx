@@ -55,7 +55,7 @@ const StatusBadge = ({ status }: { status: Course["status"] }) => {
 export const MallaCurricular: React.FC<MallaCurricularProps> = ({ malla, isLoading }) => {
   if (isLoading) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-4 p-4 sm:p-6">
         {[1, 2, 3].map((i) => (
           <div key={i} className="h-24 w-full bg-muted animate-pulse rounded-xl" />
         ))}
@@ -70,9 +70,9 @@ export const MallaCurricular: React.FC<MallaCurricularProps> = ({ malla, isLoadi
         return (
         <div key={idx} className="group">
           <details className="w-full" open={idx === 0}>
-            <summary className="flex items-center justify-between p-5 cursor-pointer hover:bg-muted transition-colors list-none">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm border border-primary/20">
+            <summary className="flex items-center justify-between gap-3 p-4 sm:p-5 cursor-pointer hover:bg-muted transition-colors list-none">
+              <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                <div className="shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm border border-primary/20">
                   {cicloNum}
                 </div>
                 <div>
@@ -80,11 +80,11 @@ export const MallaCurricular: React.FC<MallaCurricularProps> = ({ malla, isLoadi
                   <p className="text-xs text-muted-foreground font-medium">{ciclo.credits} Créditos Académicos</p>
                 </div>
               </div>
-              <ChevronDown className="w-5 h-5 text-muted-foreground group-open:rotate-180 transition-transform" />
+              <ChevronDown className="shrink-0 w-5 h-5 text-muted-foreground group-open:rotate-180 transition-transform" />
             </summary>
             
-            <div className="px-5 pb-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-2">
+            <div className="px-4 pb-5 sm:px-5 sm:pb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mt-2">
                 {ciclo.courses.map((curso) => {
                   const config = COURSE_STATUS_MAP[curso.status]
                   const isLocked = curso.status === "locked"
@@ -115,7 +115,7 @@ export const MallaCurricular: React.FC<MallaCurricularProps> = ({ malla, isLoadi
                       </div>
                       
                       {curso.description && (
-                        <button className="p-1 hover:bg-muted rounded-md transition-colors text-muted-foreground" title="Ver detalles">
+                        <button className="p-2.5 -m-1.5 lg:p-1 lg:m-0 hover:bg-muted rounded-md transition-colors text-muted-foreground" title="Ver detalles">
                           <Info className="w-4 h-4" />
                         </button>
                       )}

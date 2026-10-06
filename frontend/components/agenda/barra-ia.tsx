@@ -7,7 +7,11 @@ const SUGGESTIONS = [
   "🧠 Resumen de mis horas de estudio enfocadas"
 ]
 
-export function BarraIA() {
+interface BarraIAProps {
+  examenesProximos?: { nombre: string, fechaTarget: Date }[]
+}
+
+export function BarraIA({ examenesProximos = [] }: BarraIAProps) {
   const [prompt, setPrompt] = useState("")
   const [isFocused, setIsFocused] = useState(false)
   const [attachedFile, setAttachedFile] = useState<File | null>(null)
@@ -30,8 +34,28 @@ export function BarraIA() {
   const handleSubmit = (text: string) => {
     if (!text.trim() && !attachedFile) return
     
+    let finalContext = text
+
+    if (text === "✨ Crear plan de repaso para mi próximo examen") {
+      if (examenesProximos.length > 1) {
+        const lista = examenesProximos.map(ex => {
+          const ms = ex.fechaTarget.getTime() - new Date().getTime()
+          const days = Math.max(0, Math.ceil(ms / 86400000))
+          return `- ${ex.nombre} (faltan ${days} días)`
+        }).join('\n')
+        finalContext = `Tienes estas evaluaciones próximas:\n${lista}\n\n¿Para cuál de ellas deseas estructurar tu plan de repaso?`
+      } else if (examenesProximos.length === 1) {
+        const ex = examenesProximos[0]
+        const ms = ex.fechaTarget.getTime() - new Date().getTime()
+        const days = Math.max(0, Math.ceil(ms / 86400000))
+        finalContext = `Quiero crear un plan de repaso para mi próxima evaluación de ${ex.nombre} programada en ${days} días. Ayúdame a organizar mis bloques de estudio.`
+      } else {
+        finalContext = "No tienes evaluaciones pendientes en este momento. ¿Deseas planificar un bloque general de estudio o registrar una nueva fecha?"
+      }
+    }
+
     // Emitir evento para abrir el panel de IA
-    window.dispatchEvent(new CustomEvent("open-univia-chat", { detail: { initialContext: text } }))
+    window.dispatchEvent(new CustomEvent("open-univia-chat", { detail: { initialContext: finalContext } }))
     
     setPrompt("")
     setAttachedFile(null)

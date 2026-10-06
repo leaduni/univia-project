@@ -1,7 +1,7 @@
 -- =============================================================================
 -- RPC: get_malla_onboarding — Optimización de Onboarding
 -- =============================================================================
--- Proyecto: UniVia (leaduni/univia-project)
+-- Proyecto: Venus (leaduni/univia-project)
 -- Propósito: Reemplazar 3 consultas HTTP + BFS en Python por 1 sola llamada RPC
 -- Schema:    public (accesible vía supabase.rpc())
 -- 

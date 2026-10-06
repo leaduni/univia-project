@@ -12,13 +12,12 @@ function calcularApiUrl(): string {
   if (BASE_URL) {
     return BASE_URL.endsWith("/api") ? BASE_URL : `${BASE_URL}/api`;
   }
-  if (process.env.NODE_ENV !== "production") {
-    return "http://localhost:8000/api";
+  // Fallback por defecto para producción si no se configuró la variable de entorno
+  if (process.env.NODE_ENV === "production") {
+    return "https://venus.leaduni.org/api";
   }
-  throw new Error(
-    "NEXT_PUBLIC_API_URL no está configurada. " +
-      "En producción debe apuntar al backend desplegado (ej. https://api.univia.pe).",
-  );
+  
+  return "http://localhost:8000/api";
 }
 
 /** URL base de la API REST del backend (ya incluye el sufijo `/api`). */

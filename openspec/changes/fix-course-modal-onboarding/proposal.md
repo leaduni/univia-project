@@ -2,7 +2,7 @@
 
 ## Intent
 
-Two bugs degrade UniVia UX. **Bug A**: HTML entities (`&iacute;`, `&oacute;`, etc.) render as literal text in JSX — 15+ strings show garbled Spanish. Course completion has no auto-redirect to dashboard. **Bug B**: POST `/api/onboarding/complete` returns 400 on re-submission because already-persisted courses are filtered out, producing an empty list. Frontend wraps structured errors into `[object Object]`.
+Two bugs degrade Venus UX. **Bug A**: HTML entities (`&iacute;`, `&oacute;`, etc.) render as literal text in JSX — 15+ strings show garbled Spanish. Course completion has no auto-redirect to dashboard. **Bug B**: POST `/api/onboarding/complete` returns 400 on re-submission because already-persisted courses are filtered out, producing an empty list. Frontend wraps structured errors into `[object Object]`.
 
 ## Scope
 

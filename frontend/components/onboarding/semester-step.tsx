@@ -46,7 +46,7 @@ export function SemesterStep({
         </p>
       </div>
 
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 max-w-2xl mx-auto mb-6">
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3 max-w-2xl mx-auto mb-6">
         {ciclos.map((ciclo) => {
           const isSelected = selected === ciclo
           const bloqueado = esRetroceso(ciclo)
@@ -63,7 +63,7 @@ export function SemesterStep({
                   ? `Ya cursaste el Ciclo ${aRomano(ciclo)}. El ciclo solo avanza; si te quedaron cursos de ese ciclo, los eliges en el paso siguiente.`
                   : undefined
               }
-              className={`py-4 px-3 rounded-2xl border text-center transition-all duration-200 ${
+              className={`py-3 sm:py-4 px-2 sm:px-3 rounded-2xl border text-center transition-all duration-200 ${
                 isSelected
                   ? "bg-card border-accent ring-1 ring-accent shadow-lg shadow-accent/20"
                   : bloqueado
@@ -109,18 +109,18 @@ export function SemesterStep({
         </p>
       </div>
 
-      <div className="flex justify-between items-center pt-4 max-w-2xl mx-auto w-full">
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between sm:items-center pt-4 max-w-2xl mx-auto w-full">
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-border bg-card text-sm font-semibold text-foreground hover:bg-muted hover:border-accent/40 transition-all"
+          className="w-full sm:w-auto justify-center min-h-11 flex items-center gap-2 px-5 py-2.5 rounded-xl border border-border bg-card text-sm font-semibold text-foreground hover:bg-muted hover:border-accent/40 transition-all"
         >
           <ChevronLeft className="w-4 h-4" /> Atrás
         </button>
         <button
           type="button"
           onClick={() => onNext({ semester: selected })}
-          className="px-8 py-3 rounded-xl font-semibold text-sm text-primary-foreground gradient-login-btn transition-all shadow-lg shadow-accent/20 active:scale-[0.99] flex items-center gap-2"
+          className="w-full sm:w-auto justify-center min-h-11 px-8 py-3 rounded-xl font-semibold text-sm text-primary-foreground gradient-login-btn transition-all shadow-lg shadow-accent/20 active:scale-[0.99] flex items-center gap-2"
         >
           <span>Continuar</span>
           <ArrowRight className="w-4 h-4" />

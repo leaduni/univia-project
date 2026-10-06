@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { Menu, X } from "lucide-react";
+
 import { Hoverable } from "./hoverable";
 import { AUTH_ROUTES, SECCIONES } from "./landing-data";
 import Image from "next/image";
@@ -15,6 +18,21 @@ export function LandingNav() {
   // Mientras la sesión se está resolviendo no se pinta el CTA para no mostrar
   // "Log in" por un instante cuando en realidad hay sesión (parpadeo de hidratación).
   const tieneSesion = !isLoading && !!session;
+  // Menú móvil: los enlaces de sección se ocultan ≤900px (landing.css), así que
+  // se exponen en un panel desplegable bajo el header.
+  const [menuAbierto, setMenuAbierto] = useState(false);
+
+  useEffect(() => {
+    if (!menuAbierto) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenuAbierto(false);
+    const onResize = () => window.innerWidth > 900 && setMenuAbierto(false);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [menuAbierto]);
 
   return (
     <header
@@ -44,7 +62,7 @@ export function LandingNav() {
       </a>
       <div style={{ display: "flex", alignItems: "center", gap: "clamp(24px, 5vw, 56px)" }}>
         <nav
-          className="univia-nav-links"
+          className="venus-nav-links"
           style={{ display: "flex", alignItems: "center", gap: "clamp(14px, 1.8vw, 30px)", flexWrap: "nowrap" }}
         >
           {SECCIONES.map((n) => {
@@ -148,7 +166,38 @@ export function LandingNav() {
             </>
           )}
         </div>
+        <button
+          type="button"
+          className="univia-nav-toggle"
+          aria-label={menuAbierto ? "Cerrar menú" : "Abrir menú"}
+          aria-expanded={menuAbierto}
+          aria-controls="univia-mobile-menu"
+          onClick={() => setMenuAbierto((v) => !v)}
+        >
+          {menuAbierto ? <X size={20} aria-hidden="true" /> : <Menu size={20} aria-hidden="true" />}
+        </button>
       </div>
+      {menuAbierto && (
+        <nav id="univia-mobile-menu" className="univia-mobile-menu" aria-label="Secciones">
+          {SECCIONES.map((n) => {
+            const on = activo === n.id;
+            return (
+              <a
+                key={n.id}
+                href={"#" + n.id}
+                aria-current={on ? "true" : undefined}
+                data-active={on ? "true" : undefined}
+                onClick={(e) => {
+                  setMenuAbierto(false);
+                  irA(n.id)(e);
+                }}
+              >
+                {n.label}
+              </a>
+            );
+          })}
+        </nav>
+      )}
     </header>
   );
 }

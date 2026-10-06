@@ -33,7 +33,7 @@ export function MallaCourseCard({ course, onClick }: MallaCourseCardProps) {
     <button
       onClick={course.status === "locked" ? undefined : onClick}
       className={cn(
-        "p-4 rounded-lg border-2 transition-all duration-200 text-left group",
+        "p-3 sm:p-4 min-w-0 rounded-lg border-2 transition-all duration-200 text-left group",
         "hover:shadow-lg hover:scale-105 active:scale-95 disabled:pointer-events-none",
         config.card,
         course.status === "locked" && "cursor-not-allowed hover:scale-100",
@@ -41,7 +41,7 @@ export function MallaCourseCard({ course, onClick }: MallaCourseCardProps) {
       disabled={course.status === "locked"}
     >
       {/* Icon and Badge */}
-      <div className="flex items-start justify-between mb-3">
+      <div className="flex items-start justify-between gap-2 mb-3">
         {Icon && <Icon className={cn("w-5 h-5", iconColors[course.status] || "text-foreground")} />}
         <span className={cn("text-xs font-semibold px-2 py-1 rounded", config.badge)}>{config.label}</span>
       </div>
@@ -50,7 +50,7 @@ export function MallaCourseCard({ course, onClick }: MallaCourseCardProps) {
       <div className="text-xs text-muted-foreground font-medium mb-1">{course.code}</div>
 
       {/* Course Name */}
-      <h3 className="text-sm font-bold text-foreground mb-2 line-clamp-2 group-hover:text-accent transition-colors">
+      <h3 className="text-sm font-bold text-foreground mb-2 line-clamp-2 break-words group-hover:text-accent transition-colors">
         {course.name}
       </h3>
 

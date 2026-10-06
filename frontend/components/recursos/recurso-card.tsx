@@ -150,7 +150,7 @@ export function RecursoCard({ recurso, onDownload, descargando }: RecursoCardPro
       </div>
 
       {/* Cuerpo de la tarjeta */}
-      <div className="p-4 flex-1 flex flex-col gap-3">
+      <div className="p-4 flex-1 min-w-0 flex flex-col gap-3">
         <div>
           <h3 className="font-poppins font-semibold text-[14px] leading-snug text-foreground line-clamp-2 group-hover:text-primary transition-colors">
             {recurso.titulo}
@@ -180,7 +180,7 @@ export function RecursoCard({ recurso, onDownload, descargando }: RecursoCardPro
           <Button
             size="sm"
             variant="secondary"
-            className="w-full gap-1.5 h-8 text-xs bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/30 font-medium rounded-xl transition-colors"
+            className="w-full gap-1.5 h-10 sm:h-8 text-xs bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/30 font-medium rounded-xl transition-colors"
             disabled={!urlSolucionario && !recurso.url_drive}
             onClick={abrirSolucionario}
           >
@@ -206,7 +206,7 @@ export function RecursoCard({ recurso, onDownload, descargando }: RecursoCardPro
             <Button
               size="icon"
               variant="ghost"
-              className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary"
+              className="h-10 w-10 sm:h-8 sm:w-8 shrink-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary"
               disabled={!puedeAbrir || descargando}
               onClick={previsualizar}
               title="Previsualizar"
@@ -217,7 +217,7 @@ export function RecursoCard({ recurso, onDownload, descargando }: RecursoCardPro
 
           <Button
             size="sm"
-            className="w-full gap-1.5 h-8 text-[11.5px] font-semibold gradient-brand-hover text-white rounded-xl border-0 shadow-sm"
+            className="w-full gap-1.5 h-10 sm:h-8 text-[11.5px] font-semibold gradient-brand-hover text-white rounded-xl border-0 shadow-sm"
             disabled={!puedeAbrir || descargando}
             onClick={descargar}
           >

@@ -85,7 +85,7 @@ export function CrearPublicacionForm({ seccionId, onCreada }: CrearPublicacionFo
         aria-label="Etiquetas"
       />
 
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[11px] text-muted-foreground">
           {etiquetas.length}/{MAX_TAGS} etiquetas
         </p>

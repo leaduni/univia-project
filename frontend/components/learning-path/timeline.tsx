@@ -35,11 +35,13 @@ interface TimelineStep {
 export function LearningTimeline({
   courseId,
   timeline,
-  onStartEvaluation
+  onStartEvaluation,
+  onStepCompleted
 }: {
   courseId: string
   timeline: TimelineStep[]
   onStartEvaluation?: (moduleTitle: string) => void
+  onStepCompleted?: () => void
 }) {
   const [selectedStep, setSelectedStep] = useState<TimelineStep | null>(null)
   const [completingStep, setCompletingStep] = useState<number | null>(null)
@@ -93,6 +95,9 @@ export function LearningTimeline({
       })
       setCompletingStep(null)
       setSelectedStep(null)
+      // Aviso al padre: re-pide la ruta real (el estado optimista se sincroniza
+      // con los `steps` del servidor vía el useEffect sobre `timeline`).
+      if (onStepCompleted) onStepCompleted()
       if (onStartEvaluation) {
         onStartEvaluation(selectedStep.title)
       }
@@ -123,7 +128,7 @@ export function LearningTimeline({
         <Button
           variant="ghost"
           size="sm"
-          className="gap-2 text-muted-foreground hover:text-foreground"
+          className="gap-2 min-h-[40px] sm:min-h-0 max-w-full whitespace-normal text-left text-muted-foreground hover:text-foreground"
           onClick={() => { setSelectedStep(null); setError(null); }}
         >
           <ArrowLeft className="w-4 h-4" />
@@ -132,8 +137,8 @@ export function LearningTimeline({
 
         {/* Unit Header */}
         <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-4 ${
+          <div className="flex items-start sm:items-center gap-3 mb-2 min-w-0">
+            <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center border-4 ${
               selectedStep.status === "completed"
                 ? "border-emerald-500 bg-emerald-500/10 text-emerald-400"
                 : "border-primary bg-primary/10 text-primary ring-4 ring-primary/30"
@@ -143,9 +148,9 @@ export function LearningTimeline({
                 : getStepIcon(selectedStep.icon)
               }
             </div>
-            <div>
-              <h2 className="text-2xl font-bold text-foreground">{selectedStep.title}</h2>
-              <p className="text-sm text-muted-foreground">{selectedStep.description}</p>
+            <div className="min-w-0">
+              <h2 className="text-xl sm:text-2xl font-bold text-foreground break-words">{selectedStep.title}</h2>
+              <p className="text-sm text-muted-foreground break-words">{selectedStep.description}</p>
             </div>
           </div>
           <p className="text-xs text-muted-foreground mt-1 ml-13">Duración estimada: {selectedStep.duration}</p>
@@ -162,7 +167,7 @@ export function LearningTimeline({
           <CardContent>
             <div className="flex flex-wrap gap-2">
               {selectedStep.topics?.map((topic) => (
-                <Badge key={topic} variant="secondary" className="text-sm px-3 py-1.5">
+                <Badge key={topic} variant="secondary" className="text-sm px-3 py-1.5 max-w-full whitespace-normal break-words">
                   {topic}
                 </Badge>
               ))}
@@ -191,7 +196,7 @@ export function LearningTimeline({
                       key={idx}
                       onClick={() => handleDescargarPlancha(plancha.archivo)}
                       disabled={descargandoEsta}
-                      className="w-full flex items-center gap-4 p-4 rounded-lg border border-border hover:bg-secondary/50 transition-colors text-left group disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="w-full flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border border-border hover:bg-secondary/50 transition-colors text-left group disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
                         <FileText className="w-5 h-5 text-blue-500" />
@@ -229,7 +234,7 @@ export function LearningTimeline({
 
         {/* Error */}
         {error && (
-          <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20">
+          <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20 break-words">
             {error}
           </div>
         )}
@@ -239,7 +244,7 @@ export function LearningTimeline({
           <Button
             onClick={handleComplete}
             disabled={completingStep !== null || selectedStep.status === "completed"}
-            className="w-full gap-2 gradient-brand-hover text-white border-0"
+            className="w-full gap-2 whitespace-normal gradient-brand-hover text-white border-0"
             size="lg"
           >
             {completingStep !== null ? (
@@ -263,7 +268,7 @@ export function LearningTimeline({
 
   // Vista de lista (timeline)
   return (
-    <div className="relative pl-10 space-y-8">
+    <div className="relative pl-10 space-y-6 sm:space-y-8">
       <div className="absolute left-[19px] top-2 bottom-0 w-[2px] bg-[#232045]" />
 
       {steps.map((step, idx) => {
@@ -273,7 +278,7 @@ export function LearningTimeline({
         const StatusIcon = isCompleted ? CheckCircle2 : isCurrent && !isLockedStep ? PlayCircle : Lock
 
         return (
-          <div key={step.id} className="relative">
+          <div key={step.id} className="relative min-w-0">
             {/* Icon bubble */}
             <div
               className={`absolute -left-[26px] w-[38px] h-[38px] rounded-full flex items-center justify-center border-2 transition-all ${
@@ -289,7 +294,7 @@ export function LearningTimeline({
 
             {/* Content card */}
             <div
-              className={`rounded-2xl border p-4 transition-all ${
+              className={`min-w-0 rounded-2xl border p-3.5 sm:p-4 transition-all ${
                 isCompleted
                   ? "bg-[#121124]/60 border-[#232045]"
                   : !isLockedStep
@@ -313,7 +318,7 @@ export function LearningTimeline({
 
               {/* Title */}
               <h3
-                className={`text-base font-bold mt-1 ${
+                className={`text-base font-bold mt-1 break-words ${
                   isLockedStep ? "text-slate-500" : "text-white"
                 }`}
               >
@@ -326,7 +331,7 @@ export function LearningTimeline({
                   {step.topics.map((topic) => (
                     <span
                       key={topic}
-                      className="text-[11px] px-2 py-0.5 rounded-full bg-[#1e1b3a] text-slate-400"
+                      className="max-w-full break-words text-[11px] px-2 py-0.5 rounded-full bg-[#1e1b3a] text-slate-400"
                     >
                       {topic}
                     </span>
@@ -335,11 +340,11 @@ export function LearningTimeline({
               )}
 
               {/* Actions row */}
-              <div className="flex gap-2 mt-3">
+              <div className="flex flex-wrap gap-2 mt-3">
                 {!isLockedStep && !isCompleted && (
                   <button
                     onClick={() => handleContinue(step)}
-                    className="px-4 py-2 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-[#ec4899] to-[#a855f7] hover:opacity-90 transition-all shadow-md shadow-pink-500/20"
+                    className="min-h-[40px] sm:min-h-0 px-4 py-2 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-[#ec4899] to-[#a855f7] hover:opacity-90 transition-all shadow-md shadow-pink-500/20"
                   >
                     Practicar este m&oacute;dulo
                   </button>
@@ -347,7 +352,7 @@ export function LearningTimeline({
                 {isCompleted && onStartEvaluation && (
                   <button
                     onClick={() => onStartEvaluation(step.title)}
-                    className="px-4 py-2 rounded-xl font-semibold text-xs text-slate-300 bg-[#1d1a3b] border border-[#3b3475] hover:bg-[#282452] transition-all"
+                    className="min-h-[40px] sm:min-h-0 px-4 py-2 rounded-xl font-semibold text-xs text-slate-300 bg-[#1d1a3b] border border-[#3b3475] hover:bg-[#282452] transition-all"
                   >
                     Evaluaci&oacute;n de Unidad
                   </button>

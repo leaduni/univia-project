@@ -61,8 +61,8 @@ services:
         reservations:
           memory: 256M
     networks:
-      - univia_net
+      - venus_net
 
 networks:
-  univia_net:
+  venus_net:
     driver: bridge

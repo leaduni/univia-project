@@ -15,7 +15,7 @@ from app.core.avance import (
     cargar_avance,
     promedio_ponderado,
 )
-from app.core.database import get_supabase
+from app.core.database import ejecutar_con_reintento
 from app.core.auth_utils import get_current_user
 from app.core.diagnostico import generar_diagnostico
 from app.core.exceptions import raise_field_error
@@ -48,11 +48,19 @@ async def _run(fn):
     return await asyncio.to_thread(fn)
 
 
-async def _run_rpc(supabase, nombre: str, params: dict) -> dict:
+async def _run_rpc(token: str, nombre: str, params: dict) -> dict:
     """Ejecuta un RPC 1-RTT de Supabase en un hilo aparte (no bloquea el loop).
 
     Las RPC de solo lectura pesada (`get_resumen_dashboard`) se sirven desde
     caché de TTL corto por usuario; las mutaciones de progreso la invalidan.
+
+    El reintento (`ejecutar_con_reintento`) cubre el cierre silencioso de la
+    conexión HTTP/2 que comparte cada usuario: todas las peticiones de un mismo
+    token reutilizan la MISMA instancia de cliente (pool LRU de database.py) y
+    el dashboard dispara cuatro en paralelo al iniciar sesión, así que basta
+    una conexión corrupta para que el RPC cayera en 500 y el estudiante viera
+    "No se pudieron cargar tus cursos activos." Ahora se desaloja el cliente
+    muerto y se reintenta una vez con un socket sano.
     """
     p_user = params.get("p_user")
     if p_user is not None:
@@ -60,7 +68,9 @@ async def _run_rpc(supabase, nombre: str, params: dict) -> dict:
         if cacheado is not None:
             return cacheado
     resp = await asyncio.to_thread(
-        lambda: supabase.rpc(nombre, params).execute()
+        ejecutar_con_reintento,
+        token,
+        lambda supabase: supabase.rpc(nombre, params).execute(),
     )
     data = getattr(resp, "data", None)
     if data is None:
@@ -159,8 +169,7 @@ async def _obtener_logros(user, datos: dict) -> List[Dict[str, Any]]:
 @router.get("/summary", response_model=DashboardSummary)
 async def get_dashboard_summary(user_data = Depends(get_current_user)):
     user, token = user_data
-    supabase = get_supabase(token)
-    datos = await _run_rpc(supabase, "get_resumen_dashboard", {"p_user": user.id})
+    datos = await _run_rpc(token, "get_resumen_dashboard", {"p_user": user.id})
     stats = await _calcular_stats(user, datos)
     logros = await _obtener_logros(user, datos)
     return {
@@ -274,7 +283,6 @@ async def get_actividad(
 ) -> dict:
     """Estadísticas de actividad del estudiante (RF-21) con filtros (RF-22)."""
     user, token = user_data
-    supabase = get_supabase(token)
 
     if periodo not in PERIODOS:
         raise_field_error(
@@ -284,15 +292,20 @@ async def get_actividad(
         )
 
     try:
-        datos = await _run_rpc(supabase, "get_malla_datos", {"p_user": user.id})
+        datos = await _run_rpc(token, "get_malla_datos", {"p_user": user.id})
     except Exception as e:
         logger.error(f"Error consultando perfil {user.id}: {e}")
         raise HTTPException(status_code=500, detail="No se pudo verificar tu perfil.")
 
     malla_id = datos.get("malla_id")
 
-    eventos = await _run(
-        lambda: consultar_eventos(supabase, user.id, periodo=periodo, curso_id=curso_id, token=token)
+    # Mismo patrón resiliente que las RPC: `consultar_eventos` consulta sobre
+    # el cliente compartido por token, así que un cierre de conexión HTTP/2 se
+    # recupera desalojando el cliente muerto y reintentando.
+    eventos = await asyncio.to_thread(
+        ejecutar_con_reintento,
+        token,
+        lambda sb: consultar_eventos(sb, user.id, periodo=periodo, curso_id=curso_id, token=token),
     )
     avance_por_curso = (
         _avance_desde_datos(datos["malla_cursos"], datos["progreso"], curso_id) if malla_id else []
@@ -311,10 +324,9 @@ async def get_actividad(
 async def get_cursos_activos(user_data=Depends(get_current_user)) -> dict:
     """Cursos en curso con su avance real y el tema donde se quedó."""
     user, token = user_data
-    supabase = get_supabase(token)
 
     try:
-        datos = await _run_rpc(supabase, "get_cursos_activos_datos", {"p_user": user.id})
+        datos = await _run_rpc(token, "get_cursos_activos_datos", {"p_user": user.id})
     except Exception as e:
         logger.error(f"Error cargando cursos activos de {user.id}: {e}")
         raise HTTPException(status_code=500, detail="No se pudieron cargar tus cursos activos.")
@@ -380,9 +392,8 @@ async def get_cursos_activos(user_data=Depends(get_current_user)) -> dict:
 async def get_test_nivel(user_data=Depends(get_current_user)) -> dict:
     """Test de nivel inicial y ruta sugerida (RF-19, RF-20)."""
     user, token = user_data
-    supabase = get_supabase(token)
 
-    datos = await _run_rpc(supabase, "get_malla_datos", {"p_user": user.id})
+    datos = await _run_rpc(token, "get_malla_datos", {"p_user": user.id})
 
     if datos.get("carrera_id") is None:
         raise_field_error(

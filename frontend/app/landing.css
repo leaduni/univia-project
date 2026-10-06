@@ -1,4 +1,4 @@
-/* Landing UniVia - estilos del mockup (template/Univia Landing.html).
+/* Landing Venus - estilos del mockup (template/Venus Landing.html).
    Iconos Phosphor recortados a los usados en la landing. */
 
 @font-face {
@@ -52,20 +52,54 @@
 .ph.ph-youtube-logo::before { content: "\e4fc"; }
 
 /* --- Landing shell --- */
-.univia-landing { background: #0b0c16; color: #f8fafc; min-height: 100dvh; font-family: var(--font-heading); }
-.univia-landing a { color: #d7cef7; text-decoration: none; }
-.univia-landing a:hover { color: #ffffff; }
-.univia-landing section[id] { scroll-margin-top: 76px; }
-.univia-landing ::selection { background: rgba(121, 87, 241, 0.35); }
+.venus-landing { background: #0b0c16; color: #f8fafc; min-height: 100dvh; font-family: var(--font-heading); }
+.venus-landing a { color: #d7cef7; text-decoration: none; }
+.venus-landing a:hover { color: #ffffff; }
+.venus-landing section[id] { scroll-margin-top: 76px; }
+.venus-landing ::selection { background: rgba(121, 87, 241, 0.35); }
+
+.venus-team-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 24px;
+}
+.venus-team-card {
+  flex: 0 1 calc((100% - 48px) / 3);
+  min-width: 0;
+}
+.venus-team-card-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 94px;
+  padding: 18px 20px;
+}
+.venus-team-socials { display: flex; flex-shrink: 0; gap: 6px; }
+.venus-landing .venus-team-social {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: rgba(215, 206, 247, 0.1);
+  color: #d7cef7;
+  transition: background 200ms ease, color 200ms ease;
+}
+.venus-landing .venus-team-social:hover,
+.venus-landing .venus-team-social:focus-visible { background: #7957f1; color: #ffffff; }
+.venus-landing .venus-team-social:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
 
 /* --- Animaciones --- */
-@keyframes univiaTwinkleA { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.9; } }
-@keyframes univiaTwinkleB { 0%, 100% { opacity: 0.8; } 45% { opacity: 0.25; } }
-@keyframes univiaDrift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-28px, -22px, 0); } }
-@keyframes univiaPulseDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-@keyframes univiaSheen { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
-@keyframes univiaSpin { to { transform: rotate(360deg); } }
-@keyframes univiaFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes venusTwinkleA { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.9; } }
+@keyframes venusTwinkleB { 0%, 100% { opacity: 0.8; } 45% { opacity: 0.25; } }
+@keyframes venusDrift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-28px, -22px, 0); } }
+@keyframes venusPulseDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes venusSheen { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
+@keyframes venusSpin { to { transform: rotate(360deg); } }
+@keyframes venusFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
 /* --- Reveal on scroll --- */
 [data-reveal] {
@@ -85,23 +119,98 @@
 
 /* --- Responsive de las secciones a dos columnas --- */
 @media (max-width: 900px) {
-  .univia-split { grid-template-columns: 1fr !important; }
-  .univia-split > * { grid-column: 1 !important; grid-row: auto !important; text-align: left !important; }
-  .univia-split h2 { margin-left: 0 !important; text-align: left !important; }
-  .univia-team-grid { grid-template-columns: 1fr !important; }
-  .univia-nav-links { display: none !important; }
+  .venus-split { grid-template-columns: 1fr !important; }
+  .venus-split > * { grid-column: 1 !important; grid-row: auto !important; text-align: left !important; }
+  .venus-split h2 { margin-left: 0 !important; text-align: left !important; }
+  .venus-team-card { flex-basis: calc((100% - 24px) / 2); }
+  .venus-nav-links { display: none !important; }
+}
+
+@media (max-width: 700px) {
+  .venus-team-card { flex-basis: 100%; max-width: 460px; }
 }
 
 @media (max-width: 390px) {
-  .univia-landing header {
+  .venus-landing header {
     gap: 12px !important;
   }
-  .univia-landing header > div:last-child {
+  .venus-landing header > div:last-child {
     gap: 8px !important;
   }
-  .univia-landing header a[href="/auth/login"],
-  .univia-landing header a[href="/auth/signup"] {
+  .venus-landing header a[href="/auth/login"],
+  .venus-landing header a[href="/auth/signup"] {
     padding-left: 12px !important;
     padding-right: 12px !important;
   }
 }
+
+/* --- Menú móvil del navbar (enlaces ocultos ≤900px) --- */
+.univia-nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid rgba(215, 206, 247, 0.32);
+  background: transparent;
+  color: #f8fafc;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+.univia-nav-toggle:hover { background: rgba(121, 87, 241, 0.14); border-color: #7957f1; }
+.univia-nav-toggle:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+
+.univia-mobile-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 8px max(16px, env(safe-area-inset-left)) 16px;
+  background: rgba(3, 12, 64, 0.97);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(215, 206, 247, 0.13);
+  box-shadow: 0 18px 40px rgba(3, 12, 64, 0.5);
+  max-height: calc(100dvh - 76px);
+  overflow-y: auto;
+  animation: univiaFadeUp 200ms ease both;
+}
+.univia-landing .univia-mobile-menu a {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 16px;
+  color: rgba(215, 206, 247, 0.8);
+}
+.univia-landing .univia-mobile-menu a:hover,
+.univia-landing .univia-mobile-menu a[data-active="true"] { color: #ffffff; background: rgba(121, 87, 241, 0.16); }
+
+@media (max-width: 900px) {
+  .univia-nav-toggle { display: inline-flex; }
+}
+@media (min-width: 901px) {
+  .univia-mobile-menu { display: none; }
+}
+
+/* --- Botones CTA a ancho completo en teléfonos --- */
+@media (max-width: 480px) {
+  .univia-cta-row { width: 100%; flex-direction: column; align-items: stretch !important; }
+  .univia-landing .univia-cta-row > a {
+    justify-content: center;
+    height: auto !important;
+    min-height: 50px;
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+    text-align: center;
+  }
+  .univia-team-card-body { padding: 16px; }
+}
+
+/* Correos / textos largos del footer no deben desbordar */
+.univia-landing footer a,
+.univia-landing footer span { overflow-wrap: anywhere; }

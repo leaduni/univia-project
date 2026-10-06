@@ -55,10 +55,10 @@ export function YapeModal({ intencion, enviando, onConfirmar, onCerrar }: YapeMo
       onClick={() => !enviando && onCerrar()}
     >
       <div
-        className="relative w-full max-w-md max-h-full overflow-hidden rounded-2xl border border-white/10 bg-[#0d0e1b] shadow-[0_24px_64px_rgba(0,0,0,0.7)]"
+        className="relative w-full max-w-md max-h-full overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-[#0d0e1b] shadow-[0_24px_64px_rgba(0,0,0,0.7)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="relative gradient-brand-br px-6 py-4 text-center">
+        <div className="relative gradient-brand-br px-12 py-4 text-center sm:px-6">
           <p className="text-[11px] font-bold uppercase tracking-widest text-white/80">
             Paso 2 de 2
           </p>
@@ -70,13 +70,13 @@ export function YapeModal({ intencion, enviando, onConfirmar, onCerrar }: YapeMo
             onClick={onCerrar}
             disabled={enviando}
             aria-label="Cerrar"
-            className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center bg-black/25 text-white/90 transition-colors hover:bg-black/40 disabled:opacity-50"
+            className="absolute top-3 right-3 w-10 h-10 sm:w-8 sm:h-8 rounded-full flex items-center justify-center bg-black/25 text-white/90 transition-colors hover:bg-black/40 disabled:opacity-50"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex flex-col items-center gap-4 px-6 py-5 text-center">
+        <div className="flex flex-col items-center gap-4 px-4 py-5 text-center sm:px-6">
           <button
             type="button"
             onClick={copiar}
@@ -85,7 +85,7 @@ export function YapeModal({ intencion, enviando, onConfirmar, onCerrar }: YapeMo
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
               Monto exacto a transferir
             </p>
-            <p className="font-heading text-4xl font-bold text-foreground">
+            <p className="font-heading text-3xl font-bold text-foreground break-words sm:text-4xl">
               {formatearSoles(intencion.monto_exacto)}
             </p>
             <span className="mt-1 inline-flex items-center gap-1.5 text-xs text-[#c4b5fd]">
@@ -97,10 +97,10 @@ export function YapeModal({ intencion, enviando, onConfirmar, onCerrar }: YapeMo
           <div className="rounded-2xl bg-white p-2.5 shadow-[0_8px_28px_rgba(0,0,0,0.45)]">
             <Image
               src="/QR-YAPE.jpeg"
-              alt="Código QR de Yape de UniVia"
+              alt="Código QR de Yape de Venus"
               width={320}
               height={480}
-              className="w-auto h-auto max-h-[34vh] max-w-full object-contain rounded-lg"
+              className="w-auto h-auto max-h-[34dvh] max-w-full object-contain rounded-lg"
             />
           </div>
 
@@ -127,7 +127,7 @@ export function YapeModal({ intencion, enviando, onConfirmar, onCerrar }: YapeMo
             type="button"
             onClick={onCerrar}
             disabled={enviando}
-            className="text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+            className="min-h-10 px-2 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50 sm:min-h-0"
           >
             Cancelar o cambiar monto
           </button>

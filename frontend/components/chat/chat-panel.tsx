@@ -7,7 +7,8 @@
 import { useEffect, useRef, type KeyboardEvent } from "react"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
-import { ChevronDown, KeyRound, Maximize2, Minimize2, Send, Sparkles, Square, Trash2, X } from "lucide-react"
+import { ChevronDown, KeyRound, Maximize2, Minimize2, Send, Square, Trash2, X } from "lucide-react"
+import { LuniMascot, type LuniVariant } from "@/components/ui/LuniMascot"
 import { MessageBubble } from "./message-bubble"
 import type { MensajeChat, RecursoAdjuntoChat } from "@/types/chatbot"
 import { CHAT_TOKENS } from "./chat-tokens"
@@ -101,6 +102,21 @@ export function ChatPanel({
   const mostrarSugerencias = messages.length === 0 && !isLoading
   const inputListo = inputValue.trim().length > 0
 
+  // Variante narrativa de Luni. Se deriva aquí, en el componente que ya conoce
+  // inputValue e isStreaming, para no propagar estado nuevo desde el
+  // contenedor: escucha mientras el estudiante escribe, piensa mientras la IA
+  // responde, explica cuando ya hay conversación y saluda en el primer
+  // contacto. La MISMA variante alimenta la cabecera y el estado vacío: ver
+  // dos caras distintas de Luni dentro del mismo panel se lee como un fallo.
+  const varianteLuni: LuniVariant = isStreaming
+    ? "thinking"
+    : inputListo
+      ? "listening"
+      : messages.length > 0
+        ? "explaining"
+        : "wave"
+  const luniAnimada = varianteLuni === "thinking" || varianteLuni === "listening"
+
   // Scroll inteligente: pegado al fondo salvo que el usuario haya subido a
   // leer mensajes anteriores (>80px); el pill "Ver mensajes nuevos" lo
   // devuelve al fondo de forma forzada.
@@ -186,7 +202,7 @@ export function ChatPanel({
     <div
       ref={panelRef}
       role="dialog"
-      aria-label="Asistente de UniVia"
+      aria-label="Asistente de Venus"
       className={`${PANEL_BG} ${CHAT_TOKENS.PANEL_BLUR} ${CHAT_TOKENS.BORDER} ${CHAT_TOKENS.SHADOW} ${CHAT_TOKENS.RADIUS_PANEL} ${PANEL_DIMENSIONES} relative flex flex-col overflow-hidden`}
     >
       {/* Banner de sin conexión */}
@@ -202,7 +218,7 @@ export function ChatPanel({
 
       {/* Cabecera glassmorphism */}
       <header
-        className={`${PANEL_BG} ${CHAT_TOKENS.PANEL_BLUR} relative overflow-hidden flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10 shrink-0`}
+        className={`${PANEL_BG} ${CHAT_TOKENS.PANEL_BLUR} relative overflow-hidden flex items-center justify-between gap-2 px-3 py-2.5 sm:px-4 sm:py-3 border-b border-white/10 shrink-0`}
       >
         {/* Halo OLED: resplandor radial violeta que "respira" sin bloquear. */}
         <div
@@ -216,12 +232,20 @@ export function ChatPanel({
           }}
         />
         <div className="relative flex items-center gap-2 min-w-0">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#d93340] via-[#a6249d] to-[#7957f1] flex items-center justify-center shrink-0 shadow-sm">
-            <Sparkles className="w-3.5 h-3.5 text-white" />
-          </div>
+          {/* Luni reemplaza al avatar genérico y refleja el estado del turno.
+              Ancho fijo: las variantes tienen relación de aspecto distinta, así
+              que sin esto el título de la cabecera saltaría al alternar entre
+              reposo y escuchando. */}
+          <LuniMascot
+            variant={varianteLuni}
+            size={28}
+            animated={luniAnimada}
+            alt={null}
+            className="w-8"
+          />
           <div className="min-w-0">
             <p className="font-wordmark text-sm font-semibold text-foreground truncate">
-              Asistente UniVia
+              Asistente Venus
             </p>
             <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate">
               <span
@@ -249,28 +273,28 @@ export function ChatPanel({
             </p>
           </div>
         </div>
-        <div className="relative flex items-center gap-1 shrink-0">
+        <div className="relative flex items-center gap-0.5 sm:gap-1 shrink-0">
           {onAbrirByok && (
             <button
               type="button"
               onClick={onAbrirByok}
               aria-label="Configurar tu propia clave de IA"
               title="Configurar tu propia clave de IA"
-              className={`h-8 rounded-full flex items-center gap-1.5 px-2.5 text-[11px] font-semibold transition-all active:scale-[0.90] ${
+              className={`h-10 min-w-10 justify-center sm:h-8 sm:min-w-0 rounded-full flex items-center gap-1.5 px-2.5 text-[11px] font-semibold transition-all active:scale-[0.90] ${
                 modoByok
                   ? "bg-emerald-400/15 text-emerald-300 hover:bg-emerald-400/25"
                   : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
               }`}
             >
               <KeyRound className="w-4 h-4" aria-hidden="true" />
-              {modoByok ? "Clave activa" : "Mi clave IA"}
+              <span className="hidden sm:inline">{modoByok ? "Clave activa" : "Mi clave IA"}</span>
             </button>
           )}
           <button
             type="button"
             onClick={onToggleExpand}
             aria-label={isExpanded ? "Restaurar tamaño de chat" : "Maximizar chat"}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-all active:scale-[0.90]"
+            className="w-10 h-10 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-all active:scale-[0.90]"
           >
             {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
@@ -278,7 +302,7 @@ export function ChatPanel({
             type="button"
             onClick={onClear}
             aria-label="Limpiar conversación"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-all active:scale-[0.90]"
+            className="w-10 h-10 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-all active:scale-[0.90]"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -286,7 +310,7 @@ export function ChatPanel({
             type="button"
             onClick={onClose}
             aria-label="Cerrar el asistente"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-all active:scale-[0.90]"
+            className="w-10 h-10 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-all active:scale-[0.90]"
           >
             <X className="w-4 h-4" />
           </button>
@@ -298,13 +322,13 @@ export function ChatPanel({
         role="log"
         aria-live="polite"
         aria-label="Conversación con el asistente"
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar px-3 py-4 space-y-3"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar px-2.5 py-3 sm:px-3 sm:py-4 space-y-3"
       >
         {isLoading && messages.length === 0 ? (
           <ChatSkeleton count={4} />
         ) : mostrarSugerencias ? (
-          <div className="h-full flex flex-col items-center justify-center gap-4 px-4 text-center">
-            <Sparkles className="w-8 h-8 text-primary/80" aria-hidden="true" />
+          <div className="h-full flex flex-col items-center justify-center gap-3 px-4 text-center">
+            <LuniMascot variant={varianteLuni} size="md" shadow animated alt={null} />
             <div>
               <p className="text-sm font-medium text-foreground">¿En qué te ayudo?</p>
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
@@ -353,7 +377,7 @@ export function ChatPanel({
       )}
 
       {/* Input */}
-      <div className="border-t border-white/10 p-3 shrink-0">
+      <div className="border-t border-white/10 p-2.5 sm:p-3 shrink-0">
         <div
           className="relative flex items-center gap-2 rounded-2xl border border-border/60 bg-muted/30 dark:bg-card/60 backdrop-blur-xl px-3 py-2 focus-within:border-primary/60 focus-within:ring-1 focus-within:ring-primary/30 transition-all"
         >
@@ -373,7 +397,7 @@ export function ChatPanel({
               type="button"
               onClick={onAbort}
               aria-label="Detener respuesta"
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-destructive hover:bg-destructive/10 transition-transform active:scale-[0.88] shrink-0"
+              className="w-10 h-10 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-destructive hover:bg-destructive/10 transition-transform active:scale-[0.88] shrink-0"
             >
               <Square className="w-4 h-4" />
             </button>
@@ -383,7 +407,7 @@ export function ChatPanel({
               onClick={enviar}
               disabled={!inputListo || !isOnline}
               aria-label="Enviar mensaje"
-              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-transform active:scale-[0.88] shrink-0 ${
+              className={`w-10 h-10 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-transform active:scale-[0.88] shrink-0 ${
                 inputListo && isOnline
                   ? "bg-primary text-primary-foreground"
                   : "bg-muted text-muted-foreground"

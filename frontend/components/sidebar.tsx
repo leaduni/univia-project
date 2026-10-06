@@ -109,7 +109,7 @@ export function Sidebar({ open, onToggle }: SidebarProps) {
       {/* Footer del Sidebar */}
       {open ? (
         <div className="p-4 border-t border-[#3f424d]/30">
-          <p className="text-[11px] text-[#e9e9ed]/40 tracking-wider">UniVia · v1.0.0</p>
+          <p className="text-[11px] text-[#e9e9ed]/40 tracking-wider">Venus · v1.0.0</p>
         </div>
       ) : (
         <div className="p-3 border-t border-[#3f424d]/30 text-center">

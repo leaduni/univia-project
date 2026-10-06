@@ -1,9 +1,9 @@
 # 🤖 Perfil del Agente y Contexto del Proyecto
 
-Este archivo sirve como memoria técnica y operativa para el asistente de IA (Antigravity) que trabaja en UniVia.
+Este archivo sirve como memoria técnica y operativa para el asistente de IA (Antigravity) que trabaja en Venus.
 
 ## 🎯 Misión
-Asistir en el desarrollo de **UniVia**, una plataforma de orientación académica personalizada que ayuda a los estudiantes a navegar su malla curricular y optimizar su aprendizaje.
+Asistir en el desarrollo de **Venus**, una plataforma de orientación académica personalizada que ayuda a los estudiantes a navegar su malla curricular y optimizar su aprendizaje.
 
 ## 🧱 Contexto Técnico (Frontend)
 

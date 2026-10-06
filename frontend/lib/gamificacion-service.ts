@@ -3,7 +3,7 @@
 // GET) y el mismo shape de errores `{errors:[{message}]}` / `{detail}`.
 
 import { fetchWithAuth } from "./api-service"
-import { leerOCache, TTL } from "./api-cache"
+import { leerOCache, TTL, invalidarClave } from "./api-cache"
 import type {
   HistorialCurso,
   MiPosicionRanking,
@@ -11,6 +11,7 @@ import type {
   RespuestaRanking,
   ResultadoCheckIn,
   ResultadoCompartir,
+  ResultadoEntrega,
   ResultadoReferido,
   ResumenGamificacion,
   ResumenNotas,
@@ -147,5 +148,33 @@ export const gamificacionService = {
       "No se pudo cargar tu resumen de notas.",
       TTL.UN_MINUTO,
     )
+  },
+
+  /**
+   * Registra una práctica IA de unidad en el récord inmutable de notas e
+   * invalida las cachés afectadas (historial del curso, resumen de notas y
+   * resumen de gamificación, pues el intento también otorga XP).
+   */
+  registrarPracticaUnidad(
+    cursoId: string | number,
+    stepId: string | number,
+    resultados: { pregunta_id: string; correcta: boolean }[],
+  ): Promise<ResultadoEntrega> {
+    return enviar<ResultadoEntrega>(
+      `${API_URL}/evaluaciones/practica-unidad/registrar`,
+      "POST",
+      {
+        curso_id: Number(cursoId),
+        step_id: Number(stepId),
+        resultados,
+        metadata: { canal: "learning_path" },
+      },
+      "No se pudo registrar la práctica en tu historial.",
+    ).then((resultado) => {
+      invalidarClave(`notas:historial:${cursoId}`)
+      invalidarClave("notas:resumen")
+      invalidarClave("gamificacion:resumen")
+      return resultado
+    })
   },
 }

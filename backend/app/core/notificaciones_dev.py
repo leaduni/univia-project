@@ -105,7 +105,7 @@ def _enviar_correo_devs(
         return False
     try:
         msg = EmailMessage()
-        msg["Subject"] = f"[UniVia] {asunto}"
+        msg["Subject"] = f"[Venus] {asunto}"
         msg["From"] = os.getenv("SMTP_FROM", "no-reply@univiap.pe")
         msg["To"] = ", ".join(destinos)
         msg.set_content(detalle)

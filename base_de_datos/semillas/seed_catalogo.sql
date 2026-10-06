@@ -1,5 +1,5 @@
 -- =============================================================================
--- SEMILLA DE CATÁLOGO ACADÉMICO — UniVia
+-- SEMILLA DE CATÁLOGO ACADÉMICO — Venus
 -- =============================================================================
 --
 -- Reproduce el catálogo académico (facultades, carreras, cursos y

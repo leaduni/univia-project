@@ -2,7 +2,7 @@
 
 # API Integration Guide
 
-This document explains how to replace the mock data in UniVia with real API endpoints.
+This document explains how to replace the mock data in Venus with real API endpoints.
 
 ## Current State
 All data flows from `/lib/mockData.ts`. This file exports:

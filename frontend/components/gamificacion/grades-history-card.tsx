@@ -82,7 +82,7 @@ export function GradesHistoryCard({ cursoId }: GradesHistoryCardProps) {
         <CardDescription>
           Historial oficial e inmutable de este curso. No incluye las prácticas de repaso.
         </CardDescription>
-        <div className="flex items-center gap-2 rounded-xl bg-white/[0.06] px-3 py-1.5 border border-[#5b8bf7]/30">
+        <div className="flex w-fit items-center gap-2 rounded-xl bg-white/[0.06] px-3 py-1.5 border border-[#5b8bf7]/30">
           <span className="text-xs text-muted-foreground uppercase tracking-wide">Promedio</span>
           <span className="font-bold text-lg tabular-nums text-white">
             {historial.nota_promedio != null ? historial.nota_promedio.toFixed(2) : "—"}
@@ -139,14 +139,14 @@ export function GradesHistoryCard({ cursoId }: GradesHistoryCardProps) {
 
             <ul className="divide-y divide-white/[0.07]">
               {historial.intentos?.map((intento) => (
-                <li key={intento.id} className="flex items-center justify-between py-2">
-                  <span className="text-sm text-muted-foreground">
+                <li key={intento.id} className="flex items-center justify-between gap-3 py-2">
+                  <span className="min-w-0 text-sm text-muted-foreground">
                     {formatearFecha(intento.fecha_completado)}
                     <span className="text-muted-foreground/60 ml-2">
                       {intento.puntaje_obtenido}/{intento.puntaje_maximo} pts
                     </span>
                   </span>
-                  <span className="font-semibold tabular-nums text-foreground">
+                  <span className="shrink-0 font-semibold tabular-nums text-foreground">
                     {intento.nota.toFixed(2)}
                   </span>
                 </li>

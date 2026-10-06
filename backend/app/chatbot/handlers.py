@@ -916,7 +916,7 @@ def _handler_estado_academico(mensaje: str, supabase, user, token: str) -> Conte
 
 
 def _handler_catalogo(mensaje: str, supabase, user, token: str) -> Contexto:
-    """Devuelve el catálogo real de facultades y carreras de UniVia."""
+    """Devuelve el catálogo real de facultades y carreras de Venus."""
     try:
         facultades = getattr(
             supabase.table("facultades")
@@ -957,17 +957,17 @@ def _handler_catalogo(mensaje: str, supabase, user, token: str) -> Contexto:
 
     return Contexto(
         system_extra=(
-            "Esta es la lista real de facultades y carreras registrada en UniVia. "
+            "Esta es la lista real de facultades y carreras registrada en Venus. "
             "Responde al usuario ÚNICAMENTE con estos datos; no agregues ni inventes "
             "facultades u ordenamientos de otras universidades."
         ),
-        bloque="Catálogo académico de UniVia:\n" + "\n".join(lineas),
+        bloque="Catálogo académico de Venus:\n" + "\n".join(lineas),
     )
 
 
 # Mapa de la aplicación. Es un texto fijo y no una consulta porque la estructura
 # de la web no vive en la base de datos; si cambia el frontend, se actualiza acá.
-MAPA_DE_LA_APP = """Secciones de UniVia:
+MAPA_DE_LA_APP = """Secciones de Venus:
 - Dashboard (inicio): resumen de avance, cursos activos, racha y estadísticas.
 - Malla: la malla curricular completa, con el estado de cada curso (aprobado, en curso, disponible, bloqueado) y sus prerrequisitos. Al hacer clic en un curso se abre su detalle.
 - Curso: ruta de aprendizaje del curso, con sus unidades, material y el generador de evaluaciones de práctica.
@@ -979,7 +979,7 @@ MAPA_DE_LA_APP = """Secciones de UniVia:
 def _handler_navegacion_ayuda(mensaje: str, supabase, user, token: str) -> Contexto:
     return Contexto(
         system_extra=(
-            "Explica cómo usar UniVia guiándote por el mapa de abajo. Sé concreto: di en qué "
+            "Explica cómo usar Venus guiándote por el mapa de abajo. Sé concreto: di en qué "
             "sección está y qué hacer al llegar. No inventes botones ni pantallas que no "
             "figuren en el mapa."
         ),

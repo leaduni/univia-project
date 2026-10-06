@@ -1,4 +1,4 @@
-// Alianza UniVia x SACU: acceso al catálogo público del repositorio externo.
+// Alianza Venus x SACU: acceso al catálogo público del repositorio externo.
 // El catálogo de SACU es un JSON estático que ellos publican en su propio
 // hosting (Netlify); no requiere auth y se regenera cuando escanean su Drive.
 

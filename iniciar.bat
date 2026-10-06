@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo    UNIVIA - INICIO RAPIDO
+echo    VENUS - INICIO RAPIDO
 echo ========================================
 echo.
 
@@ -8,16 +8,16 @@ REM Obtener la ruta del directorio del script
 set "PROJECT_DIR=%~dp0"
 
 echo [1/2] Iniciando Backend (FastAPI)...
-start "UniVia Backend" cmd /k "cd /d "%PROJECT_DIR%backend" && python -m uvicorn app.main:app --reload --port 8000"
+start "Venus Backend" cmd /k "cd /d "%PROJECT_DIR%backend" && python -m uvicorn app.main:app --reload --port 8000"
 
 timeout /t 3 /nobreak > nul
 
 echo [2/2] Iniciando Frontend (Next.js)...
-start "UniVia Frontend" cmd /k "cd /d "%PROJECT_DIR%frontend" && npm run dev"
+start "Venus Frontend" cmd /k "cd /d "%PROJECT_DIR%frontend" && npm run dev"
 
 echo.
 echo ========================================
-echo  UNIVIA ESTA INICIANDO...
+echo  VENUS ESTA INICIANDO...
 echo ========================================
 echo.
 echo Backend:  http://localhost:8000

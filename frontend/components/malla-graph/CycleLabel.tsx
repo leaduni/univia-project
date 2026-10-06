@@ -4,12 +4,12 @@
 
 import { memo } from "react"
 import type { NodeProps } from "@xyflow/react"
-import { toRoman } from "./constants"
+import { NODE_WIDTH, toRoman } from "./constants"
 import type { CycleLabelNode } from "./transformMalla"
 
 export const CycleLabel = memo(function CycleLabel({ data }: NodeProps<CycleLabelNode>) {
   return (
-    <div className="w-[220px] text-center">
+    <div className="text-center" style={{ width: NODE_WIDTH }}>
       <div className="text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
         Ciclo {toRoman(data.ciclo_num)}
       </div>

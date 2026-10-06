@@ -27,7 +27,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("univia_sidebar_collapsed")
+      const savedActual = localStorage.getItem("venus_sidebar_collapsed")
+      const saved = savedActual ?? localStorage.getItem("univia_sidebar_collapsed")
+      if (savedActual === null && saved !== null) {
+        try {
+          localStorage.setItem("venus_sidebar_collapsed", saved)
+          localStorage.removeItem("univia_sidebar_collapsed")
+        } catch (err) {
+          console.error("Error migrating sidebar preference:", err)
+        }
+      }
       if (saved !== null) {
         setIsCollapsed(saved === "true")
       } else {
@@ -42,7 +51,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     setIsCollapsed((prev) => {
       const nextState = !prev
       try {
-        localStorage.setItem("univia_sidebar_collapsed", String(nextState))
+        localStorage.setItem("venus_sidebar_collapsed", String(nextState))
+        localStorage.removeItem("univia_sidebar_collapsed")
       } catch (err) {
         console.error("Error saving sidebar preference:", err)
       }
@@ -81,7 +91,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     // quedan en la caché de api-service (con TTL), así que abrir /malla no
     // espera la red. Fire-and-forget: un fallo aquí no debe afectar la sesión.
     // PAUSADO POR ALIANZA SACU: getRecursos se comenta porque /recursos ya no
-    // usa el banco local (muestra la landing UniVia x SACU). Restaurar junto
+    // usa el banco local (muestra la landing Venus x SACU). Restaurar junto
     // con RecursosBiblioteca si la alianza termina.
     if (isAuthLoading || prefetchHecho.current) return
     if (!session || !user) return

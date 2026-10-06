@@ -39,6 +39,10 @@ export function establecerNamespaceUsuario(userId: string | null): void {
 }
 
 function claveReal(clave: string): string {
+    return `venus_cache_${namespaceUsuario}_${clave}`;
+}
+
+function claveAnterior(clave: string): string {
     return `univia_cache_${namespaceUsuario}_${clave}`;
 }
 
@@ -46,6 +50,7 @@ function persistirCache(clave: string, data: unknown, timestamp: number) {
     if (typeof window !== "undefined") {
         try {
             localStorage.setItem(claveReal(clave), JSON.stringify({ data, timestamp }));
+            localStorage.removeItem(claveAnterior(clave));
         } catch (e) {
             // Ignorar errores de quota o navegación privada
         }
@@ -58,10 +63,20 @@ function recuperarCache(clave: string): EntradaCache | undefined {
     }
     if (typeof window !== "undefined") {
         try {
-            const raw = localStorage.getItem(claveReal(clave));
+            const claveActual = claveReal(clave);
+            const rawActual = localStorage.getItem(claveActual);
+            const raw = rawActual ?? localStorage.getItem(claveAnterior(clave));
             if (raw) {
                 const parsed = JSON.parse(raw);
                 almacen.set(clave, parsed);
+                if (rawActual === null) {
+                    try {
+                        localStorage.setItem(claveActual, raw);
+                        localStorage.removeItem(claveAnterior(clave));
+                    } catch (e) {
+                        // Se usa el dato anterior aunque no se pueda migrar.
+                    }
+                }
                 return parsed;
             }
         } catch (e) {
@@ -156,6 +171,7 @@ export function invalidarClave(clave: string): void {
     enVuelo.delete(clave);
     if (typeof window !== "undefined") {
         localStorage.removeItem(claveReal(clave));
+        localStorage.removeItem(claveAnterior(clave));
     }
 }
 
@@ -176,7 +192,7 @@ export function invalidarPrefijo(prefijo: string): void {
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            if (key && key.startsWith(claveReal(prefijo))) {
+            if (key && (key.startsWith(claveReal(prefijo)) || key.startsWith(claveAnterior(prefijo)))) {
                 keysToRemove.push(key);
             }
         }
@@ -192,7 +208,7 @@ export function limpiarCache(): void {
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            if (key && key.startsWith("univia_cache_")) {
+            if (key && (key.startsWith("venus_cache_") || key.startsWith("univia_cache_"))) {
                 keysToRemove.push(key);
             }
         }

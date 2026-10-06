@@ -158,7 +158,7 @@ export function RecursosAlianza({
   }
 
   return (
-    <section className="relative isolate overflow-hidden rounded-[32px] border border-white/[0.08] bg-[#090a12] px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
+    <section className="relative isolate overflow-hidden rounded-3xl sm:rounded-[32px] border border-white/[0.08] bg-[#090a12] px-3 py-5 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
       {/* =========================================================
           ATMÓSFERA
          ========================================================= */}
@@ -197,7 +197,7 @@ export function RecursosAlianza({
               BLOQUE DE IDENTIDAD
              ----------------------------------------------------- */}
 
-          <div className="group relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-white/[0.025] p-6 backdrop-blur-2xl transition-all duration-500 hover:border-white/[0.14] lg:col-span-4 lg:min-h-[460px]">
+          <div className="group relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-white/[0.025] p-5 sm:p-6 backdrop-blur-2xl transition-all duration-500 hover:border-white/[0.14] lg:col-span-4 lg:min-h-[460px]">
             <div
               aria-hidden="true"
               className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-fuchsia-500/[0.08] blur-[90px] transition-transform duration-700 group-hover:scale-125"
@@ -208,7 +208,7 @@ export function RecursosAlianza({
               {/* Logos */}
 
               <div>
-                <div className="mb-10 flex items-center gap-3">
+                <div className="mb-8 flex items-center gap-3 sm:mb-10">
                   <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/[0.10] bg-white/[0.035] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
                     <Image
                       src="/Logo_LEAD_UNI.png"
@@ -239,8 +239,8 @@ export function RecursosAlianza({
                   Alianza estratégica
                 </div>
 
-                <h2 className="max-w-[15rem] text-4xl font-black tracking-[-0.04em] text-white sm:text-5xl">
-                  UniVia
+<h2 className="max-w-[15rem] text-3xl font-black tracking-[-0.04em] text-white sm:text-5xl">
+                  Venus
                   <span className="mx-2 text-white/20">×</span>
                   <span className="bg-gradient-to-r from-cyan-300 via-emerald-300 to-cyan-300 bg-clip-text text-transparent">
                     SACU
@@ -275,7 +275,7 @@ export function RecursosAlianza({
               BLOQUE CENTRAL — BUSCADOR
              ----------------------------------------------------- */}
 
-          <div className="group relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-white/[0.025] p-6 backdrop-blur-2xl transition-all duration-500 hover:border-white/[0.14] sm:p-8 lg:col-span-8 lg:min-h-[460px]">
+          <div className="group relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-white/[0.025] p-5 backdrop-blur-2xl transition-all duration-500 hover:border-white/[0.14] sm:p-8 lg:col-span-8 lg:min-h-[460px]">
             <div
               aria-hidden="true"
               className="absolute -right-32 -top-24 h-96 w-96 rounded-full bg-violet-600/[0.10] blur-[120px] transition-all duration-700 group-hover:bg-fuchsia-500/[0.13] group-hover:scale-110"
@@ -296,7 +296,7 @@ export function RecursosAlianza({
                   Biblioteca universitaria
                 </div>
 
-                <h3 className="max-w-2xl text-4xl font-black tracking-[-0.045em] text-white sm:text-5xl lg:text-6xl">
+                <h3 className="max-w-2xl text-3xl font-black break-words tracking-[-0.045em] text-white sm:text-5xl lg:text-6xl">
                   Todo el material.
                   <span className="block bg-gradient-to-r from-white via-slate-200 to-white/40 bg-clip-text text-transparent">
                     Una sola búsqueda.
@@ -320,7 +320,7 @@ export function RecursosAlianza({
                       : "border-white/[0.10] bg-black/20",
                   ].join(" ")}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-3">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/[0.05] text-slate-400">
                       <Search className="h-5 w-5" />
                     </div>
@@ -349,7 +349,7 @@ export function RecursosAlianza({
                     <button
                       type="button"
                       onClick={openSacu}
-                      className="group/search inline-flex h-12 shrink-0 items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-4 text-sm font-black text-slate-950 shadow-lg shadow-emerald-500/10 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-emerald-500/20"
+                      className="group/search inline-flex h-12 w-full shrink-0 items-center justify-center gap-2 rounded-xl sm:w-auto sm:justify-start bg-gradient-to-r from-emerald-400 to-cyan-400 px-4 text-sm font-black text-slate-950 shadow-lg shadow-emerald-500/10 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-emerald-500/20"
                     >
                       Abrir SACU
                       <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover/search:translate-x-0.5 group-hover/search:-translate-y-0.5" />
@@ -369,7 +369,7 @@ export function RecursosAlianza({
                       key={term}
                       type="button"
                       onClick={() => setSearch(term)}
-                      className="rounded-full border border-white/[0.07] bg-white/[0.025] px-3 py-1.5 text-xs font-medium text-slate-400 transition-all duration-300 hover:border-fuchsia-400/20 hover:bg-fuchsia-400/[0.06] hover:text-white"
+                      className="min-h-10 rounded-full border border-white/[0.07] bg-white/[0.025] px-3 py-1.5 text-xs sm:min-h-0 font-medium text-slate-400 transition-all duration-300 hover:border-fuchsia-400/20 hover:bg-fuchsia-400/[0.06] hover:text-white"
                     >
                       {term}
                     </button>
@@ -445,7 +445,7 @@ export function RecursosAlianza({
               MÉTRICA 1
              ----------------------------------------------------- */}
 
-          <div className="group relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-white/[0.025] p-6 backdrop-blur-2xl transition-all duration-500 hover:-translate-y-1 hover:border-cyan-300/20 lg:col-span-4">
+          <div className="group relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-white/[0.025] p-5 sm:p-6 backdrop-blur-2xl transition-all duration-500 hover:-translate-y-1 hover:border-cyan-300/20 lg:col-span-4">
             <div
               aria-hidden="true"
               className="absolute -bottom-14 -right-14 h-40 w-40 rounded-full bg-cyan-400/[0.08] blur-[60px] transition-transform duration-700 group-hover:scale-125"
@@ -464,7 +464,7 @@ export function RecursosAlianza({
                 Archivos disponibles
               </p>
 
-              <p className="mt-2 text-5xl font-black tracking-[-0.05em] text-white">
+              <p className="mt-2 text-4xl font-black tracking-[-0.05em] text-white sm:text-5xl">
                 {totalFiles.toLocaleString("en-US")}
               </p>
 
@@ -478,7 +478,7 @@ export function RecursosAlianza({
               MÉTRICA 2
              ----------------------------------------------------- */}
 
-          <div className="group relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-white/[0.025] p-6 backdrop-blur-2xl transition-all duration-500 hover:-translate-y-1 hover:border-fuchsia-300/20 lg:col-span-4">
+          <div className="group relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-white/[0.025] p-5 sm:p-6 backdrop-blur-2xl transition-all duration-500 hover:-translate-y-1 hover:border-fuchsia-300/20 lg:col-span-4">
             <div
               aria-hidden="true"
               className="absolute -bottom-12 -right-12 h-36 w-36 rounded-full bg-fuchsia-500/[0.08] blur-[60px] transition-transform duration-700 group-hover:scale-125"
@@ -499,7 +499,7 @@ export function RecursosAlianza({
                 Cursos cubiertos
               </p>
 
-              <p className="mt-2 text-5xl font-black tracking-[-0.05em] text-white">
+              <p className="mt-2 text-4xl font-black tracking-[-0.05em] text-white sm:text-5xl">
                 {uniqueCourses.toLocaleString("en-US")}
               </p>
 
@@ -513,7 +513,7 @@ export function RecursosAlianza({
               CTA FINAL
              ----------------------------------------------------- */}
 
-          <div className="group relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-gradient-to-br from-fuchsia-500/[0.08] via-transparent to-cyan-400/[0.05] p-6 backdrop-blur-2xl transition-all duration-500 hover:border-white/[0.14] lg:col-span-4">
+          <div className="group relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-gradient-to-br from-fuchsia-500/[0.08] via-transparent to-cyan-400/[0.05] p-5 sm:p-6 backdrop-blur-2xl transition-all duration-500 hover:border-white/[0.14] lg:col-span-4">
             <div
               aria-hidden="true"
               className="absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
@@ -561,7 +561,7 @@ export function RecursosAlianza({
         <div className="mt-5 flex flex-col gap-3 px-1 text-[11px] text-slate-600 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <Check className="h-3.5 w-3.5 text-emerald-400/80" />
-            <span>Repositorio conectado a tu experiencia UniVia</span>
+            <span>Repositorio conectado a tu experiencia Venus</span>
           </div>
 
           <button

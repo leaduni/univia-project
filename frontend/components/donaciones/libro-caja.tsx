@@ -12,7 +12,7 @@ interface LibroCajaProps {
 export function LibroCaja({ resumen, cargando }: LibroCajaProps) {
   if (cargando) {
     return (
-      <section className="rounded-3xl border border-white/[0.08] bg-card/60 p-6 space-y-3">
+      <section className="rounded-3xl border border-white/[0.08] bg-card/60 p-5 space-y-3 sm:p-6">
         <div className="h-4 w-32 animate-pulse rounded bg-muted" />
         <div className="h-24 w-full animate-pulse rounded bg-muted" />
       </section>
@@ -28,7 +28,7 @@ export function LibroCaja({ resumen, cargando }: LibroCajaProps) {
   })
 
   return (
-    <section className="rounded-3xl border border-white/[0.08] bg-card/60 backdrop-blur-md p-6">
+    <section className="rounded-3xl border border-white/[0.08] bg-card/60 backdrop-blur-md p-5 sm:p-6">
       <header className="flex items-baseline justify-between gap-3 border-b border-white/[0.08] pb-3">
         <h2 className="font-heading text-base font-bold text-foreground">Libro de caja</h2>
         <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
@@ -41,7 +41,7 @@ export function LibroCaja({ resumen, cargando }: LibroCajaProps) {
         <Renglon etiqueta="Egresos" valor={resumen.gastado} signo="−" tono="text-rose-300" />
       </dl>
 
-      <div className="mt-1 flex items-baseline justify-between border-t-2 border-white/[0.12] pt-3">
+      <div className="mt-1 flex items-baseline justify-between gap-3 border-t-2 border-white/[0.12] pt-3">
         <span className="text-xs font-bold uppercase tracking-[0.15em] text-foreground">
           Saldo
         </span>
@@ -71,9 +71,9 @@ function Renglon({
   tono: string
 }) {
   return (
-    <div className="flex items-baseline justify-between py-2.5">
-      <dt className="text-sm text-muted-foreground">{etiqueta}</dt>
-      <dd className={`font-heading text-sm font-bold tabular-nums ${tono}`}>
+    <div className="flex items-baseline justify-between gap-3 py-2.5">
+      <dt className="min-w-0 text-sm text-muted-foreground">{etiqueta}</dt>
+      <dd className={`shrink-0 font-heading text-sm font-bold tabular-nums ${tono}`}>
         {signo} {formatearSoles(valor)}
       </dd>
     </div>

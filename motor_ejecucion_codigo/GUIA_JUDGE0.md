@@ -4,7 +4,7 @@
 
 **Judge0** es un sistema de código abierto y una API robusta para la ejecución de código en línea. Permite compilar y ejecutar código fuente en una amplia variedad de lenguajes de programación de forma segura y escalable.
 
-En el proyecto **UniVia**, utilizamos Judge0 como el motor de ejecución de código para validar los retos de programación generados por la IA. Su integración nos permite:
+En el proyecto **Venus**, utilizamos Judge0 como el motor de ejecución de código para validar los retos de programación generados por la IA. Su integración nos permite:
 
 -   **Validar el código del estudiante** de forma segura en un entorno aislado (sandbox).
 -   **Independizar la ejecución de código** del servidor principal de la aplicación, evitando riesgos de seguridad y consumo de recursos.

@@ -116,6 +116,7 @@ export function FinalCtaSection() {
         <div
           data-reveal="up"
           data-reveal-delay="270"
+          className="univia-cta-row"
           style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 14, marginTop: 8 }}
         >
           <Hoverable
@@ -166,7 +167,7 @@ export function FinalCtaSection() {
         <span
           data-reveal="up"
           data-reveal-delay="340"
-          style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, color: "rgba(215, 206, 247, 0.55)" }}
+          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 8, fontSize: 13, color: "rgba(215, 206, 247, 0.55)" }}
         >
           <i className="ph ph-shield-check" style={{ fontSize: 16 }} />
           Acceso libre con tu correo @uni.pe · Un proyecto de LEAD UNI
@@ -208,7 +209,7 @@ export function LandingFooter() {
       }}
     >
       <div
-        className="univia-split"
+        className="venus-split"
         style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr", gap: "clamp(32px, 6vw, 88px)", maxWidth: 1240, margin: "0 auto" }}
       >
         <div data-reveal="up" style={{ display: "flex", flexDirection: "column", gap: 18 }}>

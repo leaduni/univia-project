@@ -33,7 +33,7 @@ export function Paginacion({ paginaActual, totalPaginas, onCambiar }: Paginacion
 
   const rango = construirRango(paginaActual, totalPaginas)
   const btnBase =
-    "h-9 min-w-9 px-3 rounded-xl text-sm font-medium transition-colors border disabled:opacity-40 disabled:pointer-events-none"
+    "h-10 min-w-10 sm:h-9 sm:min-w-9 px-3 rounded-xl text-sm font-medium transition-colors border disabled:opacity-40 disabled:pointer-events-none"
 
   return (
     <nav

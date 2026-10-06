@@ -11,10 +11,10 @@ export function AuthErrorBanner({ message }: { message: string }) {
   return (
     <div
       role="alert"
-      className="flex items-start gap-2 p-4 rounded-xl bg-destructive/10 text-destructive mb-8 text-sm font-medium border border-destructive/20"
+      className="flex items-start gap-2 p-3 sm:p-4 rounded-xl bg-destructive/10 text-destructive mb-6 sm:mb-8 text-sm font-medium border border-destructive/20"
     >
       <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-      <span>{message}</span>
+      <span className="min-w-0 break-words">{message}</span>
     </div>
   )
 }

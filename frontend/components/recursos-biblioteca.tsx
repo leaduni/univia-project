@@ -151,13 +151,13 @@ export function RecursosBiblioteca() {
   ]
 
   return (
-    <div className="min-h-screen bg-[#161826] text-foreground">
+    <div className="min-h-dvh bg-[#161826] text-foreground">
       {/* Header & Main Search Section */}
       <div className="bg-[#161826]/80 border-b border-[#3f424d]/60 backdrop-blur-md">
-        <div className="p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto space-y-4">
+        <div className="px-0 py-4 sm:p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto space-y-4">
           {/* Page Header */}
           <div>
-            <h1 className="font-poppins font-semibold text-3xl text-foreground tracking-tight mb-1">
+            <h1 className="font-poppins font-semibold text-2xl sm:text-3xl text-foreground tracking-tight mb-1">
               Banco de exámenes y recursos
             </h1>
             <p className="text-muted-foreground text-sm">
@@ -169,7 +169,7 @@ export function RecursosBiblioteca() {
           </div>
 
           {/* Selector de alcance */}
-          <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-[#232532] border border-[#3f424d]/60">
+          <div className="flex w-full max-w-full items-center gap-1 overflow-x-auto p-1 rounded-xl bg-[#232532] border border-[#3f424d]/60 scrollbar-none sm:inline-flex sm:w-auto">
             {vistas.map((v) => {
               const Icono = v.icon
               const activa = vista === v.id
@@ -179,7 +179,7 @@ export function RecursosBiblioteca() {
                   type="button"
                   onClick={() => setVista(v.id)}
                   aria-pressed={activa}
-                  className={`inline-flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium transition-all ${
+                  className={`inline-flex shrink-0 items-center gap-2 h-10 sm:h-9 px-3 sm:px-4 rounded-lg text-sm font-medium transition-all ${
                     activa
                       ? "bg-primary text-primary-foreground shadow-sm font-semibold"
                       : "text-muted-foreground hover:text-foreground"
@@ -281,7 +281,7 @@ export function RecursosBiblioteca() {
                         toggleType(chip.id)
                       }
                     }}
-                    className={`h-9 px-4 rounded-full text-sm font-medium transition-all shrink-0 ${
+                    className={`h-10 sm:h-9 px-4 rounded-full text-sm font-medium transition-all shrink-0 ${
                       isActive
                         ? "bg-primary text-primary-foreground shadow-sm font-semibold"
                         : "bg-[#232532] text-muted-foreground border border-[#3f424d]/60 hover:border-primary/50 hover:text-foreground"
@@ -303,11 +303,11 @@ export function RecursosBiblioteca() {
       </div>
 
       {/* Results Content Area (100% width grid) */}
-      <div className="w-full p-4 md:p-8">
+      <div className="w-full px-0 py-4 sm:p-4 md:p-8">
         <div className="max-w-[1800px] mx-auto">
           {isLoading ? (
             /* Grid de Skeletons */
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
               {Array.from({ length: 8 }).map((_, idx) => (
                 <div
                   key={idx}
@@ -329,7 +329,7 @@ export function RecursosBiblioteca() {
             </div>
           ) : recursos.length > 0 ? (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
                 {recursos.map((recurso) => (
                   <RecursoCard key={recurso.id} recurso={recurso} />
                 ))}
@@ -344,7 +344,7 @@ export function RecursosBiblioteca() {
           ) : sinCursosActivos ? (
             /* Vista "Mis cursos" sin cursos activos: sin esto la pantalla
                parecería un banco vacío en vez de un perfil sin matrícula. */
-            <div className="text-center py-16 space-y-4">
+            <div className="text-center py-12 sm:py-16 space-y-4">
               <BookMarked className="w-10 h-10 mx-auto text-muted-foreground/60" />
               <div className="space-y-1">
                 <h2 className="font-poppins font-semibold text-foreground">

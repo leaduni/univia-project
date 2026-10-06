@@ -25,6 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/components/providers/auth-context"
 import { apiService } from "@/lib/api-service"
+import { gamificacionService } from "@/lib/gamificacion-service"
 import { leerClaveByok } from "@/lib/byok"
 import { API_URL } from "@/lib/env"
 import type { EvaluationResultData, QuestionDetail } from "@/types/evaluation"
@@ -96,13 +97,15 @@ export function EvaluacionIA({
   modulos,
   preSelectedModulo,
   onClearPreselection,
-  onResultsChange
+  onResultsChange,
+  onEvaluacionFinalizada
 }: {
   courseId: string
   modulos: ModuloInfo[]
   preSelectedModulo?: string | null
   onClearPreselection?: () => void
   onResultsChange?: (showing: boolean) => void
+  onEvaluacionFinalizada?: () => void
 }) {
   const [step, setStep] = useState<"config" | "loading" | "evaluacion" | "resultados">("config")
   const [selectedModulo, setSelectedModulo] = useState<ModuloInfo | null>(null)
@@ -401,6 +404,27 @@ export function EvaluacionIA({
       }
 
       const data = await response.json()
+
+      // Registra la práctica en el récord inmutable de notas (mejor esfuerzo:
+      // un fallo aquí jamás bloquea al estudiante de ver sus resultados). Se
+      // espera a que termine para que al volver al curso las cachés de notas
+      // ya estén invalidadas y el historial/progreso carguen datos frescos.
+      const stepId = selectedModulo?.id
+      if (stepId != null && Array.isArray(data.detalles) && data.detalles.length > 0) {
+        try {
+          await gamificacionService.registrarPracticaUnidad(
+            parseInt(courseId),
+            stepId,
+            data.detalles.map((d: any) => ({
+              pregunta_id: String(d.pregunta_id),
+              correcta: d.es_correcta === true,
+            })),
+          )
+        } catch (regError) {
+          console.warn("[EVAL-IA] No se pudo registrar la práctica en el historial:", regError)
+        }
+      }
+
       setResultado(data)
       setStep("resultados")
       if (onResultsChange) onResultsChange(true)
@@ -489,8 +513,8 @@ export function EvaluacionIA({
     return (
       <div className="space-y-6">
         <div>
-          <h3 className="text-xl font-semibold text-foreground mb-2 flex items-center gap-2">
-            <div className="flex items-center justify-center h-6 w-6 rounded gradient-ai-neon">
+          <h3 className="text-lg sm:text-xl font-semibold text-foreground mb-2 flex items-center gap-2">
+            <div className="flex items-center justify-center h-6 w-6 shrink-0 rounded gradient-ai-neon">
               <Brain className="w-4 h-4 text-white" />
             </div>
             Evaluación Generada con IA
@@ -501,7 +525,7 @@ export function EvaluacionIA({
         </div>
 
         {error && (
-          <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20">
+          <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20 break-words">
             {error}
           </div>
         )}
@@ -516,7 +540,7 @@ export function EvaluacionIA({
             </div>
             <Link
               href="/perfil"
-              className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-400 text-amber-950 text-sm font-semibold hover:bg-amber-300 transition-colors"
+              className="shrink-0 w-full sm:w-auto justify-center min-h-[40px] sm:min-h-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-400 text-amber-950 text-sm font-semibold hover:bg-amber-300 transition-colors"
             >
               <KeyRound className="w-4 h-4" />
               Ir a mi Perfil
@@ -526,8 +550,8 @@ export function EvaluacionIA({
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="w-5 h-5" />
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Settings className="w-5 h-5 shrink-0" />
               Configuración de la Evaluación
             </CardTitle>
             <CardDescription>Selecciona el módulo y personaliza tu evaluación</CardDescription>
@@ -552,7 +576,7 @@ export function EvaluacionIA({
                     key={idx}
                     onClick={() => { if (!modulo.disabled) { setSelectedModulo(modulo); } }}
                     disabled={modulo.disabled}
-                    className={`p-4 rounded-lg border-2 text-left transition-all ${
+                    className={`min-w-0 p-3 sm:p-4 rounded-lg border-2 text-left transition-all ${
                       modulo.disabled
                         ? "border-border/50 opacity-50 cursor-not-allowed"
                         : selectedModulo?.title === modulo.title
@@ -560,15 +584,15 @@ export function EvaluacionIA({
                           : "border-border hover:border-[var(--ai-neon-pink)]/50"
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-semibold text-sm">{modulo.title}</h4>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <h4 className="font-semibold text-sm min-w-0 break-words">{modulo.title}</h4>
                       {modulo.completado && (
                         <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-xs">
                           Completado
                         </Badge>
                       )}
                       {modulo.disabled && (
-                        <Lock className="w-4 h-4 text-muted-foreground" />
+                        <Lock className="w-4 h-4 shrink-0 text-muted-foreground" />
                       )}
                     </div>
                     {modulo.disabled && modulo.reason && (
@@ -577,7 +601,7 @@ export function EvaluacionIA({
                     {!modulo.disabled && (
                       <div className="flex flex-wrap gap-1">
                         {normalizeTopics(modulo.topics).slice(0, 3).map((topic, i) => (
-                          <Badge key={i} variant="secondary" className="text-xs">
+                          <Badge key={i} variant="secondary" className="text-xs max-w-full whitespace-normal break-words">
                             {topic}
                           </Badge>
                         ))}
@@ -605,16 +629,16 @@ export function EvaluacionIA({
                 max={limites.max}
                 value={numPreguntas}
                 onChange={(e) => setNumPreguntas(Math.min(limites.max, Math.max(limites.min, parseInt(e.target.value) || limites.min)))}
-                className="max-w-xs"
+                className="w-full max-w-xs"
               />
             </div>
 
             {/* Profesor (opcional): acota el contexto RAG a sus documentos */}
             {profesores.length > 0 && (
               <div className="space-y-2">
-                <Label htmlFor="profesor">
+                <Label htmlFor="profesor" className="flex-wrap leading-snug">
                   Profesor (Opcional)
-                  <span className="text-xs text-muted-foreground ml-2">
+                  <span className="text-xs text-muted-foreground sm:ml-2">
                     Usa exámenes/prácticas de ese profesor como referencia
                   </span>
                 </Label>
@@ -622,7 +646,7 @@ export function EvaluacionIA({
                   value={profesorId?.toString() ?? "all"}
                   onValueChange={(val) => setProfesorId(val === "all" ? null : parseInt(val))}
                 >
-                  <SelectTrigger id="profesor" className="max-w-xs">
+                  <SelectTrigger id="profesor" className="w-full max-w-xs">
                     <SelectValue placeholder="Cualquier profesor" />
                   </SelectTrigger>
                   <SelectContent>
@@ -639,9 +663,9 @@ export function EvaluacionIA({
 
             {/* Observaciones */}
             <div className="space-y-2">
-              <Label htmlFor="observaciones">
+              <Label htmlFor="observaciones" className="flex-wrap leading-snug">
                 Observaciones (Opcional)
-                <span className="text-xs text-muted-foreground ml-2">
+                <span className="text-xs text-muted-foreground sm:ml-2">
                   Ej: Enfocarse en Python, incluir ejercicios prácticos
                 </span>
               </Label>
@@ -657,7 +681,7 @@ export function EvaluacionIA({
               onClick={generarEvaluacion}
               disabled={!selectedModulo || modulos.length === 0 || isLoading}
               title={modulos.length === 0 ? "No puedes generar una evaluación hasta que el curso tenga módulos configurados." : undefined}
-              className="w-full gap-2 gradient-ai-neon text-white border-0"
+              className="w-full min-h-[44px] sm:min-h-0 gap-2 gradient-ai-neon text-white border-0"
             >
               <Sparkles className="w-4 h-4" />
               Generar Evaluación con IA
@@ -676,12 +700,12 @@ export function EvaluacionIA({
   // Paso 2: Cargando
   if (step === "loading") {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+      <div className="flex flex-col items-center justify-center min-h-[300px] sm:min-h-[400px] space-y-4 px-4 text-center">
         <div className="relative">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-[var(--ai-neon-pink)] ai-neon-glow"></div>
           <Brain className="w-8 h-8 text-[var(--ai-neon-pink)] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
         </div>
-        <p className="text-lg font-medium animate-pulse ai-glow-text">Generando evaluación con IA...</p>
+        <p className="text-base sm:text-lg font-medium animate-pulse ai-glow-text">Generando evaluación con IA...</p>
         <p className="text-sm text-muted-foreground">{progreso || "Preparando preguntas en paralelo..."}</p>
       </div>
     )
@@ -706,22 +730,22 @@ export function EvaluacionIA({
       <div className="space-y-6">
         <Card className="ai-card-neon">
           <CardContent className="pt-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-xl font-bold mb-2">{evaluacion.modulo}</h3>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-lg sm:text-xl font-bold mb-2 break-words">{evaluacion.modulo}</h3>
                 <p className="text-sm text-muted-foreground">
                   {(evaluacion.preguntas || []).length} preguntas • {evaluacion.tiempo_estimado ?? 0} minutos estimados
                 </p>
                 <div className="flex flex-wrap gap-2 mt-3">
                   {(evaluacion?.temas || []).map((tema, i) => (
-                    <Badge key={i} variant="secondary">
+                    <Badge key={i} variant="secondary" className="max-w-full whitespace-normal break-words">
                       {tema}
                     </Badge>
                   ))}
                 </div>
               </div>
-              <div className="text-right">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="text-right shrink-0">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground whitespace-nowrap">
                   <Clock className="w-4 h-4" />
                   {evaluacion.tiempo_estimado ?? 0} min
                 </div>
@@ -737,7 +761,7 @@ export function EvaluacionIA({
         )}
 
         {error && (
-          <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20">
+          <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20 break-words">
             {error}
           </div>
         )}
@@ -748,18 +772,18 @@ export function EvaluacionIA({
             return (
               <Card key={pregunta.id} className={pregunta.tipo === 'codigo' ? "overflow-hidden" : ""}>
                 <CardHeader className={pregunta.tipo === 'codigo' ? "pb-2" : ""}>
-                  <CardTitle className="text-base flex items-start gap-3">
+                  <CardTitle className="text-base flex items-start gap-2 sm:gap-3 min-w-0">
                     <span className="flex-shrink-0 w-8 h-8 rounded-full bg-[#a0218b]/15 text-[var(--ai-neon-pink)] flex items-center justify-center text-sm font-bold">
                       {idx + 1}
                     </span>
                     {pregunta.tipo !== 'codigo' && (
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0 break-words overflow-x-auto">
                         <MarkdownRenderer content={pregunta.pregunta} />
                       </div>
                     )}
                   </CardTitle>
                   {pregunta.tipo !== 'codigo' && (
-                    <CardDescription className="ml-11">
+                    <CardDescription className="sm:ml-11">
                       {pregunta.tipo === "multiple" && "Selección múltiple (varias respuestas)"}
                       {pregunta.tipo === "unica" && "Selección única"}
                       {pregunta.tipo === "verdadero_falso" && "Verdadero o Falso"}
@@ -768,36 +792,36 @@ export function EvaluacionIA({
                   {pregunta.origen === "compendio" ? (
                     <span
                       title={pregunta.fuente_detalle || "Examen pasado"}
-                      className="ml-11 mt-1.5 inline-flex items-center gap-1.5 bg-purple-950/60 text-purple-300 border border-purple-500/30 px-2.5 py-1 rounded-full text-xs font-medium"
+                      className="sm:ml-11 mt-1.5 self-start w-fit inline-flex items-center gap-1.5 bg-purple-950/60 text-purple-300 border border-purple-500/30 px-2.5 py-1 rounded-full text-xs font-medium"
                     >
                       <BookOpen className="w-3.5 h-3.5" />
                       Examen Pasado
                     </span>
                   ) : (
                     <span
-                      className="ml-11 mt-1.5 inline-flex items-center gap-1.5 bg-slate-800 text-slate-300 border border-slate-700 px-2.5 py-1 rounded-full text-xs font-medium"
+                      className="sm:ml-11 mt-1.5 self-start w-fit inline-flex items-center gap-1.5 bg-slate-800 text-slate-300 border border-slate-700 px-2.5 py-1 rounded-full text-xs font-medium"
                     >
                       <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                       Sintetizado por IA
                     </span>
                   )}
                 </CardHeader>
-                <CardContent className={pregunta.tipo === 'codigo' ? "p-0" : "ml-11 space-y-4"}>
+                <CardContent className={pregunta.tipo === 'codigo' ? "p-0" : "sm:ml-11 space-y-2 sm:space-y-4 min-w-0"}>
                   {pregunta.tipo === 'codigo' ? (
                     (() => {
                       const casoDeEjemplo = pregunta.caso_de_ejemplo;
 
                       return (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 p-3 sm:p-4">
                           {/* Columna Izquierda: Enunciado y Formatos */}
-                          <div className="flex flex-col">
+                          <div className="flex flex-col min-w-0">
                             <div className="mb-2">
                               <span className="inline-flex items-center gap-1 bg-[#a0218b]/15 text-[var(--ai-neon-pink)] text-xs font-semibold px-2.5 py-0.5 rounded">💻 Reto de Código</span>
                             </div>
                             <div className="max-h-[500px] overflow-y-auto bg-white dark:bg-slate-950 rounded-lg border border-slate-100 dark:border-slate-800">
-                              <div className="p-5 space-y-6">
+                              <div className="p-3 sm:p-5 space-y-5 sm:space-y-6">
                                 {(pregunta.contexto_markdown || pregunta.pregunta) && (
-                                  <div className="prose dark:prose-invert max-w-none text-sm">
+                                  <div className="prose dark:prose-invert max-w-none text-sm break-words overflow-x-auto">
                                     <MarkdownRenderer content={pregunta.contexto_markdown || pregunta.pregunta} />
                                   </div>
                                 )}
@@ -811,7 +835,7 @@ export function EvaluacionIA({
                                   {pregunta.input_markdown && (
                                     <div className="space-y-2">
                                       <Label className="text-sm font-semibold text-accent">Formato de Entrada</Label>
-                                      <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-md prose dark:prose-invert max-w-none text-sm">
+                                      <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-md prose dark:prose-invert max-w-none text-sm break-words overflow-x-auto">
                                         <MarkdownRenderer content={pregunta.input_markdown} />
                                       </div>
                                     </div>
@@ -819,7 +843,7 @@ export function EvaluacionIA({
                                   {pregunta.output_markdown && (
                                     <div className="space-y-2">
                                       <Label className="text-sm font-semibold text-accent">Formato de Salida</Label>
-                                      <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-md prose dark:prose-invert max-w-none text-sm">
+                                      <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-md prose dark:prose-invert max-w-none text-sm break-words overflow-x-auto">
                                         <MarkdownRenderer content={pregunta.output_markdown} />
                                       </div>
                                     </div>
@@ -830,7 +854,7 @@ export function EvaluacionIA({
                               {casoDeEjemplo && (
                                 <div className="space-y-2">
                                   <Label className="text-sm font-semibold text-accent">Caso de Ejemplo</Label>
-                                  <div className="p-4 font-mono text-sm bg-slate-900 text-slate-300 rounded-md border border-slate-800">
+                                  <div className="p-3 sm:p-4 font-mono text-sm bg-slate-900 text-slate-300 rounded-md border border-slate-800">
                                     <div className="mb-4">
                                       <p className="text-slate-300 text-xs uppercase tracking-wider mb-2 font-semibold">Entrada de Prueba</p>
                                       <div className="p-3 bg-black/50 rounded border border-slate-800/50 overflow-x-auto">
@@ -851,7 +875,7 @@ export function EvaluacionIA({
                         </div>
 
                           {/* Columna Derecha: Editor y Consola */}
-                          <div className="flex flex-col space-y-4">
+                          <div className="flex flex-col space-y-4 min-w-0">
                             <div className="flex-1 flex flex-col">
                               <Label htmlFor={`code-${pregunta.id}`} className="mb-2 text-sm font-semibold">Tu Solución</Label>
                               <textarea
@@ -859,7 +883,7 @@ export function EvaluacionIA({
                                 value={respuestas[pregunta.id] ?? pregunta.codigo_base ?? ''}
                                 onChange={(e) => handleRespuesta(pregunta.id, e.target.value, false)}
                                 placeholder="Escribe tu código aquí..."
-                                className="w-full flex-1 min-h-[300px] p-4 font-mono text-sm bg-[#1e1e1e] text-[#d4d4d4] border border-slate-800 rounded-md focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all"
+                                className="w-full flex-1 min-h-[240px] sm:min-h-[300px] p-3 sm:p-4 font-mono text-sm bg-[#1e1e1e] text-[#d4d4d4] border border-slate-800 rounded-md focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all"
                                 style={{ resize: 'vertical' }}
                               />
                             </div>
@@ -874,7 +898,7 @@ export function EvaluacionIA({
                               </Button>
                               
                               {executionResult && (
-                                <div className="w-full p-4 bg-slate-950 border border-slate-800 rounded-md shadow-inner">
+                                <div className="w-full min-w-0 p-3 sm:p-4 bg-slate-950 border border-slate-800 rounded-md shadow-inner">
                                   <p className="text-xs font-semibold text-slate-300 mb-2 uppercase tracking-wider">Consola de Salida</p>
                                   <pre className="font-mono text-sm whitespace-pre-wrap overflow-x-auto">
                                     {executionResult.error ? (
@@ -892,7 +916,7 @@ export function EvaluacionIA({
                     })()
                   ) : (
                     pregunta.opciones && pregunta.opciones.map((opcion, opcionIdx) => (
-                      <div key={opcionIdx} className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/50 transition-colors">
+                      <div key={opcionIdx} className="flex items-center gap-3 p-2.5 sm:p-3 min-h-[44px] sm:min-h-0 rounded-lg hover:bg-secondary/50 transition-colors">
                         {pregunta.tipo === "multiple" ? (
                           <Checkbox
                             checked={((respuestas[pregunta.id] || []) as number[]).includes(opcionIdx)}
@@ -905,11 +929,11 @@ export function EvaluacionIA({
                             name={`pregunta-${pregunta.id}`}
                             checked={respuestas[pregunta.id] === opcionIdx}
                             onChange={() => handleRespuesta(pregunta.id, opcionIdx, false)}
-                            className="w-4 h-4 text-purple-600"
+                            className="w-4 h-4 shrink-0 text-purple-600"
                             id={`radio-${pregunta.id}-${opcionIdx}`}
                           />
                         )}
-                        <label htmlFor={pregunta.tipo === 'multiple' ? `check-${pregunta.id}-${opcionIdx}` : `radio-${pregunta.id}-${opcionIdx}`} className="flex-1 cursor-pointer">
+                        <label htmlFor={pregunta.tipo === 'multiple' ? `check-${pregunta.id}-${opcionIdx}` : `radio-${pregunta.id}-${opcionIdx}`} className="flex-1 min-w-0 break-words overflow-x-auto cursor-pointer">
                           <MarkdownRenderer content={opcion} />
                         </label>
                       </div>
@@ -921,15 +945,15 @@ export function EvaluacionIA({
           })}
         </div>
 
-        <div className="flex gap-3 sticky bottom-4 bg-background/95 backdrop-blur-sm p-4 rounded-lg border shadow-lg">
-          <Button variant="outline" onClick={reiniciar} className="gap-2">
+        <div className="flex gap-2 sm:gap-3 sticky bottom-2 sm:bottom-4 bg-background/95 backdrop-blur-sm p-3 sm:p-4 rounded-lg border shadow-lg">
+          <Button variant="outline" onClick={reiniciar} className="gap-2 shrink-0 min-h-[40px] sm:min-h-0">
             <RotateCcw className="w-4 h-4" />
             Reiniciar
           </Button>
           <Button
             onClick={enviarEvaluacion}
             disabled={!todasRespondidas || isLoading}
-            className="flex-1 gap-2 gradient-ai-neon text-white border-0"
+            className="flex-1 min-w-0 min-h-[40px] sm:min-h-0 gap-2 gradient-ai-neon text-white border-0"
           >
             <PlayCircle className="w-4 h-4" />
             {isLoading ? "Evaluando..." : "Enviar Evaluación"}
@@ -945,10 +969,14 @@ export function EvaluacionIA({
     return (
       <EvaluationResultsView
         data={evaluationData}
-        onGenerateNew={reiniciar}
+        onGenerateNew={() => {
+          reiniciar();
+          if (onEvaluacionFinalizada) onEvaluacionFinalizada();
+        }}
         onBackToCourse={() => {
           reiniciar();
           if (onClearPreselection) onClearPreselection();
+          if (onEvaluacionFinalizada) onEvaluacionFinalizada();
         }}
       />
     );

@@ -1,7 +1,7 @@
 schema: spec-driven
 
 context: |
-  UniVia — plataforma de orientación académica personalizada.
+  Venus — plataforma de orientación académica personalizada.
   Stack: FastAPI 2.0 (Python 3.11, Uvicorn) backend, Next.js 16 (React 19, TypeScript 5 strict, Tailwind 4) frontend.
   Database: Supabase (PostgreSQL + Auth + RLS), asyncpg + supabase-py (backend), @supabase/supabase-js (frontend).
   Architecture: Monorepo (backend/ + frontend/). Backend: app/routers/, app/schemas/, app/core/ (database, auth, validators), app/rag/.

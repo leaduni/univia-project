@@ -1,4 +1,4 @@
-# Guía de esquema y convenciones — Backend UniVia
+# Guía de esquema y convenciones — Backend Venus
 
 Entregable de la **Fase 1 (Núcleo de datos, seguridad y validaciones transversales)**.
 

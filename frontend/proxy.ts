@@ -14,6 +14,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
@@ -39,7 +40,7 @@ const RUTAS_PROTEGIDAS = [
 const PREFIJOS_PUBLICOS = ["/auth", "/login", "/api", "/onboarding"]
 const PREFIJOS_ESTATICOS = ["/_next/static", "/_next/image", "/favicon.ico"]
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // 1) Salida inmediata para rutas públicas y estáticas: sin verificación de
@@ -107,11 +108,32 @@ export async function middleware(request: NextRequest) {
   return response
 }
 
+// El matcher restringe dónde corre el middleware: solo las rutas del panel,
+// ignorando estáticos de Next, imágenes optimizadas y favicon. Debe ser un
+// array de LITERALES: Next lo parsea estáticamente en build y no acepta
+// spreads ni .map() (rompe el build de producción).
+// Debe coincidir con RUTAS_PROTEGIDAS (cada ruta y su prefijo /:path*).
 export const config = {
-  // El matcher restringe dónde corre el middleware: solo las rutas del
-  // panel, ignorando estáticos de Next, imágenes optimizadas y favicon.
   matcher: [
-    ...RUTAS_PROTEGIDAS.map((ruta) => `${ruta}/:path*`),
-    ...RUTAS_PROTEGIDAS.map((ruta) => ruta),
+    "/dashboard/:path*",
+    "/dashboard",
+    "/agenda/:path*",
+    "/agenda",
+    "/curso/:path*",
+    "/curso",
+    "/donaciones/:path*",
+    "/donaciones",
+    "/foro/:path*",
+    "/foro",
+    "/malla/:path*",
+    "/malla",
+    "/mensajes/:path*",
+    "/mensajes",
+    "/perfil/:path*",
+    "/perfil",
+    "/ranking/:path*",
+    "/ranking",
+    "/recursos/:path*",
+    "/recursos",
   ],
-}
+} 

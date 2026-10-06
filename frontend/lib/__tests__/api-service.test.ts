@@ -13,6 +13,7 @@ vi.mock("@/lib/supabase", () => ({
 
 // ── Import after mocks ──
 import { apiService } from "@/lib/api-service";
+import { limpiarCache } from "@/lib/api-cache";
 
 // ── Helpers ──
 
@@ -112,5 +113,56 @@ describe("completeOnboarding error fallback", () => {
         cursos_inscritos: [1],
       }),
     ).rejects.toThrow("Internal Server Error");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// T8 — cursos activos: degradación defensiva de una sección del dashboard
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("getCursosActivos fallback", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // La caché SWR es de módulo y sobrevive entre tests: sin limpiarla, un
+    // caso leería el dato cacheado por el anterior.
+    limpiarCache();
+  });
+
+  it("resuelve con lista vacía en vez de rechazar cuando la API falla (500)", async () => {
+    mockFetch(500, {
+      status: "error",
+      errors: [
+        {
+          field: "general",
+          message: "No se pudieron cargar tus cursos activos.",
+        },
+      ],
+    });
+
+    // Antes lanzaba: un fallo de esta sección tumbaba el resto del dashboard
+    // y pintaba el banner de "Sincronización parcial".
+    await expect(apiService.getCursosActivos()).resolves.toEqual({ cursos: [] });
+  });
+
+  it("devuelve los cursos cuando la API responde 200", async () => {
+    mockFetch(200, {
+      cursos: [{ id: 29, code: "BRN01", name: "Realidad Nacional", progreso: 50 }],
+    });
+
+    const resultado = await apiService.getCursosActivos();
+
+    expect(resultado.cursos).toHaveLength(1);
+    expect(resultado.cursos[0].code).toBe("BRN01");
+  });
+
+  it("no cachea el resultado fallido: el siguiente intento vuelve a pedir", async () => {
+    mockFetch(500, { status: "error", errors: [] });
+    await apiService.getCursosActivos();
+
+    mockFetch(200, { cursos: [{ id: 7, code: "FB403", name: "Ecuaciones Diferenciales" }] });
+    const resultado = await apiService.getCursosActivos();
+
+    expect(resultado.cursos).toHaveLength(1);
+    expect(resultado.cursos[0].code).toBe("FB403");
   });
 });

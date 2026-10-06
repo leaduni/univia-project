@@ -1,4 +1,4 @@
-"""Rate limiting compartido (SlowAPI) del backend de UniVia.
+"""Rate limiting compartido (SlowAPI) del backend de Venus.
 
 El módulo de feedback aplica `@limiter.limit(...)` a sus endpoints de escritura
 y usa este `Limiter` único para no duplicar instancias entre routers.

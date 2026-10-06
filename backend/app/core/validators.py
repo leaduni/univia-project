@@ -1,4 +1,4 @@
-"""Validaciones transversales de UniVia (Fase 1 — núcleo de datos y seguridad).
+"""Validaciones transversales de Venus (Fase 1 — núcleo de datos y seguridad).
 
 Este módulo es la fuente única de verdad para las reglas que se repiten en
 varios módulos del backend. Los routers y schemas deben importar desde aquí

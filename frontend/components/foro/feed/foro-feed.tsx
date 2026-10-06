@@ -58,7 +58,8 @@ export function ForoFeed() {
   }, [feed.setBusqueda, feed.setFiltro])
 
   return (
-    <section aria-label="Feed del foro">
+    // Buscador y publicaciones comparten el flujo, separados por el gap.
+    <section aria-label="Feed del foro" className="flex flex-col gap-6">
       <FeedHeader
         busqueda={feed.busqueda}
         onBusqueda={feed.setBusqueda}
@@ -67,7 +68,10 @@ export function ForoFeed() {
         onNuevoHilo={() => setModalAbierto(true)}
       />
 
-      <div className="mt-4 space-y-4">
+      {/* Lista en columna con gap: el aire barra→primera tarjeta sale del gap-6
+          de la sección (única fuente) y aquí sólo se separan las tarjetas entre
+          sí. Sin space-y-* (regla del repo: flex + gap, no márgenes entre hijos). */}
+      <div className="flex flex-col gap-4">
         {feed.cargando && <FeedSkeleton />}
 
         {!feed.cargando && feed.error && (

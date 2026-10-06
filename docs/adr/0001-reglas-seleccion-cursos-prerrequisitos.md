@@ -6,7 +6,7 @@
 
 ## Contexto y Problema
 
-UniVia es un asistente de aprendizaje académico. Los estudiantes no necesariamente usan la plataforma para cada asignatura de su carrera, ya que pueden haber aprobado materias en ciclos anteriores sin registrar actividad en la app.
+Venus es un asistente de aprendizaje académico. Los estudiantes no necesariamente usan la plataforma para cada asignatura de su carrera, ya que pueden haber aprobado materias en ciclos anteriores sin registrar actividad en la app.
 
 Por ende, exigir una secuencia rígida donde el usuario deba marcar todos los cursos previos como completados antes de usar la plataforma genera fricción innecesaria.
 

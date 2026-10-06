@@ -17,6 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 
 import { useAuth } from "@/components/providers/auth-context"
@@ -55,6 +56,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const [esAdmin, setEsAdmin] = useState(false)
   const [isAtTop, setIsAtTop] = useState(true)
   const [isHidden, setIsHidden] = useState(false)
+  const [menuMovilAbierto, setMenuMovilAbierto] = useState(false)
   const ultimoScroll = useRef(0)
   const ultimoAplicado = useRef(0)
   const rafId = useRef<number | null>(null)
@@ -116,6 +118,9 @@ export function Header({ onMenuClick }: HeaderProps) {
     }
   }, [pathname])
 
+  const esActivo = (href: string) =>
+    pathname === href || (href !== "/" && pathname?.startsWith(href))
+
   return (
     <header
       className={cn(
@@ -129,13 +134,17 @@ export function Header({ onMenuClick }: HeaderProps) {
       )}
     >
       <div className="flex items-center justify-between gap-3 px-3 py-3 sm:px-6 sm:py-4 sm:gap-4">
-        <div className="flex items-center gap-4 flex-1">
+        <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
           <Button
             variant="ghost"
             size="icon"
-            onClick={onMenuClick}
-            aria-label="Abrir o cerrar el menú"
-            className="md:hidden"
+            onClick={() => {
+              setMenuMovilAbierto(true)
+              onMenuClick()
+            }}
+            aria-label="Abrir el menú"
+            aria-expanded={menuMovilAbierto}
+            className="xl:hidden shrink-0"
           >
             <Menu className="w-5 h-5" />
           </Button>
@@ -150,15 +159,13 @@ export function Header({ onMenuClick }: HeaderProps) {
           <HeaderSearch />
         </div>
 
-        <div className="flex items-center gap-2 md:gap-4">
+        <div className="flex items-center gap-1 sm:gap-2 xl:gap-4 shrink-0">
           {/* Accesos directos. Duplican al sidebar a propósito: el mockup los
               pide arriba, y en pantallas donde el sidebar va colapsado son la
               única navegación con texto. */}
-          <nav className="hidden md:flex items-center gap-1" aria-label="Accesos rápidos">
+          <nav className="hidden xl:flex items-center gap-1" aria-label="Accesos rápidos">
             {ACCESOS.map((acceso) => {
-              const activo =
-                pathname === acceso.href ||
-                (acceso.href !== "/" && pathname?.startsWith(acceso.href))
+              const activo = esActivo(acceso.href)
               return (
                 <Link
                   key={acceso.href}
@@ -166,7 +173,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                   aria-current={activo ? "page" : undefined}
                   onMouseEnter={() => prefetchRuta(acceso.href)}
                   className={cn(
-                    "px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap",
+                    "px-2.5 2xl:px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap",
                     activo
                       ? "text-white bg-white/[0.08] shadow-[0_0_12px_rgba(121,87,241,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] border border-white/[0.12]"
                       : "text-muted-foreground hover:text-foreground hover:bg-white/[0.07]",
@@ -179,7 +186,9 @@ export function Header({ onMenuClick }: HeaderProps) {
           </nav>
 
           {/* Racha y XP del estudiante, con acceso directo al ranking. */}
-          <GamificationWidget />
+          <div className="hidden sm:block">
+            <GamificationWidget />
+          </div>
 
           {/* Sin punto de "no leídas": no hay fuente de notificaciones todavía
               y un indicador siempre encendido deja de significar algo. */}
@@ -248,6 +257,43 @@ export function Header({ onMenuClick }: HeaderProps) {
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Navegación móvil/tablet: por debajo de xl los accesos no caben en la barra. */}
+      <Sheet open={menuMovilAbierto} onOpenChange={setMenuMovilAbierto}>
+        <SheetContent
+          side="left"
+          className="w-[85vw] max-w-xs bg-[#0b0c16]/95 backdrop-blur-xl border-white/[0.08] p-0 safe-modal-padding"
+        >
+          <SheetHeader className="px-5 pt-5 pb-3 border-b border-white/[0.07]">
+            <SheetTitle className="sr-only">Menú de navegación</SheetTitle>
+            <Logo />
+          </SheetHeader>
+          <div className="px-4 pt-3 sm:hidden">
+            <GamificationWidget />
+          </div>
+          <nav className="flex flex-col gap-1 p-3 overflow-y-auto" aria-label="Navegación principal">
+            {ACCESOS.map((acceso) => {
+              const activo = esActivo(acceso.href)
+              return (
+                <Link
+                  key={acceso.href}
+                  href={acceso.href}
+                  aria-current={activo ? "page" : undefined}
+                  onClick={() => setMenuMovilAbierto(false)}
+                  className={cn(
+                    "flex items-center min-h-11 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors duration-200",
+                    activo
+                      ? "text-white bg-white/[0.08] border border-white/[0.12]"
+                      : "text-muted-foreground hover:text-foreground hover:bg-white/[0.07]",
+                  )}
+                >
+                  {acceso.label}
+                </Link>
+              )
+            })}
+          </nav>
+        </SheetContent>
+      </Sheet>
     </header>
   )
 }

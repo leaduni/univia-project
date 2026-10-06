@@ -1180,7 +1180,7 @@ async def _generar_sugerencia_ia(publicacion_id: int, token: str) -> None:
 
         from app.core.llm import chatear
         system = (
-            "Eres el bot UniVia que ayuda a estudiantes en el foro. Responde con base "
+            "Eres el bot Venus que ayuda a estudiantes en el foro. Responde con base "
             "EXCLUSIVA en el material del curso provisto. Sé claro y breve (2-3 párrafos). "
             "No inventes datos que no estén en el material; si falta contexto, dilo."
         )

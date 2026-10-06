@@ -69,7 +69,8 @@ export function podioDePuesto(puesto: number): { medalla: string; gradiente: str
 // El backend los genera como 10 caracteres hex en mayúsculas (migración fase 10).
 // ---------------------------------------------------------------------------
 
-const CLAVE_CODIGO_REFERIDO = "univia:codigo_referido"
+const CLAVE_CODIGO_REFERIDO = "venus:codigo_referido"
+const CLAVE_CODIGO_REFERIDO_ANTERIOR = "univia:codigo_referido"
 const CODIGO_REFFERIDO_PATTERN = /^[0-9a-fA-F]{10}$/
 
 /** True si el parámetro `?ref=` tiene el formato de un código de referido. */
@@ -82,14 +83,17 @@ export function guardarCodigoReferido(codigo: string | null | undefined): void {
   if (!esCodigoReferidoValido(codigo)) return
   try {
     localStorage.setItem(CLAVE_CODIGO_REFERIDO, (codigo as string).trim().toUpperCase())
+    localStorage.removeItem(CLAVE_CODIGO_REFERIDO_ANTERIOR)
   } catch { /* almacenamiento restringido: el referido se pierde, no es crítico */ }
 }
 
 /** Lee y borra el código guardado (una sola atribución por flujo de registro). */
 export function tomarCodigoReferido(): string | null {
   try {
-    const codigo = localStorage.getItem(CLAVE_CODIGO_REFERIDO)
+    const codigoActual = localStorage.getItem(CLAVE_CODIGO_REFERIDO)
+    const codigo = codigoActual ?? localStorage.getItem(CLAVE_CODIGO_REFERIDO_ANTERIOR)
     localStorage.removeItem(CLAVE_CODIGO_REFERIDO)
+    localStorage.removeItem(CLAVE_CODIGO_REFERIDO_ANTERIOR)
     return codigo && esCodigoReferidoValido(codigo) ? codigo : null
   } catch {
     return null

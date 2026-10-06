@@ -1,4 +1,4 @@
-# UniVia - Guia de Tokens de Diseno (Design Tokens)
+# Venus - Guia de Tokens de Diseno (Design Tokens)
 
 > **Version:** 1.0 - Fase 1 (Fundacion Frontend)
 > **Fecha:** Julio 2026
@@ -8,7 +8,7 @@
 
 ## 1. Vision General y Filosofia
 
-UniVia utiliza un sistema de diseno **100% Dark Mode** basado en la paleta oficial de **LEAD UNI**. No existe tema claro.
+Venus utiliza un sistema de diseno **100% Dark Mode** basado en la paleta oficial de **LEAD UNI**. No existe tema claro.
 
 ### Regla de Oro para el equipo
 
@@ -76,7 +76,7 @@ UniVia utiliza un sistema de diseno **100% Dark Mode** basado en la paleta ofici
 
 ## 3. Sistema Tipografico
 
-UniVia utiliza tres familias tipograficas cargadas via `next/font/google`:
+Venus utiliza tres familias tipograficas cargadas via `next/font/google`:
 
 | Rol | Fuente | Variable CSS | Tailwind Utility | Pesos disponibles |
 |---|---|---|---|---|
@@ -93,7 +93,7 @@ UniVia utiliza tres familias tipograficas cargadas via `next/font/google`:
 ### Ejemplos
 
 ```tsx
-<h1 className="font-heading font-bold text-3xl">Bienvenido a UniVia</h1>
+<h1 className="font-heading font-bold text-3xl">Bienvenido a Venus</h1>
 <p className="text-muted-foreground">Descripcion del dashboard...</p>
 <span className="brand-wordmark">LEAD UNI</span>
 ```
@@ -273,5 +273,5 @@ import { AiInsightCard } from "@/components/ui/ai-insight-card"
 
 ---
 
-> **Documento mantenido por:** Equipo de Desarrollo Frontend - LEAD UNI / UniVia
+> **Documento mantenido por:** Equipo de Desarrollo Frontend - LEAD UNI / Venus
 > **Proxima revision:** Fase 2 (Integracion RAG y Funcionalidades Core)

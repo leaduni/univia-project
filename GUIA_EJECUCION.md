@@ -1,4 +1,4 @@
-# 🚀 GUÍA DE EJECUCIÓN - UniVia Platform
+# 🚀 GUÍA DE EJECUCIÓN - Venus Platform
 
 ## ✅ SISTEMA COMPLETO IMPLEMENTADO
 
@@ -69,7 +69,7 @@ NEXT_PUBLIC_API_URL="http://localhost:8000"
 
 **1. Abrir Terminal 1 (Backend):**  
 ```powershell
-cd "C:\Users\Rafael Cly\Desktop\Developer\Proyectos\univia-project\backend"
+cd "C:\Users\Rafael Cly\Desktop\Developer\Proyectos\venus-project\backend"
 python -m uvicorn main:app --reload --port 8000
 ```
 
@@ -81,7 +81,7 @@ INFO:     Application startup complete.
 
 **2. Abrir Terminal 2 (Frontend):**  
 ```powershell
-cd "C:\Users\Rafael Cly\Desktop\Developer\Proyectos\univia-project\frontend"
+cd "C:\Users\Rafael Cly\Desktop\Developer\Proyectos\venus-project\frontend"
 npm run dev
 ```
 
@@ -129,7 +129,7 @@ Abre en tu navegador:
 ```
 http://localhost:3000
 ```
-Verás la interfaz de UniVia
+Verás la interfaz de Venus
 
 ### 3. Probar Sistema de Evaluaciones con IA
 

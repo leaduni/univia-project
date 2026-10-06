@@ -17,6 +17,7 @@ import {
   type NodeMouseHandler,
 } from "@xyflow/react"
 import { CourseNode } from "./CourseNode"
+import { PrerequisiteEdge } from "./PrerequisiteEdge"
 import { CycleLabel } from "./CycleLabel"
 import { CourseDetailsPanel } from "./CourseDetailsPanel"
 import { MallaGraphHeader } from "./MallaGraphHeader"
@@ -39,13 +40,15 @@ import type { AvanceCarrera, CicloDetail, StatusCurso } from "@/types/malla"
 interface MallaGraphProps {
   malla: CicloDetail[]
   avance?: AvanceCarrera | null
-  // Test hook: la virtualización de React Flow necesita un viewport real;
-  // se desactiva en entornos sin medidas (jsdom).
+  // Desactivada por defecto: las rutas exteriores pueden estar visibles
+  // aunque ambos cursos queden fuera del viewport de React Flow.
   virtualize?: boolean
   onMarkCompleted?: (courseId: string) => void
 }
 
-const nodeTypes = { course: CourseNode, cycleLabel: CycleLabel }
+const RoutingBounds = () => null
+const nodeTypes = { course: CourseNode, cycleLabel: CycleLabel, routingBounds: RoutingBounds }
+const edgeTypes = { prerequisite: PrerequisiteEdge }
 
 function SmartCenter({ nodes }: { nodes: any[] }) {
   const { fitView } = useReactFlow()
@@ -65,7 +68,7 @@ function SmartCenter({ nodes }: { nodes: any[] }) {
   return null
 }
 
-export function MallaGraph({ malla, avance, virtualize = true, onMarkCompleted }: MallaGraphProps) {
+export function MallaGraph({ malla, avance, virtualize = false, onMarkCompleted }: MallaGraphProps) {
   const base = useMemo(() => transformarAMallaGraph(malla), [malla])
   const stats = useMemo(() => computeStats(malla), [malla])
   const index = useMemo(() => buildCourseIndex(malla), [malla])
@@ -96,8 +99,8 @@ export function MallaGraph({ malla, avance, virtualize = true, onMarkCompleted }
 
   // Las etiquetas de ciclo no participan del resaltado ni del filtro.
   const rfNodes = useMemo(
-    () => [...base.labels, ...nodes],
-    [base.labels, nodes],
+    () => [...base.labels, ...nodes, ...base.bounds],
+    [base.labels, base.bounds, nodes],
   )
 
   const edges = useMemo(
@@ -136,7 +139,7 @@ export function MallaGraph({ malla, avance, virtualize = true, onMarkCompleted }
   }, [selectedId, postMap, index])
 
   return (
-    <div className="flex h-[calc(100dvh-12.5rem-env(safe-area-inset-bottom))] min-h-[28rem] sm:min-h-[650px] flex-col">
+    <div className="flex h-[calc(100dvh-12.5rem-env(safe-area-inset-bottom))] min-h-[22rem] sm:min-h-[650px] flex-col">
       <h2 className="sr-only">
         Grafo interactivo de la malla curricular: ciclos en columnas y cursos conectados por
         prerrequisitos. Hover para resaltar la cadena, clic para ver detalles.
@@ -147,6 +150,7 @@ export function MallaGraph({ malla, avance, virtualize = true, onMarkCompleted }
           nodes={rfNodes}
           edges={edges}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           fitView
           fitViewOptions={{ padding: 0.15 }}
           minZoom={0.2}
@@ -164,6 +168,7 @@ export function MallaGraph({ malla, avance, virtualize = true, onMarkCompleted }
           <Background gap={24} size={1.5} color="#1e293b" />
           <Controls />
           <MiniMap 
+            className="max-sm:!hidden"
             position="top-right"
             zoomable
             pannable

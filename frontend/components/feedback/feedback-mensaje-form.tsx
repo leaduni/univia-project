@@ -45,7 +45,7 @@ export function FeedbackMensajeForm({ enviando, error, onEnviar }: FeedbackMensa
             type="button"
             aria-label="Quitar archivo"
             onClick={() => setArchivo(null)}
-            className="ml-auto text-muted-foreground transition-colors hover:text-foreground"
+            className="ml-auto -m-2 shrink-0 p-2 text-muted-foreground transition-colors hover:text-foreground"
           >
             <X className="h-3.5 w-3.5" />
           </button>

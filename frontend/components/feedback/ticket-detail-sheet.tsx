@@ -137,23 +137,23 @@ export function TicketDetailSheet({ abierto, onOpenChange, ticket, esDev }: Tick
         <SheetHeader>
           <SheetTitle>{ticket ? `Ticket #${ticket.id}` : "Detalle del ticket"}</SheetTitle>
           <SheetDescription>
-            Conversación con el equipo de desarrollo de UniVia.
+            Conversación con el equipo de desarrollo de Venus.
           </SheetDescription>
         </SheetHeader>
 
         {!ticket ? null : cargando && !detalle ? (
-          <div className="space-y-3 px-5 pb-6">
+          <div className="space-y-3 px-4 pb-6 sm:px-5">
             {[0, 1, 2].map((i) => (
               <div key={i} className="h-16 w-full rounded-xl bg-muted animate-pulse" />
             ))}
           </div>
         ) : error && !detalle ? (
-          <p role="alert" className="flex items-center gap-2 px-5 text-xs text-destructive">
+          <p role="alert" className="flex items-center gap-2 px-4 text-xs sm:px-5 text-destructive">
             <AlertCircle className="h-4 w-4 shrink-0" />
             {error}
           </p>
         ) : detalle ? (
-          <div className="flex flex-col gap-5 px-5 pb-6">
+          <div className="flex flex-col gap-5 px-4 pb-6 sm:px-5">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline">#{detalle.id}</Badge>
               <Badge variant={varianteEstado(detalle.estado)}>{LABEL_ESTADO[detalle.estado]}</Badge>
@@ -163,8 +163,8 @@ export function TicketDetailSheet({ abierto, onOpenChange, ticket, esDev }: Tick
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-foreground">{detalle.titulo}</h3>
-              <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">
+              <h3 className="text-sm font-semibold text-foreground break-words">{detalle.titulo}</h3>
+              <p className="mt-1 whitespace-pre-line break-words text-sm text-muted-foreground">
                 {detalle.descripcion}
               </p>
             </div>
@@ -182,7 +182,7 @@ export function TicketDetailSheet({ abierto, onOpenChange, ticket, esDev }: Tick
                   value={detalle.estado}
                   onValueChange={(v) => void cambiarEstado(v as EstadoFeedback)}
                 >
-                  <SelectTrigger className="w-44">
+                  <SelectTrigger className="min-w-0 flex-1 sm:w-44 sm:flex-none">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -224,7 +224,7 @@ export function TicketDetailSheet({ abierto, onOpenChange, ticket, esDev }: Tick
                         <span aria-hidden>·</span>
                         <span>{formatearFecha(m.creado_en)}</span>
                       </div>
-                      <p className="whitespace-pre-line text-foreground">{m.contenido}</p>
+                      <p className="whitespace-pre-line break-words text-foreground">{m.contenido}</p>
                     </li>
                   ))}
                 </ul>

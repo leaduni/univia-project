@@ -48,7 +48,7 @@ export function PlatformSection() {
         }}
       />
       <div
-        className="univia-split"
+        className="venus-split"
         style={{
           position: "relative",
           maxWidth: 1240,
@@ -113,7 +113,7 @@ export function PlatformSection() {
                 }}
               >
                 <span style={{ width: 20, height: 20, borderRadius: 6, backgroundImage: "linear-gradient(135deg, #d93340, #7957f1)" }} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: "#ffffff" }}>UniVia</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#ffffff" }}>Venus</span>
               </div>
               {DASH_NAV.map((item, i) => {
                 const on = i === navIdx;
@@ -143,7 +143,7 @@ export function PlatformSection() {
                 );
               })}
               <span style={{ marginTop: "auto", fontSize: 9, letterSpacing: "0.08em", color: "rgba(233, 233, 237, 0.35)" }}>
-                UniVia · v1.0.0
+                Venus · v1.0.0
               </span>
             </div>
 
@@ -156,29 +156,6 @@ export function PlatformSection() {
                     Llevas <b style={{ color: "#d2cefd" }}>{Math.round(12 * k)} días</b> de racha estudiando.
                   </span>
                 </div>
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "5px 10px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(63, 66, 77, 0.9)",
-                    fontSize: 10.5,
-                    color: "rgba(233, 233, 237, 0.6)",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: "#67c765",
-                      animation: "univiaPulseDot 1.8s ease-in-out infinite",
-                    }}
-                  />
-                  Sincronizado
-                </span>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
@@ -240,7 +217,7 @@ export function PlatformSection() {
                     inset: 0,
                     backgroundImage: "linear-gradient(100deg, transparent 20%, rgba(215, 206, 247, 0.14) 45%, transparent 70%)",
                     backgroundSize: "220% 100%",
-                    animation: "univiaSheen 3.6s linear infinite",
+                    animation: "venusSheen 3.6s linear infinite",
                   }}
                 />
                 <span
@@ -357,7 +334,7 @@ export function PlatformSection() {
                               height: 5,
                               borderRadius: "50%",
                               background: "#34d399",
-                              animation: "univiaPulseDot 1.6s ease-in-out infinite",
+                              animation: "venusPulseDot 1.6s ease-in-out infinite",
                             }}
                           />
                           En curso
@@ -420,7 +397,7 @@ export function PlatformSection() {
             data-reveal-delay="220"
             style={{ margin: 0, fontSize: "clamp(18px, 1.9vw, 24px)", fontWeight: 500, lineHeight: 1.45, color: "#ffffff", textWrap: "pretty" }}
           >
-            Univia reúne a <span style={{ color: "#b9a9ff" }}>más de 8,000 estudiantes</span> de las 12 facultades de la UNI en un solo
+            Venus reúne a <span style={{ color: "#b9a9ff" }}>más de 8,000 estudiantes</span> de las 12 facultades de la UNI en un solo
             espacio de estudio.
           </p>
           <div data-reveal="up" data-reveal-delay="300" style={{ display: "flex", flexDirection: "column", gap: 14 }}>

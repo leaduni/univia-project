@@ -28,13 +28,13 @@ export function PasswordField<T extends FieldValues>({ field, placeholder }: Pas
       <Input
         type={visible ? "text" : "password"}
         placeholder={placeholder}
-        className="h-12 pl-10 pr-11 rounded-xl focus-visible:ring-2 focus-visible:ring-primary/50"
+        className="h-12 pl-10 pr-12 rounded-xl text-base sm:text-sm focus-visible:ring-2 focus-visible:ring-primary/50"
         {...field}
       />
       <button
         type="button"
         onClick={() => setVisible((v) => !v)}
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors active:scale-[0.92]"
+        className="absolute right-1 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center text-muted-foreground hover:text-foreground transition-colors active:scale-[0.92]"
         aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
       >
         {visible ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}

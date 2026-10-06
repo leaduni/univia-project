@@ -14,8 +14,8 @@ const QuoteSection = dynamic(() => import("./hero-section").then((m) => m.QuoteS
 const PlatformSection = dynamic(() => import("./platform-section").then((m) => m.PlatformSection));
 const CoursesSection = dynamic(() => import("./courses-section").then((m) => m.CoursesSection));
 const IaSection = dynamic(() => import("./ia-section").then((m) => m.IaSection));
-const WhyUniviaSection = dynamic(() => import("./why-univia-section").then((m) => m.WhyUniviaSection));
-const TeamSection = dynamic(() => import("./why-univia-section").then((m) => m.TeamSection));
+const WhyVenusSection = dynamic(() => import("./why-venus-section").then((m) => m.WhyVenusSection));
+const TeamSection = dynamic(() => import("./why-venus-section").then((m) => m.TeamSection));
 const FinalCtaSection = dynamic(() => import("./final-cta-section").then((m) => m.FinalCtaSection));
 const LandingFooter = dynamic(() => import("./final-cta-section").then((m) => m.LandingFooter));
 
@@ -23,7 +23,7 @@ export function LandingShell() {
   useReveal();
 
   return (
-    <div className="univia-landing">
+    <div className="venus-landing">
       <LandingNav />
       <main>
         <HeroSection />
@@ -31,7 +31,7 @@ export function LandingShell() {
         <PlatformSection />
         <CoursesSection />
         <IaSection />
-        <WhyUniviaSection />
+        <WhyVenusSection />
         <TeamSection />
         <FinalCtaSection />
       </main>

@@ -6,8 +6,9 @@
 "use client"
 
 import { useRef } from "react"
-import { BookOpen, Sparkles } from "lucide-react"
+import { BookOpen } from "lucide-react"
 import dynamic from "next/dynamic"
+import { LuniMascot } from "@/components/ui/LuniMascot"
 import { CHAT_TOKENS } from "./chat-tokens"
 import { useAnimateMessageIn } from "./use-gsap-chat"
 
@@ -42,6 +43,9 @@ const PANEL_BG = `${CHAT_TOKENS.PANEL_BG_LIGHT} dark:bg-white/[0.06]`
 export function MessageBubble({ message, isTyping = false, recursos }: MessageBubbleProps) {
   const esUsuario = message.role === "user"
   const burbujaRef = useRef<HTMLDivElement | null>(null)
+  // Mientras el asistente redacta (llegó el turno pero todavía no hay texto) la
+  // cara de Luni es "pensando"; en cuanto hay contenido vuelve al reposo.
+  const escribiendo = isTyping && !message.content
 
   // Entrada animada (y:24, opacity:0, scale:0.96) solo en el primer montaje de
   // la burbuja; el tween queda atado al scope del ref y se revierte al
@@ -53,7 +57,7 @@ export function MessageBubble({ message, isTyping = false, recursos }: MessageBu
       <div className="flex justify-end">
         <div
           ref={burbujaRef}
-          className={`${CHAT_TOKENS.RADIUS_BUBBLE_USER} bg-primary text-primary-foreground px-4 py-2.5 max-w-[78%] text-sm leading-relaxed shadow-md`}
+          className={`${CHAT_TOKENS.RADIUS_BUBBLE_USER} bg-primary text-primary-foreground px-3.5 py-2.5 sm:px-4 max-w-[85%] sm:max-w-[78%] text-sm leading-relaxed shadow-md`}
         >
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         </div>
@@ -62,21 +66,24 @@ export function MessageBubble({ message, isTyping = false, recursos }: MessageBu
   }
 
   return (
-    <div className="flex justify-start gap-2.5">
-      {/* Avatar oficial del asistente */}
-      <div
-        className="w-7 h-7 rounded-full bg-gradient-to-br from-[#d93340] via-[#a6249d] to-[#7957f1] flex items-center justify-center shrink-0 shadow-sm"
-        aria-hidden="true"
-      >
-        <Sparkles className="w-3.5 h-3.5 text-white" />
-      </div>
+<div className="flex justify-start gap-2 sm:gap-2.5">
+      {/* Luni habla por el asistente. Ancho fijo: los assets tienen relación
+          de aspecto distinta y sin esto el ancho de la burbuja saltaría al
+          pasar de reposo a pensando. */}
+      <LuniMascot
+        variant={escribiendo ? "thinking" : "idle"}
+        size={28}
+        animated={escribiendo}
+        alt={null}
+        className="mt-0.5 w-5"
+      />
 
       <div className="min-w-0 flex flex-col items-start gap-1.5">
         <div
           ref={burbujaRef}
-          className={`${CHAT_TOKENS.RADIUS_BUBBLE_AI} ${PANEL_BG} ${CHAT_TOKENS.PANEL_BLUR} ${CHAT_TOKENS.BORDER} px-4 py-3 max-w-[82%] text-sm leading-relaxed`}
+          className={`${CHAT_TOKENS.RADIUS_BUBBLE_AI} ${PANEL_BG} ${CHAT_TOKENS.PANEL_BLUR} ${CHAT_TOKENS.BORDER} px-3.5 py-3 sm:px-4 max-w-full sm:max-w-[82%] min-w-0 text-sm leading-relaxed`}
         >
-          {isTyping && !message.content ? (
+          {escribiendo ? (
             <span className="flex gap-1 items-center py-1 px-1">
               {[0, 1, 2].map((i) => (
                 <span
@@ -93,7 +100,7 @@ export function MessageBubble({ message, isTyping = false, recursos }: MessageBu
 
         {/* Tarjetas de recursos: una por enlace, debajo de la respuesta. */}
         {recursos && recursos.length > 0 && (
-          <div className="flex flex-col gap-1.5 max-w-[82%]">
+          <div className="flex flex-col gap-1.5 max-w-full sm:max-w-[82%]">
             {recursos.map((recurso) => {
               const esPortalUni = recurso.url.includes("uni.edu.pe")
               return (

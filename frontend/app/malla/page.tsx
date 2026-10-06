@@ -84,9 +84,9 @@ export default function MallaPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-4 md:p-6 flex flex-col h-[calc(100dvh-5rem-env(safe-area-inset-bottom))]">
+      <div className="px-0 py-2 sm:p-4 md:p-6 flex flex-col h-[calc(100dvh-5rem-env(safe-area-inset-bottom))]">
         <div className="space-y-1 mb-4 flex-none">
-          <h1 className="font-heading text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+          <h1 className="font-heading text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-foreground">
             Mi malla curricular
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -95,7 +95,7 @@ export default function MallaPage() {
         </div>
 
         {error ? (
-          <div className="flex flex-col items-center justify-center text-center gap-4 py-16 flex-1">
+          <div className="flex flex-col items-center justify-center text-center gap-4 py-10 sm:py-16 flex-1">
             <div className="p-4 rounded-full bg-destructive/10 border border-destructive/30">
               <AlertCircle className="w-7 h-7 text-destructive" />
             </div>
@@ -133,11 +133,11 @@ export default function MallaPage() {
 /** Shell de carga granular: tarjetas de ciclo esqueleto en vez de un spinner. */
 function MallaSkeleton() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
       {[0, 1, 2, 3].map((i) => (
         <div
           key={i}
-          className="rounded-2xl border border-border bg-card p-5 space-y-3"
+          className="rounded-2xl border border-border bg-card p-4 sm:p-5 space-y-3"
         >
           <div className="h-4 w-28 rounded-md bg-muted animate-pulse" />
           <div className="h-3 w-3/4 rounded-md bg-muted/70 animate-pulse" />

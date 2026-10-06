@@ -1,4 +1,4 @@
-# 🗺️ Roadmap - UniVia
+# 🗺️ Roadmap - Venus
 
 Este documento detalla la ruta de desarrollo alineada con los requerimientos funcionales (RF) del proyecto.
 
@@ -64,7 +64,7 @@ Este documento detalla la ruta de desarrollo alineada con los requerimientos fun
 
 ---
 
-Este documento detalla la ruta de desarrollo del proyecto UniVia, el estado actual de los módulos y las tareas pendientes para completar la plataforma.
+Este documento detalla la ruta de desarrollo del proyecto Venus, el estado actual de los módulos y las tareas pendientes para completar la plataforma.
 
 ## 📌 Estado Actual del Proyecto
 - **Frontend**: Totalmente integrado con Supabase Auth y Backend API. Navegación fluida y persistencia de datos funcional.

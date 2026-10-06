@@ -113,11 +113,11 @@ export default function RestablecerPasswordPage() {
   }
 
   const inputClase =
-    "w-full px-4 py-3 bg-input border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 pr-10 h-auto"
+    "w-full px-4 py-3 bg-input border border-border rounded-xl text-base sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-all duration-200 pr-12 h-auto"
 
   return (
-    <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center p-6 text-foreground font-sans selection:bg-accent/30">
-      <div className="w-full max-w-md space-y-8">
+    <div className="min-h-dvh w-full bg-background flex flex-col items-center justify-center px-4 py-8 sm:p-6 text-foreground font-sans selection:bg-accent/30">
+      <div className="w-full min-w-0 max-w-md space-y-6 sm:space-y-8">
         <BrandLogo className="justify-center py-0" />
 
         {estadoEnlace === "verificando" && (
@@ -135,7 +135,7 @@ export default function RestablecerPasswordPage() {
               </div>
             </div>
             <h1 className="font-heading text-2xl font-bold text-foreground">Enlace no válido</h1>
-            <p className="text-muted-foreground leading-relaxed">
+            <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
               Este enlace ya venció o se usó antes. Solicita uno nuevo para continuar.
             </p>
             <Link
@@ -202,7 +202,7 @@ export default function RestablecerPasswordPage() {
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            className="absolute right-1 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center text-muted-foreground hover:text-foreground"
                             aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                           >
                             {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -234,7 +234,7 @@ export default function RestablecerPasswordPage() {
                           <button
                             type="button"
                             onClick={() => setShowConfirm(!showConfirm)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            className="absolute right-1 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center text-muted-foreground hover:text-foreground"
                             aria-label={showConfirm ? "Ocultar contraseña" : "Mostrar contraseña"}
                           >
                             {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -263,7 +263,7 @@ export default function RestablecerPasswordPage() {
             <div className="text-center">
               <Link
                 href="/auth/login"
-                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="inline-flex min-h-10 items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Volver al inicio de sesión

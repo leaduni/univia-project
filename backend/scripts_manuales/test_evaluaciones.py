@@ -66,7 +66,7 @@ def test_generar_evaluacion():
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("  PRUEBA DEL SISTEMA DE EVALUACIONES UNIVIA")
+    print("  PRUEBA DEL SISTEMA DE EVALUACIONES VENUS")
     print("=" * 60)
     
     # Test 1: Conexión con Gemini

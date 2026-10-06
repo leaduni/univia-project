@@ -47,7 +47,7 @@ export function CoursesSection() {
         }}
       />
       <div
-        className="univia-split"
+        className="venus-split"
         style={{
           position: "relative",
           maxWidth: 1240,
@@ -120,18 +120,6 @@ export function CoursesSection() {
               <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                 <span style={{ width: 18, height: 18, borderRadius: 6, backgroundImage: "linear-gradient(135deg, #d93340, #7957f1)" }} />
                 <span style={{ fontSize: 13, fontWeight: 600, color: "#ffffff" }}>Mis cursos</span>
-                <span
-                  style={{
-                    padding: "3px 8px",
-                    borderRadius: 999,
-                    background: "rgba(121, 87, 241, 0.16)",
-                    border: "1px solid rgba(121, 87, 241, 0.4)",
-                    fontSize: 10,
-                    color: "#d7cef7",
-                  }}
-                >
-                  Ciclo 2026-1
-                </span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10.5, color: "rgba(233, 233, 237, 0.5)" }}>
                 <i className="ph ph-magnifying-glass" style={{ fontSize: 13 }} />

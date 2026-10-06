@@ -30,15 +30,15 @@ export function MallaGraphHeader({ stats, avance, filter, onFilterChange }: Mall
   const porcentaje = avance?.porcentaje_avance ?? stats.porcentaje
 
   return (
-    <header className="flex-shrink-0 space-y-3 border-b border-border px-4 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex gap-6">
+    <header className="flex-shrink-0 space-y-3 border-b border-border px-3 py-3 sm:px-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4">
+        <div className="flex flex-wrap gap-x-4 gap-y-2 sm:gap-6">
           <Stat valor={stats.aprobadosCR} etiqueta="aprobados CR" color="text-emerald-400" />
           <Stat valor={stats.enCursoCR} etiqueta="en curso CR" color="text-primary" />
           <Stat valor={stats.totalCR} etiqueta="total CR" color="text-muted-foreground" />
           <Stat valor={`${porcentaje}%`} etiqueta="avance" color="text-foreground" />
         </div>
-        <div className="flex gap-5">
+        <div className="flex gap-4 sm:gap-5">
           <Resumen valor={stats.totalCursos} etiqueta="Cursos" />
           <Resumen valor={stats.totalCR} etiqueta="Créditos" />
         </div>
@@ -51,7 +51,7 @@ export function MallaGraphHeader({ stats, avance, filter, onFilterChange }: Mall
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="-mx-3 flex flex-nowrap items-center gap-1.5 overflow-x-auto px-3 pb-1 custom-scrollbar sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
         {FILTER_ORDER.map((estado) => {
           const Icon = FILTER_ICONS[estado]
           const activo = filter === estado
@@ -67,7 +67,7 @@ export function MallaGraphHeader({ stats, avance, filter, onFilterChange }: Mall
               type="button"
               onClick={() => onFilterChange(activo ? null : estado)}
               aria-pressed={activo}
-              className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-all ${
+              className={`inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1.5 text-[11px] sm:min-h-0 font-medium transition-all ${
                 activo
                   ? bgActive[estado]
                   : "border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10 hover:border-white/20"
@@ -83,7 +83,7 @@ export function MallaGraphHeader({ stats, avance, filter, onFilterChange }: Mall
           type="button"
           onClick={() => onFilterChange(null)}
           aria-pressed={filter === null}
-          className={`ml-auto inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-all ${
+          className={`ml-auto inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1.5 text-[11px] sm:min-h-0 font-medium transition-all ${
             filter === null
               ? "border-white/30 bg-white/10 text-foreground"
               : "border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10 hover:border-white/20"

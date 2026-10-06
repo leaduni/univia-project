@@ -30,8 +30,8 @@ export const QuestionReviewCard: React.FC<QuestionReviewCardProps> = ({
   const hasExplanation = Boolean(question.explanation && question.explanation.trim().length > 5);
 
   return (
-    <div className="p-4 rounded-xl bg-[#131424] border border-[#1E2030] space-y-3 hover:border-[#2A2D42] transition-colors">
-      <div className="flex items-center gap-3">
+    <div className="p-3 sm:p-4 min-w-0 rounded-xl bg-[#131424] border border-[#1E2030] space-y-3 hover:border-[#2A2D42] transition-colors">
+      <div className="flex items-start sm:items-center gap-2 sm:gap-3">
         <span
           className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
             isCorrect
@@ -45,7 +45,7 @@ export const QuestionReviewCard: React.FC<QuestionReviewCardProps> = ({
           <h4 className="font-semibold text-white text-sm leading-snug">
             P{question.questionNumber}.
           </h4>
-          <div className="mt-0.5 text-xs text-gray-200">
+          <div className="mt-0.5 text-xs text-gray-200 break-words overflow-x-auto">
             <MarkdownRenderer content={sanitizarTextoAcademico(question.questionText)} />
           </div>
         </div>
@@ -65,7 +65,7 @@ export const QuestionReviewCard: React.FC<QuestionReviewCardProps> = ({
         )}
       </div>
 
-      <div className="pl-9 text-xs text-gray-300 leading-relaxed">
+      <div className="pl-8 sm:pl-9 text-xs text-gray-300 leading-relaxed break-words overflow-x-auto">
         <strong className="text-gray-400">Respuesta correcta:</strong>{" "}
         <span className="text-gray-200">
           <MarkdownRenderer content={sanitizarTextoAcademico(question.correctAnswer)} />
@@ -73,20 +73,20 @@ export const QuestionReviewCard: React.FC<QuestionReviewCardProps> = ({
       </div>
 
       {hasExplanation && (
-        <div className="pl-9">
+        <div className="pl-8 sm:pl-9 min-w-0">
           <button
             onClick={() => setShowFull(!showFull)}
-            className="text-xs text-purple-400 hover:text-purple-300 font-medium transition-colors"
+            className="min-h-[40px] sm:min-h-0 text-left text-xs text-purple-400 hover:text-purple-300 font-medium transition-colors"
           >
             {showFull ? "Ocultar soluci\u00f3n paso a paso" : "Ver soluci\u00f3n paso a paso"}
           </button>
           {showFull && (
-            <div className="bg-slate-900/80 border border-slate-700/60 p-4 rounded-xl my-3 space-y-3">
+            <div className="bg-slate-900/80 border border-slate-700/60 p-3 sm:p-4 rounded-xl my-3 space-y-3">
               <h5 className="text-sm font-semibold text-purple-300 flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-purple-400" />
                 Solución Paso a Paso
               </h5>
-              <div className="text-sm text-gray-200 leading-relaxed">
+              <div className="text-sm text-gray-200 leading-relaxed break-words overflow-x-auto">
                 <MarkdownRenderer content={sanitizarTextoAcademico(question.explanation)} />
               </div>
             </div>

@@ -141,9 +141,9 @@ export function ExamBank({ courseId, onCountChange }: { courseId: string; onCoun
   })
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6 min-w-0">
       <div>
-        <h3 className="text-xl font-semibold text-foreground mb-2">Banco de Exámenes</h3>
+        <h3 className="text-lg sm:text-xl font-semibold text-foreground mb-2">Banco de Exámenes</h3>
         <p className="text-sm text-muted-foreground">
           {isGA
             ? "Repositorio completo de exámenes, prácticas dirigidas y material de estudio de Geometría Analítica"
@@ -152,7 +152,7 @@ export function ExamBank({ courseId, onCountChange }: { courseId: string; onCoun
       </div>
 
       {isGA && (
-        <div className="flex items-center gap-3 p-4 rounded-lg bg-blue-500/5 border border-blue-500/20">
+        <div className="flex items-start sm:items-center gap-3 p-3 sm:p-4 rounded-lg bg-blue-500/5 border border-blue-500/20">
           <BookOpen className="w-5 h-5 text-blue-500 flex-shrink-0" />
           <p className="text-sm text-muted-foreground">
             <span className="font-semibold text-foreground">{GEOMETRIA_PLANCHAS.length} prácticas dirigidas</span> disponibles en el repositorio.
@@ -173,7 +173,7 @@ export function ExamBank({ courseId, onCountChange }: { courseId: string; onCoun
             <button
               key={tipo}
               onClick={() => setFilterType(filterType === tipo ? null : tipo)}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`min-h-[40px] sm:min-h-0 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                 filterType === tipo ? "bg-primary/15 text-primary border border-primary/30" : "bg-secondary/50 text-foreground hover:bg-secondary"
               }`}
             >
@@ -191,7 +191,7 @@ export function ExamBank({ courseId, onCountChange }: { courseId: string; onCoun
             <AlertCircle className="w-8 h-8 text-destructive" />
             <div className="space-y-1">
               <p className="font-poppins font-semibold text-base text-foreground">No pudimos cargar los recursos</p>
-              <p className="text-sm text-muted-foreground max-w-sm mx-auto">{error}</p>
+              <p className="text-sm text-muted-foreground max-w-sm mx-auto break-words">{error}</p>
             </div>
             <Button
               variant="outline"
@@ -210,7 +210,7 @@ export function ExamBank({ courseId, onCountChange }: { courseId: string; onCoun
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 [&>*]:min-w-0">
             {filteredRecursos.map((recurso) => {
               const archivoLocal = (recurso as Recurso & { _archivoLocal?: string })._archivoLocal
               return (

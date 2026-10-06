@@ -1878,7 +1878,7 @@ async def test_generacion(request: Request, user_data=Depends(get_current_user))
     try:
         texto = await correr_en_hilo_llm(
             generar,
-            prompt="Di 'Hola, UniVia está listo para generar evaluaciones!'",
+            prompt="Di 'Hola, Venus está listo para generar evaluaciones!'",
             max_tokens=100,
         )
         resultado["gratuito"] = {"status": "success", "response": texto}
@@ -1898,7 +1898,7 @@ async def test_generacion(request: Request, user_data=Depends(get_current_user))
     try:
         texto = await correr_en_hilo_llm(
             generar_gpt,
-            prompt="Di 'Hola, UniVia está listo para generar evaluaciones!'",
+            prompt="Di 'Hola, Venus está listo para generar evaluaciones!'",
             max_tokens=100,
         )
         resultado["pagado_ultimo_recurso"] = {"status": "success", "response": texto}

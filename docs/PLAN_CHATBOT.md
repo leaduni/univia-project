@@ -1,4 +1,4 @@
-# Plan de trabajo: Chatbot UniVia
+# Plan de trabajo: Chatbot Venus
 
 ## Alcance (v1)
 

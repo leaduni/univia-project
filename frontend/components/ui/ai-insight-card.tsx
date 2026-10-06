@@ -54,7 +54,7 @@ function AiInsightCard({
           <div className="mt-0.5 shrink-0">
             {icon ?? defaultIcon}
           </div>
-          <div className="flex-1 space-y-1">
+          <div className="min-w-0 flex-1 space-y-1">
             {badgeText && (
               <Badge variant="in-progress" className="mb-1">
                 {badgeText}

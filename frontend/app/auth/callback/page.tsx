@@ -32,7 +32,7 @@ export default function AuthCallbackPage() {
   }, [isLoading, session, user, router])
 
   return (
-    <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center text-foreground">
+    <div className="min-h-dvh w-full bg-background flex flex-col items-center justify-center px-4 text-center text-foreground">
       <div className="mb-8">
         <BrandLogo />
       </div>

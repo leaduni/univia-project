@@ -53,16 +53,16 @@ export function EmptyStateRutaAprendizaje({
   }
 
   return (
-    <div className="rounded-2xl border border-[#27244a] bg-[#121124]/60 p-8 md:p-10 text-center space-y-6">
+    <div className="rounded-2xl border border-[#27244a] bg-[#121124]/60 p-5 sm:p-8 md:p-10 text-center space-y-5 sm:space-y-6">
       <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-[#ec4899]/20 to-[#8b5cf6]/20 border border-[#3b3475] flex items-center justify-center">
         <BookMarked className="w-7 h-7 text-indigo-300" />
       </div>
 
       <div className="space-y-2 max-w-md mx-auto">
-        <h2 className="text-xl font-black text-white">
+        <h2 className="text-lg sm:text-xl font-black text-white break-words">
           Este curso aún no tiene ruta oficial
         </h2>
-        <p className="text-sm text-slate-400 leading-relaxed">
+        <p className="text-sm text-slate-400 leading-relaxed break-words">
           Aún no procesamos el sílabo de {nombreCurso}. Mientras tanto puedes
           empezar por tu cuenta con cualquiera de estas opciones:
         </p>
@@ -71,7 +71,7 @@ export function EmptyStateRutaAprendizaje({
       {solicitudSilabo && (
         <div className="max-w-md mx-auto rounded-xl bg-amber-500/10 border border-amber-500/30 px-4 py-3 flex items-center gap-3 text-left">
           <Hourglass className="w-5 h-5 text-amber-400 shrink-0" />
-          <p className="text-xs text-amber-200/90">
+          <p className="text-xs text-amber-200/90 min-w-0 break-words">
             Tu sílabo{" "}
             <span className="font-semibold">{solicitudSilabo.nombre_original || "enviado"}</span>{" "}
             está en procesamiento. Estará listo en menos de 24 horas.
@@ -79,11 +79,11 @@ export function EmptyStateRutaAprendizaje({
         </div>
       )}
 
-      <div className="grid sm:grid-cols-3 gap-3 max-w-2xl mx-auto">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto">
         <button
           onClick={() => setModalSilabo(true)}
           disabled={Boolean(solicitudSilabo) && solicitudSilabo?.estado !== "rechazado"}
-          className="group rounded-xl border border-[#3b3475] bg-[#1d1a3b]/60 p-5 text-left hover:border-[#ec4899] hover:bg-[#1d1a3b] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-[#3b3475]"
+          className="group rounded-xl border border-[#3b3475] bg-[#1d1a3b]/60 p-4 sm:p-5 text-left hover:border-[#ec4899] hover:bg-[#1d1a3b] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-[#3b3475]"
         >
           <FileUp className="w-6 h-6 text-sky-400 mb-2" />
           <p className="text-sm font-bold text-white">Subir el sílabo</p>
@@ -95,7 +95,7 @@ export function EmptyStateRutaAprendizaje({
         <button
           onClick={generarConIA}
           disabled={generandoIA}
-          className="group rounded-xl border border-[#3b3475] bg-[#1d1a3b]/60 p-5 text-left hover:border-[#ec4899] hover:bg-[#1d1a3b] transition-all disabled:opacity-50 disabled:cursor-wait"
+          className="group rounded-xl border border-[#3b3475] bg-[#1d1a3b]/60 p-4 sm:p-5 text-left hover:border-[#ec4899] hover:bg-[#1d1a3b] transition-all disabled:opacity-50 disabled:cursor-wait"
         >
           {generandoIA ? (
             <Loader2 className="w-6 h-6 text-[#ec4899] mb-2 animate-spin" />
@@ -110,7 +110,7 @@ export function EmptyStateRutaAprendizaje({
 
         <button
           onClick={() => setModalUnidades(true)}
-          className="group rounded-xl border border-[#3b3475] bg-[#1d1a3b]/60 p-5 text-left hover:border-[#ec4899] hover:bg-[#1d1a3b] transition-all"
+          className="group rounded-xl border border-[#3b3475] bg-[#1d1a3b]/60 p-4 sm:p-5 text-left hover:border-[#ec4899] hover:bg-[#1d1a3b] transition-all"
         >
           <PencilLine className="w-6 h-6 text-emerald-400 mb-2" />
           <p className="text-sm font-bold text-white">Crear mis unidades</p>
@@ -126,7 +126,7 @@ export function EmptyStateRutaAprendizaje({
         </p>
       )}
       {errorIA && (
-        <p className="text-xs font-semibold text-rose-300">{errorIA}</p>
+        <p className="text-xs font-semibold text-rose-300 break-words">{errorIA}</p>
       )}
 
       <ModalSubirSilabo

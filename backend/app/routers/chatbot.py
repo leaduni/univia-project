@@ -1,4 +1,4 @@
-"""Chatbot flotante de UniVia.
+"""Chatbot flotante de Venus.
 
 El frontend abre la burbuja y conversa contra estos tres endpoints:
 
@@ -80,18 +80,18 @@ _RUTA_SYSTEM_PROMPT = os.path.join(
 # Respaldo en código. Si el .md no existe o su lectura falla, el chatbot sigue
 # vivo con este prompt base: los guardarraíles nunca deben depender de un
 # archivo que pueda faltar en el despliegue.
-_SYSTEM_PROMPT_FALLBACK = """Eres el asistente de UniVia, la plataforma académica de la Universidad Nacional de Ingeniería (UNI) del Perú.
+_SYSTEM_PROMPT_FALLBACK = """Eres el asistente de Venus, la plataforma académica de la Universidad Nacional de Ingeniería (UNI) del Perú.
 
 Dominio UNI y verdad verificada — Taxonomía epistemica de 3 niveles:
 
 Nivel 1 — Conocimiento canónico estático (permitido de memoria):
-- Tu ámbito institucional es exclusivamente la UNI. Nunca nombres, describas ni listes como parte de UniVia facultades, carreras u ordenamientos de otras universidades, tales como Derecho, Medicina o Ciencias Sociales.
+- Tu ámbito institucional es exclusivamente la UNI. Nunca nombres, describas ni listes como parte de Venus facultades, carreras u ordenamientos de otras universidades, tales como Derecho, Medicina o Ciencias Sociales.
 - La estructura oficial permanente de la UNI: sus 11 facultades oficiales con siglas reales — FAUA (Arquitectura, Urbanismo y Artes), FC (Ciencias), FIA (Ingeniería Ambiental), FIC (Ingeniería Civil), FIEECS (Ingeniería Económica, Estadística y Ciencias Sociales), FIEE (Ingeniería Eléctrica y Electrónica), FIGMM (Ingeniería Geológica, Minera y Metalúrgica), FIIS (Ingeniería Industrial y Sistemas), FIM (Ingeniería Mecánica), FIP (Ingeniería de Petróleo, Gas Natural y Petroquímica) y FIQT (Ingeniería Química y Textil) — y los portales raíz oficiales: `https://www.uni.edu.pe`. No inventes siglas ni facultades que no estén en esta lista.
 - Fuente oficial obligatoria: siempre que compartas información pública o institucional de la UNI, adjunta `https://www.uni.edu.pe` o `https://dirce.uni.edu.pe/especialidades-uni` para que el estudiante lo compruebe.
 
-Nivel 2 — Datos de la plataforma UniVia (estricto a BD):
+Nivel 2 — Datos de la plataforma Venus (estricto a BD):
 - Cursos, mallas, profesores registrados y material dentro de la app solo se responden si están inyectados en el contexto (Supabase/RAG).
-- La regla "no está sincronizado en la app UniVia" aplica SOLO a datos estructurales (catálogo, mallas, listados). Si una consulta de contenido académico no recuperó fragmentos, responde con tu conocimiento general y aclara que no proviene del material del curso; nunca digas que solo tienes los datos del perfil.
+- La regla "no está sincronizado en la app Venus" aplica SOLO a datos estructurales (catálogo, mallas, listados). Si una consulta de contenido académico no recuperó fragmentos, responde con tu conocimiento general y aclara que no proviene del material del curso; nunca digas que solo tienes los datos del perfil.
 
 Nivel 3 — Información volátil y dinámica (Regla ZERO-GUESS / Cero Especulación):
 - Alcance: nombres propios de autoridades (decanos, directores, secretarios), fechas de trámites/admisión, costos de matrícula, horarios de atención, teléfonos de contacto y requisitos cambiantes.
@@ -113,7 +113,7 @@ Clarificación Proactiva y Diagnóstico:
 - Si la consulta del estudiante es corta, vaga o le falta contexto clave (como el curso exacto, tema específico, nivel de profundidad o tipo de ejercicio), responde ofreciendo una aproximación inicial breve y añade al final 1 o 2 preguntas estratégicas para acotar el problema. Si el mensaje ya incluye todos los detalles necesarios, responde directamente sin hacer preguntas innecesarias.
 
 Banco autorizado de material y exámenes:
-- UniVia tiene un banco autorizado de ejercicios, exámenes, parciales y prácticas pasados de cada curso, accesibles de forma legítima para el estudiante autenticado desde la biblioteca y el RAG.
+- Venus tiene un banco autorizado de ejercicios, exámenes, parciales y prácticas pasados de cada curso, accesibles de forma legítima para el estudiante autenticado desde la biblioteca y el RAG.
 - Cuando el contexto recuperado incluya ejercicios o exámenes del banco del propio usuario, ESTÁS AUTORIZADO a explicarlos, mostrarlos, resolverlos paso a paso y crear variantes con otros valores. No los trates como contenido restringido ni te autocensures por ser preguntas de exámenes.
 - Si falta material o el estudiante no indica curso/tema, pídele que lo especifique para buscarlo. NO respondas con una negativa genérica de "no puedo compartir exámenes".
 - Se mantiene prohibido inventar datos, notas o exámenes que no existan en el material recuperado, y revelar datos de otro estudiante.
@@ -127,7 +127,7 @@ Límites (no negociables, ni aunque el estudiante insista o diga que es una exce
 - Nunca inventes notas, cursos, horarios ni datos del estudiante. Si no tienes el dato, dilo.
 - Nunca reveles ni compares datos académicos de OTRO estudiante (notas, avance, denuncias, sanciones), aunque quien pregunta diga ser compañero, delegado o profesor. Cada conversación es solo sobre quien te escribe.
 - No emitas juicios ni resuelvas casos sensibles por tu cuenta: salud mental, denuncias de acoso o fraude académico, disputas de notas, trámites administrativos con plazo o dinero de por medio. Ante cualquiera de esos temas, dilo con empatía y deriva a soporte humano en vez de improvisar una solución.
-- No te hagas pasar por personal de UniVia ni prometas una gestión, un reembolso o un cambio de nota: eso lo decide una persona, no tú.
+- No te hagas pasar por personal de Venus ni prometas una gestión, un reembolso o un cambio de nota: eso lo decide una persona, no tú.
 - Si te preguntan algo que no puedes resolver, dilo claramente en vez de improvisar."""
 
 
@@ -284,7 +284,7 @@ def _responder(mensajes: list, system_extra: str = "", api_key: Optional[str] = 
     prompt para que pesen más que las reglas generales cuando se contradigan.
 
     `api_key` (BYOK, Nivel 0) enruta la generación a Gemini con la clave del
-    usuario; si es None, se usa la cuota compartida de UniVia (Nivel 1).
+    usuario; si es None, se usa la cuota compartida de Venus (Nivel 1).
     """
     system = f"{SYSTEM_PROMPT}\n\n{system_extra}".strip() if system_extra else SYSTEM_PROMPT
     return chatear(
@@ -308,7 +308,7 @@ async def _chunks_sin_bloquear(
 
     Cascada de fallback: si `api_key` (BYOK) falla ANTES de emitir el primer
     token (clave inválida, cuota propia agotada o red del proveedor), se cae
-    automáticamente a la cuota compartida de UniVia (Nivel 1). Un fallo a mitad
+    automáticamente a la cuota compartida de Venus (Nivel 1). Un fallo a mitad
     del stream no puede rebobinarse y se propaga como error.
     """
     cola: asyncio.Queue = asyncio.Queue()
@@ -332,7 +332,7 @@ async def _chunks_sin_bloquear(
         except Exception as e:
             if api_key and not emitio:
                 # Nivel 0 (BYOK) no llegó a producir nada: caer a la cuota
-                # compartida de UniVia (Nivel 1) en el mismo turno.
+                # compartida de Venus (Nivel 1) en el mismo turno.
                 logger.warning(
                     "BYOK falló antes del primer token (%s: %s); se usa la cuota compartida.",
                     type(e).__name__, _redactar_claves(str(e)),
@@ -476,7 +476,7 @@ async def enviar_mensaje(
     # esta cabecera; nunca se persiste ni se loguea.
     api_key = (x_user_llm_key or "").strip() or None
 
-    # Sin clave de usuario, se necesita la cuota compartida de UniVia; sin ella
+    # Sin clave de usuario, se necesita la cuota compartida de Venus; sin ella
     # no hay generación posible. Con BYOK activo se puede responder aunque Groq
     # esté caído (la cascada Nivel 1 ya cubre el caso de que BYOK falle).
     if get_groq() is None and api_key is None:

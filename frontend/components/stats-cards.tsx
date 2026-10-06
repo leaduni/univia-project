@@ -74,7 +74,7 @@ export function StatsCards({ stats, isLoading, compact }: StatsCardsProps) {
           return (
             <div
               key={m.label}
-              className="bg-[var(--glass-base)] backdrop-blur-sm border border-[var(--glass-border)] shadow-[var(--glow-subtle)] rounded-2xl p-3.5 flex flex-col justify-between min-h-[86px] transition-all duration-300 ease-out hover:bg-[var(--glass-hover)] hover:border-[var(--glass-border-h)] hover:shadow-[var(--glow-violet-h)] hover:-translate-y-0.5 anim-up"
+              className="bg-[var(--glass-base)] backdrop-blur-sm border border-[var(--glass-border)] shadow-[var(--glow-subtle)] rounded-2xl p-3 sm:p-3.5 min-w-0 flex flex-col justify-between min-h-[86px] transition-all duration-300 ease-out hover:bg-[var(--glass-hover)] hover:border-[var(--glass-border-h)] hover:shadow-[var(--glow-violet-h)] hover:-translate-y-0.5 anim-up"
             >
               {isLoading ? (
                 <>
@@ -87,9 +87,9 @@ export function StatsCards({ stats, isLoading, compact }: StatsCardsProps) {
                     <Icono className="w-3.5 h-3.5 shrink-0" style={{ color: m.color }} />
                     <span className="truncate">{m.label}</span>
                   </div>
-                  <div className="mt-1 flex items-baseline justify-between gap-1">
-                    <span className="font-poppins font-bold text-2xl text-[#e9e9ed]">{m.valor}</span>
-                    <span className="text-[10px] text-[#e9e9ed]/45 truncate">{m.nota}</span>
+                  <div className="mt-1 flex items-baseline justify-between gap-1 min-w-0">
+                    <span className="font-poppins font-bold text-xl sm:text-2xl text-[#e9e9ed] shrink-0">{m.valor}</span>
+                    <span className="text-[10px] text-[#e9e9ed]/45 truncate min-w-0">{m.nota}</span>
                   </div>
                 </>
               )}
@@ -101,13 +101,13 @@ export function StatsCards({ stats, isLoading, compact }: StatsCardsProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
       {metricas.map((m) => {
         const Icono = m.icono
         return (
           <div
             key={m.label}
-            className="bg-[var(--glass-base)] backdrop-blur-sm border border-[var(--glass-border)] shadow-[var(--glow-subtle)] rounded-2xl p-4 flex items-start gap-3.5 transition-all duration-300 ease-out hover:bg-[var(--glass-hover)] hover:border-[var(--glass-border-h)] hover:shadow-[var(--glow-violet-h)] hover:-translate-y-0.5 anim-up"
+            className="bg-[var(--glass-base)] backdrop-blur-sm border border-[var(--glass-border)] shadow-[var(--glow-subtle)] rounded-2xl p-4 min-w-0 flex items-start gap-3.5 transition-all duration-300 ease-out hover:bg-[var(--glass-hover)] hover:border-[var(--glass-border-h)] hover:shadow-[var(--glow-violet-h)] hover:-translate-y-0.5 anim-up"
           >
             <div
               className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-[#161826]"

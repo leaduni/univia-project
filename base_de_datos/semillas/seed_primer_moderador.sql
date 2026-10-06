@@ -1,6 +1,6 @@
 -- =============================================================================
 -- SEED — Primer Moderador del Foro
--- Proyecto: UniVia (leaduni/univia-project)
+-- Proyecto: Venus (leaduni/univia-project)
 -- =============================================================================
 --
 -- Asigna el PRIMER moderador del foro. La gestión de moderadores está

@@ -11,9 +11,9 @@ Dos modos:
 
 2. MODO HTTP (con backend corriendo y un token de alumno válido):
 
-       UNIVIA_API_URL=http://localhost:8000/api \
-       UNIVIA_TOKEN=<jwt-del-alumno> \
-       UNIVIA_CURSO_ID_SIN_RUTA=<id de un curso sin sílabo procesado> \
+       VENUS_API_URL=http://localhost:8000/api \
+       VENUS_TOKEN=<jwt-del-alumno> \
+       VENUS_CURSO_ID_SIN_RUTA=<id de un curso sin sílabo procesado> \
        python scripts_manuales/test_silabos_ruta.py --http
 
    Cubre: 401 sin token, 400 por MIME inválido y por >10MB, 201 de
@@ -116,9 +116,9 @@ def pruebas_http() -> int:
     """Pruebas contra un backend en pie. Requiere env vars."""
     import httpx
 
-    base = os.environ["UNIVIA_API_URL"].rstrip("/")
-    token = os.environ["UNIVIA_TOKEN"]
-    curso = int(os.environ["UNIVIA_CURSO_ID_SIN_RUTA"])
+    base = os.environ["VENUS_API_URL"].rstrip("/")
+    token = os.environ["VENUS_TOKEN"]
+    curso = int(os.environ["VENUS_CURSO_ID_SIN_RUTA"])
     headers = {"Authorization": f"Bearer {token}"}
     fallos = 0
 
@@ -194,7 +194,7 @@ def pruebas_http() -> int:
 
 if __name__ == "__main__":
     if "--http" in sys.argv:
-        faltan = [v for v in ("UNIVIA_API_URL", "UNIVIA_TOKEN", "UNIVIA_CURSO_ID_SIN_RUTA") if not os.getenv(v)]
+        faltan = [v for v in ("VENUS_API_URL", "VENUS_TOKEN", "VENUS_CURSO_ID_SIN_RUTA") if not os.getenv(v)]
         if faltan:
             print("Faltan variables de entorno:", ", ".join(faltan))
             sys.exit(2)

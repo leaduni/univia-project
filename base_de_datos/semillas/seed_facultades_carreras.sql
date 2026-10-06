@@ -1,6 +1,6 @@
 -- =============================================================================
 -- SEED — Facultades y Carreras base de la UNI
--- Proyecto: UniVia (leaduni/univia-project)
+-- Proyecto: Venus (leaduni/univia-project)
 -- =============================================================================
 --
 -- Puebla las 11 facultades oficiales de la Universidad Nacional de Ingeniería

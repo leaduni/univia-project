@@ -9,10 +9,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useGSAP } from "@gsap/react"
-import { MessageCircle, X } from "lucide-react"
+import { X } from "lucide-react"
 import gsap from "gsap"
 import { useAuth } from "@/components/providers/auth-context"
 import { useByok } from "@/components/providers/byok-context"
+import { LuniMascot } from "@/components/ui/LuniMascot"
 import { apiService } from "@/lib/api-service"
 import { enviarMensajeChat } from "@/lib/chatbot-service"
 import { useOnline } from "@/lib/use-online"
@@ -29,12 +30,26 @@ function idTemporal(): string {
 
 /** Clave de localStorage donde vive el `conversacion_id` activo de un usuario. */
 function claveConversacion(userId: string): string {
+  return `venus_chat_conversacion_${userId}`
+}
+
+function claveConversacionAnterior(userId: string): string {
   return `univia_chat_conversacion_${userId}`
 }
 
 function leerConversacionGuardada(userId: string): number | null {
   try {
-    const crudo = localStorage.getItem(claveConversacion(userId))
+    const clave = claveConversacion(userId)
+    const crudoActual = localStorage.getItem(clave)
+    const crudo = crudoActual ?? localStorage.getItem(claveConversacionAnterior(userId))
+    if (crudoActual === null && crudo !== null) {
+      try {
+        localStorage.setItem(clave, crudo)
+        localStorage.removeItem(claveConversacionAnterior(userId))
+      } catch {
+        // El hilo anterior sigue disponible si falla la migración.
+      }
+    }
     const id = crudo ? Number(crudo) : NaN
     return Number.isFinite(id) ? id : null
   } catch {
@@ -47,6 +62,7 @@ function leerConversacionGuardada(userId: string): number | null {
 function guardarConversacion(userId: string, conversacionId: number): void {
   try {
     localStorage.setItem(claveConversacion(userId), String(conversacionId))
+    localStorage.removeItem(claveConversacionAnterior(userId))
   } catch {
     /* nada que hacer si no se puede persistir */
   }
@@ -55,6 +71,7 @@ function guardarConversacion(userId: string, conversacionId: number): void {
 function olvidarConversacion(userId: string): void {
   try {
     localStorage.removeItem(claveConversacion(userId))
+    localStorage.removeItem(claveConversacionAnterior(userId))
   } catch {
     /* idem */
   }
@@ -385,8 +402,12 @@ export function ChatBubble() {
         manejarInputChange(`Ayúdame a repasar para mi examen de: "${customEvent.detail.initialContext}"`)
       }
     }
+    window.addEventListener("open-venus-chat", handleOpenChat)
     window.addEventListener("open-univia-chat", handleOpenChat)
-    return () => window.removeEventListener("open-univia-chat", handleOpenChat)
+    return () => {
+      window.removeEventListener("open-venus-chat", handleOpenChat)
+      window.removeEventListener("open-univia-chat", handleOpenChat)
+    }
   }, [abrirChat, manejarInputChange])
 
   const manejarEnvio = useCallback(() => {
@@ -437,8 +458,8 @@ export function ChatBubble() {
             ref={panelRef}
             className={`pointer-events-auto fixed safe-chat-panel z-[9991] transition-[width,height] duration-300 ease-out ${
               isExpanded
-                ? "w-[min(900px,calc(100vw-32px))] h-[min(85dvh,780px)] max-h-[calc(100dvh-6.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))]"
-                : "w-[min(420px,calc(100vw-24px))] h-[min(620px,calc(100dvh-8.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] max-h-[calc(100dvh-6.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))]"
+                ? "w-[calc(100vw-1.5rem)] h-[calc(100dvh-6.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:w-[min(900px,calc(100vw-32px))] sm:h-[min(85dvh,780px)] max-h-[calc(100dvh-6.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))]"
+                : "w-[calc(100vw-1.5rem)] h-[calc(100dvh-6.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:w-[min(420px,calc(100vw-24px))] sm:h-[min(620px,calc(100dvh-8.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] max-h-[calc(100dvh-6.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))]"
             }`}
           >
             <ChatPanel
@@ -461,22 +482,39 @@ export function ChatBubble() {
           </div>
         )}
 
-        {/* FAB: botón flotante con gradiente AI y badge de no leídos */}
+        {/* FAB: la mascota Luni flotando sobre un anillo de marca y el badge de
+            no leídos. El disco interior es neutro a propósito: un relleno de
+            color competiría con la ilustración, que ya es RGBA sin fondo. */}
         <button
           type="button"
           onClick={alternar}
           aria-label={abierto ? "Cerrar el asistente" : "Abrir el asistente"}
           aria-expanded={abierto}
-          className="pointer-events-auto fixed safe-fab z-[9991] w-14 h-14 rounded-2xl bg-gradient-to-br from-[#d93340] via-[#a6249d] to-[#7957f1] shadow-[0_8px_24px_rgba(121,87,241,0.45)] text-white flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+          className="pointer-events-auto fixed safe-fab z-[9991] w-14 h-14 rounded-full shadow-[0_8px_24px_rgba(121,87,241,0.45)] text-white flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
         >
           {!yaInteractuo && !abierto && (
             <span
-              className="absolute inset-0 rounded-2xl bg-white/25 animate-ping"
+              className="absolute inset-0 rounded-full bg-white/25 animate-ping"
               aria-hidden="true"
             />
           )}
+          {/* Anillo de marca de 2px + disco glass debajo de Luni */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 rounded-full gradient-brand-br"
+          />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-[2px] rounded-full bg-card/85 backdrop-blur-md"
+          />
           <div ref={fabIconRef} className="relative flex items-center justify-center">
-            {abierto ? <X className="w-6 h-6" /> : <MessageCircle className="w-6 h-6" />}
+            {abierto ? (
+              <X className="w-6 h-6" />
+            ) : (
+              // preload: el FAB vive en el primer viewport y es el control más
+              // pulsado; sin esto Luni aparecería un instante después.
+              <LuniMascot variant="float" size={48} animated preload alt={null} />
+            )}
           </div>
           {sinVer && !abierto && (
             <span

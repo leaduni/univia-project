@@ -82,12 +82,12 @@ export function ByokModal({ abierto, token, claveGuardada, onCerrar, onCambio }:
       onClick={onCerrar}
     >
       <div
-        className="w-full max-w-md rounded-2xl bg-[#0d0e1b] border border-white/10 shadow-2xl overflow-hidden"
+        className="flex w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[90dvh] flex-col rounded-2xl bg-[#0d0e1b] border border-white/10 shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cabecera */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-          <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center justify-between gap-2 px-4 py-3 sm:px-5 sm:py-4 border-b border-white/10">
+          <div className="flex min-w-0 items-center gap-2">
             <KeyRound className="w-4 h-4 text-[#c4b5fd]" aria-hidden="true" />
             <h2 className="text-sm font-semibold text-foreground">Trae tu propia clave de IA</h2>
           </div>
@@ -95,19 +95,19 @@ export function ByokModal({ abierto, token, claveGuardada, onCerrar, onCambio }:
             type="button"
             onClick={onCerrar}
             aria-label="Cerrar"
-            className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
+            className="w-10 h-10 sm:w-7 sm:h-7 shrink-0 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+        <div className="min-h-0 px-4 py-4 sm:px-5 space-y-4 max-h-[70dvh] overflow-y-auto custom-scrollbar">
           {/* Explicación: para qué sirve */}
           <div className="space-y-2 text-sm text-muted-foreground leading-relaxed">
             <p className="flex items-start gap-2">
               <Sparkles className="w-4 h-4 mt-0.5 text-[#c4b5fd] shrink-0" aria-hidden="true" />
               <span>
-                Cuando muchos estudiantes usan UniVia a la vez, la cuota compartida se satura.
+                Cuando muchos estudiantes usan Venus a la vez, la cuota compartida se satura.
                 Con tu propia clave gratuita de Google AI Studio, el asistente te responde
                 al instante, sin fila.
               </span>
@@ -176,7 +176,7 @@ export function ByokModal({ abierto, token, claveGuardada, onCerrar, onCambio }:
           )}
 
           {/* Acciones */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button type="button" onClick={probar} disabled={validando} className="gap-1.5 flex-1">
               {validando ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
               Guardar y probar

@@ -1,4 +1,4 @@
-# Diccionario de Datos del Sistema — UniVia
+# Diccionario de Datos del Sistema — Venus
 
 **Origen:** Archivos SQL canónicos del repositorio (`base_de_datos/esquema/`, `base_de_datos/rag/`)  
 **Esquema:** `public`  

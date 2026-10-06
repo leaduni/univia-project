@@ -31,9 +31,28 @@ const anton = Anton({
 })
 
 export const metadata: Metadata = {
-  title: "UniVia - Academic Orientation Dashboard",
-  description: "Personalized learning paths based on university curriculum",
+  title: {
+    default: "Venus | Orientación académica universitaria",
+    template: "%s | Venus",
+  },
+  description:
+    "Organiza tus cursos de la UNI, sigue tu avance y aprende a tu ritmo con Venus.",
+  applicationName: "Venus",
   generator: "v0.app",
+  openGraph: {
+    title: "Venus | Orientación académica universitaria",
+    description:
+      "Organiza tus cursos de la UNI, sigue tu avance y aprende a tu ritmo con Venus.",
+    siteName: "Venus",
+    locale: "es_PE",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Venus | Orientación académica universitaria",
+    description:
+      "Organiza tus cursos de la UNI, sigue tu avance y aprende a tu ritmo con Venus.",
+  },
 
   icons: {
     icon: "/Logo_LEAD_UNI.png",
@@ -43,15 +62,19 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
   viewportFit: "cover",
 }
 
 import { AuthProvider } from "@/components/providers/auth-context"
 import { ByokProvider } from "@/components/providers/byok-context"
+import { PomodoroProvider } from "@/components/providers/pomodoro-context"
 import { ThemeProvider } from "@/components/theme-provider"
 // Wrapper cliente: `ssr:false` no es válido en un Server Component (layout),
 // así que la carga lazy de react-markdown/KaTeX/GSAP se hace dentro del wrapper.
 import { ChatBubbleWrapper } from "@/components/chat/chat-bubble-wrapper"
+import { GlobalPomodoro } from "@/components/agenda/global-pomodoro"
 
 export default function RootLayout({
   children,
@@ -63,16 +86,12 @@ export default function RootLayout({
       <body className={`${poppins.variable} ${openSans.variable} ${anton.variable} font-sans antialiased text-foreground bg-background min-h-screen`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <AuthProvider>
-            {/* Estado global BYOK: permite abrir el modal de la clave de IA
-                desde cualquier página (dashboard, perfil, chat flotante). */}
             <ByokProvider>
-              {children}
-              {/* Montado a nivel de layout raíz (no en DashboardLayout) para que
-                  el hilo de la conversación sobreviva a la navegación entre
-                  páginas: cada página instancia su propio DashboardLayout, que
-                  se desmonta en cada cambio de ruta. ChatBubble decide sola
-                  cuándo mostrarse (sesión + onboarding completo). */}
-              <ChatBubbleWrapper />
+              <PomodoroProvider>
+                {children}
+                <ChatBubbleWrapper />
+                <GlobalPomodoro />
+              </PomodoroProvider>
             </ByokProvider>
           </AuthProvider>
         </ThemeProvider>

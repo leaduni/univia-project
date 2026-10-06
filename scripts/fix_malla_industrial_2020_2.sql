@@ -1,7 +1,7 @@
 -- =============================================================================
 -- FIX: Malla Ingeniería Industrial 2020-2 — Alineación con JSON de referencia
 -- =============================================================================
--- Proyecto: UniVia (leaduni/univia-project)
+-- Proyecto: Venus (leaduni/univia-project)
 -- Malla:    id=16, codigo_plan='2020-2', carrera_id=6 (Ing. Industrial)
 -- Base:     Supabase — ejecutar en SQL Editor
 -- 

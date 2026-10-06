@@ -14,7 +14,7 @@ interface FeedEmptyProps {
 
 export function FeedEmpty({ hayFiltros, onNuevoHilo, onLimpiarFiltros }: FeedEmptyProps) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-card/80 backdrop-blur-md p-10 text-center anim-up">
+    <div className="rounded-2xl border border-white/10 bg-card/80 backdrop-blur-md p-6 text-center sm:p-10 anim-up">
       <MessageSquareOff className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
       <h3 className="font-poppins font-semibold text-foreground">
         {hayFiltros ? "Sin resultados para estos filtros" : "Aún no hay hilos aquí"}
@@ -24,7 +24,7 @@ export function FeedEmpty({ hayFiltros, onNuevoHilo, onLimpiarFiltros }: FeedEmp
           ? "Prueba ajustando la búsqueda o quitando algunos filtros."
           : "Sé la primera persona en iniciar una conversación con la comunidad."}
       </p>
-      <div className="mt-5 flex items-center justify-center gap-2">
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
         {hayFiltros && (
           <button
             type="button"

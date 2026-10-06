@@ -1,6 +1,6 @@
 "use client"
 
-// Cabecera sticky del feed: buscador con debounce (lo aplica useForoFeed),
+// Cabecera del feed: buscador con debounce (lo aplica useForoFeed),
 // selector de ordenamiento y CTA "+ Nuevo hilo".
 
 import { Search, X } from "lucide-react"
@@ -44,11 +44,9 @@ const ORDENES: { valor: OrdenFeed; etiqueta: string; icono?: React.ReactNode }[]
 
 export function FeedHeader({ busqueda, onBusqueda, orden, onOrden, onNuevoHilo }: FeedHeaderProps) {
   return (
-    // Sticky: se ancla bajo el header del dashboard al hacer scroll. El fondo
-    // debe ser casi opaco para que los posts al pasar por debajo no se vean
-    // por transparencia; mb-6 deja aire claro antes de la primera tarjeta.
-    <div className="sticky top-24 z-20 mb-6">
-      <div className="rounded-2xl border border-white/[0.08] bg-[#090a12]/90 p-2 shadow-2xl shadow-black/40 backdrop-blur-2xl">
+    // Se desplaza junto a la lista para no tapar publicaciones al hacer scroll.
+    <div className="relative shrink-0">
+      <div className="rounded-2xl border border-white/[0.08] bg-[#090a12]/95 p-2 shadow-xl shadow-black/30 backdrop-blur-2xl">
         <div className="flex gap-2">
           {/* Search */}
           <div className="relative min-w-0 flex-1">

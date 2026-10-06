@@ -7,6 +7,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
+import { usePathname } from "next/navigation"
 
 const ChatBubbleLazy = dynamic(
   () => import("@/components/chat/chat-bubble").then((m) => m.ChatBubble),
@@ -14,5 +15,9 @@ const ChatBubbleLazy = dynamic(
 )
 
 export function ChatBubbleWrapper() {
+  const pathname = usePathname()
+
+  if (pathname === "/") return null
+
   return <ChatBubbleLazy />
 }

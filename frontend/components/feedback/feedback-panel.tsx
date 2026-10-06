@@ -160,7 +160,7 @@ export function FeedbackPanel() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#090a12] text-white">
+    <main className="relative min-h-dvh overflow-hidden bg-[#090a12] text-white">
       {/* =========================================================
           ATMÓSFERA / BACKGROUND
       ========================================================== */}
@@ -191,7 +191,7 @@ export function FeedbackPanel() {
           CONTENT
       ========================================================== */}
 
-      <div className="relative mx-auto w-full max-w-[1500px] px-5 py-8 sm:px-8 lg:px-10 lg:py-12">
+      <div className="relative mx-auto w-full max-w-[1500px] px-0 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-12">
 
         {/* Header */}
         <header className="mb-8 max-w-3xl lg:mb-10">
@@ -202,12 +202,12 @@ export function FeedbackPanel() {
             </span>
           </div>
 
-          <h1 className="text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl lg:text-[42px]">
+          <h1 className="text-2xl font-semibold tracking-[-0.04em] text-white break-words sm:text-4xl lg:text-[42px]">
             Sugerencias y reportes
           </h1>
 
           <p className="mt-3 max-w-2xl text-sm leading-6 text-white/45 sm:text-[15px]">
-            Cuéntanos qué mejorar, qué falla o qué te gustaría ver en UniVia.
+            Cuéntanos qué mejorar, qué falla o qué te gustaría ver en Venus.
             Tu reporte llega directamente al equipo de desarrollo.
           </p>
         </header>
@@ -216,23 +216,23 @@ export function FeedbackPanel() {
             BENTO LAYOUT
         ======================================================== */}
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 lg:items-start">
+        <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-12 lg:items-start">
 
           {/* =====================================================
               LEFT — NUEVO REPORTE
           ====================================================== */}
 
-          <section className="group relative lg:col-span-5">
+          <section className="group relative min-w-0 lg:col-span-5">
             {/* Glow exterior */}
             <div className="pointer-events-none absolute -inset-px rounded-[24px] bg-gradient-to-br from-fuchsia-500/20 via-transparent to-violet-500/10 opacity-0 blur-sm transition-opacity duration-500 group-hover:opacity-100" />
 
-            <div className="relative overflow-hidden rounded-[24px] border border-white/[0.08] bg-white/[0.025] p-5 shadow-2xl shadow-black/20 backdrop-blur-2xl sm:p-6 lg:p-7">
+            <div className="relative overflow-hidden rounded-[24px] border border-white/[0.08] bg-white/[0.025] p-4 shadow-2xl shadow-black/20 backdrop-blur-2xl sm:p-6 lg:p-7">
 
               {/* Highlight superior */}
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-fuchsia-400/30 to-transparent" />
 
               {/* Header card */}
-              <div className="mb-7 flex items-start gap-4">
+              <div className="mb-6 flex items-start gap-3 sm:mb-7 sm:gap-4">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-fuchsia-400/20 bg-fuchsia-500/[0.08] text-fuchsia-300">
                   <svg
                     className="h-5 w-5"
@@ -351,13 +351,13 @@ export function FeedbackPanel() {
                 {/* Footer formulario */}
                 <div className="flex items-center justify-between gap-4 border-t border-white/[0.06] pt-5">
                   <span className="hidden text-xs text-white/25 sm:block">
-                    Tu feedback nos ayuda a mejorar UniVia.
+                    Tu feedback nos ayuda a mejorar Venus.
                   </span>
 
                   <button
                     type="submit"
                     disabled={enviando}
-                    className="group/button ml-auto inline-flex items-center gap-2 rounded-xl border border-fuchsia-300/20 bg-gradient-to-r from-fuchsia-600 to-violet-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(168,85,247,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:border-fuchsia-300/40 hover:shadow-[0_14px_40px_rgba(168,85,247,0.30)] active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="group/button ml-auto inline-flex items-center gap-2 rounded-xl border border-fuchsia-300/20 bg-gradient-to-r from-fuchsia-600 to-violet-600 min-h-11 px-5 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(168,85,247,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:border-fuchsia-300/40 hover:shadow-[0_14px_40px_rgba(168,85,247,0.30)] active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {enviando ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -389,10 +389,10 @@ export function FeedbackPanel() {
               RIGHT — REPORTES
           ====================================================== */}
 
-          <section className="group relative lg:col-span-7">
+          <section className="group relative min-w-0 lg:col-span-7">
             <div className="pointer-events-none absolute -inset-px rounded-[24px] bg-gradient-to-br from-violet-500/10 via-transparent to-fuchsia-500/10 opacity-0 blur-sm transition-opacity duration-500 group-hover:opacity-100" />
 
-            <div className="relative overflow-hidden rounded-[24px] border border-white/[0.08] bg-white/[0.025] p-5 shadow-2xl shadow-black/20 backdrop-blur-2xl sm:p-6">
+            <div className="relative overflow-hidden rounded-[24px] border border-white/[0.08] bg-white/[0.025] p-4 shadow-2xl shadow-black/20 backdrop-blur-2xl sm:p-6">
 
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
@@ -415,12 +415,12 @@ export function FeedbackPanel() {
                 </div>
 
                 {/* Filtros */}
-                <div className="flex gap-2">
-                  <div className="relative">
+                <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+                  <div className="relative min-w-0">
                     <select
                       value={filtroEstado}
                       onChange={(e) => setFiltroEstado(e.target.value as EstadoFeedback | "todos")}
-                      className="h-9 appearance-none rounded-lg border border-white/[0.08] bg-white/[0.03] py-0 pl-3 pr-8 text-xs text-white/60 outline-none transition hover:border-white/[0.14] focus:border-fuchsia-400/30 focus:ring-2 focus:ring-fuchsia-500/10 [&>option]:bg-zinc-900"
+                      className="h-10 w-full truncate appearance-none rounded-lg sm:h-9 sm:w-auto border border-white/[0.08] bg-white/[0.03] py-0 pl-3 pr-8 text-xs text-white/60 outline-none transition hover:border-white/[0.14] focus:border-fuchsia-400/30 focus:ring-2 focus:ring-fuchsia-500/10 [&>option]:bg-zinc-900"
                     >
                       {ESTADOS_FILTRO.map((e) => (
                         <option key={e} value={e}>
@@ -432,11 +432,11 @@ export function FeedbackPanel() {
                     <FlechaDesplegable />
                   </div>
 
-                  <div className="relative">
+                  <div className="relative min-w-0">
                     <select
                       value={filtroCategoria}
                       onChange={(e) => setFiltroCategoria(e.target.value as CategoriaFeedback | "todos")}
-                      className="h-9 appearance-none rounded-lg border border-white/[0.08] bg-white/[0.03] py-0 pl-3 pr-8 text-xs text-white/60 outline-none transition hover:border-white/[0.14] focus:border-fuchsia-400/30 focus:ring-2 focus:ring-fuchsia-500/10 [&>option]:bg-zinc-900"
+                      className="h-10 w-full truncate appearance-none rounded-lg sm:h-9 sm:w-auto border border-white/[0.08] bg-white/[0.03] py-0 pl-3 pr-8 text-xs text-white/60 outline-none transition hover:border-white/[0.14] focus:border-fuchsia-400/30 focus:ring-2 focus:ring-fuchsia-500/10 [&>option]:bg-zinc-900"
                     >
                       <option value="todos">Todas las categorías</option>
                       {(Object.keys(CATEGORIAS) as CategoriaFeedback[]).map((c) => (
@@ -477,7 +477,7 @@ export function FeedbackPanel() {
                       {/* Línea luminosa al hover */}
                       <div className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-transparent via-fuchsia-400/50 to-transparent opacity-0 transition-opacity group-hover/report:opacity-100" />
 
-                      <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start justify-between gap-3 sm:gap-4">
 
                         <div className="min-w-0 flex-1">
 
@@ -520,7 +520,7 @@ export function FeedbackPanel() {
                         <button
                           type="button"
                           onClick={() => abrirTicket(t)}
-                          className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.02] text-white/25 transition-all duration-200 hover:border-white/[0.12] hover:bg-white/[0.06] hover:text-white/70"
+                          className="mt-1 flex h-10 w-10 shrink-0 items-center sm:h-8 sm:w-8 justify-center rounded-lg border border-white/[0.06] bg-white/[0.02] text-white/25 transition-all duration-200 hover:border-white/[0.12] hover:bg-white/[0.06] hover:text-white/70"
                           aria-label="Ver reporte"
                         >
                           <svg
@@ -541,7 +541,7 @@ export function FeedbackPanel() {
 
                 {/* Empty state */}
                 {!cargando && !errorLista && tickets.length === 0 && (
-                  <div className="flex min-h-[280px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.015] px-6 text-center">
+                  <div className="flex min-h-[280px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.015] px-4 text-center sm:px-6">
                     <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/[0.07] bg-white/[0.03] text-white/25">
                       <svg
                         className="h-5 w-5"

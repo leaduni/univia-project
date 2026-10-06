@@ -20,7 +20,7 @@ export function ForoSidebarLeft() {
       </section>
 
       {/* Comunidades / categorías */}
-      <section className={`${CARD} max-h-[45vh] overflow-y-auto p-4 custom-scrollbar`}>
+      <section className={`${CARD} max-h-[45dvh] overflow-y-auto p-4 custom-scrollbar`}>
         <CategoryFilter />
       </section>
 

@@ -1,6 +1,7 @@
 "use client"
 
-import { AlertCircle, ArrowRight, CheckCircle2, ChevronLeft, Loader2 } from "lucide-react"
+import { AlertCircle, ArrowRight, ChevronLeft, Loader2 } from "lucide-react"
+import { LuniMascot } from "@/components/ui/LuniMascot"
 import type { OnboardingData } from "@/types/onboarding"
 import { aRomano } from "@/lib/ciclos"
 
@@ -44,12 +45,11 @@ export function CompletionStep({
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
       <div className="text-center space-y-3 mb-8">
-        <div className="w-16 h-16 mx-auto rounded-full gradient-brand-br p-0.5 shadow-lg shadow-accent/30">
-          <div className="w-full h-full bg-background rounded-full flex items-center justify-center">
-            <CheckCircle2 className="w-8 h-8 text-accent" />
-          </div>
-        </div>
-        <h1 className="font-heading text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+{/* Luni en 'success' cierra el flujo: la pose de celebración dice lo
+            mismo que un check genérico y además da cara al asistente justo
+            antes de que el estudiante entre a la app. */}
+        <LuniMascot variant="success" size={128} animated shadow alt={null} />
+        <h1 className="font-heading text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground">
           ¡Todo listo!
         </h1>
         <p className="text-sm text-muted-foreground max-w-md mx-auto">
@@ -64,7 +64,7 @@ export function CompletionStep({
           <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             Carrera
           </span>
-          <p className="font-heading text-sm font-bold text-foreground">{careerName}</p>
+          <p className="font-heading text-sm font-bold text-foreground break-words">{careerName}</p>
           {facultadName && (
             <p className="text-xs text-muted-foreground leading-snug">{facultadName}</p>
           )}
@@ -109,7 +109,7 @@ export function CompletionStep({
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto p-6 rounded-2xl bg-card border border-border space-y-4 mb-8">
+      <div className="max-w-3xl mx-auto p-5 sm:p-6 rounded-2xl bg-card border border-border space-y-4 mb-8">
         <h3 className="font-heading text-sm font-bold uppercase tracking-wider text-muted-foreground">
           Lo que sigue
         </h3>
@@ -128,16 +128,16 @@ export function CompletionStep({
       {submitError && (
         <div className="max-w-3xl mx-auto flex items-start gap-2.5 p-4 rounded-xl bg-destructive/10 border border-destructive/30">
           <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
-          <p className="text-xs text-destructive leading-relaxed">{submitError}</p>
+          <p className="min-w-0 break-words text-xs text-destructive leading-relaxed">{submitError}</p>
         </div>
       )}
 
-      <div className="flex justify-between items-center pt-4">
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between sm:items-center pt-4">
         <button
           type="button"
           onClick={onBack}
           disabled={isSubmitting}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-border bg-card text-sm font-semibold text-foreground hover:bg-muted hover:border-accent/40 disabled:opacity-40 transition-all"
+          className="w-full sm:w-auto justify-center min-h-11 flex items-center gap-2 px-5 py-2.5 rounded-xl border border-border bg-card text-sm font-semibold text-foreground hover:bg-muted hover:border-accent/40 disabled:opacity-40 transition-all"
         >
           <ChevronLeft className="w-4 h-4" /> Atrás
         </button>
@@ -145,7 +145,7 @@ export function CompletionStep({
           type="button"
           onClick={onComplete}
           disabled={isSubmitting}
-          className="px-8 py-3 rounded-xl font-semibold text-sm text-primary-foreground gradient-login-btn disabled:opacity-40 disabled:pointer-events-none transition-all shadow-lg shadow-accent/20 active:scale-[0.99] flex items-center gap-2"
+          className="w-full sm:w-auto justify-center min-h-11 px-8 py-3 rounded-xl font-semibold text-sm text-primary-foreground gradient-login-btn disabled:opacity-40 disabled:pointer-events-none transition-all shadow-lg shadow-accent/20 active:scale-[0.99] flex items-center gap-2"
         >
           {isSubmitting ? (
             <><Loader2 className="w-4 h-4 animate-spin" />Guardando...</>

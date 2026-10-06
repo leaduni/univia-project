@@ -1,6 +1,6 @@
 -- =============================================================================
 -- SEED — Secciones iniciales del Foro (Global + 11 Facultades UNI)
--- Proyecto: UniVia (leaduni/univia-project)
+-- Proyecto: Venus (leaduni/univia-project)
 -- =============================================================================
 --
 -- Puebla el "Foro Global" y un canal por cada facultad creada en
@@ -26,7 +26,7 @@ INSERT INTO public.foro_secciones (tipo, titulo, descripcion, facultad_id)
 VALUES (
     'global',
     'Foro Global',
-    'Discusión general de la comunidad UniVia: noticias, avisos y dudas que cruzan toda la UNI.',
+    'Discusión general de la comunidad Venus: noticias, avisos y dudas que cruzan toda la UNI.',
     NULL
 );
 

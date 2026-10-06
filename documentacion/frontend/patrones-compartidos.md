@@ -1,4 +1,4 @@
-# Patrones visuales compartidos — Frontend UniVia
+# Patrones visuales compartidos — Frontend Venus
 
 Entregable de la **Fase 3 (Dashboard, Navegación y Perfil)**.
 

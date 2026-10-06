@@ -1,9 +1,9 @@
 > ⚠️ **Documento desactualizado**: describe una arquitectura anterior (rutas `/mi-malla`, `/recursos`, carpetas `hooks/`, `scripts/` que ya no existen) y no refleja la integración real actual con Supabase + FastAPI. Revisar/reescribir antes de usarlo como referencia.
 
-# UniVia - Project Structure Guide
+# Venus - Project Structure Guide
 
 ## Overview
-UniVia is a professional academic orientation platform built with Next.js 16, TypeScript, Tailwind CSS v4, and Shadcn UI. All data is centralized in a `mockData.ts` file for easy API integration later.
+Venus is a professional academic orientation platform built with Next.js 16, TypeScript, Tailwind CSS v4, and Shadcn UI. All data is centralized in a `mockData.ts` file for easy API integration later.
 
 ## Directory Structure
 
